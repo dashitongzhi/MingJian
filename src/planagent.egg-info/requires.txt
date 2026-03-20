@@ -1,0 +1,16 @@
+fastapi<1.0,>=0.116
+uvicorn[standard]<1.0,>=0.35
+sqlalchemy<3.0,>=2.0
+aiosqlite<1.0,>=0.21
+alembic<2.0,>=1.16
+pydantic<3.0,>=2.11
+pydantic-settings<3.0,>=2.10
+httpx<1.0,>=0.28
+redis<7.0,>=6.2
+psycopg[binary]<4.0,>=3.2
+pgvector<1.0,>=0.3
+
+[dev]
+pytest<9.0,>=8.4
+pytest-asyncio<2.0,>=1.1
+ruff<1.0,>=0.12

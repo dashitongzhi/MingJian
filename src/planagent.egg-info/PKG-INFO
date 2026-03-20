@@ -1,0 +1,88 @@
+Metadata-Version: 2.4
+Name: planagent
+Version: 0.1.0
+Summary: Evidence-driven scenario simulation platform bootstrap.
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi<1.0,>=0.116
+Requires-Dist: uvicorn[standard]<1.0,>=0.35
+Requires-Dist: sqlalchemy<3.0,>=2.0
+Requires-Dist: aiosqlite<1.0,>=0.21
+Requires-Dist: alembic<2.0,>=1.16
+Requires-Dist: pydantic<3.0,>=2.11
+Requires-Dist: pydantic-settings<3.0,>=2.10
+Requires-Dist: httpx<1.0,>=0.28
+Requires-Dist: redis<7.0,>=6.2
+Requires-Dist: psycopg[binary]<4.0,>=3.2
+Requires-Dist: pgvector<1.0,>=0.3
+Provides-Extra: dev
+Requires-Dist: pytest<9.0,>=8.4; extra == "dev"
+Requires-Dist: pytest-asyncio<2.0,>=1.1; extra == "dev"
+Requires-Dist: ruff<1.0,>=0.12; extra == "dev"
+
+# PlanAgent
+
+PlanAgent is the bootstrap implementation of the platform described in [PLAN.md](./PLAN.md). This first execution pass focuses on `Phase 1`: evidence-core ingestion, confidence gating, a minimal analyst review queue, and the project skeleton that later phases can extend without breaking API shape.
+
+## What is implemented now
+
+- FastAPI control plane with the Phase 1 endpoints working:
+  - `POST /ingest/runs`
+  - `GET /evidence`
+  - `GET /claims`
+  - `GET /signals`
+  - `GET /events`
+  - `GET /trends`
+  - `GET /review/items`
+  - `POST /review/items/{id}/accept`
+  - `POST /review/items/{id}/reject`
+- Shared core types for the evidence chain, simulation artifacts, and debate protocol.
+- SQLAlchemy models for ingestion, evidence, claims, review items, lightweight signal/event/trend promotion, and event archive.
+- Event bus abstraction with in-memory and Redis Streams backends.
+- Worker entrypoints for the first orchestration slice, including an ingest worker that can process queued runs.
+- Alembic bootstrap migration for the Phase 1 schema.
+- Initial simulation/domain-pack registry scaffold so later phases can add corporate and military execution logic without rewriting the core package layout.
+
+## Quick start
+
+1. Create a virtual environment and install the package:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e .[dev]
+```
+
+2. Copy `.env.example` to `.env` if you want PostgreSQL or Redis instead of the local SQLite/memory defaults.
+
+3. Start the API:
+
+```powershell
+python -m uvicorn planagent.main:app --reload
+```
+
+4. Submit a sample ingest run:
+
+```powershell
+curl -X POST http://127.0.0.1:8000/ingest/runs ^
+  -H "Content-Type: application/json" ^
+  -d "{\"requested_by\":\"analyst\",\"items\":[{\"source_type\":\"rss\",\"source_url\":\"https://example.com/post\",\"title\":\"Acme ships new GPU service\",\"content_text\":\"Acme shipped a new GPU service across three regions and reduced model training cost by 22 percent. Demand rose.\",\"published_at\":\"2026-03-15T09:00:00Z\"}]}"
+```
+
+5. Inspect the generated evidence and review queue:
+
+```powershell
+curl http://127.0.0.1:8000/evidence
+curl http://127.0.0.1:8000/claims
+curl http://127.0.0.1:8000/review/items
+```
+
+## Infrastructure
+
+`compose.yml` bootstraps PostgreSQL, Redis, MinIO, the API, and an ingest worker. The Compose stack is intentionally conservative for the first pass; pgvector/PostGIS specific tuning can be layered on once the base ingestion loop is stable.
+
+## Current limits
+
+- Simulation, branching, reports, debates, and rule reload endpoints are intentionally present but return `501` until the later phases land.
+- Claim extraction is heuristic for now. The schema and event flow are ready for a stronger knowledge worker in the next pass.
+- Tests are included, but they require the project dependencies to be installed first.

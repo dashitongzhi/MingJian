@@ -1,0 +1,107 @@
+rules:
+  - id: "mil.supply_resilience"
+    domain: "military"
+    action_id: "open_supply_line"
+    trigger:
+      keywords:
+        - "supply"
+        - "bridge"
+        - "port"
+        - "convoy"
+        - "interdict"
+    effects:
+      - target: "logistics_throughput"
+        op: "add"
+        value: 0.14
+      - target: "ammo"
+        op: "add"
+        value: 0.06
+      - target: "readiness"
+        op: "add"
+        value: 0.04
+    priority: 92
+    explanation_template: "Supply pressure in '{statement}' triggered {action_id} to recover throughput."
+  - id: "mil.weather_hardening"
+    domain: "military"
+    action_id: "fortify"
+    trigger:
+      keywords:
+        - "weather"
+        - "storm"
+        - "fog"
+        - "mud"
+    effects:
+      - target: "readiness"
+        op: "add"
+        value: 0.05
+      - target: "air_defense"
+        op: "add"
+        value: 0.03
+      - target: "mobility"
+        op: "add"
+        value: -0.03
+    priority: 84
+    explanation_template: "Weather friction in '{statement}' favored {action_id} to preserve survivability."
+  - id: "mil.isr_window"
+    domain: "military"
+    action_id: "increase_isr"
+    trigger:
+      keywords:
+        - "isr"
+        - "satellite"
+        - "recon"
+        - "radar"
+    effects:
+      - target: "isr_coverage"
+        op: "add"
+        value: 0.14
+      - target: "information_advantage"
+        op: "add"
+        value: 0.10
+      - target: "command_cohesion"
+        op: "add"
+        value: 0.03
+    priority: 78
+    explanation_template: "ISR opportunity in '{statement}' justified {action_id} to improve awareness."
+  - id: "mil.air_defense_rebalance"
+    domain: "military"
+    action_id: "rebalance_air_defense"
+    trigger:
+      keywords:
+        - "drone"
+        - "swarm"
+        - "airspace"
+        - "strike"
+    effects:
+      - target: "air_defense"
+        op: "add"
+        value: 0.12
+      - target: "civilian_risk"
+        op: "add"
+        value: -0.05
+      - target: "mobility"
+        op: "add"
+        value: -0.02
+    priority: 88
+    explanation_template: "Air threat language in '{statement}' pushed the run toward {action_id}."
+  - id: "mil.civilian_protection"
+    domain: "military"
+    action_id: "protect_civilians"
+    trigger:
+      keywords:
+        - "civilian"
+        - "evacuate"
+        - "shelter"
+        - "humanitarian"
+    effects:
+      - target: "civilian_risk"
+        op: "add"
+        value: -0.09
+      - target: "escalation_index"
+        op: "add"
+        value: -0.04
+      - target: "readiness"
+        op: "add"
+        value: -0.01
+    priority: 70
+    explanation_template: "Civilian risk in '{statement}' triggered {action_id} to limit collateral exposure."

@@ -1,0 +1,3 @@
+[console_scripts]
+planagent-api = planagent.main:run
+planagent-worker = planagent.worker_cli:main

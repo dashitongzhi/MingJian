@@ -1,0 +1,1 @@
+"""Corporate domain pack registration."""

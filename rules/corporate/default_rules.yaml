@@ -1,0 +1,87 @@
+rules:
+  - id: "corp.cost_pressure"
+    domain: "corporate"
+    action_id: "optimize_cost"
+    trigger:
+      keywords:
+        - "cost"
+        - "price"
+        - "gpu"
+        - "increase"
+    effects:
+      - target: "infra_cost_index"
+        op: "add"
+        value: -0.12
+      - target: "runway_weeks"
+        op: "add"
+        value: 6
+      - target: "delivery_velocity"
+        op: "add"
+        value: -0.03
+    priority: 88
+    explanation_template: "Cost pressure appeared in '{statement}', so the run selected {action_id} to preserve runway."
+  - id: "corp.ship_momentum"
+    domain: "corporate"
+    action_id: "ship_feature"
+    trigger:
+      keywords:
+        - "ship"
+        - "launch"
+        - "release"
+        - "announce"
+    effects:
+      - target: "brand_index"
+        op: "add"
+        value: 0.09
+      - target: "market_share"
+        op: "add"
+        value: 0.03
+      - target: "delivery_velocity"
+        op: "add"
+        value: -0.02
+    priority: 80
+    explanation_template: "Launch momentum in '{statement}' favored {action_id} to convert attention into share."
+  - id: "corp.hiring_push"
+    domain: "corporate"
+    action_id: "hire"
+    trigger:
+      keywords:
+        - "demand"
+        - "adoption"
+        - "growth"
+        - "momentum"
+    effects:
+      - target: "delivery_velocity"
+        op: "add"
+        value: 0.08
+      - target: "cash"
+        op: "add"
+        value: -10
+      - target: "runway_weeks"
+        op: "add"
+        value: -3
+      - target: "team_morale"
+        op: "add"
+        value: 0.03
+    priority: 70
+    explanation_template: "Demand growth in '{statement}' justified {action_id} despite the runway trade-off."
+  - id: "corp.margin_defense"
+    domain: "corporate"
+    action_id: "raise_price"
+    trigger:
+      keywords:
+        - "margin"
+        - "monetization"
+        - "premium"
+    effects:
+      - target: "cash"
+        op: "add"
+        value: 12
+      - target: "market_share"
+        op: "add"
+        value: -0.01
+      - target: "brand_index"
+        op: "add"
+        value: -0.01
+    priority: 60
+    explanation_template: "Margin language in '{statement}' pushed the run toward {action_id} to stabilize cash."
