@@ -28,6 +28,7 @@ from planagent.domain.models import (
 )
 from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
+from planagent.services.openai_client import TargetRole
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -93,6 +94,13 @@ def classify_claim(statement: str) -> tuple[str | None, str]:
     if any(keyword in lowered for keyword in ["trend", "momentum", "adoption", "growing", "declining"]):
         return "trend", "trajectory"
     return None, "unclassified"
+
+
+def select_extraction_target(source_type: str) -> TargetRole:
+    normalized = normalize_text(source_type).lower()
+    if normalized in {"x", "twitter", "tweet", "x.com"}:
+        return "x_search"
+    return "extraction"
 
 
 @dataclass
@@ -476,7 +484,11 @@ class PhaseOnePipelineService:
         evidence_confidence: float,
     ) -> tuple[str, list[ClaimCandidate]]:
         if self.openai_service is not None and self.openai_service.enabled:
-            extraction = await self.openai_service.extract_evidence(item.title, item.content_text)
+            extraction = await self.openai_service.extract_evidence(
+                item.title,
+                item.content_text,
+                target=select_extraction_target(item.source_type),
+            )
             if extraction is not None and extraction.claims:
                 candidates = [
                     ClaimCandidate(

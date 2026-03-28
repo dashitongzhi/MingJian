@@ -7,11 +7,27 @@ from fastapi.testclient import TestClient
 from planagent.config import reset_settings_cache
 from planagent.db import reset_database_cache
 from planagent.main import create_app
-from planagent.services.openai_client import resolve_openclaw_model_selector
+from planagent.services.openai_client import OpenAIService, resolve_openclaw_model_selector
+from planagent.config import Settings
 
 
 def build_database_url(path: Path) -> str:
     return f"sqlite+aiosqlite:///{path.resolve().as_posix()}"
+
+
+def disable_openai(monkeypatch) -> None:
+    monkeypatch.setenv("PLANAGENT_OPENAI_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_X_SEARCH_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_X_SEARCH_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_X_BEARER_TOKEN", "")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
 def test_inline_ingest_creates_review_queue_and_promotes_claims(monkeypatch, tmp_path: Path) -> None:
@@ -19,6 +35,7 @@ def test_inline_ingest_creates_review_queue_and_promotes_claims(monkeypatch, tmp
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.setenv("PLANAGENT_INLINE_INGEST_DEFAULT", "true")
+    disable_openai(monkeypatch)
     reset_settings_cache()
     reset_database_cache()
 
@@ -80,8 +97,8 @@ def test_root_and_openai_status_are_available_without_api_key(monkeypatch, tmp_p
     database_path = tmp_path / "planagent-root.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
-    monkeypatch.delenv("PLANAGENT_OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    disable_openai(monkeypatch)
+    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_MODEL", "openai/gpt-5.2")
     reset_settings_cache()
     reset_database_cache()
 
@@ -94,10 +111,15 @@ def test_root_and_openai_status_are_available_without_api_key(monkeypatch, tmp_p
         assert status_response.status_code == 200
         payload = status_response.json()
         assert payload["configured"] is False
+        assert payload["primary_configured"] is False
+        assert payload["extraction_configured"] is False
+        assert payload["x_search_configured"] is False
+        assert payload["report_configured"] is False
         assert payload["responses_api"] is True
         assert payload["primary_model"] == "openai/gpt-5.2"
         assert payload["resolved_primary_model"] == "gpt-5.2"
         assert payload["resolved_extraction_model"] == "gpt-5.2"
+        assert payload["resolved_x_search_model"] == "gpt-5.2"
 
         test_response = client.post("/admin/openai/test", json={})
         assert test_response.status_code == 503
@@ -108,4 +130,30 @@ def test_openclaw_style_model_selector_is_normalized() -> None:
     assert resolve_openclaw_model_selector("openai/gpt-5.2") == "gpt-5.2"
     assert resolve_openclaw_model_selector("openai-codex/gpt-5.2") == "gpt-5.2"
     assert resolve_openclaw_model_selector("openai/gpt-5.4") == "gpt-5.4"
+    assert resolve_openclaw_model_selector("GPT-5.4") == "gpt-5.4"
+    assert resolve_openclaw_model_selector("GPT-5.3-Codex") == "gpt-5.3-codex"
     assert resolve_openclaw_model_selector("gpt-5.2") == "gpt-5.2"
+
+
+def test_x_source_uses_x_search_target() -> None:
+    from planagent.services.pipeline import select_extraction_target
+
+    assert select_extraction_target("x") == "x_search"
+    assert select_extraction_target("twitter") == "x_search"
+    assert select_extraction_target("tweet") == "x_search"
+    assert select_extraction_target("rss") == "extraction"
+
+
+def test_raw_chat_completion_parser_supports_sse_chunks() -> None:
+    service = OpenAIService(Settings(_env_file=None))
+    response_id, text = service._parse_raw_chat_completion(
+        "\n".join(
+            [
+                'data: {"id":"abc","choices":[{"delta":{"role":"assistant","content":""}}]}',
+                'data: {"id":"abc","choices":[{"delta":{"content":"<think>internal</think>OK"}}]}',
+                "data: [DONE]",
+            ]
+        )
+    )
+    assert response_id == "abc"
+    assert text == "OK"

@@ -28,9 +28,20 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     openai_primary_model: str = "openai/gpt-5.2"
+    openai_primary_api_key: str | None = None
+    openai_primary_base_url: str | None = None
     openai_extraction_model: str | None = None
+    openai_extraction_api_key: str | None = None
+    openai_extraction_base_url: str | None = None
+    openai_x_search_model: str | None = None
+    openai_x_search_api_key: str | None = None
+    openai_x_search_base_url: str | None = None
     openai_report_model: str | None = None
+    openai_report_api_key: str | None = None
+    openai_report_base_url: str | None = None
     openai_timeout_seconds: float = 45.0
+    x_bearer_token: str | None = None
+    x_base_url: str = "https://api.x.com/2"
     accepted_claim_confidence: float = 0.70
     review_claim_confidence_floor: float = 0.45
     source_snapshot_retention_days: int = 90
@@ -46,15 +57,59 @@ class Settings(BaseSettings):
 
     @property
     def openai_enabled(self) -> bool:
-        return bool(self.resolved_openai_api_key)
+        return bool(self.resolved_openai_primary_api_key)
+
+    @property
+    def resolved_openai_primary_api_key(self) -> str | None:
+        return self.openai_primary_api_key or self.resolved_openai_api_key
+
+    @property
+    def resolved_openai_primary_base_url(self) -> str | None:
+        return self.openai_primary_base_url or self.openai_base_url
 
     @property
     def resolved_openai_extraction_model(self) -> str:
         return self.openai_extraction_model or self.openai_primary_model
 
     @property
+    def resolved_openai_extraction_api_key(self) -> str | None:
+        return self.openai_extraction_api_key or self.resolved_openai_primary_api_key
+
+    @property
+    def resolved_openai_extraction_base_url(self) -> str | None:
+        return self.openai_extraction_base_url or self.resolved_openai_primary_base_url
+
+    @property
     def resolved_openai_report_model(self) -> str:
         return self.openai_report_model or self.openai_primary_model
+
+    @property
+    def resolved_openai_report_api_key(self) -> str | None:
+        return self.openai_report_api_key or self.resolved_openai_primary_api_key
+
+    @property
+    def resolved_openai_report_base_url(self) -> str | None:
+        return self.openai_report_base_url or self.resolved_openai_primary_base_url
+
+    @property
+    def resolved_x_bearer_token(self) -> str | None:
+        return self.x_bearer_token or os.getenv("X_BEARER_TOKEN")
+
+    @property
+    def x_enabled(self) -> bool:
+        return bool(self.resolved_x_bearer_token or self.resolved_openai_x_search_api_key)
+
+    @property
+    def resolved_openai_x_search_model(self) -> str:
+        return self.openai_x_search_model or self.resolved_openai_extraction_model
+
+    @property
+    def resolved_openai_x_search_api_key(self) -> str | None:
+        return self.openai_x_search_api_key or self.resolved_openai_extraction_api_key
+
+    @property
+    def resolved_openai_x_search_base_url(self) -> str | None:
+        return self.openai_x_search_base_url or self.resolved_openai_extraction_base_url
 
 
 @lru_cache

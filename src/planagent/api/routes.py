@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import get_settings
 from planagent.db import get_session
 from planagent.domain.api import (
+    AnalysisRequest,
+    AnalysisResponse,
     IngestRunCreate,
     IngestRunRead,
     OpenAIStatusResponse,
@@ -36,6 +40,7 @@ from planagent.domain.types import (
     SignalModel,
     TrendModel,
 )
+from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.simulation import SimulationService
 
@@ -59,6 +64,10 @@ def get_simulation_service(request: Request) -> SimulationService:
     )
 
 
+def get_analysis_service(request: Request) -> AutomatedAnalysisService:
+    return AutomatedAnalysisService(get_settings(), request.app.state.openai_service)
+
+
 def planned_feature(feature: str, phase: str) -> Any:
     raise HTTPException(
         status_code=501,
@@ -80,6 +89,30 @@ async def root(request: Request) -> dict[str, object]:
 @router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/analysis", response_model=AnalysisResponse)
+async def analyze_content(
+    payload: AnalysisRequest,
+    request: Request,
+) -> AnalysisResponse:
+    service = get_analysis_service(request)
+    return await service.analyze(payload)
+
+
+@router.post("/analysis/stream")
+async def analyze_content_stream(
+    payload: AnalysisRequest,
+    request: Request,
+) -> StreamingResponse:
+    service = get_analysis_service(request)
+
+    async def event_stream():
+        async for event in service.stream_analysis(payload):
+            yield f"event: {event.event}\n"
+            yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/ingest/runs", response_model=IngestRunRead, status_code=201)
@@ -319,6 +352,7 @@ async def openai_test(
     request: Request,
 ) -> OpenAITestResponse:
     result = await request.app.state.openai_service.test_connection(
+        target=payload.target,
         model=payload.model,
         prompt=payload.prompt,
         max_output_tokens=payload.max_output_tokens,

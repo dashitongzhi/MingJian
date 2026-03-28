@@ -5,6 +5,8 @@ PlanAgent is the bootstrap implementation of the platform described in [PLAN.md]
 ## What is implemented now
 
 - FastAPI control plane with the Phase 1 endpoints working:
+  - `POST /analysis`
+  - `POST /analysis/stream`
   - `POST /ingest/runs`
   - `GET /evidence`
   - `GET /claims`
@@ -53,7 +55,15 @@ python -m pip install -e .[dev]
 
 2. Copy `.env.example` to `.env` if you want PostgreSQL or Redis instead of the local SQLite/memory defaults.
 
-If you want OpenAI-backed extraction/reporting, also set either `PLANAGENT_OPENAI_API_KEY` or `OPENAI_API_KEY`. The model selector accepts OpenClaw-style values such as `openai/gpt-5.2`; the app normalizes that to the raw OpenAI model id before calling the SDK. You can also manually test a candidate model such as `openai/gpt-5.4` through `POST /admin/openai/test`, but the current official OpenAI docs still list GPT-5.2 on the model pages, so GPT-5.4 should be treated as an explicit opt-in experiment instead of the default.
+If you want OpenAI-backed extraction/reporting, you can configure one shared OpenAI-compatible endpoint with `PLANAGENT_OPENAI_API_KEY` + `PLANAGENT_OPENAI_BASE_URL`, or configure each role separately with `PLANAGENT_OPENAI_PRIMARY_*`, `PLANAGENT_OPENAI_EXTRACTION_*`, `PLANAGENT_OPENAI_X_SEARCH_*`, and `PLANAGENT_OPENAI_REPORT_*`. The model selector accepts OpenClaw-style values such as `openai/gpt-5.2`, and it also normalizes Codex UI names such as `GPT-5.4` or `GPT-5.3-Codex` to the raw model id used by the SDK.
+
+A practical pattern is:
+- `primary`: GPT endpoint for `/admin/openai/test` and the default model route
+- `extraction`: Gemini-compatible endpoint for evidence extraction
+- `x_search`: Grok-compatible endpoint for model-backed X search and `source_type=x` extraction
+- `report`: Claude-compatible endpoint for report enhancement
+
+The app now tries `Responses API` first and falls back to `chat.completions` for compatibility gateways.
 
 3. Start the API:
 
@@ -69,6 +79,50 @@ curl -X POST http://127.0.0.1:8000/ingest/runs ^
   -d "{\"requested_by\":\"analyst\",\"items\":[{\"source_type\":\"rss\",\"source_url\":\"https://example.com/post\",\"title\":\"Acme ships new GPU service\",\"content_text\":\"Acme shipped a new GPU service across three regions and reduced model training cost by 22 percent. Demand rose.\",\"published_at\":\"2026-03-15T09:00:00Z\"}]}"
 ```
 
+You can also submit a single analysis request and let the app auto-fetch related public sources before returning a result. The current source adapters cover Google News, Reddit, Hacker News, and X. X can be sourced either from the official recent-search API with `PLANAGENT_X_BEARER_TOKEN`, or from a model-backed route when `PLANAGENT_OPENAI_X_SEARCH_*` is configured:
+
+```powershell
+$body = @{
+  content = "分析 OpenAI GPU 成本与模型发布节奏的最新变化"
+  domain_id = "corporate"
+  auto_fetch_news = $true
+  include_google_news = $true
+  include_reddit = $true
+  include_hacker_news = $true
+  include_x = $false
+  max_news_items = 5
+  max_tech_items = 3
+  max_reddit_items = 3
+  max_x_items = 3
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Uri "http://127.0.0.1:8000/analysis" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+If you want to display progress and rationale summaries while the analysis is running, use the streaming endpoint:
+
+```powershell
+$body = @{
+  content = "分析东部战区补给线受阻之后的态势变化"
+  domain_id = "military"
+  auto_fetch_news = $true
+  include_reddit = $true
+  include_x = $false
+} | ConvertTo-Json
+
+Invoke-WebRequest `
+  -Uri "http://127.0.0.1:8000/analysis/stream" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+The stream emits `step`, `source`, and `result` events. If X is enabled in the request but neither a bearer token nor an `x_search` model route is configured, the request still completes and emits a `source_skip` step explaining why X was not queried.
+
 5. Inspect the generated evidence and review queue:
 
 ```powershell
@@ -77,7 +131,13 @@ curl http://127.0.0.1:8000/claims
 curl http://127.0.0.1:8000/review/items
 curl http://127.0.0.1:8000/admin/openai/status
 curl -X POST http://127.0.0.1:8000/admin/openai/test -H "Content-Type: application/json" -d "{}"
+curl -X POST http://127.0.0.1:8000/admin/openai/test -H "Content-Type: application/json" -d "{\"target\":\"primary\",\"model\":\"GPT-5.4\"}"
+curl -X POST http://127.0.0.1:8000/admin/openai/test -H "Content-Type: application/json" -d "{\"target\":\"extraction\",\"model\":\"gemini-3.1-pro-preview-search\"}"
+curl -X POST http://127.0.0.1:8000/admin/openai/test -H "Content-Type: application/json" -d "{\"target\":\"x_search\",\"model\":\"grok-4.20-beta\"}"
+curl -X POST http://127.0.0.1:8000/admin/openai/test -H "Content-Type: application/json" -d "{\"target\":\"report\",\"model\":\"claude-sonnet-4-5-thinking\"}"
 ```
+
+If you want X-specific extraction to route through Grok, set the ingest item `source_type` to `x` or `twitter`. The pipeline will send those items to the `x_search` model target automatically.
 
 6. Run a company baseline simulation:
 
@@ -114,4 +174,5 @@ curl http://127.0.0.1:8000/military/scenarios/{scenario_id}/reports/latest
 - Debate protocols and richer map rendering are still deferred to later phases.
 - Claim extraction remains heuristic. The schema and event flow are ready for a stronger knowledge worker in the next pass.
 - OpenAI integration is optional. If the API key is missing or a model call fails, the app falls back to the built-in heuristics instead of failing the request.
+- X search is optional. Configure either `PLANAGENT_X_BEARER_TOKEN` for the official X API or `PLANAGENT_OPENAI_X_SEARCH_*` for a model-backed X route. Without either one, the analysis flow skips X and continues with Google News, Reddit, and Hacker News.
 - Tests are included, but they require the project dependencies to be installed first.

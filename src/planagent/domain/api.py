@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -144,21 +145,72 @@ class RuleReloadResponse(APIModel):
     rules_loaded: int
 
 
+class AnalysisRequest(APIModel):
+    content: str = Field(min_length=1)
+    domain_id: Literal["auto", "general", "corporate", "military"] = "auto"
+    auto_fetch_news: bool = True
+    include_google_news: bool = True
+    include_reddit: bool = True
+    include_hacker_news: bool = True
+    include_x: bool = False
+    max_news_items: int = Field(default=5, ge=0, le=10)
+    max_tech_items: int = Field(default=3, ge=0, le=10)
+    max_reddit_items: int = Field(default=3, ge=0, le=10)
+    max_x_items: int = Field(default=3, ge=0, le=10)
+
+
+class AnalysisSourceRead(APIModel):
+    source_type: str
+    title: str
+    url: str
+    summary: str
+    published_at: str | None = None
+
+
+class AnalysisStepRead(APIModel):
+    stage: str
+    message: str
+    detail: str | None = None
+
+
+class AnalysisResponse(APIModel):
+    query: str
+    domain_id: str
+    status: Literal["completed"]
+    summary: str
+    reasoning_steps: list[AnalysisStepRead] = Field(default_factory=list)
+    findings: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    sources: list[AnalysisSourceRead] = Field(default_factory=list)
+    generated_at: datetime
+
+
 class OpenAIStatusResponse(APIModel):
     configured: bool
     responses_api: bool = True
     auth_mode: str = "api_key"
+    primary_configured: bool
+    extraction_configured: bool
+    x_search_configured: bool
+    report_configured: bool
     primary_model: str
     resolved_primary_model: str
     extraction_model: str
+    x_search_model: str
     report_model: str
+    primary_base_url: str | None = None
+    extraction_base_url: str | None = None
+    x_search_base_url: str | None = None
+    report_base_url: str | None = None
     resolved_extraction_model: str
+    resolved_x_search_model: str
     resolved_report_model: str
     base_url: str | None = None
     last_error: str | None = None
 
 
 class OpenAITestRequest(APIModel):
+    target: Literal["primary", "extraction", "x_search", "report"] = "primary"
     model: str | None = None
     prompt: str = "Reply with exactly: OK"
     max_output_tokens: int = Field(default=32, ge=1, le=256)
@@ -167,8 +219,11 @@ class OpenAITestRequest(APIModel):
 class OpenAITestResponse(APIModel):
     ok: bool
     configured: bool
+    target: Literal["primary", "extraction", "x_search", "report"]
     model: str
     resolved_model: str
+    base_url: str | None = None
+    api_mode: Literal["responses", "chat.completions", "chat.completions.raw"] | None = None
     response_id: str | None = None
     output_text: str | None = None
     last_error: str | None = None

@@ -13,12 +13,25 @@ def build_database_url(path: Path) -> str:
     return f"sqlite+aiosqlite:///{path.resolve().as_posix()}"
 
 
+def disable_openai(monkeypatch) -> None:
+    monkeypatch.setenv("PLANAGENT_OPENAI_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_API_KEY", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_BASE_URL", "")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
 def test_military_simulation_branch_and_report_flow(monkeypatch, tmp_path: Path) -> None:
     database_path = tmp_path / "planagent-phase3.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.setenv("PLANAGENT_INLINE_INGEST_DEFAULT", "true")
     monkeypatch.setenv("PLANAGENT_INLINE_SIMULATION_DEFAULT", "true")
+    disable_openai(monkeypatch)
     reset_settings_cache()
     reset_database_cache()
 
