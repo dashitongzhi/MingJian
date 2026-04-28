@@ -1,12 +1,46 @@
+# Python bytecode and caches
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .ruff_cache/
-.venv/
-.env
+.mypy_cache/
+.pyre/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
-dist/
+
+# Virtual environments
+.venv/
+.venv-*/
+venv/
+env/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Build and packaging output
 build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Runtime data
 *.db
-planagent.db
+*.sqlite
+*.sqlite3
+*.log
+source_snapshots/
+
+# Local editor and OS files
+.DS_Store
+.idea/
+.vscode/
+.claude/
+
+# Local workspace notes
+current-workspace-chat-history.md

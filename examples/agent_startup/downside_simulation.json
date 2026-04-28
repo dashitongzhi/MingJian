@@ -1,0 +1,24 @@
+{
+  "company_id": "agent-founder-downside",
+  "company_name": "Agent Founder Downside",
+  "market": "enterprise-agents",
+  "tick_count": 4,
+  "actor_template": "developer_tools_saas",
+  "initial_state": {
+    "cash": 35.0,
+    "runway_weeks": 36.0,
+    "infra_cost_index": 1.05,
+    "delivery_velocity": 0.96,
+    "brand_index": 0.64,
+    "market_share": 0.012,
+    "team_morale": 1.0,
+    "pipeline": 0.7,
+    "active_deployments": 3.0,
+    "implementation_capacity": 2.2,
+    "support_load": 0.52,
+    "reliability_debt": 0.44,
+    "gross_margin": 0.56,
+    "nrr": 0.91,
+    "churn_risk": 0.22
+  }
+}

@@ -44,3 +44,5 @@ class EventTopic(StrEnum):
     VERIFICATION_FAILED = "verification.failed"
     DEBATE_TRIGGERED = "debate.triggered"
     DEBATE_COMPLETED = "debate.completed"
+    EVIDENCE_UPDATED = "evidence.updated"
+    WATCH_RULE_TRIGGERED = "watch.rule_triggered"

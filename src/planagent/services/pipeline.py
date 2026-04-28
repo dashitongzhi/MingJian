@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
+from pathlib import Path
 import re
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import Settings
@@ -23,12 +25,14 @@ from planagent.domain.models import (
     RawSourceItem,
     ReviewItem,
     Signal,
+    SourceSnapshot,
     Trend,
     utc_now,
 )
 from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
 from planagent.services.openai_client import TargetRole
+from planagent.services.startup import normalize_tenant_id
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -129,15 +133,22 @@ class PhaseOnePipelineService:
         self.openai_service = openai_service
 
     async def create_ingest_run(self, session: AsyncSession, payload: IngestRunCreate) -> IngestRun:
+        tenant_id = normalize_tenant_id(payload.tenant_id)
         execution_mode = payload.execution_mode or (
             ExecutionMode.INLINE if self.settings.inline_ingest_default else ExecutionMode.QUEUED
         )
         run = IngestRun(
             requested_by=payload.requested_by,
+            tenant_id=tenant_id,
+            preset_id=payload.preset_id,
             execution_mode=execution_mode.value,
             status=IngestRunStatus.PENDING.value,
             source_types=sorted({item.source_type for item in payload.items}),
-            request_payload={"items": [item.model_dump(mode="json") for item in payload.items]},
+            request_payload={
+                "items": [item.model_dump(mode="json") for item in payload.items],
+                "tenant_id": tenant_id,
+                "preset_id": payload.preset_id,
+            },
             summary=self._empty_summary(),
         )
         session.add(run)
@@ -157,25 +168,98 @@ class PhaseOnePipelineService:
         await session.refresh(run)
         return run
 
-    async def process_queued_runs(self, session: AsyncSession, limit: int = 10) -> int:
-        query = (
-            select(IngestRun)
-            .where(IngestRun.status == IngestRunStatus.PENDING.value)
-            .order_by(IngestRun.created_at.asc())
-            .limit(limit)
+    async def process_queued_runs(
+        self,
+        session: AsyncSession,
+        limit: int = 10,
+        worker_id: str | None = None,
+    ) -> int:
+        runs = await self._claim_ingest_runs(
+            session,
+            limit=limit,
+            worker_id=worker_id or "ingest-worker",
         )
-        runs = list((await session.scalars(query)).all())
         processed = 0
         emitted_events: list[EventEnvelope] = []
 
         for run in runs:
-            items = [SourceSeedInput.model_validate(item) for item in run.request_payload.get("items", [])]
-            await self._process_run_items(session=session, run=run, items=items, emitted_events=emitted_events)
-            processed += 1
+            try:
+                items = [SourceSeedInput.model_validate(item) for item in run.request_payload.get("items", [])]
+                await self._stage_run_items(session=session, run=run, items=items, emitted_events=emitted_events)
+                run.last_error = None
+                processed += 1
+            except Exception as exc:
+                run.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+                run.status = (
+                    IngestRunStatus.FAILED.value
+                    if run.processing_attempts >= self.settings.worker_max_attempts
+                    else IngestRunStatus.PENDING.value
+                )
+            finally:
+                run.lease_owner = None
+                run.lease_expires_at = None
+                run.updated_at = utc_now()
 
         await session.commit()
         await self._publish_events(emitted_events)
         return processed
+
+    async def process_pending_knowledge(
+        self,
+        session: AsyncSession,
+        limit: int = 50,
+        worker_id: str | None = None,
+    ) -> tuple[int, int]:
+        raw_items = await self._claim_raw_items(
+            session,
+            limit=limit,
+            worker_id=worker_id or "knowledge-worker",
+        )
+        if not raw_items:
+            return 0, 0
+
+        emitted_events: list[EventEnvelope] = []
+        run_summaries: dict[str, dict[str, int]] = {}
+        touched_runs: dict[str, IngestRun] = {}
+
+        for raw in raw_items:
+            run = await session.get(IngestRun, raw.ingest_run_id)
+            if run is None:
+                continue
+            touched_runs[run.id] = run
+            summary = run_summaries.setdefault(run.id, dict(run.summary or self._empty_summary()))
+            try:
+                await self._materialize_knowledge_for_raw_item(
+                    session=session,
+                    run=run,
+                    raw=raw,
+                    summary=summary,
+                    emitted_events=emitted_events,
+                )
+                raw.knowledge_status = "COMPLETED"
+                raw.last_error = None
+                raw.processed_at = utc_now()
+            except Exception as exc:
+                raw.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+                if raw.processing_attempts >= self.settings.worker_max_attempts:
+                    raw.knowledge_status = "FAILED"
+                    summary["failed_items"] = int(summary.get("failed_items", 0)) + 1
+                else:
+                    raw.knowledge_status = "PENDING"
+            finally:
+                raw.lease_owner = None
+                raw.lease_expires_at = None
+            run.summary = summary
+            run.updated_at = utc_now()
+
+        completed_runs = 0
+        for run in touched_runs.values():
+            if await self._finalize_queued_run(session, run):
+                completed_runs += 1
+
+        await session.commit()
+        await self._publish_events(emitted_events)
+        return len(raw_items), completed_runs
 
     async def accept_review_item(
         self, session: AsyncSession, review_item_id: str, payload: ReviewDecisionRequest
@@ -189,9 +273,13 @@ class PhaseOnePipelineService:
             raise LookupError(f"Claim {review_item.claim_id} was not found.")
 
         review_item.status = ReviewItemStatus.ACCEPTED.value
+        review_item.lease_owner = None
+        review_item.lease_expires_at = None
+        review_item.last_error = None
         review_item.reviewer_id = payload.reviewer_id
         review_item.review_note = payload.note
         review_item.resolved_at = utc_now()
+        review_item.updated_at = utc_now()
         claim.status = ClaimStatus.ACCEPTED.value
         claim.requires_review = False
         claim.updated_at = utc_now()
@@ -231,9 +319,13 @@ class PhaseOnePipelineService:
             raise LookupError(f"Claim {review_item.claim_id} was not found.")
 
         review_item.status = ReviewItemStatus.REJECTED.value
+        review_item.lease_owner = None
+        review_item.lease_expires_at = None
+        review_item.last_error = None
         review_item.reviewer_id = payload.reviewer_id
         review_item.review_note = payload.note
         review_item.resolved_at = utc_now()
+        review_item.updated_at = utc_now()
         claim.status = ClaimStatus.REJECTED.value
         claim.requires_review = False
         claim.updated_at = utc_now()
@@ -249,6 +341,7 @@ class PhaseOnePipelineService:
             "accepted_claims": 0,
             "review_claims": 0,
             "archived_claims": 0,
+            "failed_items": 0,
         }
 
     async def _process_run_items(
@@ -262,49 +355,108 @@ class PhaseOnePipelineService:
         summary = dict(run.summary or self._empty_summary())
 
         for item in items:
-            duplicate = await self._find_duplicate(session, item)
-            if duplicate is not None:
+            try:
+                async with session.begin_nested():
+                    raw = await self._persist_raw_item(
+                        session=session,
+                        run=run,
+                        item=item,
+                        emitted_events=emitted_events,
+                    )
+                    await self._materialize_knowledge_for_raw_item(
+                        session=session,
+                        run=run,
+                        raw=raw,
+                        summary=summary,
+                        emitted_events=emitted_events,
+                    )
+                    raw.knowledge_status = "COMPLETED"
+                    raw.last_error = None
+                    raw.processed_at = utc_now()
+            except IntegrityError:
                 summary["duplicate_items"] += 1
-                continue
-
-            await self._persist_seed_item(
-                session=session,
-                run=run,
-                item=item,
-                summary=summary,
-                emitted_events=emitted_events,
-            )
 
         run.summary = summary
         run.status = IngestRunStatus.COMPLETED.value
+        run.lease_owner = None
+        run.lease_expires_at = None
         run.updated_at = utc_now()
 
-    async def _find_duplicate(self, session: AsyncSession, item: SourceSeedInput) -> RawSourceItem | None:
+    async def _stage_run_items(
+        self,
+        session: AsyncSession,
+        run: IngestRun,
+        items: list[SourceSeedInput],
+        emitted_events: list[EventEnvelope],
+    ) -> None:
+        run.status = IngestRunStatus.PROCESSING.value
+        summary = dict(run.summary or self._empty_summary())
+        staged_items = 0
+
+        for item in items:
+            try:
+                async with session.begin_nested():
+                    await self._persist_raw_item(
+                        session=session,
+                        run=run,
+                        item=item,
+                        emitted_events=emitted_events,
+                    )
+                    staged_items += 1
+            except IntegrityError:
+                summary["duplicate_items"] += 1
+
+        run.summary = summary
+        run.lease_owner = None
+        run.lease_expires_at = None
+        run.updated_at = utc_now()
+        if staged_items == 0:
+            run.status = IngestRunStatus.COMPLETED.value
+
+    async def _find_duplicate(
+        self,
+        session: AsyncSession,
+        item: SourceSeedInput,
+        tenant_id: str | None,
+    ) -> RawSourceItem | None:
         dedupe_key = build_dedupe_key(item)
         query = select(RawSourceItem).where(RawSourceItem.dedupe_key == dedupe_key)
-        return (await session.scalars(query)).first()
+        candidates = list((await session.scalars(query)).all())
+        for candidate in candidates:
+            candidate_tenant_id = normalize_tenant_id(candidate.tenant_id)
+            if candidate_tenant_id == normalize_tenant_id(tenant_id):
+                return candidate
+        return None
 
-    async def _persist_seed_item(
+    async def _persist_raw_item(
         self,
         session: AsyncSession,
         run: IngestRun,
         item: SourceSeedInput,
-        summary: dict[str, int],
         emitted_events: list[EventEnvelope],
-    ) -> None:
+    ) -> RawSourceItem:
         dedupe_key = build_dedupe_key(item)
+        tenant_id = normalize_tenant_id(run.request_payload.get("tenant_id"))
         raw = RawSourceItem(
             ingest_run_id=run.id,
+            tenant_id=tenant_id,
+            preset_id=run.request_payload.get("preset_id"),
             source_type=item.source_type,
             source_url=normalize_url(item.source_url),
             title=normalize_text(item.title),
             content_text=normalize_text(item.content_text),
             published_at=item.published_at,
-            source_metadata=item.source_metadata,
+            source_metadata={
+                **item.source_metadata,
+                "tenant_id": tenant_id,
+                "preset_id": run.request_payload.get("preset_id"),
+            },
             dedupe_key=dedupe_key,
+            knowledge_status="PENDING",
         )
         session.add(raw)
         await session.flush()
+        await self._archive_source_snapshot(session, raw)
         self._buffer_event(
             session,
             emitted_events,
@@ -314,6 +466,103 @@ class PhaseOnePipelineService:
                 "raw_source_item_id": raw.id,
                 "source_type": raw.source_type,
             },
+        )
+        return raw
+
+    async def _archive_source_snapshot(self, session: AsyncSession, raw: RawSourceItem) -> None:
+        content = {
+            "source_type": raw.source_type,
+            "source_url": raw.source_url,
+            "title": raw.title,
+            "content_text": raw.content_text,
+            "published_at": raw.published_at.isoformat() if raw.published_at else None,
+            "source_metadata": raw.source_metadata,
+        }
+        encoded = __import__("json").dumps(content, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        digest = hashlib.sha256(encoded).hexdigest()
+        storage_backend = self.settings.source_snapshot_backend.lower()
+        storage_uri = self._archive_snapshot_bytes(raw.id, encoded, storage_backend)
+        session.add(
+            SourceSnapshot(
+                raw_source_item_id=raw.id,
+                tenant_id=raw.tenant_id,
+                preset_id=raw.preset_id,
+                storage_backend=storage_backend if storage_backend == "minio" else "filesystem",
+                storage_uri=storage_uri,
+                content_sha256=digest,
+                byte_size=len(encoded),
+            )
+        )
+
+    def _archive_snapshot_bytes(self, raw_id: str, encoded: bytes, storage_backend: str) -> str:
+        if storage_backend == "minio":
+            uri = self._try_archive_snapshot_to_minio(raw_id, encoded)
+            if uri:
+                return uri
+        snapshot_dir = Path(self.settings.source_snapshot_dir)
+        if not snapshot_dir.is_absolute():
+            snapshot_dir = Path.cwd() / snapshot_dir
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        snapshot_path = snapshot_dir / f"{raw_id}.json"
+        snapshot_path.write_bytes(encoded)
+        return str(snapshot_path)
+
+    def _try_archive_snapshot_to_minio(self, raw_id: str, encoded: bytes) -> str | None:
+        try:
+            from io import BytesIO
+            from minio import Minio
+            from minio.error import S3Error
+        except ImportError:
+            return None
+
+        bucket = self.settings.minio_bucket
+        client = Minio(
+            self.settings.minio_endpoint,
+            access_key=self.settings.minio_access_key,
+            secret_key=self.settings.minio_secret_key,
+            secure=self.settings.minio_secure,
+        )
+        object_name = f"raw-source-items/{raw_id}.json"
+        try:
+            if not client.bucket_exists(bucket):
+                client.make_bucket(bucket)
+            client.put_object(
+                bucket,
+                object_name,
+                BytesIO(encoded),
+                length=len(encoded),
+                content_type="application/json",
+            )
+        except S3Error:
+            return None
+        return f"minio://{bucket}/{object_name}"
+
+    async def _materialize_knowledge_for_raw_item(
+        self,
+        session: AsyncSession,
+        run: IngestRun,
+        raw: RawSourceItem,
+        summary: dict[str, int],
+        emitted_events: list[EventEnvelope],
+    ) -> None:
+        existing_normalized = (
+            await session.scalars(
+                select(NormalizedItem).where(NormalizedItem.raw_source_item_id == raw.id).limit(1)
+            )
+        ).first()
+        if existing_normalized is not None:
+            raw.knowledge_status = "COMPLETED"
+            raw.last_error = None
+            raw.processed_at = utc_now()
+            return
+
+        item = SourceSeedInput(
+            source_type=raw.source_type,
+            source_url=raw.source_url,
+            title=raw.title,
+            content_text=raw.content_text,
+            published_at=raw.published_at,
+            source_metadata=raw.source_metadata,
         )
 
         evidence_confidence = estimate_evidence_confidence(item)
@@ -330,13 +579,20 @@ class PhaseOnePipelineService:
 
         evidence = EvidenceItem(
             normalized_item_id=normalized.id,
+            tenant_id=raw.tenant_id,
+            preset_id=raw.preset_id,
             evidence_type="article",
             title=normalized.title,
             summary=summarize_text(normalized.body_text),
             body_text=normalized.body_text,
             source_url=normalized.canonical_url,
             confidence=evidence_confidence,
-            provenance={"raw_source_item_id": raw.id},
+            provenance={
+                "raw_source_item_id": raw.id,
+                "ingest_run_id": run.id,
+                "tenant_id": normalize_tenant_id(run.request_payload.get("tenant_id")),
+                "preset_id": run.request_payload.get("preset_id"),
+            },
         )
         session.add(evidence)
         await session.flush()
@@ -376,6 +632,62 @@ class PhaseOnePipelineService:
         )
         summary["processed_items"] += 1
 
+    async def _finalize_queued_run(self, session: AsyncSession, run: IngestRun) -> bool:
+        total_requested = len(run.request_payload.get("items", []))
+        duplicate_items = int((run.summary or {}).get("duplicate_items", 0))
+        raw_count = int(
+            (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(RawSourceItem)
+                    .where(RawSourceItem.ingest_run_id == run.id)
+                )
+            )
+            or 0
+        )
+        pending_raw_count = int(
+            (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(RawSourceItem)
+                    .where(
+                        RawSourceItem.ingest_run_id == run.id,
+                        RawSourceItem.knowledge_status.in_(["PENDING", "PROCESSING"]),
+                    )
+                )
+            )
+            or 0
+        )
+        failed_raw_count = int(
+            (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(RawSourceItem)
+                    .where(
+                        RawSourceItem.ingest_run_id == run.id,
+                        RawSourceItem.knowledge_status == "FAILED",
+                    )
+                )
+            )
+            or 0
+        )
+        if raw_count + duplicate_items < total_requested:
+            run.status = IngestRunStatus.PROCESSING.value
+            run.updated_at = utc_now()
+            return False
+        if pending_raw_count > 0:
+            run.status = IngestRunStatus.PROCESSING.value
+            run.updated_at = utc_now()
+            return False
+        if failed_raw_count > 0:
+            run.summary = {**(run.summary or {}), "failed_items": failed_raw_count}
+            run.status = IngestRunStatus.FAILED.value
+            run.updated_at = utc_now()
+            return True
+        run.status = IngestRunStatus.COMPLETED.value
+        run.updated_at = utc_now()
+        return True
+
     async def _create_claim(
         self,
         session: AsyncSession,
@@ -405,10 +717,13 @@ class PhaseOnePipelineService:
 
         claim = Claim(
             evidence_item_id=evidence.id,
+            tenant_id=evidence.tenant_id,
+            preset_id=evidence.preset_id,
             subject=evidence.title[:255],
             predicate="states",
             object_text=candidate.statement,
             statement=candidate.statement,
+            kind=candidate.kind or classify_claim(candidate.statement)[0] or "unclassified",
             confidence=confidence,
             status=status.value,
             requires_review=requires_review,
@@ -422,6 +737,8 @@ class PhaseOnePipelineService:
         elif status == ClaimStatus.PENDING_REVIEW:
             review_item = ReviewItem(
                 claim_id=claim.id,
+                tenant_id=claim.tenant_id,
+                preset_id=claim.preset_id,
                 queue_reason="Claim confidence landed in the manual review band.",
                 status=ReviewItemStatus.PENDING.value,
             )
@@ -456,13 +773,38 @@ class PhaseOnePipelineService:
             artifact_kind, artifact_type = classify_claim(claim.statement)
         title = summarize_text(claim.statement, max_length=120)
         if artifact_kind == "signal":
-            session.add(Signal(claim_id=claim.id, signal_type=artifact_type, title=title, confidence=claim.confidence))
+            session.add(
+                Signal(
+                    claim_id=claim.id,
+                    tenant_id=claim.tenant_id,
+                    preset_id=claim.preset_id,
+                    signal_type=artifact_type,
+                    title=title,
+                    confidence=claim.confidence,
+                )
+            )
         elif artifact_kind == "event":
             session.add(
-                EventRecord(claim_id=claim.id, event_type=artifact_type, title=title, confidence=claim.confidence)
+                EventRecord(
+                    claim_id=claim.id,
+                    tenant_id=claim.tenant_id,
+                    preset_id=claim.preset_id,
+                    event_type=artifact_type,
+                    title=title,
+                    confidence=claim.confidence,
+                )
             )
         elif artifact_kind == "trend":
-            session.add(Trend(claim_id=claim.id, trend_type=artifact_type, title=title, confidence=claim.confidence))
+            session.add(
+                Trend(
+                    claim_id=claim.id,
+                    tenant_id=claim.tenant_id,
+                    preset_id=claim.preset_id,
+                    trend_type=artifact_type,
+                    title=title,
+                    confidence=claim.confidence,
+                )
+            )
 
     def _buffer_event(
         self,
@@ -483,11 +825,12 @@ class PhaseOnePipelineService:
         item: SourceSeedInput,
         evidence_confidence: float,
     ) -> tuple[str, list[ClaimCandidate]]:
-        if self.openai_service is not None and self.openai_service.enabled:
+        extraction_target = select_extraction_target(item.source_type)
+        if self.openai_service is not None and self.openai_service.is_configured(extraction_target):
             extraction = await self.openai_service.extract_evidence(
                 item.title,
                 item.content_text,
-                target=select_extraction_target(item.source_type),
+                target=extraction_target,
             )
             if extraction is not None and extraction.claims:
                 candidates = [
@@ -520,3 +863,116 @@ class PhaseOnePipelineService:
             return heuristic
         blended = (heuristic + extracted_confidence) / 2
         return max(0.25, min(blended, 0.95))
+
+    async def _claim_ingest_runs(
+        self,
+        session: AsyncSession,
+        limit: int,
+        worker_id: str,
+    ) -> list[IngestRun]:
+        now = utc_now()
+        lease_expires_at = now + timedelta(seconds=self.settings.worker_lease_seconds)
+        candidate_ids = list(
+            (
+                await session.scalars(
+                    select(IngestRun.id)
+                    .where(
+                        or_(
+                            IngestRun.status == IngestRunStatus.PENDING.value,
+                            and_(
+                                IngestRun.status == IngestRunStatus.PROCESSING.value,
+                                or_(IngestRun.lease_expires_at.is_(None), IngestRun.lease_expires_at < now),
+                            ),
+                        )
+                    )
+                    .order_by(IngestRun.created_at.asc())
+                    .limit(limit * 3)
+                )
+            ).all()
+        )
+        claimed: list[IngestRun] = []
+        for run_id in candidate_ids:
+            result = await session.execute(
+                update(IngestRun)
+                .where(
+                    IngestRun.id == run_id,
+                    or_(
+                        IngestRun.status == IngestRunStatus.PENDING.value,
+                        and_(
+                            IngestRun.status == IngestRunStatus.PROCESSING.value,
+                            or_(IngestRun.lease_expires_at.is_(None), IngestRun.lease_expires_at < now),
+                        ),
+                    ),
+                )
+                .values(
+                    status=IngestRunStatus.PROCESSING.value,
+                    lease_owner=worker_id,
+                    lease_expires_at=lease_expires_at,
+                    processing_attempts=IngestRun.processing_attempts + 1,
+                    updated_at=now,
+                )
+            )
+            if result.rowcount:
+                run = await session.get(IngestRun, run_id)
+                if run is not None:
+                    claimed.append(run)
+            if len(claimed) >= limit:
+                break
+        return claimed
+
+    async def _claim_raw_items(
+        self,
+        session: AsyncSession,
+        limit: int,
+        worker_id: str,
+    ) -> list[RawSourceItem]:
+        now = utc_now()
+        lease_expires_at = now + timedelta(seconds=self.settings.worker_lease_seconds)
+        candidate_ids = list(
+            (
+                await session.scalars(
+                    select(RawSourceItem.id)
+                    .join(IngestRun, IngestRun.id == RawSourceItem.ingest_run_id)
+                    .where(
+                        IngestRun.status == IngestRunStatus.PROCESSING.value,
+                        or_(
+                            RawSourceItem.knowledge_status == "PENDING",
+                            and_(
+                                RawSourceItem.knowledge_status == "PROCESSING",
+                                or_(RawSourceItem.lease_expires_at.is_(None), RawSourceItem.lease_expires_at < now),
+                            ),
+                        ),
+                    )
+                    .order_by(RawSourceItem.created_at.asc())
+                    .limit(limit * 3)
+                )
+            ).all()
+        )
+        claimed: list[RawSourceItem] = []
+        for raw_id in candidate_ids:
+            result = await session.execute(
+                update(RawSourceItem)
+                .where(
+                    RawSourceItem.id == raw_id,
+                    or_(
+                        RawSourceItem.knowledge_status == "PENDING",
+                        and_(
+                            RawSourceItem.knowledge_status == "PROCESSING",
+                            or_(RawSourceItem.lease_expires_at.is_(None), RawSourceItem.lease_expires_at < now),
+                        ),
+                    ),
+                )
+                .values(
+                    knowledge_status="PROCESSING",
+                    lease_owner=worker_id,
+                    lease_expires_at=lease_expires_at,
+                    processing_attempts=RawSourceItem.processing_attempts + 1,
+                )
+            )
+            if result.rowcount:
+                raw = await session.get(RawSourceItem, raw_id)
+                if raw is not None:
+                    claimed.append(raw)
+            if len(claimed) >= limit:
+                break
+        return claimed

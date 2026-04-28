@@ -63,6 +63,28 @@ class XSearchResultPayload(BaseModel):
     posts: list[XSearchPostPayload] = Field(default_factory=list)
 
 
+class PanelPerspectivePayload(BaseModel):
+    stance: Literal["support", "challenge", "monitor"] = "monitor"
+    summary: str
+    key_points: list[str] = Field(default_factory=list)
+    recommendation: str
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ActionDecisionPayload(BaseModel):
+    action_id: str
+    reasoning: str
+    expected_effect: dict[str, float] = Field(default_factory=dict)
+
+
+class DebatePositionPayload(BaseModel):
+    position: Literal["SUPPORT", "OPPOSE", "CONDITIONAL"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    arguments: list[dict[str, str]] = Field(default_factory=list)
+    rebuttals: list[dict[str, str]] = Field(default_factory=list)
+    concessions: list[dict[str, str]] = Field(default_factory=list)
+
+
 class OpenAIService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -85,6 +107,9 @@ class OpenAIService:
                 settings.resolved_openai_report_base_url,
             ),
         }
+        self.target_diagnostics: dict[TargetRole, dict[str, str | bool | None]] = {
+            target: self._default_target_diagnostic(target) for target in self.clients
+        }
 
     def _build_client(self, api_key: str | None, base_url: str | None) -> AsyncOpenAI | None:
         if not api_key:
@@ -97,10 +122,13 @@ class OpenAIService:
 
     @property
     def enabled(self) -> bool:
-        return self.clients["primary"] is not None
+        return bool(self.configured_targets())
 
     def is_configured(self, target: TargetRole) -> bool:
         return self.clients[target] is not None
+
+    def configured_targets(self) -> list[TargetRole]:
+        return [target for target, client in self.clients.items() if client is not None]
 
     async def close(self) -> None:
         seen: set[int] = set()
@@ -114,21 +142,23 @@ class OpenAIService:
             await client.close()
 
     def status(self) -> OpenAIStatusResponse:
+        configured_targets = self.configured_targets()
         return OpenAIStatusResponse(
-            configured=self.enabled,
+            configured=bool(configured_targets),
             primary_configured=self.clients["primary"] is not None,
             extraction_configured=self.clients["extraction"] is not None,
             x_search_configured=self.clients["x_search"] is not None,
             report_configured=self.clients["report"] is not None,
+            configured_targets=configured_targets,
             primary_model=self.settings.openai_primary_model,
             resolved_primary_model=resolve_openclaw_model_selector(self.settings.openai_primary_model),
             extraction_model=self.settings.resolved_openai_extraction_model,
             x_search_model=self.settings.resolved_openai_x_search_model,
             report_model=self.settings.resolved_openai_report_model,
-            primary_base_url=self.settings.resolved_openai_primary_base_url,
-            extraction_base_url=self.settings.resolved_openai_extraction_base_url,
-            x_search_base_url=self.settings.resolved_openai_x_search_base_url,
-            report_base_url=self.settings.resolved_openai_report_base_url,
+            primary_base_url=self._base_url_for_target("primary"),
+            extraction_base_url=self._base_url_for_target("extraction"),
+            x_search_base_url=self._base_url_for_target("x_search"),
+            report_base_url=self._base_url_for_target("report"),
             resolved_extraction_model=resolve_openclaw_model_selector(
                 self.settings.resolved_openai_extraction_model
             ),
@@ -138,7 +168,28 @@ class OpenAIService:
             resolved_report_model=resolve_openclaw_model_selector(
                 self.settings.resolved_openai_report_model
             ),
-            base_url=self.settings.resolved_openai_primary_base_url,
+            model_sources={
+                "primary": self.settings.openai_model_source("primary"),
+                "extraction": self.settings.openai_model_source("extraction"),
+                "x_search": self.settings.openai_model_source("x_search"),
+                "report": self.settings.openai_model_source("report"),
+            },
+            api_key_sources={
+                "primary": self.settings.openai_api_key_source("primary"),
+                "extraction": self.settings.openai_api_key_source("extraction"),
+                "x_search": self.settings.openai_api_key_source("x_search"),
+                "report": self.settings.openai_api_key_source("report"),
+            },
+            base_url_sources={
+                "primary": self.settings.openai_base_url_source("primary"),
+                "extraction": self.settings.openai_base_url_source("extraction"),
+                "x_search": self.settings.openai_base_url_source("x_search"),
+                "report": self.settings.openai_base_url_source("report"),
+            },
+            target_diagnostics={
+                target: dict(values) for target, values in self.target_diagnostics.items()
+            },
+            base_url=self._base_url_for_target("primary"),
             last_error=self.last_error,
         )
 
@@ -175,15 +226,66 @@ class OpenAIService:
         leading_indicators: list[dict[str, float]],
         matched_rules: list[str],
     ) -> ReportNarrativePayload | None:
-        prompt = (
-            f"Company: {company_name}\n"
-            f"Evidence statements: {evidence_statements[:5]}\n"
-            f"Actions taken: {actions[:10]}\n"
-            f"Leading indicators: {leading_indicators}\n"
-            f"Matched rules: {matched_rules[:10]}\n"
-            "Return a concise executive summary, a short explanation of why the result happened, "
-            "and up to 4 practical recommendations."
+        return await self._enhance_report(
+            subject_label="Company",
+            subject_name=company_name,
+            evidence_statements=evidence_statements,
+            actions=actions,
+            leading_indicators=leading_indicators,
+            matched_rules=matched_rules,
+            extra_lines=[],
         )
+
+    async def enhance_military_report(
+        self,
+        force_name: str,
+        theater: str,
+        evidence_statements: list[str],
+        actions: list[str],
+        leading_indicators: list[dict[str, float]],
+        matched_rules: list[str],
+        external_shocks: list[dict[str, str | int | list[str]]],
+        scenario_assumptions: list[str] | None = None,
+    ) -> ReportNarrativePayload | None:
+        extra_lines = [
+            f"Theater: {theater}",
+            f"External shocks: {external_shocks[:5]}",
+        ]
+        if scenario_assumptions:
+            extra_lines.append(f"Scenario assumptions: {scenario_assumptions[:5]}")
+
+        return await self._enhance_report(
+            subject_label="Force",
+            subject_name=force_name,
+            evidence_statements=evidence_statements,
+            actions=actions,
+            leading_indicators=leading_indicators,
+            matched_rules=matched_rules,
+            extra_lines=extra_lines,
+        )
+
+    async def _enhance_report(
+        self,
+        subject_label: str,
+        subject_name: str,
+        evidence_statements: list[str],
+        actions: list[str],
+        leading_indicators: list[dict[str, float]],
+        matched_rules: list[str],
+        extra_lines: list[str],
+    ) -> ReportNarrativePayload | None:
+        prompt_lines = [
+            f"{subject_label}: {subject_name}",
+            f"Evidence statements: {evidence_statements[:5]}",
+            f"Actions taken: {actions[:10]}",
+            f"Leading indicators: {leading_indicators}",
+            f"Matched rules: {matched_rules[:10]}",
+            *extra_lines,
+            (
+                "Return a concise executive summary, a short explanation of why the result happened, "
+                "and up to 4 practical recommendations."
+            ),
+        ]
         return await self._parse_structured_output(
             target="report",
             schema=ReportNarrativePayload,
@@ -191,7 +293,7 @@ class OpenAIService:
                 "You write evidence-grounded operational summaries. "
                 "Do not invent data that is not present in the prompt."
             ),
-            prompt=prompt,
+            prompt="\n".join(prompt_lines),
             max_output_tokens=900,
             error_prefix="report_enhancement_failed",
         )
@@ -209,6 +311,12 @@ class OpenAIService:
         base_url = self._base_url_for_target(target)
 
         if client is None:
+            self._record_target_failure(
+                target=target,
+                error_prefix="connectivity_test_failed",
+                failures=["client not configured"],
+                model=resolved_model,
+            )
             return OpenAITestResponse(
                 ok=False,
                 configured=False,
@@ -225,7 +333,12 @@ class OpenAIService:
                 input=prompt,
                 max_output_tokens=max_output_tokens,
             )
-            self.last_error = None
+            self._record_target_success(
+                target=target,
+                api_mode="responses",
+                model=resolved_model,
+                response_id=response.id,
+            )
             output_text = getattr(response, "output_text", None)
             return OpenAITestResponse(
                 ok=True,
@@ -245,7 +358,12 @@ class OpenAIService:
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=max_output_tokens,
                 )
-                self.last_error = None
+                self._record_target_success(
+                    target=target,
+                    api_mode="chat.completions",
+                    model=resolved_model,
+                    response_id=getattr(chat_response, "id", None),
+                )
                 output_text = self._extract_chat_text(chat_response)
                 return OpenAITestResponse(
                     ok=True,
@@ -266,7 +384,12 @@ class OpenAIService:
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=max_output_tokens,
                     )
-                    self.last_error = None
+                    self._record_target_success(
+                        target=target,
+                        api_mode="chat.completions.raw",
+                        model=resolved_model,
+                        response_id=response_id,
+                    )
                     return OpenAITestResponse(
                         ok=True,
                         configured=True,
@@ -279,9 +402,15 @@ class OpenAIService:
                         output_text=output_text,
                     )
                 except Exception as raw_exc:
-                    self.last_error = (
-                        "connectivity_test_failed: "
-                        f"responses={responses_exc}; chat.completions={chat_exc}; raw={raw_exc}"
+                    last_error = self._record_target_failure(
+                        target=target,
+                        error_prefix="connectivity_test_failed",
+                        failures=[
+                            f"responses={self._sanitize_exception(responses_exc)}",
+                            f"chat.completions={self._sanitize_exception(chat_exc)}",
+                            f"raw={self._sanitize_exception(raw_exc)}",
+                        ],
+                        model=resolved_model,
                     )
                     return OpenAITestResponse(
                         ok=False,
@@ -290,7 +419,7 @@ class OpenAIService:
                         model=selected_model,
                         resolved_model=resolved_model,
                         base_url=base_url,
-                        last_error=self.last_error,
+                        last_error=last_error,
                     )
 
     async def _parse_structured_output(
@@ -304,6 +433,12 @@ class OpenAIService:
     ) -> BaseModel | None:
         client = self.clients[target]
         if client is None:
+            self._record_target_failure(
+                target=target,
+                error_prefix=error_prefix,
+                failures=["client not configured"],
+                model=resolve_openclaw_model_selector(self._model_for_target(target)),
+            )
             return None
 
         model = resolve_openclaw_model_selector(self._model_for_target(target))
@@ -316,7 +451,7 @@ class OpenAIService:
                 max_output_tokens=max_output_tokens,
                 verbosity="low",
             )
-            self.last_error = None
+            self._record_target_success(target=target, api_mode="responses.parse", model=model)
             return response.output_parsed
         except Exception as responses_exc:
             try:
@@ -337,7 +472,7 @@ class OpenAIService:
                     response_format={"type": "json_object"},
                 )
                 raw_text = self._extract_chat_text(chat_response)
-                self.last_error = None
+                self._record_target_success(target=target, api_mode="chat.completions.json", model=model)
                 return schema.model_validate_json(raw_text)
             except Exception as chat_json_exc:
                 try:
@@ -357,7 +492,7 @@ class OpenAIService:
                         max_tokens=max_output_tokens,
                     )
                     raw_text = self._extract_chat_text(chat_response)
-                    self.last_error = None
+                    self._record_target_success(target=target, api_mode="chat.completions", model=model)
                     return schema.model_validate_json(self._extract_json_payload(raw_text))
                 except Exception as chat_exc:
                     try:
@@ -378,12 +513,23 @@ class OpenAIService:
                             max_tokens=max_output_tokens,
                             response_format={"type": "json_object"},
                         )
-                        self.last_error = None
+                        self._record_target_success(
+                            target=target,
+                            api_mode="chat.completions.raw",
+                            model=model,
+                        )
                         return schema.model_validate_json(self._extract_json_payload(raw_text))
                     except Exception as raw_exc:
-                        self.last_error = (
-                            f"{error_prefix}: responses={responses_exc}; "
-                            f"chat.json={chat_json_exc}; chat.completions={chat_exc}; raw={raw_exc}"
+                        self._record_target_failure(
+                            target=target,
+                            error_prefix=error_prefix,
+                            failures=[
+                                f"responses={self._sanitize_exception(responses_exc)}",
+                                f"chat.json={self._sanitize_exception(chat_json_exc)}",
+                                f"chat.completions={self._sanitize_exception(chat_exc)}",
+                                f"raw={self._sanitize_exception(raw_exc)}",
+                            ],
+                            model=model,
                         )
                         return None
 
@@ -436,6 +582,131 @@ class OpenAIService:
             error_prefix="x_search_failed",
         )
 
+    async def generate_panel_perspective(
+        self,
+        target: TargetRole,
+        label: str,
+        topic: str,
+        domain_id: str,
+        subject_name: str,
+        analysis_summary: str,
+        findings: list[str],
+        report_summary: str,
+    ) -> PanelPerspectivePayload | None:
+        prompt = (
+            f"Role: {label}\n"
+            f"Domain: {domain_id}\n"
+            f"Subject: {subject_name}\n"
+            f"User topic: {topic}\n"
+            f"Analysis summary: {analysis_summary}\n"
+            f"Key findings: {findings[:5]}\n"
+            f"Simulation/report summary: {report_summary[:1200]}\n\n"
+            "Return one panel perspective with a stance, a short summary, up to 4 key points, "
+            "one recommendation, and a confidence score."
+        )
+        return await self._parse_structured_output(
+            target=target,
+            schema=PanelPerspectivePayload,
+            instructions=(
+                "You are one member of a strategic decision panel. "
+                "Stay concise, evidence-grounded, and practical. "
+                "Do not invent data that is not present in the prompt."
+            ),
+            prompt=prompt,
+            max_output_tokens=900,
+            error_prefix="panel_discussion_failed",
+        )
+
+    async def generate_action_decision(
+        self,
+        domain_id: str,
+        state_summary: str,
+        available_actions: list[dict[str, str]],
+        recent_decisions: list[dict[str, str]],
+        evidence: list[str],
+        target: TargetRole = "report",
+    ) -> ActionDecisionPayload | None:
+        actions_text = "\n".join(
+            f"- {a['action_id']}: {a.get('description', a['action_id'])}" for a in available_actions
+        )
+        decisions_text = "\n".join(
+            f"- tick {d.get('tick', '?')}: {d.get('action_id', '?')} — {d.get('why', '')[:120]}" for d in recent_decisions
+        )
+        evidence_text = "\n".join(f"- {e[:200]}" for e in evidence[:5])
+        prompt = (
+            f"Domain: {domain_id}\n"
+            f"Current state:\n{state_summary[:1200]}\n\n"
+            f"Available actions:\n{actions_text}\n\n"
+            f"Recent decisions:\n{decisions_text or 'None'}\n\n"
+            f"Evidence:\n{evidence_text or 'None'}\n\n"
+            "Select ONE action from the available actions. "
+            "Return the action_id, a short reasoning for why, "
+            "and the expected effect on 2-3 key metrics."
+        )
+        return await self._parse_structured_output(
+            target=target,
+            schema=ActionDecisionPayload,
+            instructions=(
+                "You are a strategic decision system for a simulation engine. "
+                "Choose the best action given the current state, history, and evidence. "
+                "Be concise. Only select from the listed available actions."
+            ),
+            prompt=prompt,
+            max_output_tokens=500,
+            error_prefix="action_decision_failed",
+        )
+
+    async def generate_debate_position(
+        self,
+        role: str,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        opponent_arguments: list[dict] | None = None,
+        own_previous: list[dict] | None = None,
+        target: TargetRole | None = None,
+    ) -> DebatePositionPayload | None:
+        if target is None:
+            target = "primary" if role == "advocate" else ("extraction" if role == "challenger" else "report")
+
+        role_instruction = {
+            "advocate": "You argue IN FAVOR of the proposition. Present supporting evidence and reasoning.",
+            "challenger": "You argue AGAINST the proposition. Find counter-evidence and weaknesses.",
+            "arbitrator": "You evaluate both sides fairly based on evidence quality. Deliver a verdict.",
+        }.get(role, "You evaluate the proposition objectively.")
+
+        opponent_text = ""
+        if opponent_arguments:
+            opponent_text = "\nOpponent's previous arguments:\n" + "\n".join(
+                f"- {a.get('claim', a.get('counter', str(a)))[:200]}" for a in opponent_arguments[:5]
+            )
+
+        own_text = ""
+        if own_previous:
+            own_text = "\nYour previous arguments:\n" + "\n".join(
+                f"- {a.get('claim', str(a))[:200]}" for a in own_previous[:3]
+            )
+
+        prompt = (
+            f"Role: {role}\n"
+            f"Topic: {topic}\n"
+            f"Trigger: {trigger_type}\n"
+            f"Context:\n{context[:2000]}\n"
+            f"{opponent_text}{own_text}\n\n"
+            "Return your position (SUPPORT/OPPOSE/CONDITIONAL), confidence (0-1), "
+            "up to 3 arguments (each with claim, evidence_ids, reasoning, strength), "
+            "optional rebuttals (target_argument_idx, counter), "
+            "and optional concessions (argument_idx, reason)."
+        )
+        return await self._parse_structured_output(
+            target=target,
+            schema=DebatePositionPayload,
+            instructions=role_instruction,
+            prompt=prompt,
+            max_output_tokens=1000,
+            error_prefix="debate_position_failed",
+        )
+
     def _model_for_target(self, target: TargetRole) -> str:
         if target == "primary":
             return self.settings.openai_primary_model
@@ -447,12 +718,72 @@ class OpenAIService:
 
     def _base_url_for_target(self, target: TargetRole) -> str | None:
         if target == "primary":
-            return self.settings.resolved_openai_primary_base_url
+            return self.settings.resolved_openai_primary_base_url or None
         if target == "extraction":
-            return self.settings.resolved_openai_extraction_base_url
+            return self.settings.resolved_openai_extraction_base_url or None
         if target == "x_search":
-            return self.settings.resolved_openai_x_search_base_url
-        return self.settings.resolved_openai_report_base_url
+            return self.settings.resolved_openai_x_search_base_url or None
+        return self.settings.resolved_openai_report_base_url or None
+
+    def _default_target_diagnostic(self, target: TargetRole) -> dict[str, str | bool | None]:
+        return {
+            "configured": self.is_configured(target),
+            "resolved_model": resolve_openclaw_model_selector(self._model_for_target(target)),
+            "base_url": self._base_url_for_target(target),
+            "last_ok": None,
+            "last_api_mode": None,
+            "last_response_id": None,
+            "last_error": None,
+        }
+
+    def _record_target_success(
+        self,
+        target: TargetRole,
+        api_mode: str,
+        model: str,
+        response_id: str | None = None,
+    ) -> None:
+        diagnostic = self.target_diagnostics[target]
+        diagnostic.update(
+            {
+                "configured": self.is_configured(target),
+                "resolved_model": model,
+                "base_url": self._base_url_for_target(target),
+                "last_ok": True,
+                "last_api_mode": api_mode,
+                "last_response_id": response_id,
+                "last_error": None,
+            }
+        )
+        self.last_error = None
+
+    def _record_target_failure(
+        self,
+        target: TargetRole,
+        error_prefix: str,
+        failures: list[str],
+        model: str,
+    ) -> str:
+        message = f"{error_prefix}: {'; '.join(item for item in failures if item)}"
+        diagnostic = self.target_diagnostics[target]
+        diagnostic.update(
+            {
+                "configured": self.is_configured(target),
+                "resolved_model": model,
+                "base_url": self._base_url_for_target(target),
+                "last_ok": False,
+                "last_api_mode": None,
+                "last_response_id": None,
+                "last_error": message,
+            }
+        )
+        self.last_error = f"{target}: {message}"
+        return self.last_error
+
+    def _sanitize_exception(self, exc: Exception) -> str:
+        message = " ".join(str(exc).split())
+        message = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", message)
+        return f"{type(exc).__name__}: {message[:240]}" if message else type(exc).__name__
 
     def _extract_chat_text(self, response: object) -> str:
         choices = getattr(response, "choices", [])

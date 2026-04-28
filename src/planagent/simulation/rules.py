@@ -33,6 +33,33 @@ class RuleRegistry:
     def __init__(self, rules_root: Path) -> None:
         self.rules_root = rules_root
         self._cache: dict[str, list[RuleSpec]] = {}
+        self._calibration_weights: dict[str, float] = {}
+
+    @property
+    def calibration_weights(self) -> dict[str, float]:
+        return dict(self._calibration_weights)
+
+    def effective_priority(self, rule: RuleSpec) -> float:
+        weight = self._calibration_weights.get(rule.rule_id, 1.0)
+        return round(float(rule.priority) * weight, 2)
+
+    def apply_calibration(self, rule_accuracies: dict[str, float]) -> None:
+        """Adjust rule weights based on calibration accuracy.
+
+        - Accuracy >= 0.75: boost weight up to 1.3
+        - Accuracy <= 0.35: reduce weight down to 0.6
+        - Otherwise: drift toward 1.0
+        """
+        for rule_id, accuracy in rule_accuracies.items():
+            accuracy = max(0.0, min(1.0, float(accuracy)))
+            current = self._calibration_weights.get(rule_id, 1.0)
+            if accuracy >= 0.75:
+                target = min(1.3, 1.0 + (accuracy - 0.75) * 2.0)
+            elif accuracy <= 0.35:
+                target = max(0.6, 1.0 - (0.35 - accuracy) * 2.0)
+            else:
+                target = 1.0
+            self._calibration_weights[rule_id] = round(current * 0.4 + target * 0.6, 4)
 
     def get_rules(self, domain_id: str) -> list[RuleSpec]:
         if domain_id not in self._cache:
@@ -41,6 +68,7 @@ class RuleRegistry:
 
     def reload(self) -> tuple[list[str], int]:
         self._cache.clear()
+        self._calibration_weights.clear()
         domains: list[str] = []
         total = 0
         if self.rules_root.exists():

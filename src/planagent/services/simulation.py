@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import timedelta
+import re
 from typing import Any
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import Settings
@@ -29,6 +32,7 @@ from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import normalize_text
 from planagent.services.reporting import ReportService
+from planagent.services.startup import normalize_tenant_id, startup_preset_config
 from planagent.simulation.domain_packs import registry
 from planagent.simulation.rules import RuleRegistry, RuleSpec
 
@@ -41,6 +45,97 @@ class SelectedAction:
     evidence_ids: list[str]
     expected_effect: dict[str, float]
     actual_effect: dict[str, float]
+    decision_method: str = "rule_engine"
+
+
+@dataclass(frozen=True)
+class MetricPolicy:
+    preferred_direction: str
+    alert_threshold: float
+    critical_threshold: float
+
+
+@dataclass(frozen=True)
+class RuleScore:
+    rule: RuleSpec
+    claim: Claim
+    score: float
+    matched_keywords: tuple[str, ...]
+
+
+@dataclass
+class ActionCandidate:
+    action_id: str
+    rule_scores: list[RuleScore] = field(default_factory=list)
+    base_score: float = 0.0
+    state_adjustment: float = 0.0
+    history_penalty: float = 0.0
+
+    @property
+    def total_score(self) -> float:
+        return round(self.base_score + self.state_adjustment - self.history_penalty, 4)
+
+
+@dataclass(frozen=True)
+class OperationalResponse:
+    action_id: str
+    why_selected: str
+    effects: dict[str, float]
+
+
+@dataclass(frozen=True)
+class MilitaryResolution:
+    actual_effect: dict[str, float]
+    enemy_action_id: str
+    enemy_reason: str
+    fire_balance: float
+    objective_delta: float
+    supply_delta: float
+    recovery_delta: float
+
+
+_DECISION_EVIDENCE_WINDOW = 3
+_DECISION_RECENCY_WEIGHTS = (1.0, 0.65, 0.45)
+_DECISION_MIN_SCORE = 0.6
+_STATE_POLICIES: dict[str, dict[str, MetricPolicy]] = {
+    "corporate": {
+        "cash": MetricPolicy("increase", 50.0, 25.0),
+        "runway_weeks": MetricPolicy("increase", 40.0, 24.0),
+        "infra_cost_index": MetricPolicy("decrease", 1.05, 1.15),
+        "delivery_velocity": MetricPolicy("increase", 0.95, 0.82),
+        "brand_index": MetricPolicy("increase", 0.95, 0.88),
+        "market_share": MetricPolicy("increase", 0.045, 0.03),
+        "team_morale": MetricPolicy("increase", 0.98, 0.9),
+        "pipeline": MetricPolicy("increase", 0.95, 0.72),
+        "implementation_capacity": MetricPolicy("increase", 2.8, 2.0),
+        "support_load": MetricPolicy("decrease", 0.52, 0.7),
+        "reliability_debt": MetricPolicy("decrease", 0.35, 0.52),
+        "gross_margin": MetricPolicy("increase", 0.6, 0.48),
+        "nrr": MetricPolicy("increase", 1.0, 0.92),
+        "churn_risk": MetricPolicy("decrease", 0.14, 0.24),
+    },
+    "military": {
+        "readiness": MetricPolicy("increase", 0.88, 0.75),
+        "ammo": MetricPolicy("increase", 0.8, 0.65),
+        "fuel": MetricPolicy("increase", 0.8, 0.65),
+        "isr_coverage": MetricPolicy("increase", 0.85, 0.7),
+        "ew_control": MetricPolicy("increase", 0.82, 0.68),
+        "air_defense": MetricPolicy("increase", 0.85, 0.72),
+        "logistics_throughput": MetricPolicy("increase", 0.85, 0.72),
+        "supply_network": MetricPolicy("increase", 0.8, 0.65),
+        "mobility": MetricPolicy("increase", 0.82, 0.68),
+        "command_cohesion": MetricPolicy("increase", 0.85, 0.72),
+        "objective_control": MetricPolicy("increase", 0.58, 0.45),
+        "recovery_capacity": MetricPolicy("increase", 0.7, 0.56),
+        "civilian_risk": MetricPolicy("decrease", 0.45, 0.6),
+        "escalation_index": MetricPolicy("decrease", 0.45, 0.62),
+        "ally_support": MetricPolicy("increase", 0.65, 0.5),
+        "attrition_rate": MetricPolicy("decrease", 0.24, 0.35),
+        "information_advantage": MetricPolicy("increase", 0.85, 0.72),
+        "enemy_readiness": MetricPolicy("decrease", 0.72, 0.86),
+        "enemy_pressure": MetricPolicy("decrease", 0.58, 0.72),
+    },
+}
 
 
 class SimulationService:
@@ -89,12 +184,16 @@ class SimulationService:
         parent_run = await session.get(SimulationRun, parent_run_id)
         if parent_run is None:
             raise LookupError(f"Simulation run {parent_run_id} was not found.")
-        if parent_run.domain_id != "military":
-            raise ValueError("Scenario branching is implemented for military runs only.")
-        if parent_run.force_id is None:
-            raise ValueError("Military scenario branching requires a force-backed baseline run.")
         if parent_run.status != SimulationRunStatus.COMPLETED.value:
             raise ValueError("Scenario branching requires a completed baseline run.")
+        if parent_run.domain_id == "military":
+            if parent_run.force_id is None:
+                raise ValueError("Military scenario branching requires a force-backed baseline run.")
+        elif parent_run.domain_id == "corporate":
+            if parent_run.company_id is None:
+                raise ValueError("Corporate scenario branching requires a company-backed baseline run.")
+        else:
+            raise ValueError(f"Scenario branching is not implemented for domain {parent_run.domain_id}.")
 
         fork_step = payload.fork_step or max(1, parent_run.tick_count // 2)
         source_snapshot = (
@@ -120,9 +219,11 @@ class SimulationService:
         )
         remaining_ticks = max(1, parent_run.tick_count - fork_step)
         run = SimulationRun(
-            company_id=None,
+            company_id=parent_run.company_id,
             force_id=parent_run.force_id,
-            domain_id="military",
+            tenant_id=parent_run.tenant_id,
+            preset_id=parent_run.preset_id,
+            domain_id=parent_run.domain_id,
             actor_template=parent_run.actor_template,
             parent_run_id=parent_run.id,
             execution_mode=execution_mode,
@@ -148,7 +249,8 @@ class SimulationService:
         )
         session.add(run)
         await session.flush()
-        await self._clone_geo_assets_for_scenario(session, parent_run.id, run)
+        if parent_run.domain_id == "military":
+            await self._clone_geo_assets_for_scenario(session, parent_run.id, run)
 
         branch = ScenarioBranchRecord(
             id=scenario_id,
@@ -180,54 +282,69 @@ class SimulationService:
         await session.refresh(branch)
         return branch
 
-    async def process_queued_runs(self, session: AsyncSession, limit: int = 10) -> int:
-        runs = list(
-            (
-                await session.scalars(
-                    select(SimulationRun)
-                    .where(SimulationRun.status == SimulationRunStatus.PENDING.value)
-                    .order_by(SimulationRun.created_at.asc())
-                    .limit(limit)
-                )
-            ).all()
+    async def process_queued_runs(
+        self,
+        session: AsyncSession,
+        limit: int = 10,
+        worker_id: str | None = None,
+    ) -> int:
+        runs = await self._claim_simulation_runs(
+            session,
+            limit=limit,
+            worker_id=worker_id or "simulation-worker",
         )
         processed = 0
         for run in runs:
-            await self._execute_run(session, run)
-            branch = (
-                await session.scalars(
-                    select(ScenarioBranchRecord).where(ScenarioBranchRecord.run_id == run.id)
+            try:
+                await self._execute_run(session, run)
+                branch = (
+                    await session.scalars(
+                        select(ScenarioBranchRecord).where(ScenarioBranchRecord.run_id == run.id)
+                    )
+                ).first()
+                if branch is not None and run.parent_run_id is not None:
+                    parent_run = await session.get(SimulationRun, run.parent_run_id)
+                    if parent_run is not None:
+                        await self._refresh_scenario_branch(session, branch, parent_run, run)
+                run.last_error = None
+                processed += 1
+            except Exception as exc:
+                run.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+                run.status = (
+                    SimulationRunStatus.FAILED.value
+                    if run.processing_attempts >= self.settings.worker_max_attempts
+                    else SimulationRunStatus.PENDING.value
                 )
-            ).first()
-            if branch is not None and run.parent_run_id is not None:
-                parent_run = await session.get(SimulationRun, run.parent_run_id)
-                if parent_run is not None:
-                    await self._refresh_scenario_branch(session, branch, parent_run, run)
-            processed += 1
+            finally:
+                run.lease_owner = None
+                run.lease_expires_at = None
+                run.updated_at = utc_now()
         await session.commit()
         return processed
 
-    async def generate_pending_reports(self, session: AsyncSession, limit: int = 10) -> int:
-        runs = list(
-            (
-                await session.scalars(
-                    select(SimulationRun)
-                    .outerjoin(GeneratedReport, GeneratedReport.run_id == SimulationRun.id)
-                    .where(
-                        and_(
-                            SimulationRun.status == SimulationRunStatus.COMPLETED.value,
-                            GeneratedReport.id.is_(None),
-                        )
-                    )
-                    .order_by(SimulationRun.completed_at.asc())
-                    .limit(limit)
-                )
-            ).all()
+    async def generate_pending_reports(
+        self,
+        session: AsyncSession,
+        limit: int = 10,
+        worker_id: str | None = None,
+    ) -> int:
+        runs = await self._claim_report_runs(
+            session,
+            limit=limit,
+            worker_id=worker_id or "report-worker",
         )
         generated = 0
         for run in runs:
-            await self._generate_report(session, run)
-            generated += 1
+            try:
+                await self._generate_report(session, run)
+                run.last_error = None
+                generated += 1
+            except Exception as exc:
+                run.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+            finally:
+                run.lease_owner = None
+                run.lease_expires_at = None
+                run.updated_at = utc_now()
         await session.commit()
         return generated
 
@@ -250,16 +367,26 @@ class SimulationService:
         self,
         session: AsyncSession,
         company_id: str,
+        tenant_id: str | None = None,
     ) -> GeneratedReport | None:
+        normalized_tenant = normalize_tenant_id(tenant_id)
+        query = select(GeneratedReport).where(GeneratedReport.company_id == company_id)
+        if normalized_tenant is not None:
+            query = query.where(GeneratedReport.tenant_id == normalized_tenant)
         return (
             await session.scalars(
-                select(GeneratedReport)
-                .where(GeneratedReport.company_id == company_id)
-                .order_by(GeneratedReport.created_at.desc())
+                query.order_by(GeneratedReport.created_at.desc())
             )
         ).first()
 
     async def latest_military_report(
+        self,
+        session: AsyncSession,
+        scenario_id: str,
+    ) -> GeneratedReport | None:
+        return await self.latest_scenario_report(session, scenario_id)
+
+    async def latest_scenario_report(
         self,
         session: AsyncSession,
         scenario_id: str,
@@ -339,6 +466,7 @@ class SimulationService:
             if baseline_state_record is not None
             else {}
         )
+        baseline_report = await self._latest_run_report(session, baseline_run.id)
         metric_names = sorted(
             {
                 metric["metric"]
@@ -348,10 +476,34 @@ class SimulationService:
             }
             | set(baseline_final_state.keys())
         )
+        subject_name = await self._scenario_subject_name(session, baseline_run)
         branches: list[dict[str, Any]] = []
+        best_branch_id: str | None = None
+        best_branch_score = 0.0
         for branch in branch_records:
             branch_run = await session.get(SimulationRun, branch.run_id)
-            branch_report = await self.latest_military_report(session, branch.id)
+            branch_report = await self.latest_scenario_report(session, branch.id)
+            branch_final_state = (
+                {
+                    key: float(value)
+                    for key, value in (branch_run.summary.get("final_state", {}) if branch_run is not None else {}).items()
+                }
+                if branch_run is not None
+                else {}
+            )
+            branch_score = self._score_branch_delta(
+                baseline_run.domain_id,
+                baseline_final_state,
+                branch_final_state,
+            )
+            key_deltas = self._summarize_branch_trajectory(
+                baseline_run.domain_id,
+                branch.kpi_trajectory,
+            )
+            recommendation_summary = self._report_recommendations(branch_report)
+            if branch_score > best_branch_score:
+                best_branch_score = branch_score
+                best_branch_id = branch.id
             branches.append(
                 {
                     "branch_id": branch.id,
@@ -364,16 +516,172 @@ class SimulationService:
                     "kpi_trajectory": branch.kpi_trajectory,
                     "matched_rules": branch_run.summary.get("matched_rules", []) if branch_run is not None else [],
                     "report_id": branch_report.id if branch_report is not None else None,
+                    "final_state": branch_final_state,
+                    "branch_score": round(branch_score, 4),
+                    "key_deltas": key_deltas,
+                    "recommendation_summary": recommendation_summary,
+                    "debate_suggestion": {
+                        "run_id": branch.run_id,
+                        "topic": f"Should {subject_name} adopt scenario branch {branch.id} over the baseline plan?",
+                        "trigger_type": "branch_evaluation",
+                        "target_type": "branch",
+                        "target_id": branch.id,
+                        "context_lines": [
+                            *(key_deltas[:2] or ["Compare this branch against the baseline outcome."]),
+                            *recommendation_summary[:1],
+                        ],
+                    },
                 }
             )
+        summary = self._build_scenario_compare_summary(
+            baseline_run.domain_id,
+            branches,
+            best_branch_id,
+            best_branch_score,
+        )
         return {
             "baseline_run_id": baseline_run.id,
             "domain_id": baseline_run.domain_id,
             "branch_count": len(branches),
             "metric_names": metric_names,
             "baseline_final_state": baseline_final_state,
+            "baseline_report_id": baseline_report.id if baseline_report is not None else None,
+            "baseline_recommendations": self._report_recommendations(baseline_report),
+            "recommended_branch_id": best_branch_id if best_branch_score > 0.08 else None,
+            "summary": summary,
             "branches": branches,
         }
+
+    async def _latest_run_report(
+        self,
+        session: AsyncSession,
+        run_id: str,
+    ) -> GeneratedReport | None:
+        return (
+            await session.scalars(
+                select(GeneratedReport)
+                .where(GeneratedReport.run_id == run_id)
+                .order_by(GeneratedReport.created_at.desc())
+                .limit(1)
+            )
+        ).first()
+
+    async def _scenario_subject_name(
+        self,
+        session: AsyncSession,
+        run: SimulationRun,
+    ) -> str:
+        if run.company_id is not None:
+            company = await session.get(CompanyProfile, run.company_id)
+            if company is not None:
+                return company.name
+        if run.force_id is not None:
+            force = await session.get(ForceProfile, run.force_id)
+            if force is not None:
+                return force.name
+        return self._subject_id(run)
+
+    def _report_recommendations(self, report: GeneratedReport | None) -> list[str]:
+        if report is None:
+            return []
+        recommendations = report.sections.get("strategy_recommendations", [])
+        return [str(item) for item in recommendations[:3]]
+
+    def _score_branch_delta(
+        self,
+        domain_id: str,
+        baseline_final_state: dict[str, float],
+        branch_final_state: dict[str, float],
+    ) -> float:
+        score = 0.0
+        for metric in self._tracked_branch_metrics(domain_id):
+            if metric not in baseline_final_state and metric not in branch_final_state:
+                continue
+            baseline_end = float(baseline_final_state.get(metric, 0.0))
+            scenario_end = float(branch_final_state.get(metric, 0.0))
+            score += self._metric_compare_score(domain_id, metric, baseline_end, scenario_end)
+        return score
+
+    def _metric_compare_score(
+        self,
+        domain_id: str,
+        metric: str,
+        baseline_end: float,
+        scenario_end: float,
+    ) -> float:
+        policy = _STATE_POLICIES.get(domain_id, {}).get(metric)
+        raw_delta = scenario_end - baseline_end
+        if policy is None:
+            return raw_delta
+        span = max(abs(policy.alert_threshold - policy.critical_threshold), 0.05)
+        if policy.preferred_direction == "decrease":
+            raw_delta = baseline_end - scenario_end
+        return raw_delta / span
+
+    def _summarize_branch_trajectory(
+        self,
+        domain_id: str,
+        trajectory: list[dict[str, Any]],
+    ) -> list[str]:
+        ranked = sorted(
+            trajectory,
+            key=lambda item: abs(
+                self._metric_compare_score(
+                    domain_id,
+                    str(item.get("metric")),
+                    float(item.get("baseline_end", 0.0)),
+                    float(item.get("scenario_end", 0.0)),
+                )
+            ),
+            reverse=True,
+        )
+        summaries: list[str] = []
+        for item in ranked[:3]:
+            metric = str(item.get("metric"))
+            baseline_end = float(item.get("baseline_end", 0.0))
+            scenario_end = float(item.get("scenario_end", 0.0))
+            delta = round(scenario_end - baseline_end, 4)
+            outcome = self._metric_outcome_label(domain_id, metric, baseline_end, scenario_end)
+            sign = "+" if delta >= 0 else ""
+            summaries.append(
+                f"{metric} moved from {baseline_end:.3f} to {scenario_end:.3f} ({sign}{delta:.3f}), which is {outcome} than baseline."
+            )
+        return summaries
+
+    def _metric_outcome_label(
+        self,
+        domain_id: str,
+        metric: str,
+        baseline_end: float,
+        scenario_end: float,
+    ) -> str:
+        score = self._metric_compare_score(domain_id, metric, baseline_end, scenario_end)
+        if score > 0.08:
+            return "better"
+        if score < -0.08:
+            return "worse"
+        return "roughly flat"
+
+    def _build_scenario_compare_summary(
+        self,
+        domain_id: str,
+        branches: list[dict[str, Any]],
+        best_branch_id: str | None,
+        best_branch_score: float,
+    ) -> list[str]:
+        if not branches:
+            return ["No scenario branches are available yet."]
+        if best_branch_id is None or best_branch_score <= 0.08:
+            return [
+                f"No {domain_id} branch clearly beats the baseline yet; use debate to inspect tradeoffs before pivoting."
+            ]
+        best_branch = next((branch for branch in branches if branch["branch_id"] == best_branch_id), None)
+        if best_branch is None:
+            return [f"Branch comparison is available for {len(branches)} scenario(s)."]
+        return [
+            f"Branch {best_branch_id} is currently the strongest alternative with score {best_branch_score:.2f}.",
+            *(best_branch.get("key_deltas", [])[:2]),
+        ]
 
     async def _create_corporate_run(
         self,
@@ -385,6 +693,8 @@ class SimulationService:
         run = SimulationRun(
             company_id=company.id,
             force_id=None,
+            tenant_id=normalize_tenant_id(payload.tenant_id),
+            preset_id=payload.preset_id,
             domain_id="corporate",
             actor_template=payload.actor_template,
             execution_mode=execution_mode.value,
@@ -394,6 +704,7 @@ class SimulationService:
             configuration={
                 "initial_state": payload.initial_state,
                 "market": payload.market,
+                **startup_preset_config(payload.tenant_id, payload.preset_id),
             },
             summary={},
         )
@@ -411,6 +722,8 @@ class SimulationService:
         run = SimulationRun(
             company_id=None,
             force_id=force.id,
+            tenant_id=normalize_tenant_id(payload.tenant_id),
+            preset_id=payload.preset_id,
             domain_id="military",
             actor_template=payload.actor_template,
             execution_mode=execution_mode.value,
@@ -420,6 +733,7 @@ class SimulationService:
             configuration={
                 "initial_state": payload.initial_state,
                 "theater": payload.theater or force.theater,
+                **startup_preset_config(payload.tenant_id, payload.preset_id),
             },
             summary={},
         )
@@ -460,6 +774,12 @@ class SimulationService:
         shock_count = 0
         current_state = deepcopy(initial_state)
         actor_id = f"{self._subject_id(run)}:{run.actor_template}"
+        recent_claims: list[Claim] = []
+        action_history: list[str] = []
+        enemy_history: list[str] = []
+        recent_decision_records: list[DecisionRecordRecord] = []
+        military_tick_summaries: list[dict[str, Any]] = []
+        geo_assets = await self.list_geo_assets(session, run.id) if run.domain_id == "military" else []
 
         session.add(StateSnapshotRecord(run_id=run.id, tick=0, actor_id=actor_id, state=deepcopy(current_state)))
 
@@ -468,23 +788,77 @@ class SimulationService:
             if active_claim is not None:
                 shock_count += await self._record_external_shock(session, run, tick, active_claim)
                 self._apply_external_shock(run.domain_id, current_state, active_claim.statement)
-            selected = self._select_action(run.domain_id, current_state, active_claim, rules)
-            matched_rules.extend(selected.rule_ids)
-            self._apply_effects(current_state, selected.actual_effect)
-            session.add(
-                DecisionRecordRecord(
-                    run_id=run.id,
-                    tick=tick,
-                    sequence=1,
-                    actor_id=actor_id,
-                    action_id=selected.action_id,
-                    why_selected=selected.why_selected,
-                    evidence_ids=selected.evidence_ids,
-                    policy_rule_ids=selected.rule_ids,
-                    expected_effect=selected.expected_effect,
-                    actual_effect=selected.actual_effect,
-                )
+                recent_claims.append(active_claim)
+                recent_claims = recent_claims[-_DECISION_EVIDENCE_WINDOW:]
+            selected = await self._select_action(
+                run.domain_id,
+                current_state,
+                active_claim,
+                rules,
+                recent_claims=recent_claims,
+                action_history=action_history,
+                recent_decisions=recent_decision_records,
             )
+            matched_rules.extend(selected.rule_ids)
+            actual_effect = selected.actual_effect
+            why_selected = selected.why_selected
+            if run.domain_id == "military":
+                military_resolution = self._resolve_military_action_outcome(
+                    current_state,
+                    selected,
+                    active_claim,
+                    enemy_history,
+                )
+                actual_effect = military_resolution.actual_effect
+                why_selected = (
+                    f"{selected.why_selected} Enemy response {military_resolution.enemy_action_id} "
+                    f"produced fire balance {military_resolution.fire_balance:+.2f}; objective control moved "
+                    f"{military_resolution.objective_delta:+.3f} and the supply network moved "
+                    f"{military_resolution.supply_delta:+.3f}."
+                )
+                enemy_history.append(military_resolution.enemy_action_id)
+            self._apply_effects(current_state, actual_effect)
+            if run.domain_id == "military":
+                operational_picture = self._build_military_operational_picture(
+                    run,
+                    geo_assets,
+                    current_state,
+                    enemy_action_id=military_resolution.enemy_action_id,
+                    enemy_reason=military_resolution.enemy_reason,
+                )
+                military_tick_summaries.append(
+                    {
+                        "tick": tick,
+                        "enemy_action_id": military_resolution.enemy_action_id,
+                        "enemy_reason": military_resolution.enemy_reason,
+                        "fire_balance": military_resolution.fire_balance,
+                        "objective_delta": military_resolution.objective_delta,
+                        "supply_delta": military_resolution.supply_delta,
+                        "recovery_delta": military_resolution.recovery_delta,
+                        "enemy_posture": operational_picture["enemy_posture"],
+                        "objective_snapshot": {
+                            "critical_objective_id": operational_picture["objective_network"].get("critical_objective_id"),
+                            "critical_route_id": operational_picture["objective_network"].get("critical_route_id"),
+                            "contested_asset_ids": operational_picture["objective_network"].get("contested_asset_ids", []),
+                        },
+                    }
+                )
+            action_history.append(selected.action_id)
+            decision_record = DecisionRecordRecord(
+                run_id=run.id,
+                tick=tick,
+                sequence=1,
+                actor_id=actor_id,
+                action_id=selected.action_id,
+                why_selected=why_selected,
+                evidence_ids=selected.evidence_ids,
+                policy_rule_ids=selected.rule_ids,
+                expected_effect=selected.expected_effect,
+                actual_effect=actual_effect,
+                decision_method=selected.decision_method,
+            )
+            session.add(decision_record)
+            recent_decision_records.append(decision_record)
             session.add(
                 StateSnapshotRecord(
                     run_id=run.id,
@@ -497,6 +871,17 @@ class SimulationService:
         run.status = SimulationRunStatus.COMPLETED.value
         run.completed_at = utc_now()
         run.updated_at = utc_now()
+        final_operational_picture = (
+            self._build_military_operational_picture(
+                run,
+                geo_assets,
+                current_state,
+                enemy_action_id=military_tick_summaries[-1]["enemy_action_id"] if military_tick_summaries else None,
+                enemy_reason=military_tick_summaries[-1]["enemy_reason"] if military_tick_summaries else None,
+            )
+            if run.domain_id == "military"
+            else {}
+        )
         run.summary = {
             **run.summary,
             "ticks_completed": run.tick_count,
@@ -506,6 +891,22 @@ class SimulationService:
             "evidence_statements": [claim.statement for claim in claims[:5]],
             "matched_rules": sorted(set(matched_rules)),
             "final_state": deepcopy(current_state),
+            "military_tick_summaries": military_tick_summaries if run.domain_id == "military" else [],
+            "objective_network": (
+                final_operational_picture.get("objective_network", {})
+                if run.domain_id == "military"
+                else {}
+            ),
+            "enemy_posture": (
+                final_operational_picture.get("enemy_posture", {})
+                if run.domain_id == "military"
+                else {}
+            ),
+            "enemy_order_of_battle": (
+                final_operational_picture.get("enemy_order_of_battle", [])
+                if run.domain_id == "military"
+                else []
+            ),
         }
 
         event_topic = (
@@ -522,6 +923,93 @@ class SimulationService:
         session.add(EventArchive(topic=event_topic, payload=event_payload))
         await self.event_bus.publish(event_topic, event_payload)
 
+        await self._generate_decision_options(session, run, current_state)
+
+    async def _generate_decision_options(
+        self,
+        session: AsyncSession,
+        run: SimulationRun,
+        final_state: dict[str, float],
+    ) -> None:
+        from planagent.domain.models import DecisionOption, Hypothesis
+
+        pack = registry.get(run.domain_id)
+        decisions = list(
+            (
+                await session.scalars(
+                    select(DecisionRecordRecord)
+                    .where(DecisionRecordRecord.run_id == run.id)
+                    .order_by(DecisionRecordRecord.tick.asc())
+                )
+            ).all()
+        )
+        if not decisions:
+            return
+
+        unique_actions: dict[str, DecisionRecordRecord] = {}
+        for d in decisions:
+            if d.action_id not in unique_actions:
+                unique_actions[d.action_id] = d
+        top_actions = list(unique_actions.values())[:3]
+
+        existing_count = int(
+            await session.scalar(
+                select(func.count()).select_from(DecisionOption).where(DecisionOption.run_id == run.id)
+            )
+        )
+        if existing_count > 0:
+            return
+
+        for ranking, decision in enumerate(top_actions, start=1):
+            action_spec = None
+            for a in pack.action_library:
+                if a.action_id == decision.action_id:
+                    action_spec = a
+                    break
+            title = action_spec.description if action_spec else decision.action_id
+            description = decision.why_selected or f"Action {decision.action_id} selected at tick {decision.tick}."
+            expected_effects = dict(decision.expected_effect) if decision.expected_effect else {}
+            risks: list[str] = []
+            for metric, value in expected_effects.items():
+                policy = _STATE_POLICIES.get(run.domain_id, {}).get(metric)
+                if policy is not None:
+                    if policy.preferred_direction == "increase" and value < -0.02:
+                        risks.append(f"{metric} may decrease ({value:+.3f}).")
+                    elif policy.preferred_direction == "decrease" and value > 0.02:
+                        risks.append(f"{metric} may increase ({value:+.3f}).")
+            confidence = round(min(0.95, max(0.3, 0.5 + len(decision.policy_rule_ids or []) * 0.1)), 2)
+            conditions: list[str] = []
+            if run.domain_id == "military" and final_state.get("escalation_index", 0) > 0.6:
+                conditions.append("Escalation risk should be monitored if this option is pursued.")
+
+            option = DecisionOption(
+                run_id=run.id,
+                tenant_id=run.tenant_id,
+                preset_id=run.preset_id,
+                title=title[:255],
+                description=description[:2000],
+                expected_effects=expected_effects,
+                risks=risks,
+                evidence_ids=decision.evidence_ids or [],
+                confidence=confidence,
+                conditions=conditions,
+                ranking=ranking,
+            )
+            session.add(option)
+            await session.flush()
+
+            horizon = "1_week" if run.domain_id == "military" else "3_months"
+            prediction = f"If '{decision.action_id}' continues, {', '.join(f'{k} will move toward {v:+.2f}' for k, v in list(expected_effects.items())[:3])}."
+            hypothesis = Hypothesis(
+                run_id=run.id,
+                decision_option_id=option.id,
+                tenant_id=run.tenant_id,
+                preset_id=run.preset_id,
+                prediction=prediction[:2000],
+                time_horizon=horizon,
+            )
+            session.add(hypothesis)
+
     async def _refresh_scenario_branch(
         self,
         session: AsyncSession,
@@ -535,6 +1023,7 @@ class SimulationService:
             return
 
         branch.kpi_trajectory = self._build_branch_trajectory(
+            branch_run.domain_id,
             parent_final.state if parent_final is not None else {},
             branch_final.state,
         )
@@ -618,6 +1107,50 @@ class SimulationService:
                         "shock_type": "demand_shift",
                         "summary": normalize_text(statement),
                         "payload": {"matched_keywords": ["demand", "adoption", "growth"], "evidence_id": evidence_id},
+                    }
+                )
+            if any(keyword in lowered for keyword in ["bundled", "native", "copilot", "platform", "workspace"]):
+                shocks.append(
+                    {
+                        "shock_type": "platform_bundling_pressure",
+                        "summary": normalize_text(statement),
+                        "payload": {
+                            "matched_keywords": ["bundled", "native", "copilot", "platform", "workspace"],
+                            "evidence_id": evidence_id,
+                        },
+                    }
+                )
+            if any(keyword in lowered for keyword in ["security", "compliance", "procurement", "integration", "pilot"]):
+                shocks.append(
+                    {
+                        "shock_type": "enterprise_buying_friction",
+                        "summary": normalize_text(statement),
+                        "payload": {
+                            "matched_keywords": ["security", "compliance", "procurement", "integration", "pilot"],
+                            "evidence_id": evidence_id,
+                        },
+                    }
+                )
+            if any(keyword in lowered for keyword in ["hallucination", "latency", "outage", "accuracy", "reliability"]):
+                shocks.append(
+                    {
+                        "shock_type": "reliability_incident",
+                        "summary": normalize_text(statement),
+                        "payload": {
+                            "matched_keywords": ["hallucination", "latency", "outage", "accuracy", "reliability"],
+                            "evidence_id": evidence_id,
+                        },
+                    }
+                )
+            if any(keyword in lowered for keyword in ["roi", "renewal", "expansion", "savings", "hours"]):
+                shocks.append(
+                    {
+                        "shock_type": "validated_roi",
+                        "summary": normalize_text(statement),
+                        "payload": {
+                            "matched_keywords": ["roi", "renewal", "expansion", "savings", "hours"],
+                            "evidence_id": evidence_id,
+                        },
                     }
                 )
             return shocks
@@ -756,11 +1289,25 @@ class SimulationService:
                 "properties": {"role": "mobility", "coverage_radius_km": 6},
             },
             {
+                "name": "Eastern Supply Corridor",
+                "asset_type": "supply_route",
+                "latitude_offset": 0.0800,
+                "longitude_offset": -0.0300,
+                "properties": {"role": "route_network", "route_id": "corridor-east", "connected_to": ["Primary Supply Hub", "River Crossing Bridge"]},
+            },
+            {
                 "name": "Civilian District Alpha",
                 "asset_type": "civilian_area",
                 "latitude_offset": -0.0900,
                 "longitude_offset": 0.1100,
                 "properties": {"role": "protection", "population_index": 0.72},
+            },
+            {
+                "name": "Objective Bastion",
+                "asset_type": "objective_zone",
+                "latitude_offset": 0.0400,
+                "longitude_offset": 0.1200,
+                "properties": {"role": "decisive_terrain", "objective_id": "bastion", "connected_to": ["Civilian District Alpha", "Command Post Echo"]},
             },
             {
                 "name": "Command Post Echo",
@@ -821,8 +1368,12 @@ class SimulationService:
         }
         if asset_type in {"supply_hub", "bridge"} and float(state.get("logistics_throughput", 1.0)) < 0.8:
             properties["status"] = "contested"
+        if asset_type == "supply_route" and float(state.get("supply_network", 0.84)) < 0.78:
+            properties["status"] = "contested"
         if asset_type == "civilian_area" and float(state.get("civilian_risk", 0.0)) > 0.55:
             properties["status"] = "at_risk"
+        if asset_type == "objective_zone" and float(state.get("objective_control", 0.5)) < 0.5:
+            properties["status"] = "contested"
         if asset_type in {"air_defense_site", "command_post"} and float(state.get("air_defense", 1.0)) < 0.85:
             properties["status"] = "degraded"
         return properties
@@ -869,17 +1420,11 @@ class SimulationService:
 
     def _build_branch_trajectory(
         self,
+        domain_id: str,
         parent_final: dict[str, Any],
         branch_final: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        tracked = [
-            "readiness",
-            "logistics_throughput",
-            "isr_coverage",
-            "air_defense",
-            "civilian_risk",
-            "escalation_index",
-        ]
+        tracked = self._tracked_branch_metrics(domain_id)
         return [
             {
                 "metric": metric,
@@ -888,6 +1433,34 @@ class SimulationService:
             }
             for metric in tracked
             if metric in parent_final or metric in branch_final
+        ]
+
+    def _tracked_branch_metrics(self, domain_id: str) -> list[str]:
+        if domain_id == "corporate":
+            return [
+                "runway_weeks",
+                "delivery_velocity",
+                "pipeline",
+                "support_load",
+                "reliability_debt",
+                "gross_margin",
+                "nrr",
+                "churn_risk",
+                "market_share",
+            ]
+        return [
+            "readiness",
+            "logistics_throughput",
+            "supply_network",
+            "objective_control",
+            "recovery_capacity",
+            "attrition_rate",
+            "enemy_readiness",
+            "enemy_pressure",
+            "isr_coverage",
+            "air_defense",
+            "civilian_risk",
+            "escalation_index",
         ]
 
     async def _upsert_company(self, session: AsyncSession, payload: SimulationRunCreate) -> CompanyProfile:
@@ -951,7 +1524,13 @@ class SimulationService:
         session: AsyncSession,
         run: SimulationRun,
     ) -> list[Claim]:
+        tenant_id = normalize_tenant_id(run.tenant_id or run.configuration.get("tenant_id"))
+        preset_id = run.preset_id or run.configuration.get("preset_id")
         query = select(Claim).where(Claim.status == ClaimStatus.ACCEPTED.value)
+        if tenant_id is not None:
+            query = query.where(Claim.tenant_id == tenant_id)
+        if preset_id is not None:
+            query = query.where(or_(Claim.preset_id == preset_id, Claim.preset_id.is_(None)))
         terms = await self._subject_terms(session, run)
         if terms:
             predicates = []
@@ -967,30 +1546,153 @@ class SimulationService:
             query = query.where(or_(*predicates))
 
         claims = list((await session.scalars(query.order_by(Claim.created_at.asc()))).all())
-        if claims:
+        minimum_claims = max(4, run.tick_count)
+        if len(claims) >= minimum_claims:
             return claims
-        return list(
+
+        recent_query = select(Claim).where(Claim.status == ClaimStatus.ACCEPTED.value)
+        if tenant_id is not None:
+            recent_query = recent_query.where(Claim.tenant_id == tenant_id)
+        if preset_id is not None:
+            recent_query = recent_query.where(or_(Claim.preset_id == preset_id, Claim.preset_id.is_(None)))
+        if claims:
+            recent_query = recent_query.where(Claim.created_at >= claims[0].created_at)
+        recent_claims = list(
+            (await session.scalars(recent_query.order_by(Claim.created_at.asc()).limit(25))).all()
+        )
+        selected_by_id = {claim.id: claim for claim in claims}
+        for claim in recent_claims:
+            selected_by_id.setdefault(claim.id, claim)
+            if len(selected_by_id) >= minimum_claims:
+                break
+        return list(selected_by_id.values())
+
+    async def _claim_simulation_runs(
+        self,
+        session: AsyncSession,
+        limit: int,
+        worker_id: str,
+    ) -> list[SimulationRun]:
+        now = utc_now()
+        lease_expires_at = now + timedelta(seconds=self.settings.worker_lease_seconds)
+        candidate_ids = list(
             (
                 await session.scalars(
-                    select(Claim)
-                    .where(Claim.status == ClaimStatus.ACCEPTED.value)
-                    .order_by(Claim.created_at.asc())
+                    select(SimulationRun.id)
+                    .where(
+                        or_(
+                            SimulationRun.status == SimulationRunStatus.PENDING.value,
+                            and_(
+                                SimulationRun.status == SimulationRunStatus.PROCESSING.value,
+                                or_(SimulationRun.lease_expires_at.is_(None), SimulationRun.lease_expires_at < now),
+                            ),
+                        )
+                    )
+                    .order_by(SimulationRun.created_at.asc())
+                    .limit(limit * 3)
                 )
             ).all()
         )
+        claimed: list[SimulationRun] = []
+        for run_id in candidate_ids:
+            result = await session.execute(
+                update(SimulationRun)
+                .where(
+                    SimulationRun.id == run_id,
+                    or_(
+                        SimulationRun.status == SimulationRunStatus.PENDING.value,
+                        and_(
+                            SimulationRun.status == SimulationRunStatus.PROCESSING.value,
+                            or_(SimulationRun.lease_expires_at.is_(None), SimulationRun.lease_expires_at < now),
+                        ),
+                    ),
+                )
+                .values(
+                    status=SimulationRunStatus.PROCESSING.value,
+                    lease_owner=worker_id,
+                    lease_expires_at=lease_expires_at,
+                    processing_attempts=SimulationRun.processing_attempts + 1,
+                    updated_at=now,
+                )
+            )
+            if result.rowcount:
+                run = await session.get(SimulationRun, run_id)
+                if run is not None:
+                    claimed.append(run)
+            if len(claimed) >= limit:
+                break
+        return claimed
+
+    async def _claim_report_runs(
+        self,
+        session: AsyncSession,
+        limit: int,
+        worker_id: str,
+    ) -> list[SimulationRun]:
+        now = utc_now()
+        lease_expires_at = now + timedelta(seconds=self.settings.worker_lease_seconds)
+        candidate_ids = list(
+            (
+                await session.scalars(
+                    select(SimulationRun.id)
+                    .outerjoin(GeneratedReport, GeneratedReport.run_id == SimulationRun.id)
+                    .where(
+                        SimulationRun.status == SimulationRunStatus.COMPLETED.value,
+                        GeneratedReport.id.is_(None),
+                        or_(SimulationRun.lease_expires_at.is_(None), SimulationRun.lease_expires_at < now),
+                    )
+                    .order_by(SimulationRun.completed_at.asc(), SimulationRun.created_at.asc())
+                    .limit(limit * 3)
+                )
+            ).all()
+        )
+        claimed: list[SimulationRun] = []
+        for run_id in candidate_ids:
+            result = await session.execute(
+                update(SimulationRun)
+                .where(
+                    SimulationRun.id == run_id,
+                    SimulationRun.status == SimulationRunStatus.COMPLETED.value,
+                    or_(SimulationRun.lease_expires_at.is_(None), SimulationRun.lease_expires_at < now),
+                )
+                .values(
+                    lease_owner=worker_id,
+                    lease_expires_at=lease_expires_at,
+                    processing_attempts=SimulationRun.processing_attempts + 1,
+                    updated_at=now,
+                )
+            )
+            if result.rowcount:
+                run = await session.get(SimulationRun, run_id)
+                if run is not None:
+                    claimed.append(run)
+            if len(claimed) >= limit:
+                break
+        return claimed
 
     async def _subject_terms(self, session: AsyncSession, run: SimulationRun) -> list[str]:
         if run.domain_id == "corporate" and run.company_id:
             company = await session.get(CompanyProfile, run.company_id)
             if company is None:
                 return []
-            return [company.name, company.id, company.market]
+            return [company.name, company.id, *self._expand_market_terms(company.market)]
         if run.domain_id == "military" and run.force_id:
             force = await session.get(ForceProfile, run.force_id)
             if force is None:
                 return []
             return [force.name, force.id, force.theater]
         return []
+
+    def _expand_market_terms(self, market: str) -> list[str]:
+        normalized = normalize_text(market)
+        if not normalized:
+            return []
+
+        terms = [normalized]
+        for token in re.split(r"[^a-z0-9]+", normalized.lower()):
+            if len(token) >= 4:
+                terms.append(token)
+        return list(dict.fromkeys(terms))
 
     def _subject_id(self, run: SimulationRun) -> str:
         return run.company_id or run.force_id or run.id
@@ -1007,57 +1709,799 @@ class SimulationService:
             if any(keyword in lowered for keyword in ["cost", "price", "gpu"]):
                 state["infra_cost_index"] = state.get("infra_cost_index", 1.0) + 0.08
                 state["runway_weeks"] = state.get("runway_weeks", 52.0) - 2.0
+                state["gross_margin"] = state.get("gross_margin", 0.62) - 0.05
+                state["pipeline"] = state.get("pipeline", 1.0) - 0.02
             if any(keyword in lowered for keyword in ["ship", "launch", "release"]):
                 state["brand_index"] = state.get("brand_index", 1.0) + 0.05
                 state["market_share"] = state.get("market_share", 0.05) + 0.01
+                state["pipeline"] = state.get("pipeline", 1.0) + 0.08
+                state["active_deployments"] = state.get("active_deployments", 3.0) + 0.25
+                state["support_load"] = state.get("support_load", 0.35) + 0.04
+                state["reliability_debt"] = state.get("reliability_debt", 0.28) + 0.02
             if any(keyword in lowered for keyword in ["demand", "adoption", "growth"]):
                 state["delivery_velocity"] = state.get("delivery_velocity", 1.0) - 0.01
                 state["market_share"] = state.get("market_share", 0.05) + 0.015
+                state["pipeline"] = state.get("pipeline", 1.0) + 0.12
+                state["active_deployments"] = state.get("active_deployments", 3.0) + 0.3
+                state["support_load"] = state.get("support_load", 0.35) + 0.03
+            if any(keyword in lowered for keyword in ["bundled", "native", "copilot", "platform", "workspace"]):
+                state["brand_index"] = state.get("brand_index", 1.0) - 0.04
+                state["market_share"] = state.get("market_share", 0.05) - 0.02
+                state["team_morale"] = state.get("team_morale", 1.0) - 0.01
+                state["pipeline"] = state.get("pipeline", 1.0) - 0.08
+                state["nrr"] = state.get("nrr", 1.02) - 0.03
+                state["churn_risk"] = state.get("churn_risk", 0.12) + 0.04
+            if any(keyword in lowered for keyword in ["security", "compliance", "procurement", "integration", "pilot"]):
+                state["delivery_velocity"] = state.get("delivery_velocity", 1.0) - 0.03
+                state["cash"] = state.get("cash", 100.0) - 4.0
+                state["runway_weeks"] = state.get("runway_weeks", 52.0) - 1.0
+                state["active_deployments"] = state.get("active_deployments", 3.0) + 0.2
+                state["support_load"] = state.get("support_load", 0.35) + 0.08
+                state["implementation_capacity"] = state.get("implementation_capacity", 3.0) - 0.05
+            if any(keyword in lowered for keyword in ["hallucination", "latency", "outage", "accuracy", "reliability"]):
+                state["brand_index"] = state.get("brand_index", 1.0) - 0.06
+                state["market_share"] = state.get("market_share", 0.05) - 0.015
+                state["team_morale"] = state.get("team_morale", 1.0) - 0.03
+                state["reliability_debt"] = state.get("reliability_debt", 0.28) + 0.1
+                state["support_load"] = state.get("support_load", 0.35) + 0.09
+                state["churn_risk"] = state.get("churn_risk", 0.12) + 0.05
+                state["nrr"] = state.get("nrr", 1.02) - 0.04
+            if any(keyword in lowered for keyword in ["roi", "renewal", "expansion", "savings", "hours"]):
+                state["cash"] = state.get("cash", 100.0) + 8.0
+                state["brand_index"] = state.get("brand_index", 1.0) + 0.04
+                state["market_share"] = state.get("market_share", 0.05) + 0.015
+                state["pipeline"] = state.get("pipeline", 1.0) + 0.06
+                state["gross_margin"] = state.get("gross_margin", 0.62) + 0.03
+                state["nrr"] = state.get("nrr", 1.02) + 0.05
+                state["churn_risk"] = state.get("churn_risk", 0.12) - 0.03
             return
 
         if any(keyword in lowered for keyword in ["supply", "bridge", "port", "convoy"]):
             state["logistics_throughput"] = state.get("logistics_throughput", 1.0) - 0.12
             state["ammo"] = state.get("ammo", 1.0) - 0.06
             state["readiness"] = state.get("readiness", 1.0) - 0.04
+            state["supply_network"] = state.get("supply_network", 0.84) - 0.10
+            state["objective_control"] = state.get("objective_control", 0.5) - 0.04
+            state["enemy_pressure"] = state.get("enemy_pressure", 0.66) + 0.05
         if any(keyword in lowered for keyword in ["weather", "storm", "fog"]):
             state["mobility"] = state.get("mobility", 1.0) - 0.10
             state["isr_coverage"] = state.get("isr_coverage", 1.0) - 0.05
+            state["supply_network"] = state.get("supply_network", 0.84) - 0.05
+            state["recovery_capacity"] = state.get("recovery_capacity", 0.68) - 0.02
         if any(keyword in lowered for keyword in ["drone", "swarm", "strike"]):
             state["air_defense"] = state.get("air_defense", 1.0) - 0.08
             state["civilian_risk"] = state.get("civilian_risk", 0.25) + 0.06
             state["escalation_index"] = state.get("escalation_index", 0.3) + 0.05
+            state["enemy_pressure"] = state.get("enemy_pressure", 0.66) + 0.07
+            state["enemy_readiness"] = state.get("enemy_readiness", 0.82) + 0.03
         if any(keyword in lowered for keyword in ["isr", "satellite", "recon"]):
             state["isr_coverage"] = state.get("isr_coverage", 1.0) + 0.10
             state["information_advantage"] = state.get("information_advantage", 1.0) + 0.08
+            state["objective_control"] = state.get("objective_control", 0.5) + 0.04
+            state["enemy_pressure"] = state.get("enemy_pressure", 0.66) - 0.03
         if any(keyword in lowered for keyword in ["jam", "electronic", "cyber"]):
             state["ew_control"] = state.get("ew_control", 1.0) - 0.08
             state["command_cohesion"] = state.get("command_cohesion", 1.0) - 0.05
+            state["objective_control"] = state.get("objective_control", 0.5) - 0.03
+            state["supply_network"] = state.get("supply_network", 0.84) - 0.03
 
-    def _select_action(
+    def _resolve_military_action_outcome(
+        self,
+        state: dict[str, float],
+        selected: SelectedAction,
+        active_claim: Claim | None,
+        enemy_history: list[str],
+    ) -> MilitaryResolution:
+        projected_state = deepcopy(state)
+        self._apply_effects(projected_state, selected.actual_effect)
+
+        enemy_response = self._select_enemy_response(projected_state, active_claim, enemy_history)
+        self._apply_effects(projected_state, enemy_response.effects)
+
+        exchange_effect, fire_balance = self._resolve_fire_exchange(
+            projected_state,
+            selected.action_id,
+            enemy_response.action_id,
+        )
+        self._apply_effects(projected_state, exchange_effect)
+
+        recovery_effect = self._resolve_force_recovery(
+            projected_state,
+            selected.action_id,
+            enemy_response.action_id,
+        )
+
+        combined_effect = self._merge_effects(
+            selected.actual_effect,
+            enemy_response.effects,
+            exchange_effect,
+            recovery_effect,
+        )
+        return MilitaryResolution(
+            actual_effect=combined_effect,
+            enemy_action_id=enemy_response.action_id,
+            enemy_reason=enemy_response.why_selected,
+            fire_balance=fire_balance,
+            objective_delta=round(combined_effect.get("objective_control", 0.0), 4),
+            supply_delta=round(combined_effect.get("supply_network", 0.0), 4),
+            recovery_delta=round(
+                combined_effect.get("recovery_capacity", 0.0) - combined_effect.get("attrition_rate", 0.0),
+                4,
+            ),
+        )
+
+    def _select_enemy_response(
+        self,
+        state: dict[str, float],
+        active_claim: Claim | None,
+        enemy_history: list[str],
+    ) -> OperationalResponse:
+        lowered = active_claim.statement.lower() if active_claim is not None else ""
+        candidates: list[tuple[float, OperationalResponse]] = []
+
+        def add_candidate(
+            action_id: str,
+            score: float,
+            why_selected: str,
+            effects: dict[str, float],
+        ) -> None:
+            penalty = self._response_history_penalty(action_id, enemy_history)
+            candidates.append(
+                (
+                    round(score - penalty, 4),
+                    OperationalResponse(
+                        action_id=action_id,
+                        why_selected=why_selected,
+                        effects=self._clean_effects(effects),
+                    ),
+                )
+            )
+
+        if (
+            any(keyword in lowered for keyword in ["supply", "bridge", "convoy", "corridor", "port"])
+            or float(state.get("logistics_throughput", 1.0)) < 0.82
+            or float(state.get("supply_network", 0.84)) < 0.78
+        ):
+            supply_gap = max(
+                0.0,
+                max(0.82 - float(state.get("logistics_throughput", 1.0)), 0.78 - float(state.get("supply_network", 0.84))),
+            )
+            add_candidate(
+                "enemy_probe_supply",
+                0.82 + (supply_gap * 0.45),
+                "Enemy pressure stayed focused on corridors and depots to keep the force undersupplied.",
+                {
+                    "logistics_throughput": -0.08,
+                    "supply_network": -0.09,
+                    "objective_control": -0.04,
+                    "enemy_pressure": 0.05,
+                    "attrition_rate": 0.02,
+                },
+            )
+
+        if (
+            any(keyword in lowered for keyword in ["drone", "swarm", "strike", "civilian"])
+            or float(state.get("air_defense", 1.0)) < 0.84
+            or float(state.get("civilian_risk", 0.25)) > 0.42
+        ):
+            air_gap = max(
+                0.0,
+                max(0.84 - float(state.get("air_defense", 1.0)), float(state.get("civilian_risk", 0.25)) - 0.42),
+            )
+            add_candidate(
+                "enemy_fire_raid",
+                0.8 + (air_gap * 0.45),
+                "Enemy fires and drones exploited gaps in air defense and civilian protection.",
+                {
+                    "readiness": -0.06,
+                    "air_defense": -0.05,
+                    "civilian_risk": 0.05,
+                    "escalation_index": 0.04,
+                    "enemy_pressure": 0.06,
+                    "attrition_rate": 0.03,
+                },
+            )
+
+        if (
+            any(keyword in lowered for keyword in ["jam", "electronic", "cyber"])
+            or float(state.get("command_cohesion", 1.0)) < 0.8
+            or float(state.get("ew_control", 1.0)) < 0.76
+        ):
+            c2_gap = max(
+                0.0,
+                max(0.8 - float(state.get("command_cohesion", 1.0)), 0.76 - float(state.get("ew_control", 1.0))),
+            )
+            add_candidate(
+                "enemy_jam_c2",
+                0.76 + (c2_gap * 0.45),
+                "Enemy electronic pressure targeted the command loop to slow response times.",
+                {
+                    "ew_control": -0.06,
+                    "command_cohesion": -0.05,
+                    "information_advantage": -0.05,
+                    "enemy_pressure": 0.04,
+                    "objective_control": -0.02,
+                },
+            )
+
+        if (
+            any(keyword in lowered for keyword in ["crossing", "objective", "district", "axis", "sector"])
+            or float(state.get("objective_control", 0.5)) < 0.54
+        ):
+            objective_gap = max(0.0, 0.54 - float(state.get("objective_control", 0.5)))
+            add_candidate(
+                "enemy_press_objective",
+                0.78 + (objective_gap * 0.5),
+                "Enemy maneuver stayed fixed on the contested objective network and its approaches.",
+                {
+                    "objective_control": -0.08,
+                    "mobility": -0.04,
+                    "enemy_pressure": 0.06,
+                    "civilian_risk": 0.03,
+                    "attrition_rate": 0.02,
+                },
+            )
+
+        if float(state.get("enemy_readiness", 0.82)) < 0.7:
+            add_candidate(
+                "enemy_regroup",
+                0.64 + max(0.0, 0.72 - float(state.get("enemy_readiness", 0.82))) * 0.35,
+                "Enemy paused the tempo long enough to rotate forces and regenerate combat power.",
+                {
+                    "enemy_readiness": 0.06,
+                    "enemy_pressure": -0.03,
+                    "objective_control": 0.01,
+                },
+            )
+
+        if not candidates:
+            return OperationalResponse(
+                action_id="enemy_press_objective",
+                why_selected="Enemy kept steady positional pressure against the contested objective.",
+                effects=self._clean_effects(
+                    {
+                        "objective_control": -0.05,
+                        "enemy_pressure": 0.04,
+                        "attrition_rate": 0.02,
+                    }
+                ),
+            )
+        return max(candidates, key=lambda item: item[0])[1]
+
+    def _response_history_penalty(self, action_id: str, enemy_history: list[str]) -> float:
+        penalty = 0.0
+        for distance, previous_action in enumerate(reversed(enemy_history[-2:]), start=1):
+            if previous_action != action_id:
+                continue
+            penalty += 0.18 if distance == 1 else 0.08
+        return round(penalty, 4)
+
+    def _resolve_fire_exchange(
+        self,
+        state: dict[str, float],
+        friendly_action_id: str,
+        enemy_action_id: str,
+    ) -> tuple[dict[str, float], float]:
+        friendly_action_bonus = {
+            "open_supply_line": 0.08,
+            "rebalance_air_defense": 0.05,
+            "increase_isr": 0.06,
+            "fortify": 0.03,
+            "commit_reserves": 0.05,
+            "protect_civilians": -0.01,
+            "deescalate_posture": -0.03,
+            "secure_objective": 0.09,
+            "suppress_enemy_fires": 0.07,
+            "rotate_and_repair": -0.02,
+        }
+        enemy_action_bonus = {
+            "enemy_probe_supply": 0.07,
+            "enemy_fire_raid": 0.08,
+            "enemy_jam_c2": 0.06,
+            "enemy_press_objective": 0.09,
+            "enemy_regroup": -0.03,
+        }
+
+        command_delay = max(0.0, 0.82 - float(state.get("command_cohesion", 0.82))) * 0.35
+        ew_delay = max(0.0, 0.78 - float(state.get("ew_control", 0.78))) * 0.22
+        route_friction = (
+            max(0.0, 0.8 - float(state.get("logistics_throughput", 0.8))) * 0.28
+            + max(0.0, 0.78 - float(state.get("supply_network", 0.78))) * 0.24
+        )
+        friendly_power = (
+            (float(state.get("readiness", 0.9)) * 0.24)
+            + (float(state.get("ammo", 0.8)) * 0.08)
+            + (float(state.get("isr_coverage", 0.8)) * 0.14)
+            + (float(state.get("ew_control", 0.75)) * 0.08)
+            + (float(state.get("air_defense", 0.78)) * 0.1)
+            + (float(state.get("logistics_throughput", 0.9)) * 0.12)
+            + (float(state.get("supply_network", 0.84)) * 0.07)
+            + (float(state.get("mobility", 0.88)) * 0.08)
+            + (float(state.get("command_cohesion", 0.86)) * 0.08)
+            + (float(state.get("objective_control", 0.52)) * 0.09)
+            + (float(state.get("recovery_capacity", 0.68)) * 0.06)
+            + (float(state.get("information_advantage", 0.82)) * 0.08)
+            + friendly_action_bonus.get(friendly_action_id, 0.0)
+            - (float(state.get("attrition_rate", 0.18)) * 0.18)
+            - (float(state.get("civilian_risk", 0.28)) * 0.06)
+            - command_delay
+            - ew_delay
+            - route_friction
+        )
+        enemy_power = (
+            (float(state.get("enemy_readiness", 0.82)) * 0.42)
+            + (float(state.get("enemy_pressure", 0.66)) * 0.28)
+            + ((1.0 - float(state.get("objective_control", 0.52))) * 0.12)
+            + ((1.0 - float(state.get("air_defense", 0.78))) * 0.07)
+            + ((1.0 - float(state.get("supply_network", 0.84))) * 0.05)
+            + enemy_action_bonus.get(enemy_action_id, 0.0)
+        )
+        fire_balance = round(max(-0.75, min(0.75, friendly_power - enemy_power)), 4)
+        positive_balance = max(fire_balance, 0.0)
+        negative_balance = max(-fire_balance, 0.0)
+        return (
+            self._clean_effects(
+                {
+                    "readiness": (0.035 * positive_balance) - (0.06 * negative_balance),
+                    "enemy_readiness": (-0.08 * positive_balance) + (0.03 * negative_balance),
+                    "attrition_rate": (-0.05 * positive_balance) + (0.07 * negative_balance),
+                    "objective_control": 0.075 * fire_balance,
+                    "enemy_pressure": (-0.07 * positive_balance) + (0.06 * negative_balance),
+                    "supply_network": 0.05 * fire_balance,
+                    "logistics_throughput": 0.035 * fire_balance,
+                    "civilian_risk": (0.04 * negative_balance) - (0.025 * positive_balance),
+                    "escalation_index": (0.03 * negative_balance) - (0.018 * positive_balance),
+                }
+            ),
+            fire_balance,
+        )
+
+    def _resolve_force_recovery(
+        self,
+        state: dict[str, float],
+        friendly_action_id: str,
+        enemy_action_id: str,
+    ) -> dict[str, float]:
+        recovery_window = (
+            (float(state.get("recovery_capacity", 0.68)) * 0.35)
+            + (float(state.get("logistics_throughput", 0.9)) * 0.25)
+            + (float(state.get("supply_network", 0.84)) * 0.2)
+            + (float(state.get("command_cohesion", 0.86)) * 0.1)
+            - (float(state.get("attrition_rate", 0.18)) * 0.25)
+            - (float(state.get("enemy_pressure", 0.66)) * 0.08)
+        )
+        recovery_gain = max(0.0, recovery_window - 0.32)
+        repair_bonus = 0.03 if friendly_action_id in {"commit_reserves", "rotate_and_repair", "open_supply_line"} else 0.0
+        recovery_capacity_delta = 0.0
+        if friendly_action_id in {"commit_reserves", "rotate_and_repair"}:
+            recovery_capacity_delta += 0.02
+        if enemy_action_id == "enemy_fire_raid":
+            recovery_capacity_delta -= 0.015
+        return self._clean_effects(
+            {
+                "readiness": (recovery_gain * 0.05) + repair_bonus,
+                "attrition_rate": -(recovery_gain * 0.06) - (0.03 if friendly_action_id == "rotate_and_repair" else 0.0),
+                "recovery_capacity": recovery_capacity_delta,
+                "enemy_pressure": -(recovery_gain * 0.03),
+                "objective_control": (0.02 * recovery_gain) if friendly_action_id == "secure_objective" else 0.0,
+            }
+        )
+
+    def _merge_effects(self, *effects: dict[str, float]) -> dict[str, float]:
+        merged: dict[str, float] = {}
+        for effect in effects:
+            for key, value in effect.items():
+                merged[key] = merged.get(key, 0.0) + float(value)
+        return self._clean_effects(merged)
+
+    def _clean_effects(self, effect: dict[str, float]) -> dict[str, float]:
+        return {
+            key: round(float(value), 4)
+            for key, value in effect.items()
+            if abs(float(value)) >= 0.0001
+        }
+
+    def _build_military_operational_picture(
+        self,
+        run: SimulationRun,
+        geo_assets: list[GeoAssetRecord],
+        state: dict[str, float],
+        *,
+        enemy_action_id: str | None,
+        enemy_reason: str | None,
+    ) -> dict[str, Any]:
+        objective_network = self._build_objective_network(geo_assets, state)
+        enemy_order_of_battle = self._build_enemy_order_of_battle(
+            run.actor_template,
+            str(run.configuration.get("theater") or "unknown-theater"),
+            state,
+            objective_network,
+        )
+        enemy_posture = self._build_enemy_posture(
+            state,
+            objective_network,
+            enemy_order_of_battle,
+            enemy_action_id=enemy_action_id,
+            enemy_reason=enemy_reason,
+        )
+        return {
+            "objective_network": objective_network,
+            "enemy_posture": enemy_posture,
+            "enemy_order_of_battle": enemy_order_of_battle,
+        }
+
+    def _build_objective_network(
+        self,
+        geo_assets: list[GeoAssetRecord],
+        state: dict[str, float],
+    ) -> dict[str, Any]:
+        if not geo_assets:
+            return {}
+
+        assets_by_name = {asset.name: asset for asset in geo_assets}
+        route_nodes: list[dict[str, Any]] = []
+        objective_nodes: list[dict[str, Any]] = []
+        edge_keys: set[tuple[str, str, str]] = set()
+        edges: list[dict[str, Any]] = []
+        contested_asset_ids: list[str] = []
+
+        for asset in geo_assets:
+            status = self._operational_asset_status(asset, state)
+            connected_to = [
+                str(name)
+                for name in asset.properties.get("connected_to", [])
+                if name in assets_by_name
+            ]
+            if status in {"contested", "at_risk", "degraded"}:
+                contested_asset_ids.append(asset.id)
+            for neighbor_name in connected_to:
+                neighbor = assets_by_name[neighbor_name]
+                edge_type = "route_link" if asset.asset_type in {"supply_hub", "supply_route", "bridge"} else "support_link"
+                edge_key = tuple(sorted((asset.id, neighbor.id)) + [edge_type])
+                if edge_key in edge_keys:
+                    continue
+                edge_keys.add(edge_key)
+                edges.append(
+                    {
+                        "source_id": asset.id,
+                        "target_id": neighbor.id,
+                        "edge_type": edge_type,
+                    }
+                )
+
+            if asset.asset_type in {"supply_hub", "supply_route", "bridge"}:
+                route_nodes.append(
+                    {
+                        "asset_id": asset.id,
+                        "name": asset.name,
+                        "asset_type": asset.asset_type,
+                        "status": status,
+                        "connected_to": connected_to,
+                        "route_health": self._route_health(asset.asset_type, state),
+                        "interdiction_risk": self._route_interdiction_risk(asset.asset_type, state),
+                    }
+                )
+            if asset.asset_type in {"objective_zone", "civilian_area", "command_post", "staging_area", "isr_node"}:
+                objective_nodes.append(
+                    {
+                        "asset_id": asset.id,
+                        "name": asset.name,
+                        "asset_type": asset.asset_type,
+                        "status": status,
+                        "connected_to": connected_to,
+                        "control_score": self._objective_control_score(asset.asset_type, state),
+                        "pressure_score": self._objective_pressure_score(asset.asset_type, state),
+                    }
+                )
+
+        critical_route = min(
+            route_nodes,
+            key=lambda item: (item["route_health"] - item["interdiction_risk"], item["route_health"]),
+            default=None,
+        )
+        critical_objective = min(
+            objective_nodes,
+            key=lambda item: (item["control_score"] - item["pressure_score"], item["control_score"]),
+            default=None,
+        )
+        return {
+            "route_health_index": self._clamp(
+                (float(state.get("supply_network", 0.84)) * 0.55)
+                + (float(state.get("logistics_throughput", 0.9)) * 0.45)
+            ),
+            "objective_pressure_index": self._clamp(
+                (float(state.get("enemy_pressure", 0.66)) * 0.55)
+                + ((1.0 - float(state.get("objective_control", 0.5))) * 0.45)
+            ),
+            "routes": route_nodes,
+            "objectives": objective_nodes,
+            "edges": edges,
+            "critical_route_id": critical_route["asset_id"] if critical_route is not None else None,
+            "critical_objective_id": critical_objective["asset_id"] if critical_objective is not None else None,
+            "contested_asset_ids": contested_asset_ids,
+        }
+
+    def _build_enemy_order_of_battle(
+        self,
+        actor_template: str,
+        theater: str,
+        state: dict[str, float],
+        objective_network: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        templates = {
+            "brigade": [
+                ("Red Recon Group", "targeting", "objective_zone"),
+                ("Red Fires Battalion", "counter_mobility", "supply_route"),
+                ("Red Drone Strike Cell", "air_pressure", "civilian_area"),
+                ("Red EW Detachment", "c2_disruption", "command_post"),
+                ("Red Reserve Company", "objective_seizure", "objective_zone"),
+            ],
+            "air_defense_battalion": [
+                ("Strike Aviation Cell", "air_suppression", "air_defense_site"),
+                ("Rocket Fires Battery", "corridor_interdiction", "supply_route"),
+                ("EW Assault Team", "c2_disruption", "command_post"),
+                ("Drone Saturation Group", "civilian_pressure", "civilian_area"),
+            ],
+        }
+        units = templates.get(actor_template, templates["brigade"])
+        target_lookup = {
+            node["asset_type"]: node["name"]
+            for node in objective_network.get("objectives", []) + objective_network.get("routes", [])
+        }
+        pressure_band = self._band_label(float(state.get("enemy_pressure", 0.66)), high=0.7, low=0.52)
+        readiness_band = self._band_label(float(state.get("enemy_readiness", 0.82)), high=0.8, low=0.66)
+        order_of_battle: list[dict[str, Any]] = []
+        for index, (unit_name, role, preferred_target_type) in enumerate(units):
+            status = "committed"
+            if role in {"objective_seizure", "air_suppression"} and readiness_band == "high":
+                status = "surging"
+            elif role in {"targeting", "c2_disruption"} and pressure_band == "medium":
+                status = "probing"
+            elif readiness_band == "low":
+                status = "regenerating"
+            order_of_battle.append(
+                {
+                    "unit_id": f"enemy-{actor_template}-{index + 1}",
+                    "name": unit_name,
+                    "role": role,
+                    "theater": theater,
+                    "status": status,
+                    "strength_band": readiness_band,
+                    "pressure_band": pressure_band,
+                    "target_asset_type": preferred_target_type,
+                    "target_asset_name": target_lookup.get(preferred_target_type),
+                }
+            )
+        return order_of_battle
+
+    def _build_enemy_posture(
+        self,
+        state: dict[str, float],
+        objective_network: dict[str, Any],
+        enemy_order_of_battle: list[dict[str, Any]],
+        *,
+        enemy_action_id: str | None,
+        enemy_reason: str | None,
+    ) -> dict[str, Any]:
+        action_focus = {
+            "enemy_probe_supply": {
+                "focus": "logistics interdiction",
+                "target_asset_types": ["supply_route", "bridge", "supply_hub"],
+                "likely_next_actions": ["enemy_probe_supply", "enemy_fire_raid", "enemy_jam_c2"],
+            },
+            "enemy_fire_raid": {
+                "focus": "fire strikes and air pressure",
+                "target_asset_types": ["civilian_area", "objective_zone", "air_defense_site"],
+                "likely_next_actions": ["enemy_fire_raid", "enemy_press_objective", "enemy_probe_supply"],
+            },
+            "enemy_jam_c2": {
+                "focus": "command-loop disruption",
+                "target_asset_types": ["command_post", "isr_node"],
+                "likely_next_actions": ["enemy_jam_c2", "enemy_probe_supply", "enemy_press_objective"],
+            },
+            "enemy_press_objective": {
+                "focus": "objective seizure",
+                "target_asset_types": ["objective_zone", "staging_area", "civilian_area"],
+                "likely_next_actions": ["enemy_press_objective", "enemy_fire_raid", "enemy_probe_supply"],
+            },
+            "enemy_regroup": {
+                "focus": "combat regeneration",
+                "target_asset_types": ["staging_area", "command_post"],
+                "likely_next_actions": ["enemy_regroup", "enemy_press_objective", "enemy_fire_raid"],
+            },
+        }
+        selected_profile = action_focus.get(
+            enemy_action_id or "",
+            {
+                "focus": "positional pressure",
+                "target_asset_types": ["objective_zone", "supply_route"],
+                "likely_next_actions": ["enemy_press_objective", "enemy_probe_supply", "enemy_fire_raid"],
+            },
+        )
+        target_asset_ids = [
+            node["asset_id"]
+            for node in objective_network.get("objectives", []) + objective_network.get("routes", [])
+            if node["asset_type"] in selected_profile["target_asset_types"]
+        ]
+        critical_axis = (
+            objective_network.get("critical_objective_id")
+            or objective_network.get("critical_route_id")
+        )
+        readiness_band = self._band_label(float(state.get("enemy_readiness", 0.82)), high=0.8, low=0.66)
+        pressure_band = self._band_label(float(state.get("enemy_pressure", 0.66)), high=0.7, low=0.52)
+        return {
+            "dominant_action": enemy_action_id or "enemy_press_objective",
+            "focus": selected_profile["focus"],
+            "readiness_band": readiness_band,
+            "pressure_band": pressure_band,
+            "critical_axis_asset_id": critical_axis,
+            "target_asset_ids": target_asset_ids[:4],
+            "likely_next_actions": selected_profile["likely_next_actions"],
+            "summary": enemy_reason
+            or f"Enemy posture remains centered on {selected_profile['focus']} across the contested axis.",
+            "order_of_battle": enemy_order_of_battle,
+        }
+
+    def _operational_asset_status(
+        self,
+        asset: GeoAssetRecord,
+        state: dict[str, float],
+    ) -> str:
+        if asset.asset_type in {"supply_hub", "bridge"} and float(state.get("logistics_throughput", 1.0)) < 0.8:
+            return "contested"
+        if asset.asset_type == "supply_route" and float(state.get("supply_network", 0.84)) < 0.78:
+            return "contested"
+        if asset.asset_type == "objective_zone" and float(state.get("objective_control", 0.5)) < 0.5:
+            return "contested"
+        if asset.asset_type == "civilian_area" and float(state.get("civilian_risk", 0.0)) > 0.55:
+            return "at_risk"
+        if asset.asset_type in {"air_defense_site", "command_post"} and float(state.get("air_defense", 1.0)) < 0.85:
+            return "degraded"
+        return "active"
+
+    def _route_health(
+        self,
+        asset_type: str,
+        state: dict[str, float],
+    ) -> float:
+        modifier = {
+            "supply_hub": 0.02,
+            "bridge": -0.03,
+            "supply_route": -0.01,
+        }.get(asset_type, 0.0)
+        return self._clamp(
+            (float(state.get("supply_network", 0.84)) * 0.45)
+            + (float(state.get("logistics_throughput", 0.9)) * 0.35)
+            + (float(state.get("mobility", 0.88)) * 0.1)
+            + (float(state.get("command_cohesion", 0.86)) * 0.1)
+            + modifier
+        )
+
+    def _route_interdiction_risk(
+        self,
+        asset_type: str,
+        state: dict[str, float],
+    ) -> float:
+        modifier = {
+            "bridge": 0.05,
+            "supply_route": 0.04,
+            "supply_hub": -0.02,
+        }.get(asset_type, 0.0)
+        return self._clamp(
+            (float(state.get("enemy_pressure", 0.66)) * 0.42)
+            + ((1.0 - float(state.get("air_defense", 0.78))) * 0.16)
+            + ((1.0 - float(state.get("information_advantage", 0.82))) * 0.12)
+            + ((1.0 - float(state.get("objective_control", 0.5))) * 0.1)
+            + modifier
+        )
+
+    def _objective_control_score(
+        self,
+        asset_type: str,
+        state: dict[str, float],
+    ) -> float:
+        modifier = {
+            "objective_zone": -0.04,
+            "command_post": 0.02,
+            "civilian_area": -0.02,
+            "staging_area": 0.01,
+            "isr_node": 0.02,
+        }.get(asset_type, 0.0)
+        return self._clamp(
+            (float(state.get("objective_control", 0.5)) * 0.55)
+            + (float(state.get("readiness", 0.9)) * 0.15)
+            + (float(state.get("information_advantage", 0.82)) * 0.12)
+            + (float(state.get("mobility", 0.88)) * 0.08)
+            + (float(state.get("command_cohesion", 0.86)) * 0.1)
+            + modifier
+        )
+
+    def _objective_pressure_score(
+        self,
+        asset_type: str,
+        state: dict[str, float],
+    ) -> float:
+        modifier = {
+            "objective_zone": 0.05,
+            "civilian_area": 0.04,
+            "command_post": 0.03,
+            "staging_area": 0.02,
+            "isr_node": -0.02,
+        }.get(asset_type, 0.0)
+        return self._clamp(
+            (float(state.get("enemy_pressure", 0.66)) * 0.48)
+            + (float(state.get("enemy_readiness", 0.82)) * 0.18)
+            + (float(state.get("civilian_risk", 0.28)) * 0.08)
+            + ((1.0 - float(state.get("air_defense", 0.78))) * 0.1)
+            + ((1.0 - float(state.get("objective_control", 0.5))) * 0.16)
+            + modifier
+        )
+
+    def _band_label(
+        self,
+        value: float,
+        *,
+        high: float,
+        low: float,
+    ) -> str:
+        if value >= high:
+            return "high"
+        if value <= low:
+            return "low"
+        return "medium"
+
+    def _clamp(
+        self,
+        value: float,
+        *,
+        minimum: float = 0.0,
+        maximum: float = 1.0,
+    ) -> float:
+        return round(max(minimum, min(maximum, float(value))), 4)
+
+    async def _select_action(
         self,
         domain_id: str,
         state: dict[str, float],
         active_claim: Claim | None,
         rules: list[RuleSpec],
+        recent_claims: list[Claim] | None = None,
+        action_history: list[str] | None = None,
+        recent_decisions: list[DecisionRecordRecord] | None = None,
     ) -> SelectedAction:
-        if active_claim is not None:
-            for rule in rules:
-                if rule.matches(active_claim.statement):
-                    why = rule.explanation_template.format(
-                        statement=normalize_text(active_claim.statement),
-                        action_id=rule.action_id,
-                        rule_id=rule.rule_id,
-                    )
-                    expected = self._effects_to_mapping(rule.effects)
-                    return SelectedAction(
-                        action_id=rule.action_id,
-                        why_selected=why,
-                        rule_ids=[rule.rule_id],
-                        evidence_ids=[active_claim.evidence_item_id],
-                        expected_effect=expected,
-                        actual_effect=expected,
-                    )
+        evidence_window = self._build_evidence_window(active_claim, recent_claims)
+        candidate = self._rank_action_candidates(
+            domain_id,
+            state,
+            evidence_window,
+            rules,
+            action_history or [],
+        )
+        if candidate is not None and candidate.total_score >= _DECISION_MIN_SCORE:
+            expected = self._aggregate_candidate_effect(candidate)
+            return SelectedAction(
+                action_id=candidate.action_id,
+                why_selected=self._build_selection_explanation(candidate),
+                rule_ids=self._candidate_rule_ids(candidate),
+                evidence_ids=self._candidate_evidence_ids(candidate),
+                expected_effect=expected,
+                actual_effect=expected,
+                decision_method="rule_engine",
+            )
 
+        # Level 2: LLM-assisted decision (when rules produce no strong candidate)
+        llm_result = await self._llm_decide_action(
+            domain_id,
+            state,
+            rules,
+            evidence_window,
+            recent_decisions or [],
+            action_history or [],
+        )
+        if llm_result is not None:
+            return llm_result
+
+        # Level 3: Weighted fallback
         fallback_effect = self._fallback_effect(domain_id, state)
         return SelectedAction(
             action_id=fallback_effect["action_id"],
@@ -1066,7 +2510,283 @@ class SimulationService:
             evidence_ids=[active_claim.evidence_item_id] if active_claim is not None else [],
             expected_effect=fallback_effect["effects"],
             actual_effect=fallback_effect["effects"],
+            decision_method="fallback_random",
         )
+
+    async def _llm_decide_action(
+        self,
+        domain_id: str,
+        state: dict[str, float],
+        rules: list[RuleSpec],
+        evidence_window: list[Claim],
+        recent_decisions: list[DecisionRecordRecord],
+        action_history: list[str],
+    ) -> SelectedAction | None:
+        if self.openai_service is None or not self.openai_service.is_configured("report"):
+            return None
+
+        pack = registry.get(domain_id)
+        available_actions = [
+            {"action_id": a.action_id, "description": a.description}
+            for a in pack.action_library
+        ]
+        state_lines = [f"  {k}: {v:.3f}" for k, v in sorted(state.items())]
+        state_summary = "\n".join(state_lines)
+        recent = [
+            {
+                "tick": str(rec.tick),
+                "action_id": rec.action_id,
+                "why": (rec.why_selected or "")[:120],
+            }
+            for rec in recent_decisions[-3:]
+        ]
+        evidence = [claim.statement for claim in evidence_window[-3:]]
+
+        try:
+            result = await asyncio.wait_for(
+                self.openai_service.generate_action_decision(
+                    domain_id=domain_id,
+                    state_summary=state_summary,
+                    available_actions=available_actions,
+                    recent_decisions=recent,
+                    evidence=evidence,
+                    target="report",
+                ),
+                timeout=10.0,
+            )
+        except (asyncio.TimeoutError, Exception):
+            return None
+
+        if result is None:
+            return None
+
+        action_id = result.action_id
+        valid_ids = {a.action_id for a in pack.action_library}
+        if action_id not in valid_ids:
+            matched = [a.action_id for a in pack.action_library if a.action_id in action_id or action_id in a.action_id]
+            action_id = matched[0] if matched else None
+        if action_id is None:
+            return None
+
+        reasoning = result.reasoning or "LLM-assisted action selection."
+        expected = dict(result.expected_effect) if result.expected_effect else {}
+
+        return SelectedAction(
+            action_id=action_id,
+            why_selected=reasoning,
+            rule_ids=[],
+            evidence_ids=[claim.evidence_item_id for claim in evidence_window if claim.evidence_item_id][:3],
+            expected_effect=expected,
+            actual_effect=expected,
+            decision_method="llm_assisted",
+        )
+
+    def _build_evidence_window(
+        self,
+        active_claim: Claim | None,
+        recent_claims: list[Claim] | None,
+    ) -> list[Claim]:
+        window = list(recent_claims or [])
+        if active_claim is not None and (
+            not window or self._claim_key(window[-1]) != self._claim_key(active_claim)
+        ):
+            window.append(active_claim)
+        return window[-_DECISION_EVIDENCE_WINDOW:]
+
+    def _rank_action_candidates(
+        self,
+        domain_id: str,
+        state: dict[str, float],
+        evidence_window: list[Claim],
+        rules: list[RuleSpec],
+        action_history: list[str],
+    ) -> ActionCandidate | None:
+        candidates: dict[str, ActionCandidate] = {}
+        for distance, claim in enumerate(reversed(evidence_window)):
+            recency_weight = _DECISION_RECENCY_WEIGHTS[min(distance, len(_DECISION_RECENCY_WEIGHTS) - 1)]
+            confidence = float(claim.confidence or 0.75)
+            confidence_weight = 0.7 + (max(0.0, min(confidence, 1.0)) * 0.4)
+            for rule in rules:
+                matched_keywords = self._matched_keywords(rule, claim.statement)
+                if not matched_keywords:
+                    continue
+                coverage_bonus = 0.08 * max(0, len(matched_keywords) - 1)
+                effective_priority = self.rule_registry.effective_priority(rule)
+                score = round(((effective_priority / 100.0) + coverage_bonus) * recency_weight * confidence_weight, 4)
+                candidate = candidates.setdefault(rule.action_id, ActionCandidate(action_id=rule.action_id))
+                candidate.rule_scores.append(
+                    RuleScore(
+                        rule=rule,
+                        claim=claim,
+                        score=score,
+                        matched_keywords=matched_keywords,
+                    )
+                )
+                candidate.base_score = round(candidate.base_score + score, 4)
+
+        if not candidates:
+            return None
+
+        for candidate in candidates.values():
+            aggregated_effect = self._aggregate_candidate_effect(candidate)
+            candidate.state_adjustment = self._score_state_alignment(
+                domain_id,
+                state,
+                candidate.action_id,
+                aggregated_effect,
+            )
+            candidate.history_penalty = self._score_history_penalty(candidate.action_id, action_history)
+
+        ranked = sorted(
+            candidates.values(),
+            key=lambda item: (
+                item.total_score,
+                item.base_score,
+                max((score.score for score in item.rule_scores), default=0.0),
+            ),
+            reverse=True,
+        )
+        return ranked[0]
+
+    def _matched_keywords(self, rule: RuleSpec, statement: str) -> tuple[str, ...]:
+        lowered = statement.lower()
+        return tuple(keyword for keyword in rule.trigger_keywords if keyword.lower() in lowered)
+
+    def _aggregate_candidate_effect(self, candidate: ActionCandidate) -> dict[str, float]:
+        aggregated: dict[str, float] = {}
+        seen_rules: set[str] = set()
+        ranked_scores = sorted(candidate.rule_scores, key=lambda item: item.score, reverse=True)
+        for index, score in enumerate(ranked_scores):
+            if score.rule.rule_id in seen_rules:
+                multiplier = 0.15
+            elif index == 0:
+                multiplier = 1.0
+            else:
+                multiplier = 0.35
+            seen_rules.add(score.rule.rule_id)
+            for target, value in self._effects_to_mapping(score.rule.effects).items():
+                aggregated[target] = round(aggregated.get(target, 0.0) + (value * multiplier), 4)
+
+        evidence_count = len({score.claim.evidence_item_id for score in ranked_scores})
+        support_multiplier = 1.0 + (0.08 * min(max(evidence_count - 1, 0), 2))
+        return {
+            target: round(value * support_multiplier, 4)
+            for target, value in aggregated.items()
+        }
+
+    def _score_state_alignment(
+        self,
+        domain_id: str,
+        state: dict[str, float],
+        action_id: str,
+        effects: dict[str, float],
+    ) -> float:
+        policies = _STATE_POLICIES.get(domain_id, {})
+        adjustment = 0.0
+        urgent_metric_present = False
+        for target, delta in effects.items():
+            policy = policies.get(target)
+            if policy is None or delta == 0:
+                continue
+            urgency = self._metric_urgency(float(state.get(target, 0.0)), policy)
+            urgent_metric_present = urgent_metric_present or urgency >= 0.5
+            helps = self._effect_relieves_pressure(delta, policy)
+            harms = self._effect_adds_pressure(delta, policy)
+            if urgency == 0:
+                if helps:
+                    adjustment += 0.04
+                elif harms:
+                    adjustment -= 0.08
+                continue
+            if helps:
+                adjustment += 0.22 + (0.28 * urgency)
+                if self._metric_is_critical(float(state.get(target, 0.0)), policy):
+                    adjustment += 0.12
+            elif harms:
+                adjustment -= 0.3 + (0.35 * urgency)
+                if self._metric_is_critical(float(state.get(target, 0.0)), policy):
+                    adjustment -= 0.2
+
+        if action_id == "monitor" and urgent_metric_present:
+            adjustment -= 0.25
+        return round(adjustment, 4)
+
+    def _metric_urgency(self, value: float, policy: MetricPolicy) -> float:
+        if policy.preferred_direction == "increase":
+            if value >= policy.alert_threshold:
+                return 0.0
+            denominator = max(policy.alert_threshold - policy.critical_threshold, 0.01)
+            return min(1.0, max(0.0, (policy.alert_threshold - value) / denominator))
+
+        if value <= policy.alert_threshold:
+            return 0.0
+        denominator = max(policy.critical_threshold - policy.alert_threshold, 0.01)
+        return min(1.0, max(0.0, (value - policy.alert_threshold) / denominator))
+
+    def _metric_is_critical(self, value: float, policy: MetricPolicy) -> bool:
+        if policy.preferred_direction == "increase":
+            return value <= policy.critical_threshold
+        return value >= policy.critical_threshold
+
+    def _effect_relieves_pressure(self, delta: float, policy: MetricPolicy) -> bool:
+        return (policy.preferred_direction == "increase" and delta > 0) or (
+            policy.preferred_direction == "decrease" and delta < 0
+        )
+
+    def _effect_adds_pressure(self, delta: float, policy: MetricPolicy) -> bool:
+        return (policy.preferred_direction == "increase" and delta < 0) or (
+            policy.preferred_direction == "decrease" and delta > 0
+        )
+
+    def _score_history_penalty(self, action_id: str, action_history: list[str]) -> float:
+        penalty = 0.0
+        for distance, previous_action in enumerate(reversed(action_history[-3:]), start=1):
+            if previous_action != action_id:
+                continue
+            if distance == 1:
+                penalty += 0.75
+            elif distance == 2:
+                penalty += 0.3
+            else:
+                penalty += 0.15
+        return round(penalty, 4)
+
+    def _candidate_rule_ids(self, candidate: ActionCandidate) -> list[str]:
+        ordered_rule_ids: list[str] = []
+        seen: set[str] = set()
+        for score in sorted(candidate.rule_scores, key=lambda item: item.score, reverse=True):
+            if score.rule.rule_id in seen:
+                continue
+            seen.add(score.rule.rule_id)
+            ordered_rule_ids.append(score.rule.rule_id)
+        return ordered_rule_ids
+
+    def _candidate_evidence_ids(self, candidate: ActionCandidate) -> list[str]:
+        ordered_evidence_ids: list[str] = []
+        seen: set[str] = set()
+        for score in sorted(candidate.rule_scores, key=lambda item: item.score, reverse=True):
+            evidence_id = score.claim.evidence_item_id
+            if evidence_id in seen:
+                continue
+            seen.add(evidence_id)
+            ordered_evidence_ids.append(evidence_id)
+        return ordered_evidence_ids
+
+    def _build_selection_explanation(self, candidate: ActionCandidate) -> str:
+        top_score = max(candidate.rule_scores, key=lambda item: item.score)
+        rule_ids = self._candidate_rule_ids(candidate)
+        evidence_count = len(self._candidate_evidence_ids(candidate))
+        return (
+            f"Selected {candidate.action_id} from {len(rule_ids)} supporting rule(s) "
+            f"across {evidence_count} evidence item(s); top signal was {top_score.rule.rule_id} "
+            f"and the final score was {candidate.total_score:.2f} after state and history adjustments."
+        )
+
+    def _claim_key(self, claim: Claim) -> str:
+        claim_id = getattr(claim, "id", None)
+        if claim_id:
+            return str(claim_id)
+        return f"{claim.evidence_item_id}:{normalize_text(claim.statement).lower()}"
 
     def _effects_to_mapping(self, effects: tuple[Any, ...]) -> dict[str, float]:
         result: dict[str, float] = {}
@@ -1078,40 +2798,179 @@ class SimulationService:
 
     def _fallback_effect(self, domain_id: str, state: dict[str, float]) -> dict[str, Any]:
         if domain_id == "corporate":
-            if state.get("infra_cost_index", 1.0) > 1.1:
+            deployment_load = state.get("active_deployments", 3.0) / max(state.get("implementation_capacity", 3.0), 1.0)
+            if (
+                state.get("pipeline", 1.0) > 1.15
+                and deployment_load > 0.95
+                and state.get("support_load", 0.35) > 0.48
+                and state.get("runway_weeks", 52.0) > 48.0
+                and state.get("gross_margin", 0.62) > 0.6
+            ):
+                return {
+                    "action_id": "hire",
+                    "why_selected": (
+                        "Fallback policy invested in delivery capacity because qualified demand outran "
+                        "implementation bandwidth while retention economics stayed healthy."
+                    ),
+                    "effects": {
+                        "delivery_velocity": 0.05,
+                        "implementation_capacity": 0.45,
+                        "support_load": -0.06,
+                        "cash": -8.0,
+                        "runway_weeks": -2.0,
+                    },
+                }
+            if state.get("runway_weeks", 52.0) < 28.0 or state.get("cash", 100.0) < 30.0:
+                return {
+                    "action_id": "tighten_scope",
+                    "why_selected": "Fallback policy narrowed scope because liquidity and deployment capacity entered the red zone.",
+                    "effects": {
+                        "runway_weeks": 4.0,
+                        "delivery_velocity": 0.03,
+                        "brand_index": 0.01,
+                        "market_share": -0.005,
+                        "support_load": -0.08,
+                        "reliability_debt": -0.04,
+                        "active_deployments": -0.2,
+                    },
+                }
+            if (
+                state.get("brand_index", 1.0) < 0.88
+                or state.get("reliability_debt", 0.28) > 0.44
+                or state.get("churn_risk", 0.12) > 0.2
+            ):
+                return {
+                    "action_id": "improve_reliability",
+                    "why_selected": (
+                        "Fallback policy prioritized trust recovery after reliability debt and renewal risk "
+                        "started to outweigh short-term delivery pressure."
+                    ),
+                    "effects": {
+                        "brand_index": 0.05,
+                        "market_share": 0.005,
+                        "delivery_velocity": -0.04,
+                        "team_morale": -0.01,
+                        "reliability_debt": -0.1,
+                        "support_load": -0.07,
+                        "nrr": 0.03,
+                        "churn_risk": -0.05,
+                    },
+                }
+            if (
+                state.get("market_share", 0.05) < 0.03
+                and state.get("brand_index", 1.0) < 0.95
+            ) or state.get("pipeline", 1.0) < 0.8:
+                return {
+                    "action_id": "focus_vertical",
+                    "why_selected": (
+                        "Fallback policy narrowed the wedge because broad positioning stopped converting into "
+                        "qualified pipeline and durable retention."
+                    ),
+                    "effects": {
+                        "brand_index": 0.03,
+                        "market_share": 0.01,
+                        "delivery_velocity": -0.03,
+                        "pipeline": 0.08,
+                        "gross_margin": 0.04,
+                        "nrr": 0.02,
+                        "churn_risk": -0.02,
+                    },
+                }
+            if state.get("infra_cost_index", 1.0) > 1.1 or state.get("gross_margin", 0.62) < 0.55:
                 return {
                     "action_id": "optimize_cost",
-                    "why_selected": "Fallback policy detected sustained cost pressure and protected runway.",
-                    "effects": {"infra_cost_index": -0.05, "runway_weeks": 2.0, "delivery_velocity": -0.01},
+                    "why_selected": "Fallback policy detected sustained cost pressure and deteriorating unit economics.",
+                    "effects": {
+                        "infra_cost_index": -0.05,
+                        "runway_weeks": 2.0,
+                        "delivery_velocity": -0.01,
+                        "gross_margin": 0.05,
+                        "support_load": -0.02,
+                    },
                 }
             return {
                 "action_id": "monitor",
                 "why_selected": "No rule crossed the action threshold, so the baseline policy held position.",
-                "effects": {"brand_index": 0.01},
+                "effects": {"brand_index": 0.01, "pipeline": 0.01},
             }
 
         if state.get("civilian_risk", 0.0) > 0.55:
             return {
                 "action_id": "protect_civilians",
                 "why_selected": "Fallback policy prioritized civilian protection after risk crossed the alert line.",
-                "effects": {"civilian_risk": -0.08, "readiness": -0.01, "escalation_index": -0.04},
+                "effects": {
+                    "civilian_risk": -0.08,
+                    "readiness": -0.01,
+                    "escalation_index": -0.04,
+                    "objective_control": -0.02,
+                },
             }
-        if state.get("logistics_throughput", 1.0) < 0.82:
+        if state.get("logistics_throughput", 1.0) < 0.82 or state.get("supply_network", 0.84) < 0.76:
             return {
                 "action_id": "open_supply_line",
                 "why_selected": "Fallback policy restored the supply corridor to recover readiness.",
-                "effects": {"logistics_throughput": 0.10, "ammo": 0.05, "readiness": 0.03},
+                "effects": {
+                    "logistics_throughput": 0.10,
+                    "supply_network": 0.08,
+                    "ammo": 0.05,
+                    "readiness": 0.03,
+                    "recovery_capacity": 0.02,
+                },
+            }
+        if state.get("objective_control", 0.5) < 0.48:
+            return {
+                "action_id": "secure_objective",
+                "why_selected": "Fallback policy stabilized the decisive objective before the force lost positional leverage.",
+                "effects": {
+                    "objective_control": 0.08,
+                    "enemy_pressure": -0.04,
+                    "attrition_rate": -0.02,
+                    "mobility": -0.02,
+                },
+            }
+        if state.get("enemy_pressure", 0.66) > 0.7 or state.get("enemy_readiness", 0.82) > 0.82:
+            return {
+                "action_id": "suppress_enemy_fires",
+                "why_selected": "Fallback policy disrupted enemy pressure before additional fires stacked onto the corridor fight.",
+                "effects": {
+                    "enemy_pressure": -0.08,
+                    "enemy_readiness": -0.04,
+                    "information_advantage": 0.03,
+                    "ammo": -0.04,
+                    "escalation_index": 0.03,
+                },
+            }
+        if state.get("attrition_rate", 0.18) > 0.28 or state.get("recovery_capacity", 0.68) < 0.58:
+            return {
+                "action_id": "rotate_and_repair",
+                "why_selected": "Fallback policy rotated damaged elements because attrition outpaced recovery capacity.",
+                "effects": {
+                    "readiness": 0.05,
+                    "attrition_rate": -0.05,
+                    "recovery_capacity": 0.05,
+                    "mobility": -0.03,
+                },
             }
         if state.get("air_defense", 1.0) < 0.85:
             return {
                 "action_id": "rebalance_air_defense",
                 "why_selected": "Fallback policy shifted coverage to reduce incoming drone exposure.",
-                "effects": {"air_defense": 0.09, "mobility": -0.02},
+                "effects": {
+                    "air_defense": 0.09,
+                    "mobility": -0.02,
+                    "enemy_pressure": -0.04,
+                    "civilian_risk": -0.03,
+                },
             }
         return {
             "action_id": "fortify",
             "why_selected": "No military rule crossed the threshold, so the force hardened its current position.",
-            "effects": {"readiness": 0.02, "air_defense": 0.03},
+            "effects": {
+                "readiness": 0.02,
+                "air_defense": 0.03,
+                "objective_control": 0.03,
+                "attrition_rate": -0.02,
+            },
         }
 
     def _apply_effects(self, state: dict[str, float], effect: dict[str, float]) -> None:

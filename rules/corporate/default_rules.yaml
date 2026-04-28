@@ -18,6 +18,15 @@ rules:
       - target: "delivery_velocity"
         op: "add"
         value: -0.03
+      - target: "gross_margin"
+        op: "add"
+        value: 0.06
+      - target: "support_load"
+        op: "add"
+        value: -0.02
+      - target: "pipeline"
+        op: "add"
+        value: -0.03
     priority: 88
     explanation_template: "Cost pressure appeared in '{statement}', so the run selected {action_id} to preserve runway."
   - id: "corp.ship_momentum"
@@ -39,6 +48,18 @@ rules:
       - target: "delivery_velocity"
         op: "add"
         value: -0.02
+      - target: "pipeline"
+        op: "add"
+        value: 0.1
+      - target: "active_deployments"
+        op: "add"
+        value: 0.4
+      - target: "support_load"
+        op: "add"
+        value: 0.05
+      - target: "reliability_debt"
+        op: "add"
+        value: 0.03
     priority: 80
     explanation_template: "Launch momentum in '{statement}' favored {action_id} to convert attention into share."
   - id: "corp.hiring_push"
@@ -53,16 +74,28 @@ rules:
     effects:
       - target: "delivery_velocity"
         op: "add"
-        value: 0.08
+        value: 0.06
       - target: "cash"
         op: "add"
-        value: -10
+        value: -12
       - target: "runway_weeks"
         op: "add"
-        value: -3
+        value: -4
       - target: "team_morale"
         op: "add"
-        value: 0.03
+        value: 0.02
+      - target: "implementation_capacity"
+        op: "add"
+        value: 0.5
+      - target: "support_load"
+        op: "add"
+        value: -0.05
+      - target: "gross_margin"
+        op: "add"
+        value: -0.03
+      - target: "active_deployments"
+        op: "add"
+        value: 0.25
     priority: 70
     explanation_template: "Demand growth in '{statement}' justified {action_id} despite the runway trade-off."
   - id: "corp.margin_defense"
@@ -83,5 +116,165 @@ rules:
       - target: "brand_index"
         op: "add"
         value: -0.01
+      - target: "gross_margin"
+        op: "add"
+        value: 0.08
+      - target: "nrr"
+        op: "add"
+        value: -0.03
+      - target: "churn_risk"
+        op: "add"
+        value: 0.04
     priority: 60
     explanation_template: "Margin language in '{statement}' pushed the run toward {action_id} to stabilize cash."
+  - id: "corp.platform_squeeze"
+    domain: "corporate"
+    action_id: "focus_vertical"
+    trigger:
+      keywords:
+        - "bundled"
+        - "native"
+        - "copilot"
+        - "platform"
+        - "workspace"
+    effects:
+      - target: "brand_index"
+        op: "add"
+        value: 0.03
+      - target: "market_share"
+        op: "add"
+        value: 0.015
+      - target: "delivery_velocity"
+        op: "add"
+        value: -0.04
+      - target: "cash"
+        op: "add"
+        value: -4
+      - target: "pipeline"
+        op: "add"
+        value: 0.07
+      - target: "gross_margin"
+        op: "add"
+        value: 0.04
+      - target: "nrr"
+        op: "add"
+        value: 0.02
+      - target: "churn_risk"
+        op: "add"
+        value: -0.02
+    priority: 84
+    explanation_template: "Platform bundling pressure in '{statement}' favored {action_id} to defend a narrower, more defensible wedge."
+  - id: "corp.enterprise_friction"
+    domain: "corporate"
+    action_id: "tighten_scope"
+    trigger:
+      keywords:
+        - "security"
+        - "compliance"
+        - "procurement"
+        - "integration"
+        - "pilot"
+    effects:
+      - target: "runway_weeks"
+        op: "add"
+        value: 4
+      - target: "delivery_velocity"
+        op: "add"
+        value: 0.03
+      - target: "brand_index"
+        op: "add"
+        value: 0.02
+      - target: "market_share"
+        op: "add"
+        value: -0.005
+      - target: "support_load"
+        op: "add"
+        value: -0.08
+      - target: "reliability_debt"
+        op: "add"
+        value: -0.04
+      - target: "active_deployments"
+        op: "add"
+        value: -0.2
+      - target: "implementation_capacity"
+        op: "add"
+        value: 0.1
+    priority: 76
+    explanation_template: "Enterprise buying friction in '{statement}' pushed {action_id} so the team could land a smaller but cleaner deployment."
+  - id: "corp.reliability_reset"
+    domain: "corporate"
+    action_id: "improve_reliability"
+    trigger:
+      keywords:
+        - "hallucination"
+        - "latency"
+        - "outage"
+        - "accuracy"
+        - "reliability"
+    effects:
+      - target: "brand_index"
+        op: "add"
+        value: 0.05
+      - target: "market_share"
+        op: "add"
+        value: 0.005
+      - target: "delivery_velocity"
+        op: "add"
+        value: -0.05
+      - target: "team_morale"
+        op: "add"
+        value: -0.01
+      - target: "reliability_debt"
+        op: "add"
+        value: -0.1
+      - target: "support_load"
+        op: "add"
+        value: -0.08
+      - target: "nrr"
+        op: "add"
+        value: 0.03
+      - target: "churn_risk"
+        op: "add"
+        value: -0.05
+    priority: 82
+    explanation_template: "Reliability risk in '{statement}' favored {action_id} to protect trust before chasing more volume."
+  - id: "corp.roi_pull"
+    domain: "corporate"
+    action_id: "hire"
+    trigger:
+      keywords:
+        - "roi"
+        - "renewal"
+        - "expansion"
+        - "savings"
+        - "hours"
+    effects:
+      - target: "delivery_velocity"
+        op: "add"
+        value: 0.06
+      - target: "market_share"
+        op: "add"
+        value: 0.025
+      - target: "cash"
+        op: "add"
+        value: -8
+      - target: "runway_weeks"
+        op: "add"
+        value: -2
+      - target: "brand_index"
+        op: "add"
+        value: 0.02
+      - target: "pipeline"
+        op: "add"
+        value: 0.08
+      - target: "active_deployments"
+        op: "add"
+        value: 0.3
+      - target: "implementation_capacity"
+        op: "add"
+        value: 0.4
+      - target: "nrr"
+        op: "add"
+        value: 0.02
+    priority: 72
+    explanation_template: "Validated ROI in '{statement}' created pressure to {action_id} and convert proof into paid expansion."

@@ -26,11 +26,16 @@ class ReportWorker(Worker):
         openai_service: OpenAIService | None = None,
     ) -> None:
         self.settings = settings
+        self.event_bus = event_bus
         self.openai_service = openai_service
+        self.worker_instance_id = self.description.worker_id
         self.service = SimulationService(settings, event_bus, rule_registry, openai_service)
 
     async def run_once(self) -> dict[str, object]:
         database = get_database(self.settings.database_url)
         async with database.session() as session:
-            generated_reports = await self.service.generate_pending_reports(session)
+            generated_reports = await self.service.generate_pending_reports(
+                session,
+                worker_id=self.worker_instance_id,
+            )
         return {"generated_reports": generated_reports}

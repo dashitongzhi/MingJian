@@ -19,6 +19,12 @@ rules:
       - target: "readiness"
         op: "add"
         value: 0.04
+      - target: "supply_network"
+        op: "add"
+        value: 0.10
+      - target: "recovery_capacity"
+        op: "add"
+        value: 0.03
     priority: 92
     explanation_template: "Supply pressure in '{statement}' triggered {action_id} to recover throughput."
   - id: "mil.weather_hardening"
@@ -40,6 +46,12 @@ rules:
       - target: "mobility"
         op: "add"
         value: -0.03
+      - target: "attrition_rate"
+        op: "add"
+        value: -0.02
+      - target: "objective_control"
+        op: "add"
+        value: 0.03
     priority: 84
     explanation_template: "Weather friction in '{statement}' favored {action_id} to preserve survivability."
   - id: "mil.isr_window"
@@ -61,6 +73,12 @@ rules:
       - target: "command_cohesion"
         op: "add"
         value: 0.03
+      - target: "enemy_pressure"
+        op: "add"
+        value: -0.04
+      - target: "objective_control"
+        op: "add"
+        value: 0.04
     priority: 78
     explanation_template: "ISR opportunity in '{statement}' justified {action_id} to improve awareness."
   - id: "mil.air_defense_rebalance"
@@ -82,6 +100,9 @@ rules:
       - target: "mobility"
         op: "add"
         value: -0.02
+      - target: "enemy_pressure"
+        op: "add"
+        value: -0.07
     priority: 88
     explanation_template: "Air threat language in '{statement}' pushed the run toward {action_id}."
   - id: "mil.civilian_protection"
@@ -103,5 +124,83 @@ rules:
       - target: "readiness"
         op: "add"
         value: -0.01
+      - target: "objective_control"
+        op: "add"
+        value: -0.02
     priority: 70
     explanation_template: "Civilian risk in '{statement}' triggered {action_id} to limit collateral exposure."
+  - id: "mil.counterfire_window"
+    domain: "military"
+    action_id: "suppress_enemy_fires"
+    trigger:
+      keywords:
+        - "electronic"
+        - "jam"
+        - "cyber"
+        - "battery"
+        - "artillery"
+    effects:
+      - target: "ew_control"
+        op: "add"
+        value: 0.08
+      - target: "information_advantage"
+        op: "add"
+        value: 0.06
+      - target: "enemy_pressure"
+        op: "add"
+        value: -0.08
+      - target: "enemy_readiness"
+        op: "add"
+        value: -0.04
+    priority: 82
+    explanation_template: "Counter-fire signals in '{statement}' justified {action_id} to break enemy pressure."
+  - id: "mil.objective_hold"
+    domain: "military"
+    action_id: "secure_objective"
+    trigger:
+      keywords:
+        - "corridor"
+        - "crossing"
+        - "objective"
+        - "district"
+        - "axis"
+    effects:
+      - target: "objective_control"
+        op: "add"
+        value: 0.10
+      - target: "supply_network"
+        op: "add"
+        value: 0.04
+      - target: "civilian_risk"
+        op: "add"
+        value: -0.02
+      - target: "attrition_rate"
+        op: "add"
+        value: -0.02
+    priority: 74
+    explanation_template: "Terrain and corridor pressure in '{statement}' favored {action_id} to hold key ground."
+  - id: "mil.force_rotation"
+    domain: "military"
+    action_id: "rotate_and_repair"
+    trigger:
+      keywords:
+        - "attrition"
+        - "casualty"
+        - "loss"
+        - "fatigue"
+        - "depleted"
+    effects:
+      - target: "readiness"
+        op: "add"
+        value: 0.06
+      - target: "attrition_rate"
+        op: "add"
+        value: -0.06
+      - target: "recovery_capacity"
+        op: "add"
+        value: 0.08
+      - target: "objective_control"
+        op: "add"
+        value: -0.02
+    priority: 76
+    explanation_template: "Damage signals in '{statement}' triggered {action_id} to restore combat power."

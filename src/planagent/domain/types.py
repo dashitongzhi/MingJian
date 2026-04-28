@@ -37,6 +37,8 @@ class NormalizedItemModel(PlatformModel):
 class EvidenceItemModel(PlatformModel):
     id: str
     normalized_item_id: str
+    tenant_id: str | None = None
+    preset_id: str | None = None
     evidence_type: str
     title: str
     summary: str
@@ -51,10 +53,13 @@ class EvidenceItemModel(PlatformModel):
 class ClaimModel(PlatformModel):
     id: str
     evidence_item_id: str
+    tenant_id: str | None = None
+    preset_id: str | None = None
     subject: str
     predicate: str
     object_text: str
     statement: str
+    kind: str = "unclassified"
     confidence: float
     status: ClaimStatus
     requires_review: bool
@@ -81,6 +86,8 @@ class RelationshipModel(PlatformModel):
 class SignalModel(PlatformModel):
     id: str
     claim_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
     signal_type: str
     title: str
     confidence: float
@@ -90,6 +97,8 @@ class SignalModel(PlatformModel):
 class EventModel(PlatformModel):
     id: str
     claim_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
     event_type: str
     title: str
     confidence: float
@@ -99,6 +108,8 @@ class EventModel(PlatformModel):
 class TrendModel(PlatformModel):
     id: str
     claim_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
     trend_type: str
     title: str
     confidence: float
@@ -168,6 +179,9 @@ class DecisionRecordModel(PlatformModel):
     policy_rule_ids: list[str] = Field(default_factory=list)
     expected_effect: dict[str, Any] = Field(default_factory=dict)
     actual_effect: dict[str, Any] = Field(default_factory=dict)
+    debate_verdict_id: str | None = None
+    decision_method: str = "rule_engine"
+    created_at: datetime | None = None
 
 
 class ScenarioBranchModel(PlatformModel):
@@ -198,6 +212,8 @@ class GeneratedReportModel(PlatformModel):
     company_id: str | None = None
     force_id: str | None = None
     scenario_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
     title: str
     summary: str
     report_format: str
@@ -230,6 +246,8 @@ class DebateArgumentModel(PlatformModel):
 
 
 class DebateRoundModel(PlatformModel):
+    id: str | None = None
+    debate_id: str | None = None
     round_number: int
     role: str
     position: str
@@ -237,13 +255,22 @@ class DebateRoundModel(PlatformModel):
     arguments: list[DebateArgumentModel] = Field(default_factory=list)
     rebuttals: list[dict[str, Any]] = Field(default_factory=list)
     concessions: list[dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime | None = None
 
 
 class DebateSessionModel(PlatformModel):
     id: str
+    run_id: str | None = None
+    claim_id: str | None = None
     topic: str
     trigger_type: str
+    status: str | None = None
+    target_type: str | None = None
+    target_id: str | None = None
+    context_payload: dict[str, Any] = Field(default_factory=dict)
     rounds: list[DebateRoundModel] = Field(default_factory=list)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class DebateVerdictModel(PlatformModel):
@@ -258,3 +285,73 @@ class DebateVerdictModel(PlatformModel):
     conditions: list[str] | None = None
     minority_opinion: str | None = None
     audit_trail: list[DebateRoundModel] = Field(default_factory=list)
+
+
+class DecisionOptionModel(PlatformModel):
+    id: str
+    run_id: str
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    title: str
+    description: str
+    expected_effects: dict[str, Any] = Field(default_factory=dict)
+    risks: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    confidence: float
+    conditions: list[str] = Field(default_factory=list)
+    ranking: int
+    created_at: datetime | None = None
+
+
+class HypothesisModel(PlatformModel):
+    id: str
+    run_id: str
+    decision_option_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    prediction: str
+    time_horizon: str
+    verification_status: str
+    actual_outcome: str | None = None
+    verified_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class CalibrationRecordModel(PlatformModel):
+    id: str
+    domain_id: str
+    tenant_id: str | None = None
+    period_start: datetime
+    period_end: datetime
+    total_hypotheses: int
+    confirmed: int
+    refuted: int
+    partial: int
+    pending: int
+    calibration_score: float
+    rule_accuracy: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime | None = None
+
+
+class WatchRuleModel(PlatformModel):
+    id: str
+    name: str
+    domain_id: str
+    query: str
+    source_types: list[str] = Field(default_factory=list)
+    poll_interval_minutes: int
+    enabled: bool
+    next_poll_at: datetime | None = None
+    lease_owner: str | None = None
+    lease_expires_at: datetime | None = None
+    poll_attempts: int
+    last_poll_at: datetime | None = None
+    last_poll_error: str | None = None
+    auto_trigger_simulation: bool
+    auto_trigger_debate: bool
+    tick_count: int
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    created_at: datetime
+    updated_at: datetime

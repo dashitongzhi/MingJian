@@ -1,0 +1,33 @@
+{
+  "requested_by": "agent-startup-playbook",
+  "items": [
+    {
+      "source_type": "research",
+      "source_url": "https://example.com/agent-market/pwc-enterprise-adoption",
+      "title": "Enterprise buyers are experimenting with AI agents, but buying friction remains high",
+      "content_text": "Enterprise buyers are piloting AI agents for support, operations, and back-office work. Security review, procurement review, and integration work still slow many pilots before full rollout.",
+      "published_at": "2026-03-25T08:00:00Z"
+    },
+    {
+      "source_type": "product",
+      "source_url": "https://example.com/agent-market/platform-bundling",
+      "title": "Large platforms bundle native copilots and raise pressure on generic agent startups",
+      "content_text": "Large software platforms bundled native copilots into their existing suites, increasing platform pressure on generic agent startups and pushing founders toward narrower vertical wedges.",
+      "published_at": "2026-03-25T08:05:00Z"
+    },
+    {
+      "source_type": "case-study",
+      "source_url": "https://example.com/agent-market/service-proof",
+      "title": "Service agents win when they complete work, not when they just chat",
+      "content_text": "Customers adopted service agents when the product completed useful work inside real systems. Teams that showed measurable ROI, renewal signals, or labor savings earned faster expansion.",
+      "published_at": "2026-03-25T08:10:00Z"
+    },
+    {
+      "source_type": "ops",
+      "source_url": "https://example.com/agent-market/reliability-bar",
+      "title": "Reliability and computer-use quality remain the main trust bottleneck",
+      "content_text": "Latency, reliability, and accuracy issues still block broader deployment. Teams that invest in reliability improvements and workflow-specific quality gates preserve trust better than teams that expand too early.",
+      "published_at": "2026-03-25T08:15:00Z"
+    }
+  ]
+}

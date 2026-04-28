@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PlanAgent Strategic Console</title>
+    <style>
+      :root {
+        --bg: #f5efe1;
+        --panel: rgba(255, 252, 245, 0.84);
+        --panel-strong: rgba(255, 250, 240, 0.96);
+        --ink: #1c2430;
+        --muted: #5d6773;
+        --accent: #a53f2b;
+        --accent-soft: rgba(165, 63, 43, 0.12);
+        --line: rgba(28, 36, 48, 0.12);
+        --shadow: 0 26px 60px rgba(28, 36, 48, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(165, 63, 43, 0.18), transparent 34%),
+          radial-gradient(circle at top right, rgba(31, 88, 108, 0.16), transparent 28%),
+          linear-gradient(180deg, #f6f0e2 0%, #efe6d4 100%);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(28, 36, 48, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(28, 36, 48, 0.03) 1px, transparent 1px);
+        background-size: 28px 28px;
+        mask-image: radial-gradient(circle at center, black 38%, transparent 85%);
+      }
+
+      .shell {
+        width: min(1460px, calc(100vw - 32px));
+        margin: 24px auto 48px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.35fr 0.9fr;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(18px);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .hero-card {
+        padding: 26px 28px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-card::after {
+        content: "";
+        position: absolute;
+        inset: auto -80px -110px auto;
+        width: 240px;
+        height: 240px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(165, 63, 43, 0.18), transparent 70%);
+      }
+
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-weight: 600;
+      }
+
+      h1 {
+        font-size: clamp(30px, 5vw, 52px);
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+
+      .hero p {
+        margin: 14px 0 0;
+        max-width: 44rem;
+        font-size: 15px;
+        line-height: 1.65;
+        color: var(--muted);
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .status-chip {
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.46);
+        border: 1px solid rgba(28, 36, 48, 0.08);
+      }
+
+      .status-chip strong {
+        display: block;
+        font-size: 20px;
+        margin-top: 6px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr) 360px;
+        gap: 18px;
+      }
+
+      .column {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .section {
+        padding: 22px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .section-header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid rgba(28, 36, 48, 0.12);
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--ink);
+        padding: 12px 14px;
+        outline: none;
+        transition: border-color 160ms ease, transform 160ms ease;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: rgba(165, 63, 43, 0.6);
+        transform: translateY(-1px);
+      }
+
+      textarea {
+        min-height: 160px;
+        resize: vertical;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .toggles {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(28, 36, 48, 0.1);
+        background: rgba(255, 255, 255, 0.64);
+        color: var(--ink);
+      }
+
+      .toggle input {
+        width: auto;
+        margin: 0;
+      }
+
+      .button-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        cursor: pointer;
+        transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+
+      .primary {
+        background: linear-gradient(135deg, #9e3b28 0%, #c66e31 100%);
+        color: white;
+        box-shadow: 0 16px 32px rgba(165, 63, 43, 0.2);
+      }
+
+      .secondary {
+        background: rgba(28, 36, 48, 0.08);
+        color: var(--ink);
+      }
+
+      .meta-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .meta-pill {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.64);
+        border: 1px solid rgba(28, 36, 48, 0.08);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .feed,
+      .cards,
+      .timeline {
+        display: grid;
+        gap: 12px;
+      }
+
+      .feed {
+        max-height: 620px;
+        overflow: auto;
+        padding-right: 6px;
+      }
+
+      .feed-item,
+      .card,
+      .timeline-item {
+        padding: 15px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(28, 36, 48, 0.08);
+        background: rgba(255, 255, 255, 0.64);
+      }
+
+      .card.selectable {
+        cursor: pointer;
+        transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+      }
+
+      .card.selectable:hover {
+        transform: translateY(-1px);
+        border-color: rgba(165, 63, 43, 0.28);
+        box-shadow: 0 14px 28px rgba(28, 36, 48, 0.08);
+      }
+
+      .card.active-session {
+        border-color: rgba(165, 63, 43, 0.45);
+        background: rgba(165, 63, 43, 0.08);
+      }
+
+      .feed-item strong,
+      .card strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .feed-item small,
+      .card small,
+      .timeline-item small {
+        display: block;
+        color: var(--muted);
+        margin-bottom: 7px;
+      }
+
+      .feed-item p,
+      .card p,
+      .timeline-item p {
+        margin: 0;
+        line-height: 1.56;
+        color: var(--ink);
+      }
+
+      .card ul,
+      .timeline-item ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        color: var(--muted);
+      }
+
+      .headline {
+        padding: 18px;
+        border-radius: 22px;
+        background: var(--panel-strong);
+        border: 1px solid rgba(28, 36, 48, 0.08);
+      }
+
+      .headline p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .grid-two {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .scrollable {
+        max-height: 360px;
+        overflow: auto;
+        padding-right: 6px;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .stamp {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .loading-dot {
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+      }
+
+      .loading-dot span {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--accent);
+        animation: pulse 1.1s infinite ease-in-out;
+      }
+
+      .loading-dot span:nth-child(2) {
+        animation-delay: 120ms;
+      }
+
+      .loading-dot span:nth-child(3) {
+        animation-delay: 240ms;
+      }
+
+      @keyframes pulse {
+        0%, 80%, 100% {
+          transform: translateY(0);
+          opacity: 0.34;
+        }
+        40% {
+          transform: translateY(-4px);
+          opacity: 1;
+        }
+      }
+
+      @media (max-width: 1180px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          width: min(100vw - 18px, 100%);
+          margin: 10px auto 26px;
+        }
+
+        .hero-card,
+        .section {
+          padding: 18px;
+        }
+
+        .row,
+        .toggles,
+        .grid-two,
+        .status-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="hero">
+        <article class="panel hero-card">
+          <div class="eyebrow">Strategic Console</div>
+          <h1>输入一个主题，直接拉起情报、推演、讨论与决策辅助</h1>
+          <p>
+            这是一块统一控制台。输入商业或军事主题后，系统会自动抓取新闻、报告与社交媒体动态，展示思考过程，
+            输出一轮推演，再给出讨论过程和今日更新面板。
+          </p>
+        </article>
+        <article class="panel hero-card">
+          <div class="eyebrow">Live Surfaces</div>
+          <div class="status-grid">
+            <div class="status-chip">
+              思考流
+              <strong id="hero-steps">0</strong>
+            </div>
+            <div class="status-chip">
+              讨论消息
+              <strong id="hero-discussion">0</strong>
+            </div>
+            <div class="status-chip">
+              引用来源
+              <strong id="hero-sources">0</strong>
+            </div>
+            <div class="status-chip">
+              最新更新
+              <strong id="hero-refresh">等待中</strong>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="layout">
+        <div class="column">
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Mission Input</div>
+                <h2>主题输入</h2>
+                <p>支持商业与军事两类主题。页面会记住上一次输入，方便每天刷新。</p>
+              </div>
+            </div>
+            <form id="assistant-form">
+              <label>
+                主题
+                <textarea id="topic" name="topic" placeholder="例如：评估一家智能体创业公司未来 12 个月的商业结果，并持续跟踪最新动态。"></textarea>
+              </label>
+
+              <div class="row">
+                <label>
+                  领域
+                  <select id="domain_id" name="domain_id">
+                    <option value="auto">自动识别</option>
+                    <option value="corporate">商业</option>
+                    <option value="military">军事</option>
+                  </select>
+                </label>
+                <label>
+                  推演轮数
+                  <input id="tick_count" name="tick_count" type="number" min="1" max="12" value="4" />
+                </label>
+              </div>
+
+              <div class="row">
+                <label>
+                  对象名称
+                  <input id="subject_name" name="subject_name" placeholder="可选，留空则自动从主题提取" />
+                </label>
+                <label>
+                  对象 ID
+                  <input id="subject_id" name="subject_id" placeholder="可选，留空自动生成" />
+                </label>
+              </div>
+
+              <div class="row">
+                <label>
+                  商业市场
+                  <input id="market" name="market" value="enterprise-agents" />
+                </label>
+                <label>
+                  军事情景战区
+                  <input id="theater" name="theater" placeholder="例如：eastern-sector" />
+                </label>
+              </div>
+
+              <div class="row">
+                <label>
+                  Tenant
+                  <input id="tenant_id" name="tenant_id" placeholder="例如：founder-lab" />
+                </label>
+                <label>
+                  Preset
+                  <input id="preset_id" name="preset_id" placeholder="例如：agent_startup" />
+                </label>
+              </div>
+
+              <div class="row">
+                <label class="toggle">
+                  <input id="auto_refresh_enabled" name="auto_refresh_enabled" type="checkbox" checked />
+                  自动日更
+                </label>
+                <label>
+                  本地刷新时点
+                  <input id="refresh_hour_local" name="refresh_hour_local" type="number" min="0" max="23" value="9" />
+                </label>
+              </div>
+
+              <div class="toggles">
+                <label class="toggle"><input id="include_google_news" name="include_google_news" type="checkbox" checked />新闻</label>
+                <label class="toggle"><input id="include_reddit" name="include_reddit" type="checkbox" checked />论坛</label>
+                <label class="toggle"><input id="include_hacker_news" name="include_hacker_news" type="checkbox" checked />技术动态</label>
+                <label class="toggle"><input id="include_github" name="include_github" type="checkbox" checked />GitHub</label>
+                <label class="toggle"><input id="include_rss_feeds" name="include_rss_feeds" type="checkbox" checked />RSS/官方源</label>
+                <label class="toggle"><input id="include_gdelt" name="include_gdelt" type="checkbox" checked />GDELT</label>
+                <label class="toggle"><input id="include_weather" name="include_weather" type="checkbox" />天气</label>
+                <label class="toggle"><input id="include_aviation" name="include_aviation" type="checkbox" />航空态势</label>
+                <label class="toggle"><input id="include_x" name="include_x" type="checkbox" checked />社交媒体</label>
+              </div>
+
+              <div class="button-row">
+                <button class="primary" id="run-button" type="submit">启动推演</button>
+                <button class="secondary" id="daily-button" type="button">刷新今日更新</button>
+                <button class="secondary" id="save-session-button" type="button">保存跟踪主题</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Watch Sessions</div>
+                <h2>跟踪主题</h2>
+                <p>把一个主题保存成长期跟踪会话，后续每天刷新并回看历史。</p>
+              </div>
+            </div>
+            <p id="session-stamp" class="stamp">尚未绑定跟踪会话</p>
+            <div class="cards scrollable" id="session-list">
+              <div class="empty">保存一个主题后，这里会显示你的长期关注列表。</div>
+            </div>
+          </article>
+
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Today</div>
+                <h2>每日更新</h2>
+                <p id="daily-stamp" class="stamp">尚未刷新</p>
+              </div>
+            </div>
+            <div class="headline">
+              <strong id="daily-summary-title">等待今日更新</strong>
+              <p id="daily-summary" class="empty">点击“刷新今日更新”，按当前主题重新抓取最新公开信号。</p>
+            </div>
+            <div class="cards scrollable" id="daily-sources"></div>
+            <div class="section-header" style="margin-top: 18px;">
+              <div>
+                <div class="eyebrow">Brief History</div>
+                <h3>更新历史</h3>
+                <p>点击任意一条历史简报，可以回看当天抓到的公开信号。</p>
+              </div>
+            </div>
+            <div class="cards scrollable" id="brief-history">
+              <div class="empty">保存会话并刷新今日更新后，历史会出现在这里。</div>
+            </div>
+          </article>
+        </div>
+
+        <div class="column">
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Live Reasoning</div>
+                <h2>思考过程</h2>
+                <p>这里会实时显示分析步骤、来源拉取、入库和推演过程。</p>
+              </div>
+              <div id="run-status" class="meta-strip">
+                <span class="meta-pill">待机</span>
+              </div>
+            </div>
+            <div class="feed" id="reasoning-feed">
+              <div class="empty">输入主题后，流式思考过程会出现在这里。</div>
+            </div>
+          </article>
+
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Decision Output</div>
+                <h2>推演与建议</h2>
+                <p>系统会返回分析摘要、最新报告、推演结果和建议动作。</p>
+              </div>
+            </div>
+            <div class="headline">
+              <strong id="result-subject">等待运行</strong>
+              <p id="result-summary" class="empty">最终摘要会在推演完成后出现在这里。</p>
+            </div>
+            <div class="grid-two" style="margin-top: 12px;">
+              <div class="card">
+                <small>分析建议</small>
+                <strong id="result-analysis-label">尚未生成</strong>
+                <div id="result-analysis-points" class="empty">暂无。</div>
+              </div>
+              <div class="card">
+                <small>模拟状态</small>
+                <strong id="result-simulation-label">尚未生成</strong>
+                <div id="result-simulation-points" class="empty">暂无。</div>
+              </div>
+            </div>
+            <div class="section-header" style="margin-top: 18px;">
+              <div>
+                <div class="eyebrow">Run History</div>
+                <h3>最近推演</h3>
+                <p>点开历史快照，直接回放过去的摘要、讨论和 verdict。</p>
+              </div>
+            </div>
+            <div class="cards scrollable" id="run-history">
+              <div class="empty">保存会话并完成一次推演后，这里会显示历史快照。</div>
+            </div>
+          </article>
+        </div>
+
+        <div class="column">
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Panel Discussion</div>
+                <h2>多角色讨论</h2>
+                <p>展示多路模型或回退 panel 的讨论观点，以及 debate 的轮次。</p>
+              </div>
+            </div>
+            <div class="cards scrollable" id="discussion-cards">
+              <div class="empty">讨论观点会在这里显示。</div>
+            </div>
+          </article>
+
+          <article class="panel section">
+            <div class="section-header">
+              <div>
+                <div class="eyebrow">Debate Trace</div>
+                <h2>讨论过程</h2>
+                <p>显示 advocate / challenger / arbiter 的轮次。</p>
+              </div>
+            </div>
+            <div class="timeline scrollable" id="debate-rounds">
+              <div class="empty">辩论轮次会在这里显示。</div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const form = document.getElementById("assistant-form");
+      const runButton = document.getElementById("run-button");
+      const dailyButton = document.getElementById("daily-button");
+      const saveSessionButton = document.getElementById("save-session-button");
+      const reasoningFeed = document.getElementById("reasoning-feed");
+      const discussionCards = document.getElementById("discussion-cards");
+      const debateRounds = document.getElementById("debate-rounds");
+      const dailySummary = document.getElementById("daily-summary");
+      const dailySummaryTitle = document.getElementById("daily-summary-title");
+      const dailySources = document.getElementById("daily-sources");
+      const dailyStamp = document.getElementById("daily-stamp");
+      const sessionStamp = document.getElementById("session-stamp");
+      const sessionList = document.getElementById("session-list");
+      const briefHistory = document.getElementById("brief-history");
+      const runHistory = document.getElementById("run-history");
+      const runStatus = document.getElementById("run-status");
+      const resultSubject = document.getElementById("result-subject");
+      const resultSummary = document.getElementById("result-summary");
+      const resultAnalysisLabel = document.getElementById("result-analysis-label");
+      const resultAnalysisPoints = document.getElementById("result-analysis-points");
+      const resultSimulationLabel = document.getElementById("result-simulation-label");
+      const resultSimulationPoints = document.getElementById("result-simulation-points");
+      const counters = {
+        steps: document.getElementById("hero-steps"),
+        discussion: document.getElementById("hero-discussion"),
+        sources: document.getElementById("hero-sources"),
+        refresh: document.getElementById("hero-refresh"),
+      };
+      const storageKey = "planagent-strategic-console";
+
+      let stepCount = 0;
+      let sourceCount = 0;
+      let discussionCount = 0;
+      let activeSessionId = null;
+
+      function restoreForm() {
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) return;
+        try {
+          const value = JSON.parse(raw);
+          activeSessionId = value.session_id || null;
+          for (const [key, fieldValue] of Object.entries(value)) {
+            if (key === "session_id") continue;
+            const field = form.elements.namedItem(key);
+            if (!field) continue;
+            if (field.type === "checkbox") {
+              field.checked = Boolean(fieldValue);
+            } else {
+              field.value = fieldValue ?? "";
+            }
+          }
+        } catch (error) {
+          console.warn("Failed to restore form state", error);
+        }
+      }
+
+      function saveForm() {
+        const payload = buildPayload();
+        window.localStorage.setItem(storageKey, JSON.stringify(payload));
+      }
+
+      function buildPayload() {
+        const formData = new FormData(form);
+        return {
+          topic: formData.get("topic") || "",
+          domain_id: formData.get("domain_id") || "auto",
+          session_id: activeSessionId,
+          subject_id: formData.get("subject_id") || null,
+          subject_name: formData.get("subject_name") || null,
+          market: formData.get("market") || "enterprise-agents",
+          theater: formData.get("theater") || null,
+          tick_count: Number(formData.get("tick_count") || 4),
+          tenant_id: formData.get("tenant_id") || null,
+          preset_id: formData.get("preset_id") || null,
+          auto_refresh_enabled: document.getElementById("auto_refresh_enabled").checked,
+          refresh_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
+          refresh_hour_local: Number(formData.get("refresh_hour_local") || 9),
+          auto_fetch_news: true,
+          include_google_news: document.getElementById("include_google_news").checked,
+          include_reddit: document.getElementById("include_reddit").checked,
+          include_hacker_news: document.getElementById("include_hacker_news").checked,
+          include_github: document.getElementById("include_github").checked,
+          include_rss_feeds: document.getElementById("include_rss_feeds").checked,
+          include_gdelt: document.getElementById("include_gdelt").checked,
+          include_weather: document.getElementById("include_weather").checked,
+          include_aviation: document.getElementById("include_aviation").checked,
+          include_x: document.getElementById("include_x").checked,
+        };
+      }
+
+      function sessionQueryString() {
+        const payload = buildPayload();
+        const params = new URLSearchParams();
+        if (payload.tenant_id) params.set("tenant_id", payload.tenant_id);
+        if (payload.preset_id) params.set("preset_id", payload.preset_id);
+        params.set("limit", "20");
+        return params.toString();
+      }
+
+      function resetRunSurface() {
+        stepCount = 0;
+        sourceCount = 0;
+        discussionCount = 0;
+        counters.steps.textContent = "0";
+        counters.sources.textContent = "0";
+        counters.discussion.textContent = "0";
+        reasoningFeed.innerHTML = "";
+        discussionCards.innerHTML = "";
+        debateRounds.innerHTML = "";
+        runStatus.innerHTML = '<span class="meta-pill"><span class="loading-dot"><span></span><span></span><span></span></span> 运行中</span>';
+        resultSubject.textContent = "正在生成";
+        resultSummary.textContent = "请稍候，系统正在抓取公开来源并完成推演。";
+        resultAnalysisLabel.textContent = "分析中";
+        resultAnalysisPoints.textContent = "等待结果。";
+        resultSimulationLabel.textContent = "推演中";
+        resultSimulationPoints.textContent = "等待结果。";
+      }
+
+      function appendFeedItem(title, detail, meta = "") {
+        if (reasoningFeed.querySelector(".empty")) reasoningFeed.innerHTML = "";
+        const item = document.createElement("article");
+        item.className = "feed-item";
+        item.innerHTML = `
+          ${meta ? `<small>${meta}</small>` : ""}
+          <strong>${escapeHtml(title)}</strong>
+          <p>${escapeHtml(detail || "")}</p>
+        `;
+        reasoningFeed.prepend(item);
+      }
+
+      function appendDiscussionCard(message) {
+        if (discussionCards.querySelector(".empty")) discussionCards.innerHTML = "";
+        const item = document.createElement("article");
+        item.className = "card";
+        item.innerHTML = `
+          <small>${escapeHtml(message.model_target)} · ${escapeHtml(message.stance)}</small>
+          <strong>${escapeHtml(message.label)}</strong>
+          <p>${escapeHtml(message.summary)}</p>
+          ${message.key_points?.length ? `<ul>${message.key_points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>` : ""}
+          <p style="margin-top:8px;color:var(--muted);">建议：${escapeHtml(message.recommendation)}</p>
+        `;
+        discussionCards.appendChild(item);
+      }
+
+      function appendDebateRound(round) {
+        if (debateRounds.querySelector(".empty")) debateRounds.innerHTML = "";
+        const item = document.createElement("article");
+        item.className = "timeline-item";
+        item.innerHTML = `
+          <small>Round ${escapeHtml(String(round.round_number))} · ${escapeHtml(round.role)}</small>
+          <strong>${escapeHtml(round.position)}</strong>
+          <p>${escapeHtml(JSON.stringify(round.arguments || []))}</p>
+        `;
+        debateRounds.appendChild(item);
+      }
+
+      function renderDailyBrief(data) {
+        dailySummaryTitle.textContent = `${data.domain_id} · 今日更新`;
+        dailySummary.textContent = data.summary;
+        dailyStamp.textContent = `更新于 ${new Date(data.generated_at).toLocaleString("zh-CN")}`;
+        counters.refresh.textContent = new Date(data.generated_at).toLocaleDateString("zh-CN");
+        dailySources.innerHTML = "";
+        if (!data.sources?.length) {
+          dailySources.innerHTML = '<div class="empty">这次没有抓到新的公开来源。</div>';
+          return;
+        }
+        for (const source of data.sources) {
+          const item = document.createElement("article");
+          item.className = "card";
+          item.innerHTML = `
+            <small>${escapeHtml(source.source_type)}${source.published_at ? ` · ${escapeHtml(source.published_at)}` : ""}</small>
+            <strong>${escapeHtml(source.title)}</strong>
+            <p>${escapeHtml(source.summary)}</p>
+          `;
+          dailySources.appendChild(item);
+        }
+      }
+
+      function renderFinalResult(data) {
+        runStatus.innerHTML = `
+          <span class="meta-pill">${escapeHtml(data.domain_id)}</span>
+          <span class="meta-pill">${escapeHtml(data.subject_name)}</span>
+          <span class="meta-pill">run ${escapeHtml(data.simulation_run.id)}</span>
+          ${data.session_id ? `<span class="meta-pill">session ${escapeHtml(data.session_id)}</span>` : ""}
+        `;
+        resultSubject.textContent = `${data.subject_name} · ${data.domain_id}`;
+        resultSummary.textContent = data.latest_report?.summary || data.analysis.summary;
+        resultAnalysisLabel.textContent = "分析与来源";
+        resultAnalysisPoints.innerHTML = data.analysis.recommendations?.length
+          ? `<ul>${data.analysis.recommendations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+          : "暂无建议。";
+        resultSimulationLabel.textContent = data.latest_report?.title || "推演完成";
+        resultSimulationPoints.innerHTML = data.debate?.verdict
+          ? `<ul><li>Debate verdict: ${escapeHtml(data.debate.verdict.verdict)}</li><li>Confidence: ${escapeHtml(String(data.debate.verdict.confidence))}</li><li>Workbench: ${escapeHtml(data.workbench.run_id)}</li></ul>`
+          : "已完成推演。";
+      }
+
+      function renderStoredRun(result) {
+        discussionCards.innerHTML = "";
+        debateRounds.innerHTML = "";
+        discussionCount = 0;
+        counters.discussion.textContent = "0";
+        for (const message of result.panel_discussion || []) {
+          discussionCount += 1;
+          appendDiscussionCard(message);
+        }
+        counters.discussion.textContent = String(discussionCount);
+        for (const round of result.debate?.rounds || []) {
+          appendDebateRound(round);
+        }
+        renderFinalResult(result);
+      }
+
+      function renderBriefHistory(items) {
+        briefHistory.innerHTML = "";
+        if (!items.length) {
+          briefHistory.innerHTML = '<div class="empty">保存会话并刷新今日更新后，历史会出现在这里。</div>';
+          return;
+        }
+        for (const brief of items) {
+          const item = document.createElement("article");
+          item.className = "card selectable";
+          item.innerHTML = `
+            <small>${escapeHtml(new Date(brief.generated_at).toLocaleString("zh-CN"))} · ${escapeHtml(String(brief.source_count))} sources</small>
+            <strong>${escapeHtml(brief.summary)}</strong>
+            <p>${escapeHtml(brief.analysis.findings?.slice(0, 2).join(" / ") || "点击查看这次更新的摘要与来源。")}</p>
+          `;
+          item.addEventListener("click", () => renderDailyBrief(brief.analysis));
+          briefHistory.appendChild(item);
+        }
+      }
+
+      function renderRunHistory(items) {
+        runHistory.innerHTML = "";
+        if (!items.length) {
+          runHistory.innerHTML = '<div class="empty">保存会话并完成一次推演后，这里会显示历史快照。</div>';
+          return;
+        }
+        for (const snapshot of items) {
+          const result = snapshot.result;
+          const verdict = result.debate?.verdict?.verdict || "PENDING";
+          const item = document.createElement("article");
+          item.className = "card selectable";
+          item.innerHTML = `
+            <small>${escapeHtml(new Date(snapshot.generated_at).toLocaleString("zh-CN"))} · ${escapeHtml(verdict)}</small>
+            <strong>${escapeHtml(result.subject_name)} · ${escapeHtml(result.domain_id)}</strong>
+            <p>${escapeHtml(result.latest_report?.summary || result.analysis.summary)}</p>
+          `;
+          item.addEventListener("click", () => renderStoredRun(result));
+          runHistory.appendChild(item);
+        }
+      }
+
+      function renderSessionList(items) {
+        sessionList.innerHTML = "";
+        if (!items.length) {
+          sessionList.innerHTML = '<div class="empty">保存一个主题后，这里会显示你的长期关注列表。</div>';
+          return;
+        }
+        for (const sessionItem of items) {
+          const item = document.createElement("article");
+          item.className = `card selectable${sessionItem.id === activeSessionId ? " active-session" : ""}`;
+          item.innerHTML = `
+            <small>${escapeHtml(sessionItem.domain_id)}${sessionItem.latest_run_at ? ` · 推演 ${escapeHtml(new Date(sessionItem.latest_run_at).toLocaleDateString("zh-CN"))}` : ""}${sessionItem.next_refresh_at ? ` · 下次 ${escapeHtml(new Date(sessionItem.next_refresh_at).toLocaleString("zh-CN"))}` : ""}</small>
+            <strong>${escapeHtml(sessionItem.name)}</strong>
+            <p>${escapeHtml(sessionItem.latest_run_summary || sessionItem.latest_brief_summary || sessionItem.topic)}</p>
+          `;
+          item.addEventListener("click", () => applySession(sessionItem));
+          sessionList.appendChild(item);
+        }
+      }
+
+      function applySession(sessionItem) {
+        activeSessionId = sessionItem.id;
+        document.getElementById("topic").value = sessionItem.topic || "";
+        document.getElementById("domain_id").value = sessionItem.domain_id || "auto";
+        document.getElementById("subject_id").value = sessionItem.subject_id || "";
+        document.getElementById("subject_name").value = sessionItem.subject_name || "";
+        document.getElementById("market").value = sessionItem.market || "enterprise-agents";
+        document.getElementById("theater").value = sessionItem.theater || "";
+        document.getElementById("tick_count").value = sessionItem.tick_count || 4;
+        document.getElementById("tenant_id").value = sessionItem.tenant_id || "";
+        document.getElementById("preset_id").value = sessionItem.preset_id || "";
+        document.getElementById("auto_refresh_enabled").checked = sessionItem.auto_refresh_enabled ?? true;
+        document.getElementById("refresh_hour_local").value = sessionItem.refresh_hour_local ?? 9;
+        const prefs = sessionItem.source_preferences || {};
+        document.getElementById("include_google_news").checked = prefs.include_google_news ?? true;
+        document.getElementById("include_reddit").checked = prefs.include_reddit ?? true;
+        document.getElementById("include_hacker_news").checked = prefs.include_hacker_news ?? true;
+        document.getElementById("include_github").checked = prefs.include_github ?? true;
+        document.getElementById("include_rss_feeds").checked = prefs.include_rss_feeds ?? true;
+        document.getElementById("include_gdelt").checked = prefs.include_gdelt ?? true;
+        document.getElementById("include_weather").checked = prefs.include_weather ?? false;
+        document.getElementById("include_aviation").checked = prefs.include_aviation ?? false;
+        document.getElementById("include_x").checked = prefs.include_x ?? true;
+        sessionStamp.textContent = sessionItem.next_refresh_at
+          ? `当前会话：${sessionItem.name} · 下次自动刷新 ${new Date(sessionItem.next_refresh_at).toLocaleString("zh-CN")}`
+          : `当前会话：${sessionItem.name}`;
+        saveForm();
+        void loadSessions();
+        void loadSessionDetail(sessionItem.id);
+      }
+
+      async function loadSessions() {
+        try {
+          const query = sessionQueryString();
+          const response = await fetch(`/assistant/sessions${query ? `?${query}` : ""}`);
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const data = await response.json();
+          if (activeSessionId && !data.some((item) => item.id === activeSessionId)) {
+            activeSessionId = null;
+            saveForm();
+          }
+          renderSessionList(data);
+        } catch (error) {
+          sessionList.innerHTML = `<div class="empty">${escapeHtml(error.message || String(error))}</div>`;
+        }
+      }
+
+      async function loadSessionDetail(sessionId) {
+        if (!sessionId) {
+          renderBriefHistory([]);
+          renderRunHistory([]);
+          sessionStamp.textContent = "尚未绑定跟踪会话";
+          return;
+        }
+        try {
+          const response = await fetch(`/assistant/sessions/${encodeURIComponent(sessionId)}`);
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const detail = await response.json();
+          sessionStamp.textContent = detail.session.next_refresh_at
+            ? `当前会话：${detail.session.name} · 下次自动刷新 ${new Date(detail.session.next_refresh_at).toLocaleString("zh-CN")}`
+            : `当前会话：${detail.session.name}`;
+          renderBriefHistory(detail.daily_briefs || []);
+          renderRunHistory(detail.recent_runs || []);
+          if (detail.daily_briefs?.length) {
+            renderDailyBrief(detail.daily_briefs[0].analysis);
+          }
+          if (detail.recent_runs?.length) {
+            renderStoredRun(detail.recent_runs[0].result);
+          }
+        } catch (error) {
+          sessionStamp.textContent = error.message || String(error);
+          renderBriefHistory([]);
+          renderRunHistory([]);
+        }
+      }
+
+      async function saveCurrentSession() {
+        const payload = buildPayload();
+        if (!payload.topic.trim()) {
+          appendFeedItem("缺少主题", "先输入一个需要持续跟踪的主题。", "session");
+          return;
+        }
+        saveSessionButton.disabled = true;
+        try {
+          const response = await fetch("/assistant/sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const data = await response.json();
+          activeSessionId = data.id;
+          sessionStamp.textContent = `当前会话：${data.name}`;
+          saveForm();
+          await loadSessions();
+          await loadSessionDetail(activeSessionId);
+        } catch (error) {
+          sessionStamp.textContent = error.message || String(error);
+        } finally {
+          saveSessionButton.disabled = false;
+        }
+      }
+
+      async function streamAssistant(payload) {
+        resetRunSurface();
+        runButton.disabled = true;
+        dailyButton.disabled = true;
+        saveSessionButton.disabled = true;
+        saveForm();
+        try {
+          const response = await fetch("/assistant/stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok || !response.body) {
+            const detail = await response.text();
+            throw new Error(detail || "Assistant stream failed.");
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+            for (const block of parts) {
+              handleEventBlock(block);
+            }
+          }
+        } catch (error) {
+          appendFeedItem("运行失败", error.message || String(error), "assistant_error");
+          runStatus.innerHTML = '<span class="meta-pill">运行失败</span>';
+        } finally {
+          runButton.disabled = false;
+          dailyButton.disabled = false;
+          saveSessionButton.disabled = false;
+        }
+      }
+
+      function handleEventBlock(block) {
+        const lines = block.split("\n").filter(Boolean);
+        let eventName = "message";
+        let dataLine = "";
+        for (const line of lines) {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+        }
+        if (!dataLine) return;
+        const payload = JSON.parse(dataLine);
+        switch (eventName) {
+          case "step":
+            stepCount += 1;
+            counters.steps.textContent = String(stepCount);
+            appendFeedItem(payload.message, payload.detail || "", payload.stage);
+            break;
+          case "source":
+            sourceCount += 1;
+            counters.sources.textContent = String(sourceCount);
+            appendFeedItem(payload.title, payload.summary, payload.source_type);
+            break;
+          case "ingest_run":
+            appendFeedItem("证据入库完成", `ingest_run=${payload.ingest_run}`, payload.status);
+            break;
+          case "simulation_run":
+            appendFeedItem("推演运行完成", `run_id=${payload.run_id}`, payload.domain_id);
+            break;
+          case "debate_round":
+            appendDebateRound(payload);
+            break;
+          case "discussion":
+            discussionCount += 1;
+            counters.discussion.textContent = String(discussionCount);
+            appendDiscussionCard(payload);
+            break;
+          case "assistant_result":
+            renderFinalResult(payload);
+            if (payload.session_id) {
+              activeSessionId = payload.session_id;
+              saveForm();
+              void loadSessions();
+              void loadSessionDetail(payload.session_id);
+            }
+            break;
+          default:
+            appendFeedItem(eventName, JSON.stringify(payload), "event");
+        }
+      }
+
+      async function refreshDailyBrief(payload) {
+        dailyButton.disabled = true;
+        saveSessionButton.disabled = true;
+        saveForm();
+        dailyStamp.textContent = "正在刷新今日更新";
+        try {
+          const response = await fetch("/assistant/daily-brief", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(detail || "Daily brief failed.");
+          }
+          const data = await response.json();
+          renderDailyBrief(data);
+          if (activeSessionId) {
+            void loadSessions();
+            void loadSessionDetail(activeSessionId);
+          }
+        } catch (error) {
+          dailySummaryTitle.textContent = "今日更新失败";
+          dailySummary.textContent = error.message || String(error);
+          dailySources.innerHTML = "";
+        } finally {
+          dailyButton.disabled = false;
+          saveSessionButton.disabled = false;
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const payload = buildPayload();
+        await streamAssistant(payload);
+      });
+
+      dailyButton.addEventListener("click", async () => {
+        const payload = buildPayload();
+        await refreshDailyBrief(payload);
+      });
+
+      saveSessionButton.addEventListener("click", async () => {
+        await saveCurrentSession();
+      });
+
+      restoreForm();
+      loadSessions().then(() => {
+        if (activeSessionId) {
+          return loadSessionDetail(activeSessionId);
+        }
+        if (document.getElementById("topic").value.trim()) {
+          return refreshDailyBrief(buildPayload());
+        }
+        return Promise.resolve();
+      });
+    </script>
+  </body>
+</html>
