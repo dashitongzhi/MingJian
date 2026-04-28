@@ -402,6 +402,7 @@ class SimulationRun(Base):
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     domain_id: Mapped[str] = mapped_column(String(64), nullable=False)
     actor_template: Mapped[str] = mapped_column(String(120), nullable=False)
+    military_use_mode: Mapped[str | None] = mapped_column(String(32))
     parent_run_id: Mapped[str | None] = mapped_column(ForeignKey("simulation_runs.id"))
     execution_mode: Mapped[str] = mapped_column(
         String(16), default=ExecutionMode.INLINE.value, nullable=False
@@ -742,6 +743,12 @@ class WatchRule(Base):
     domain_id: Mapped[str] = mapped_column(String(32), nullable=False)
     query: Mapped[str] = mapped_column(Text, nullable=False)
     source_types: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    keywords: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    exclude_keywords: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    entity_tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    trigger_threshold: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    min_new_evidence_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    importance_threshold: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     poll_interval_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     next_poll_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)

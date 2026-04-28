@@ -262,6 +262,46 @@ class ReportService:
             }
             for shock in external_shocks
         ]
+        evidence_ids = sorted(
+            {
+                evidence_id
+                for record in decision_records
+                for evidence_id in (record.evidence_ids or [])
+            }
+            | {
+                evidence_id
+                for shock in external_shocks
+                for evidence_id in (shock.evidence_ids or [])
+            }
+        )
+        confidence_values = [
+            float(value)
+            for value in [
+                *(record.actual_effect.get("confidence", 0.0) for record in decision_records),
+                *(shock.payload.get("confidence", 0.0) for shock in external_shocks),
+            ]
+            if isinstance(value, (int, float)) and value > 0
+        ]
+        confidence = round(sum(confidence_values) / len(confidence_values), 4) if confidence_values else 0.5
+        assumptions = list(scenario_branch.assumptions if scenario_branch is not None else [])
+        if not assumptions:
+            assumptions = [
+                "Only public or configured source evidence is represented.",
+                "All outputs are simulation-only and require analyst review before operational use.",
+            ]
+        military_audit = {
+            "military_use_mode": simulation_run.military_use_mode or simulation_run.configuration.get("military_use_mode") or "full_domain",
+            "simulation_only": True,
+            "evidence_ids": evidence_ids,
+            "confidence": confidence,
+            "assumptions": assumptions,
+            "unverified_items": [
+                item
+                for item in simulation_run.summary.get("evidence_statements", [])
+                if "unverified" in item.lower() or "reported" in item.lower()
+            ][:5],
+            "model_disagreements": simulation_run.summary.get("debate_disagreements", []),
+        }
 
         if self.openai_service is not None and self.openai_service.is_configured("report"):
             enhancement = await self.openai_service.enhance_military_report(
@@ -342,6 +382,7 @@ class ReportService:
             "leading_indicators": leading_indicators,
             "scenario_compare": scenario_branch.kpi_trajectory if scenario_branch is not None else [],
             "external_shocks": shock_payloads,
+            "audit": military_audit,
             "strategy_recommendations": recommendations,
             "why_this_happened": why_this_happened,
             "startup_kpi_pack": startup_kpi_pack.model_dump() if startup_kpi_pack is not None else None,

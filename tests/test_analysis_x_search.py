@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from planagent.config import Settings
+from planagent.domain.api import AnalysisRequest, AnalysisSourceRead
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.openai_client import XSearchPostPayload, XSearchResultPayload
 
@@ -59,3 +60,48 @@ def test_analysis_surfaces_x_model_error_when_no_direct_x_fallback() -> None:
         assert "request was blocked" in str(exc)
     else:
         raise AssertionError("Expected the x_search failure to be surfaced.")
+
+
+def test_source_types_request_unconfigured_provider_without_failure() -> None:
+    service = AutomatedAnalysisService(Settings(_env_file=None))
+    payload = AnalysisRequest(
+        content="enterprise AI agent adoption",
+        domain_id="corporate",
+        source_types=["xiaohongshu"],
+        max_source_items={"xiaohongshu": 2},
+    )
+
+    bundle = asyncio.run(service._fetch_related_sources(payload, "enterprise AI agent adoption", "corporate"))
+
+    assert bundle.sources == []
+    assert any(step.stage == "source_skip" and "Xiaohongshu" in step.message for step in bundle.steps)
+
+
+def test_source_types_override_legacy_include_flags() -> None:
+    service = AutomatedAnalysisService(Settings(_env_file=None))
+
+    async def fake_linux_do(query: str, limit: int, domain_id: str):
+        return [
+            AnalysisSourceRead(
+                source_type="linux_do_discourse",
+                title=f"Linux.do result for {query}",
+                url="https://linux.do/t/example/1",
+                summary="Developers are discussing agent deployment reliability.",
+                metadata={"platform": "linux_do", "provider": "test"},
+            )
+        ][:limit]
+
+    service._fetch_linux_do = fake_linux_do  # type: ignore[method-assign]
+    payload = AnalysisRequest(
+        content="agent deployment reliability",
+        domain_id="corporate",
+        include_google_news=True,
+        source_types=["linux_do"],
+        max_source_items={"linux_do": 1},
+    )
+
+    bundle = asyncio.run(service._fetch_related_sources(payload, "agent deployment reliability", "corporate"))
+
+    assert len(bundle.sources) == 1
+    assert bundle.sources[0].source_type == "linux_do_discourse"
+    assert all("Google News" not in step.message for step in bundle.steps if step.stage == "source_complete")

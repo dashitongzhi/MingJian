@@ -20,6 +20,7 @@ class RawSourceItemModel(PlatformModel):
     title: str
     content_text: str
     published_at: datetime | None = None
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
     dedupe_key: str
     created_at: datetime
 
@@ -46,6 +47,7 @@ class EvidenceItemModel(PlatformModel):
     source_url: str
     confidence: float
     status: str
+    provenance: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
 
@@ -227,6 +229,7 @@ class SimulationRunModel(PlatformModel):
     force_id: str | None = None
     domain_id: str
     actor_template: str
+    military_use_mode: str | None = None
     status: str
     execution_mode: str
     tick_count: int
@@ -340,6 +343,12 @@ class WatchRuleModel(PlatformModel):
     domain_id: str
     query: str
     source_types: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    exclude_keywords: list[str] = Field(default_factory=list)
+    entity_tags: list[str] = Field(default_factory=list)
+    trigger_threshold: float = 0.0
+    min_new_evidence_count: int = 1
+    importance_threshold: float = 0.0
     poll_interval_minutes: int
     enabled: bool
     next_poll_at: datetime | None = None

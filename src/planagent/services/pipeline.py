@@ -102,7 +102,7 @@ def classify_claim(statement: str) -> tuple[str | None, str]:
 
 def select_extraction_target(source_type: str) -> TargetRole:
     normalized = normalize_text(source_type).lower()
-    if normalized in {"x", "twitter", "tweet", "x.com"}:
+    if normalized in {"x", "twitter", "tweet", "x.com", "x_recent_search", "x_model_search"}:
         return "x_search"
     return "extraction"
 

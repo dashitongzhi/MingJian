@@ -178,6 +178,9 @@ def test_military_simulation_branch_and_report_flow(monkeypatch, tmp_path: Path)
         assert report["sections"]["enemy_posture"]["focus"]
         assert report["sections"]["enemy_order_of_battle"]
         assert report["sections"]["geo_map"]["network"]["edges"]
+        assert report["sections"]["audit"]["military_use_mode"] == "full_domain"
+        assert report["sections"]["audit"]["simulation_only"] is True
+        assert "assumptions" in report["sections"]["audit"]
 
         rules_response = client.post("/admin/rules/reload")
         assert rules_response.status_code == 200

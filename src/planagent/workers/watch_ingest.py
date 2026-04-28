@@ -103,6 +103,7 @@ class WatchIngestWorker(Worker):
             include_weather="weather" in rule.source_types,
             include_aviation="aviation" in rule.source_types,
             include_x="x" in rule.source_types,
+            source_types=rule.source_types,
         )
         analysis = await self.analysis_service.analyze(analysis_request)
         for step in analysis.reasoning_steps:
@@ -124,14 +125,19 @@ class WatchIngestWorker(Worker):
                 "source_metadata": {"origin": "watch_rule", "rule_id": rule.id},
             }
         ]
-        for source in analysis.sources:
+        qualified_sources = self._qualified_sources(rule, analysis.sources)
+        for source in qualified_sources:
             items.append(
                 {
                     "source_type": source.source_type,
                     "source_url": source.url,
                     "title": source.title,
                     "content_text": source.summary,
-                    "source_metadata": {"origin": "watch_rule_source"},
+                    "source_metadata": {
+                        "origin": "watch_rule_source",
+                        "importance_score": self._source_score(rule, source),
+                        **source.metadata,
+                    },
                 }
             )
 
@@ -148,7 +154,8 @@ class WatchIngestWorker(Worker):
         simulation_run_id = None
         debate_id = None
 
-        if rule.auto_trigger_simulation:
+        threshold_met = self._threshold_met(rule, qualified_sources)
+        if rule.auto_trigger_simulation and threshold_met:
             if rule.domain_id == "military":
                 force_name = rule.query[:60]
                 force_id = rule.query[:40].lower().replace(" ", "-")
@@ -199,6 +206,8 @@ class WatchIngestWorker(Worker):
         return {
             "ingest_run_id": ingest_run.id,
             "sources_fetched": len(analysis.sources),
+            "sources_qualified": len(qualified_sources),
+            "threshold_met": threshold_met,
             "simulation_run_id": simulation_run_id,
             "debate_id": debate_id,
         }
@@ -221,9 +230,45 @@ class WatchIngestWorker(Worker):
             return "aviation"
         if "rss" in lowered:
             return "rss"
-        if "x" in lowered:
+        if "linux.do" in lowered or "linux" in lowered:
+            return "linux_do"
+        if "xiaohongshu" in lowered:
+            return "xiaohongshu"
+        if "douyin" in lowered:
+            return "douyin"
+        if lowered.strip() == "x" or " x." in lowered or " x " in lowered:
             return "x"
         return "unknown"
+
+    def _qualified_sources(self, rule: WatchRule, sources) -> list:
+        return [
+            source
+            for source in sources
+            if self._source_score(rule, source) >= float(rule.importance_threshold or 0.0)
+        ]
+
+    def _threshold_met(self, rule: WatchRule, sources: list) -> bool:
+        if len(sources) < int(rule.min_new_evidence_count or 0):
+            return False
+        if not sources:
+            return float(rule.trigger_threshold or 0.0) <= 0.0
+        return max(self._source_score(rule, source) for source in sources) >= float(rule.trigger_threshold or 0.0)
+
+    def _source_score(self, rule: WatchRule, source) -> float:
+        haystack = f"{source.title} {source.summary}".lower()
+        if any(term.lower() in haystack for term in (rule.exclude_keywords or []) if term):
+            return 0.0
+        keywords = [term.lower() for term in (rule.keywords or []) if term]
+        entity_tags = [term.lower() for term in (rule.entity_tags or []) if term]
+        terms = keywords or entity_tags or [token.lower() for token in rule.query.split()[:6] if token]
+        matched = sum(1 for term in terms if term and term in haystack)
+        score = 0.35 + min(matched * 0.18, 0.45)
+        engagement = source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
+        if isinstance(engagement, dict) and any(value for value in engagement.values() if isinstance(value, (int, float))):
+            score += 0.1
+        if source.published_at:
+            score += 0.1
+        return round(max(0.0, min(score, 1.0)), 4)
 
     async def _claim_due_rules(
         self,

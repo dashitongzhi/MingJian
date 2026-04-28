@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,7 +37,6 @@ from planagent.domain.models import (
 )
 from planagent.domain.types import (
     DecisionRecordModel,
-    EventModel,
     ExternalShockModel,
     GeneratedReportModel,
     GeoAssetModel,

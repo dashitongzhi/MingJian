@@ -14,6 +14,7 @@ from planagent.domain.enums import ClaimStatus, EventTopic
 from planagent.domain.models import Claim
 from planagent.events.bus import InMemoryEventBus
 from planagent.services.debate import DebateService
+from planagent.services.openai_client import DebatePositionPayload
 from planagent.services.simulation import SelectedAction, SimulationService
 from planagent.simulation.domain_packs import registry
 from planagent.simulation.rules import RuleRegistry
@@ -177,6 +178,52 @@ def test_build_assessment_from_llm_rounds() -> None:
     assert assessment.challenge_confidence == 0.4
     assert len(assessment.rounds) == 3
     assert assessment.context_payload.get("debate_method") == "llm"
+
+
+class RoleRoutingOpenAIStub:
+    def __init__(self) -> None:
+        self.targets: list[str] = []
+
+    def is_configured(self, target: str) -> bool:
+        return target in {"debate_advocate", "debate_challenger", "debate_arbitrator"}
+
+    async def generate_debate_position(self, **kwargs) -> DebatePositionPayload:
+        self.targets.append(kwargs["target"])
+        role = kwargs["role"]
+        position = "CONDITIONAL" if role == "arbitrator" else ("SUPPORT" if role == "advocate" else "OPPOSE")
+        return DebatePositionPayload(
+            position=position,
+            confidence=0.75,
+            arguments=[
+                {
+                    "claim": f"{role} claim",
+                    "evidence_ids": ["ev-1"],
+                    "reasoning": "test",
+                    "strength": "MODERATE",
+                }
+            ],
+        )
+
+
+def test_llm_debate_uses_role_specific_targets() -> None:
+    stub = RoleRoutingOpenAIStub()
+    service = DebateService(
+        settings=Settings(),
+        event_bus=InMemoryEventBus(),
+        openai_service=stub,  # type: ignore[arg-type]
+    )
+
+    rounds = asyncio.run(
+        service._llm_debate_rounds(
+            topic="test topic",
+            trigger_type="pivot_decision",
+            context="test context",
+            evidence_ids=["ev-1"],
+        )
+    )
+
+    assert rounds
+    assert {"debate_advocate", "debate_challenger", "debate_arbitrator"} <= set(stub.targets)
 
 
 # ── Decision Options + Hypotheses API ────────────────────────────────────────

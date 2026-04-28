@@ -48,9 +48,23 @@ class Settings(BaseSettings):
     openai_report_model: str | None = None
     openai_report_api_key: str | None = None
     openai_report_base_url: str | None = None
+    openai_debate_advocate_model: str | None = None
+    openai_debate_advocate_api_key: str | None = None
+    openai_debate_advocate_base_url: str | None = None
+    openai_debate_challenger_model: str | None = None
+    openai_debate_challenger_api_key: str | None = None
+    openai_debate_challenger_base_url: str | None = None
+    openai_debate_arbitrator_model: str | None = None
+    openai_debate_arbitrator_api_key: str | None = None
+    openai_debate_arbitrator_base_url: str | None = None
     openai_timeout_seconds: float = 45.0
     x_bearer_token: str | None = None
     x_base_url: str = "https://api.x.com/2"
+    linux_do_base_url: str = "https://linux.do"
+    xhs_provider_base_url: str | None = None
+    xhs_provider_api_key: str | None = None
+    douyin_provider_base_url: str | None = None
+    douyin_provider_api_key: str | None = None
     accepted_claim_confidence: float = 0.70
     review_claim_confidence_floor: float = 0.45
     source_snapshot_retention_days: int = 90
@@ -83,6 +97,12 @@ class Settings(BaseSettings):
             targets.append("x_search")
         if self.resolved_openai_report_api_key:
             targets.append("report")
+        if self.resolved_openai_debate_advocate_api_key:
+            targets.append("debate_advocate")
+        if self.resolved_openai_debate_challenger_api_key:
+            targets.append("debate_challenger")
+        if self.resolved_openai_debate_arbitrator_api_key:
+            targets.append("debate_arbitrator")
         return targets
 
     @property
@@ -116,6 +136,42 @@ class Settings(BaseSettings):
     @property
     def resolved_openai_report_base_url(self) -> str | None:
         return self.openai_report_base_url or self.resolved_openai_primary_base_url
+
+    @property
+    def resolved_openai_debate_advocate_model(self) -> str:
+        return self.openai_debate_advocate_model or self.openai_primary_model
+
+    @property
+    def resolved_openai_debate_advocate_api_key(self) -> str | None:
+        return self.openai_debate_advocate_api_key
+
+    @property
+    def resolved_openai_debate_advocate_base_url(self) -> str | None:
+        return self.openai_debate_advocate_base_url or self.resolved_openai_primary_base_url
+
+    @property
+    def resolved_openai_debate_challenger_model(self) -> str:
+        return self.openai_debate_challenger_model or self.resolved_openai_extraction_model
+
+    @property
+    def resolved_openai_debate_challenger_api_key(self) -> str | None:
+        return self.openai_debate_challenger_api_key
+
+    @property
+    def resolved_openai_debate_challenger_base_url(self) -> str | None:
+        return self.openai_debate_challenger_base_url or self.resolved_openai_extraction_base_url
+
+    @property
+    def resolved_openai_debate_arbitrator_model(self) -> str:
+        return self.openai_debate_arbitrator_model or self.resolved_openai_report_model
+
+    @property
+    def resolved_openai_debate_arbitrator_api_key(self) -> str | None:
+        return self.openai_debate_arbitrator_api_key
+
+    @property
+    def resolved_openai_debate_arbitrator_base_url(self) -> str | None:
+        return self.openai_debate_arbitrator_base_url or self.resolved_openai_report_base_url
 
     @property
     def resolved_x_bearer_token(self) -> str | None:
@@ -154,6 +210,22 @@ class Settings(BaseSettings):
             if self.openai_report_model:
                 return "PLANAGENT_OPENAI_REPORT_MODEL"
             return "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        if target == "debate_advocate":
+            if self.openai_debate_advocate_model:
+                return "PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL"
+            return "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        if target == "debate_challenger":
+            if self.openai_debate_challenger_model:
+                return "PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL"
+            if self.openai_extraction_model:
+                return "PLANAGENT_OPENAI_EXTRACTION_MODEL"
+            return "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        if target == "debate_arbitrator":
+            if self.openai_debate_arbitrator_model:
+                return "PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL"
+            if self.openai_report_model:
+                return "PLANAGENT_OPENAI_REPORT_MODEL"
+            return "PLANAGENT_OPENAI_PRIMARY_MODEL"
         raise ValueError(f"Unsupported target: {target}")
 
     def openai_api_key_source(self, target: str) -> str:
@@ -181,6 +253,22 @@ class Settings(BaseSettings):
             if self.openai_report_api_key:
                 return "PLANAGENT_OPENAI_REPORT_API_KEY"
             return self.openai_api_key_source("primary")
+        if target == "debate_advocate":
+            if self.openai_debate_advocate_api_key:
+                return "PLANAGENT_OPENAI_DEBATE_ADVOCATE_API_KEY"
+            return self.openai_api_key_source("primary")
+        if target == "debate_challenger":
+            if self.openai_debate_challenger_api_key:
+                return "PLANAGENT_OPENAI_DEBATE_CHALLENGER_API_KEY"
+            if self.openai_extraction_api_key:
+                return "PLANAGENT_OPENAI_EXTRACTION_API_KEY"
+            return self.openai_api_key_source("primary")
+        if target == "debate_arbitrator":
+            if self.openai_debate_arbitrator_api_key:
+                return "PLANAGENT_OPENAI_DEBATE_ARBITRATOR_API_KEY"
+            if self.openai_report_api_key:
+                return "PLANAGENT_OPENAI_REPORT_API_KEY"
+            return self.openai_api_key_source("primary")
         raise ValueError(f"Unsupported target: {target}")
 
     def openai_base_url_source(self, target: str) -> str:
@@ -201,6 +289,22 @@ class Settings(BaseSettings):
                 return "PLANAGENT_OPENAI_EXTRACTION_BASE_URL"
             return self.openai_base_url_source("primary")
         if target == "report":
+            if self.openai_report_base_url:
+                return "PLANAGENT_OPENAI_REPORT_BASE_URL"
+            return self.openai_base_url_source("primary")
+        if target == "debate_advocate":
+            if self.openai_debate_advocate_base_url:
+                return "PLANAGENT_OPENAI_DEBATE_ADVOCATE_BASE_URL"
+            return self.openai_base_url_source("primary")
+        if target == "debate_challenger":
+            if self.openai_debate_challenger_base_url:
+                return "PLANAGENT_OPENAI_DEBATE_CHALLENGER_BASE_URL"
+            if self.openai_extraction_base_url:
+                return "PLANAGENT_OPENAI_EXTRACTION_BASE_URL"
+            return self.openai_base_url_source("primary")
+        if target == "debate_arbitrator":
+            if self.openai_debate_arbitrator_base_url:
+                return "PLANAGENT_OPENAI_DEBATE_ARBITRATOR_BASE_URL"
             if self.openai_report_base_url:
                 return "PLANAGENT_OPENAI_REPORT_BASE_URL"
             return self.openai_base_url_source("primary")

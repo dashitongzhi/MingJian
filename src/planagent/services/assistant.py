@@ -28,6 +28,7 @@ from planagent.domain.api import (
 )
 from planagent.domain.models import (
     GeneratedReport,
+    Hypothesis,
     StrategicBriefRecord,
     StrategicRunSnapshot,
     StrategicSession,
@@ -330,6 +331,36 @@ class StrategicAssistantService:
         session_record: StrategicSession,
         analysis: AnalysisResponse,
     ) -> StrategicBriefRecordRead:
+        pending_hypotheses = await self._recent_hypotheses(
+            session,
+            session_record,
+            statuses={"PENDING"},
+        )
+        verified_hypotheses = await self._recent_hypotheses(
+            session,
+            session_record,
+            statuses={"CONFIRMED", "REFUTED", "PARTIAL"},
+        )
+        analysis_payload = analysis.model_dump(mode="json")
+        analysis_payload["intelligence_brief"] = {
+            "new_evidence_count": len(analysis.sources),
+            "source_types": sorted({source.source_type for source in analysis.sources}),
+            "trend_watch": analysis.findings[:5],
+            "pending_hypotheses": [item.prediction for item in pending_hypotheses[:5]],
+            "verified_hypotheses": [
+                {
+                    "prediction": item.prediction,
+                    "status": item.verification_status,
+                    "actual_outcome": item.actual_outcome,
+                }
+                for item in verified_hypotheses[:5]
+            ],
+            "judgment_update": (
+                "Review the last posture because new sources or verified hypotheses changed."
+                if analysis.sources or verified_hypotheses
+                else "No material update detected in this refresh."
+            ),
+        }
         record = StrategicBriefRecord(
             session_id=session_record.id,
             tenant_id=session_record.tenant_id,
@@ -337,7 +368,7 @@ class StrategicAssistantService:
             domain_id=analysis.domain_id,
             summary=analysis.summary,
             source_count=len(analysis.sources),
-            analysis_payload=analysis.model_dump(mode="json"),
+            analysis_payload=analysis_payload,
             generated_at=analysis.generated_at,
         )
         session_record.latest_brief_summary = analysis.summary
@@ -354,6 +385,19 @@ class StrategicAssistantService:
         session.add(record)
         await session.commit()
         return self._brief_record_read(record)
+
+    async def _recent_hypotheses(
+        self,
+        session: AsyncSession,
+        session_record: StrategicSession,
+        statuses: set[str],
+    ) -> list[Hypothesis]:
+        query = select(Hypothesis).where(Hypothesis.verification_status.in_(statuses))
+        if session_record.tenant_id is not None:
+            query = query.where(Hypothesis.tenant_id == session_record.tenant_id)
+        if session_record.preset_id is not None:
+            query = query.where(Hypothesis.preset_id == session_record.preset_id)
+        return list((await session.scalars(query.order_by(Hypothesis.updated_at.desc()).limit(10))).all())
 
     async def _store_run_snapshot(
         self,
@@ -416,6 +460,8 @@ class StrategicAssistantService:
             include_weather=preferences.get("include_weather", False),
             include_aviation=preferences.get("include_aviation", False),
             include_x=preferences.get("include_x", True),
+            source_types=preferences.get("source_types", []),
+            max_source_items=preferences.get("max_source_items", {}),
             max_news_items=preferences.get("max_news_items", 5),
             max_tech_items=preferences.get("max_tech_items", 3),
             max_reddit_items=preferences.get("max_reddit_items", 3),
@@ -479,6 +525,8 @@ class StrategicAssistantService:
             "include_weather": payload.include_weather,
             "include_aviation": payload.include_aviation,
             "include_x": payload.include_x,
+            "source_types": payload.source_types,
+            "max_source_items": payload.max_source_items,
             "max_news_items": payload.max_news_items,
             "max_tech_items": payload.max_tech_items,
             "max_reddit_items": payload.max_reddit_items,
@@ -534,6 +582,8 @@ class StrategicAssistantService:
             include_weather=payload.include_weather,
             include_aviation=payload.include_aviation,
             include_x=payload.include_x,
+            source_types=payload.source_types,
+            max_source_items=payload.max_source_items,
             max_news_items=payload.max_news_items,
             max_tech_items=payload.max_tech_items,
             max_reddit_items=payload.max_reddit_items,

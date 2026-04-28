@@ -225,6 +225,7 @@ class SimulationService:
             preset_id=parent_run.preset_id,
             domain_id=parent_run.domain_id,
             actor_template=parent_run.actor_template,
+            military_use_mode=parent_run.military_use_mode,
             parent_run_id=parent_run.id,
             execution_mode=execution_mode,
             status=SimulationRunStatus.PENDING.value,
@@ -244,6 +245,7 @@ class SimulationService:
                     "state_overrides": payload.state_overrides,
                     "probability_band": payload.probability_band,
                 },
+                "military_use_mode": parent_run.military_use_mode,
             },
             summary={"scenario_id": scenario_id},
         )
@@ -697,6 +699,7 @@ class SimulationService:
             preset_id=payload.preset_id,
             domain_id="corporate",
             actor_template=payload.actor_template,
+            military_use_mode=None,
             execution_mode=execution_mode.value,
             status=SimulationRunStatus.PENDING.value,
             tick_count=payload.tick_count or self.settings.default_corporate_ticks,
@@ -719,6 +722,7 @@ class SimulationService:
         execution_mode: ExecutionMode,
     ) -> SimulationRun:
         force = await self._upsert_force(session, payload)
+        military_use_mode = payload.military_use_mode or "full_domain"
         run = SimulationRun(
             company_id=None,
             force_id=force.id,
@@ -726,6 +730,7 @@ class SimulationService:
             preset_id=payload.preset_id,
             domain_id="military",
             actor_template=payload.actor_template,
+            military_use_mode=military_use_mode,
             execution_mode=execution_mode.value,
             status=SimulationRunStatus.PENDING.value,
             tick_count=payload.tick_count or self.settings.default_military_ticks,
@@ -733,12 +738,27 @@ class SimulationService:
             configuration={
                 "initial_state": payload.initial_state,
                 "theater": payload.theater or force.theater,
+                "military_use_mode": military_use_mode,
+                "simulation_only": True,
                 **startup_preset_config(payload.tenant_id, payload.preset_id),
             },
             summary={},
         )
         session.add(run)
         await session.flush()
+        if military_use_mode == "full_domain":
+            session.add(
+                EventArchive(
+                    topic="military.full_domain.audit",
+                    payload={
+                        "run_id": run.id,
+                        "force_id": force.id,
+                        "tenant_id": run.tenant_id,
+                        "simulation_only": True,
+                        "military_use_mode": military_use_mode,
+                    },
+                )
+            )
         await self._ensure_geo_assets_for_run(session, run, force)
         return run
 

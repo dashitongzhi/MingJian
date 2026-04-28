@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import hashlib
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -243,7 +242,6 @@ class CalibrationWorker(Worker):
         rule_accuracy: dict[str, float] = {}
         for rule_id, statuses in rule_counts.items():
             confirmed = sum(1 for s in statuses if s == "CONFIRMED")
-            refuted = sum(1 for s in statuses if s == "REFUTED")
             partial = sum(1 for s in statuses if s == "PARTIAL")
             total = len(statuses) if len(statuses) >= _MIN_HYPOTHESES_FOR_CALIBRATION else 0
             if total > 0:

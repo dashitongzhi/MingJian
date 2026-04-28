@@ -34,6 +34,15 @@ class SourceFetchBundle:
     steps: list[AnalysisStepRead]
 
 
+@dataclass(frozen=True)
+class SourceAdapter:
+    key: str
+    label: str
+    default_enabled: bool
+    default_limit: int
+    fetcher: Any
+
+
 class AutomatedAnalysisService:
     def __init__(
         self,
@@ -129,6 +138,7 @@ class AutomatedAnalysisService:
                 "url": source.url,
                 "summary": source.summary,
                 "published_at": source.published_at,
+                "metadata": source.metadata,
             }
             for source in sources
         ]
@@ -204,73 +214,13 @@ class AutomatedAnalysisService:
         results: list[AnalysisSourceRead] = []
         steps: list[AnalysisStepRead] = []
         seen: set[tuple[str, str]] = set()
-        providers = [
-            (
-                "google_news",
-                "Google News",
-                payload.include_google_news,
-                payload.max_news_items,
-                lambda: self._fetch_google_news(query, payload.max_news_items),
-            ),
-            (
-                "reddit",
-                "Reddit",
-                payload.include_reddit,
-                payload.max_reddit_items,
-                lambda: self._fetch_reddit(query, payload.max_reddit_items, domain_id),
-            ),
-            (
-                "hacker_news",
-                "Hacker News",
-                payload.include_hacker_news,
-                payload.max_tech_items,
-                lambda: self._fetch_hacker_news(query, payload.max_tech_items, domain_id),
-            ),
-            (
-                "github",
-                "GitHub",
-                payload.include_github,
-                payload.max_github_items,
-                lambda: self._fetch_github_repositories(query, payload.max_github_items, domain_id),
-            ),
-            (
-                "rss",
-                "Configured RSS Feeds",
-                payload.include_rss_feeds,
-                payload.max_rss_items,
-                lambda: self._fetch_configured_rss(query, payload.max_rss_items, domain_id),
-            ),
-            (
-                "gdelt",
-                "GDELT",
-                payload.include_gdelt,
-                payload.max_gdelt_items,
-                lambda: self._fetch_gdelt_documents(query, payload.max_gdelt_items, domain_id),
-            ),
-            (
-                "weather",
-                "Open-Meteo Weather",
-                payload.include_weather,
-                payload.max_weather_items,
-                lambda: self._fetch_weather_context(query, payload.max_weather_items, domain_id),
-            ),
-            (
-                "aviation",
-                "OpenSky Aviation",
-                payload.include_aviation,
-                payload.max_aviation_items,
-                lambda: self._fetch_aviation_context(query, payload.max_aviation_items, domain_id),
-            ),
-            (
-                "x",
-                "X",
-                payload.include_x,
-                payload.max_x_items,
-                lambda: self._fetch_x_sources(query, payload.max_x_items, domain_id),
-            ),
-        ]
+        adapters = self._source_adapters(payload, query, domain_id)
 
-        for provider_key, provider_label, enabled, limit, fetcher in providers:
+        for adapter in adapters:
+            provider_key = adapter.key
+            provider_label = adapter.label
+            enabled = self._adapter_enabled(payload, adapter)
+            limit = self._adapter_limit(payload, adapter)
             if not enabled:
                 steps.append(
                     self._step(
@@ -289,17 +239,18 @@ class AutomatedAnalysisService:
                     )
                 )
                 continue
-            if provider_key == "x" and not self.settings.x_enabled:
+            unavailable_reason = self._source_unavailable_reason(provider_key)
+            if unavailable_reason is not None:
                 steps.append(
                     self._step(
                         "source_skip",
-                        "Skipped X.",
-                        "Neither PLANAGENT_X_BEARER_TOKEN nor PLANAGENT_OPENAI_X_SEARCH_API_KEY is configured.",
+                        f"Skipped {provider_label}.",
+                        unavailable_reason,
                     )
                 )
                 continue
             try:
-                provider_results = await fetcher()
+                provider_results = await adapter.fetcher(limit)
             except Exception as exc:
                 steps.append(
                     self._step(
@@ -328,6 +279,128 @@ class AutomatedAnalysisService:
             )
 
         return SourceFetchBundle(sources=results, steps=steps)
+
+    def _source_adapters(
+        self,
+        payload: AnalysisRequest,
+        query: str,
+        domain_id: str,
+    ) -> list[SourceAdapter]:
+        return [
+            SourceAdapter(
+                "google_news",
+                "Google News",
+                payload.include_google_news,
+                payload.max_news_items,
+                lambda limit: self._fetch_google_news(query, limit),
+            ),
+            SourceAdapter(
+                "reddit",
+                "Reddit",
+                payload.include_reddit,
+                payload.max_reddit_items,
+                lambda limit: self._fetch_reddit(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "hacker_news",
+                "Hacker News",
+                payload.include_hacker_news,
+                payload.max_tech_items,
+                lambda limit: self._fetch_hacker_news(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "github",
+                "GitHub",
+                payload.include_github,
+                payload.max_github_items,
+                lambda limit: self._fetch_github_repositories(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "rss",
+                "Configured RSS Feeds",
+                payload.include_rss_feeds,
+                payload.max_rss_items,
+                lambda limit: self._fetch_configured_rss(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "gdelt",
+                "GDELT",
+                payload.include_gdelt,
+                payload.max_gdelt_items,
+                lambda limit: self._fetch_gdelt_documents(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "weather",
+                "Open-Meteo Weather",
+                payload.include_weather,
+                payload.max_weather_items,
+                lambda limit: self._fetch_weather_context(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "aviation",
+                "OpenSky Aviation",
+                payload.include_aviation,
+                payload.max_aviation_items,
+                lambda limit: self._fetch_aviation_context(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "x",
+                "X",
+                payload.include_x,
+                payload.max_x_items,
+                lambda limit: self._fetch_x_sources(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "linux_do",
+                "Linux.do",
+                False,
+                3,
+                lambda limit: self._fetch_linux_do(query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "xiaohongshu",
+                "Xiaohongshu",
+                False,
+                3,
+                lambda limit: self._fetch_provider_sources("xiaohongshu", query, limit, domain_id),
+            ),
+            SourceAdapter(
+                "douyin",
+                "Douyin",
+                False,
+                3,
+                lambda limit: self._fetch_provider_sources("douyin", query, limit, domain_id),
+            ),
+        ]
+
+    def _adapter_enabled(self, payload: AnalysisRequest, adapter: SourceAdapter) -> bool:
+        requested = {self._canonical_source_type(item) for item in payload.source_types}
+        if requested:
+            return adapter.key in requested
+        return adapter.default_enabled
+
+    def _adapter_limit(self, payload: AnalysisRequest, adapter: SourceAdapter) -> int:
+        limits = {
+            self._canonical_source_type(key): int(value)
+            for key, value in payload.max_source_items.items()
+            if isinstance(value, int) or str(value).isdigit()
+        }
+        if adapter.key in limits:
+            return max(0, min(limits[adapter.key], 25))
+        return adapter.default_limit
+
+    def _source_unavailable_reason(self, provider_key: str) -> str | None:
+        if provider_key == "x" and not self.settings.x_enabled:
+            return "Neither PLANAGENT_X_BEARER_TOKEN nor PLANAGENT_OPENAI_X_SEARCH_API_KEY is configured."
+        if provider_key == "xiaohongshu" and not (
+            self.settings.xhs_provider_base_url and self.settings.xhs_provider_api_key
+        ):
+            return "PLANAGENT_XHS_PROVIDER_BASE_URL and PLANAGENT_XHS_PROVIDER_API_KEY are not configured."
+        if provider_key == "douyin" and not (
+            self.settings.douyin_provider_base_url and self.settings.douyin_provider_api_key
+        ):
+            return "PLANAGENT_DOUYIN_PROVIDER_BASE_URL and PLANAGENT_DOUYIN_PROVIDER_API_KEY are not configured."
+        return None
 
     async def record_source_success(self, session: AsyncSession, source_type: str) -> None:
         record = await self._get_source_health(session, source_type)
@@ -387,6 +460,12 @@ class AutomatedAnalysisService:
                             url=url,
                             summary=summary,
                             published_at=self._clean_text(post.published_at or "") or None,
+                            metadata={
+                                "platform": "x",
+                                "provider": "model_backed_x_search",
+                                "raw_published_at": self._clean_text(post.published_at or "") or None,
+                                "query_used": self._platform_query(query, domain_id),
+                            },
                         )
                     )
                 if results:
@@ -424,6 +503,12 @@ class AutomatedAnalysisService:
                     url=link,
                     summary=description or title,
                     published_at=pub_date,
+                    metadata={
+                        "platform": "google_news",
+                        "provider": "google_news_rss",
+                        "raw_published_at": pub_date,
+                        "query_used": query,
+                    },
                 )
             )
         return results
@@ -494,6 +579,13 @@ class AutomatedAnalysisService:
                     url=html_url,
                     summary=" | ".join(summary_parts) or full_name,
                     published_at=updated_at,
+                    metadata={
+                        "platform": "github",
+                        "provider": "github_search",
+                        "engagement": {"stars": stars} if isinstance(stars, int) else {},
+                        "raw_published_at": updated_at,
+                        "query_used": search_query,
+                    },
                 )
             )
         for issue in issue_payload.get("items", [])[:update_limit]:
@@ -511,6 +603,12 @@ class AutomatedAnalysisService:
                     url=html_url,
                     summary=f"{item_type} | state={state}" if state else item_type,
                     published_at=updated_at,
+                    metadata={
+                        "platform": "github",
+                        "provider": "github_search",
+                        "raw_published_at": updated_at,
+                        "query_used": search_query,
+                    },
                 )
             )
         return results
@@ -564,6 +662,12 @@ class AutomatedAnalysisService:
                             url=link,
                             summary=summary or title,
                             published_at=published_at,
+                            metadata={
+                                "platform": "rss",
+                                "provider": feed_url,
+                                "raw_published_at": published_at,
+                                "query_used": query,
+                            },
                         )
                     )
         return results
@@ -607,6 +711,12 @@ class AutomatedAnalysisService:
                     url=url_value,
                     summary=summary,
                     published_at=seendate,
+                    metadata={
+                        "platform": "gdelt",
+                        "provider": domain,
+                        "raw_published_at": seendate,
+                        "query_used": gdelt_query,
+                    },
                 )
             )
         return results
@@ -667,6 +777,11 @@ class AutomatedAnalysisService:
                 url="https://open-meteo.com/",
                 summary=summary,
                 published_at=self._clean_text(weather.get("time") or "") or None,
+                metadata={
+                    "platform": "open_meteo",
+                    "provider": "open_meteo",
+                    "query_used": query,
+                },
             )
         ]
 
@@ -717,6 +832,12 @@ class AutomatedAnalysisService:
                 url="https://opensky-network.org/",
                 summary=summary,
                 published_at=self._timestamp_to_iso(payload.get("time")),
+                metadata={
+                    "platform": "opensky",
+                    "provider": "opensky",
+                    "engagement": {"aircraft_count": aircraft_count, "airborne": airborne},
+                    "query_used": query,
+                },
             )
         ][:limit]
 
@@ -750,6 +871,12 @@ class AutomatedAnalysisService:
                     url=url_value,
                     summary=summary,
                     published_at=published_at,
+                    metadata={
+                        "platform": "hacker_news",
+                        "provider": "hn_algolia",
+                        "raw_published_at": published_at,
+                        "query_used": search_query,
+                    },
                 )
             )
         return results
@@ -792,6 +919,17 @@ class AutomatedAnalysisService:
                     url=url_value,
                     summary=" | ".join(summary_parts) or title,
                     published_at=self._timestamp_to_iso(post.get("created_utc")),
+                    metadata={
+                        "platform": "reddit",
+                        "provider": "reddit_search",
+                        "author": self._clean_text(post.get("author") or ""),
+                        "engagement": {
+                            "score": post.get("score"),
+                            "comments": post.get("num_comments"),
+                        },
+                        "raw_published_at": post.get("created_utc"),
+                        "query_used": search_query,
+                    },
                 )
             )
         return results
@@ -854,6 +992,149 @@ class AutomatedAnalysisService:
                     url=url_value,
                     summary=text,
                     published_at=self._clean_text(post.get("created_at") or "") or None,
+                    metadata={
+                        "platform": "x",
+                        "provider": "x_recent_search",
+                        "author": username,
+                        "raw_published_at": self._clean_text(post.get("created_at") or "") or None,
+                        "query_used": self._x_query(query, domain_id),
+                    },
+                )
+            )
+        return results
+
+    async def _fetch_linux_do(
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
+    ) -> list[AnalysisSourceRead]:
+        if limit <= 0:
+            return []
+        search_query = self._platform_query(query, domain_id)
+        base_url = self.settings.linux_do_base_url.rstrip("/")
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+            response = await client.get(
+                f"{base_url}/search.json",
+                params={"q": search_query},
+                headers={"User-Agent": "PlanAgent/0.1"},
+            )
+            response.raise_for_status()
+        payload = response.json()
+        topics = payload.get("topics") or []
+        posts = payload.get("posts") or []
+        posts_by_topic = {
+            post.get("topic_id"): post
+            for post in posts
+            if isinstance(post, dict) and post.get("topic_id")
+        }
+        results: list[AnalysisSourceRead] = []
+        for topic in topics[:limit]:
+            if not isinstance(topic, dict):
+                continue
+            title = self._clean_text(topic.get("title") or "")
+            topic_id = topic.get("id")
+            slug = self._clean_text(topic.get("slug") or "")
+            post = posts_by_topic.get(topic_id, {})
+            excerpt = self._clean_text(post.get("blurb") or post.get("cooked") or "")
+            url_value = f"{base_url}/t/{slug}/{topic_id}" if slug and topic_id else base_url
+            if not title or not topic_id:
+                continue
+            published_at = self._clean_text(
+                topic.get("created_at") or post.get("created_at") or topic.get("last_posted_at") or ""
+            ) or None
+            results.append(
+                AnalysisSourceRead(
+                    source_type="linux_do_discourse",
+                    title=title,
+                    url=url_value,
+                    summary=excerpt or title,
+                    published_at=published_at,
+                    metadata={
+                        "platform": "linux_do",
+                        "provider": "discourse_search",
+                        "author": self._clean_text(post.get("username") or ""),
+                        "engagement": {
+                            "posts_count": topic.get("posts_count"),
+                            "views": topic.get("views"),
+                            "like_count": topic.get("like_count"),
+                        },
+                        "raw_published_at": published_at,
+                        "query_used": search_query,
+                    },
+                )
+            )
+        return results
+
+    async def _fetch_provider_sources(
+        self,
+        provider: str,
+        query: str,
+        limit: int,
+        domain_id: str,
+    ) -> list[AnalysisSourceRead]:
+        if limit <= 0:
+            return []
+        if provider == "xiaohongshu":
+            base_url = self.settings.xhs_provider_base_url
+            api_key = self.settings.xhs_provider_api_key
+            label = "xiaohongshu"
+        elif provider == "douyin":
+            base_url = self.settings.douyin_provider_base_url
+            api_key = self.settings.douyin_provider_api_key
+            label = "douyin"
+        else:
+            return []
+        if not base_url or not api_key:
+            return []
+        search_query = self._platform_query(query, domain_id)
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+            response = await client.get(
+                f"{base_url.rstrip('/')}/search",
+                params={"q": search_query, "limit": str(limit), "domain_id": domain_id},
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "User-Agent": "PlanAgent/0.1",
+                },
+            )
+            response.raise_for_status()
+        payload = response.json()
+        candidates = (
+            payload.get("items")
+            or payload.get("results")
+            or payload.get("posts")
+            or payload.get("data")
+            or []
+        )
+        if isinstance(candidates, dict):
+            candidates = candidates.get("items") or candidates.get("list") or []
+        results: list[AnalysisSourceRead] = []
+        for item in candidates[:limit]:
+            if not isinstance(item, dict):
+                continue
+            title = self._clean_text(item.get("title") or item.get("caption") or item.get("text") or "")
+            url_value = self._clean_text(item.get("url") or item.get("link") or item.get("share_url") or "")
+            summary = self._clean_text(
+                item.get("summary") or item.get("description") or item.get("content") or item.get("text") or title
+            )
+            published_at = self._clean_text(item.get("published_at") or item.get("created_at") or "") or None
+            if not title or not url_value:
+                continue
+            results.append(
+                AnalysisSourceRead(
+                    source_type=label,
+                    title=title,
+                    url=url_value,
+                    summary=summary or title,
+                    published_at=published_at,
+                    metadata={
+                        "platform": label,
+                        "provider": base_url,
+                        "author": self._clean_text(item.get("author") or item.get("username") or ""),
+                        "engagement": item.get("engagement") or item.get("metrics") or {},
+                        "raw_published_at": published_at,
+                        "query_used": search_query,
+                    },
                 )
             )
         return results
@@ -1010,6 +1291,25 @@ class AutomatedAnalysisService:
 
     def _contains_cjk(self, value: str) -> bool:
         return any("\u4e00" <= char <= "\u9fff" for char in value)
+
+    def _canonical_source_type(self, value: str) -> str:
+        normalized = self._clean_text(value).lower().replace("-", "_").replace(".", "_")
+        aliases = {
+            "news": "google_news",
+            "google": "google_news",
+            "google_news_rss": "google_news",
+            "hn": "hacker_news",
+            "hackernews": "hacker_news",
+            "rss_feeds": "rss",
+            "rss_feed": "rss",
+            "twitter": "x",
+            "x_com": "x",
+            "linuxdo": "linux_do",
+            "linux_do_discourse": "linux_do",
+            "xhs": "xiaohongshu",
+            "red": "xiaohongshu",
+        }
+        return aliases.get(normalized, normalized)
 
     def _timestamp_to_iso(self, value: Any) -> str | None:
         if value in (None, ""):

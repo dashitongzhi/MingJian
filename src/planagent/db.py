@@ -29,6 +29,27 @@ class Database:
                             "ADD COLUMN decision_method VARCHAR(32) NOT NULL DEFAULT 'rule_engine'"
                         )
                     )
+                run_rows = (await connection.execute(text("PRAGMA table_info(simulation_runs)"))).all()
+                run_column_names = {row[1] for row in run_rows}
+                if run_rows and "military_use_mode" not in run_column_names:
+                    await connection.execute(
+                        text("ALTER TABLE simulation_runs ADD COLUMN military_use_mode VARCHAR(32)")
+                    )
+                watch_rows = (await connection.execute(text("PRAGMA table_info(watch_rules)"))).all()
+                watch_column_names = {row[1] for row in watch_rows}
+                watch_columns = {
+                    "keywords": "JSON NOT NULL DEFAULT '[]'",
+                    "exclude_keywords": "JSON NOT NULL DEFAULT '[]'",
+                    "entity_tags": "JSON NOT NULL DEFAULT '[]'",
+                    "trigger_threshold": "FLOAT NOT NULL DEFAULT 0.0",
+                    "min_new_evidence_count": "INTEGER NOT NULL DEFAULT 1",
+                    "importance_threshold": "FLOAT NOT NULL DEFAULT 0.0",
+                }
+                for column_name, ddl_type in watch_columns.items():
+                    if watch_rows and column_name not in watch_column_names:
+                        await connection.execute(
+                            text(f"ALTER TABLE watch_rules ADD COLUMN {column_name} {ddl_type}")
+                        )
                 graph_rows = (await connection.execute(text("PRAGMA table_info(knowledge_graph_nodes)"))).all()
                 graph_column_names = {row[1] for row in graph_rows}
                 if graph_rows and "embedding" not in graph_column_names:

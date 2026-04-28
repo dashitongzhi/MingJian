@@ -17,11 +17,13 @@ from planagent.domain.models import (
     DebateSessionRecord,
     DebateVerdictRecord,
     DecisionRecordRecord,
+    DecisionOption,
     EventArchive,
     EvidenceItem,
     ExternalShockRecord,
     ForceProfile,
     GeneratedReport,
+    Hypothesis,
     ScenarioBranchRecord,
     SimulationRun,
 )
@@ -213,6 +215,14 @@ class DebateService:
             ).first()
             if latest_decision is not None:
                 latest_decision.debate_verdict_id = debate_session.id
+            if run is not None:
+                run.summary = {
+                    **(run.summary or {}),
+                    "latest_debate_id": debate_session.id,
+                    "latest_debate_verdict": assessment.verdict,
+                    "debate_disagreements": [assessment.minority_opinion] if assessment.minority_opinion else [],
+                }
+                await self._ensure_debate_prediction(session, run, verdict, latest_decision)
 
         completed_payload = {
             "debate_id": debate_session.id,
@@ -227,6 +237,63 @@ class DebateService:
         await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
         await self.event_bus.publish(EventTopic.DEBATE_COMPLETED.value, completed_payload)
         return await self.get_debate(session, debate_session.id)
+
+    async def _ensure_debate_prediction(
+        self,
+        session: AsyncSession,
+        run: SimulationRun,
+        verdict: DebateVerdictRecord,
+        latest_decision: DecisionRecordRecord | None,
+    ) -> None:
+        option = (
+            await session.scalars(
+                select(DecisionOption)
+                .where(DecisionOption.run_id == run.id)
+                .order_by(DecisionOption.ranking.asc())
+                .limit(1)
+            )
+        ).first()
+        if option is None:
+            option = DecisionOption(
+                run_id=run.id,
+                tenant_id=run.tenant_id,
+                preset_id=run.preset_id,
+                title=f"Debate verdict: {verdict.verdict}"[:255],
+                description=(verdict.winning_arguments or [verdict.topic])[0][:2000],
+                expected_effects=latest_decision.expected_effect if latest_decision is not None else {},
+                risks=([verdict.minority_opinion] if verdict.minority_opinion else []),
+                evidence_ids=verdict.decisive_evidence,
+                confidence=verdict.confidence,
+                conditions=verdict.conditions or [],
+                ranking=1,
+            )
+            session.add(option)
+            await session.flush()
+
+        existing_hypothesis = (
+            await session.scalars(
+                select(Hypothesis)
+                .where(Hypothesis.run_id == run.id, Hypothesis.decision_option_id == option.id)
+                .limit(1)
+            )
+        ).first()
+        if existing_hypothesis is not None:
+            return
+        horizon = "1_week" if run.domain_id == "military" else "3_months"
+        prediction = (
+            f"Debate verdict {verdict.verdict} with confidence {verdict.confidence:.2f} "
+            f"will remain supportable over {horizon} if decisive evidence holds."
+        )
+        session.add(
+            Hypothesis(
+                run_id=run.id,
+                decision_option_id=option.id,
+                tenant_id=run.tenant_id,
+                preset_id=run.preset_id,
+                prediction=prediction,
+                time_horizon=horizon,
+            )
+        )
 
     async def _resolve_trigger_payload(
         self,
@@ -359,7 +426,19 @@ class DebateService:
         context: str,
         evidence_ids: list[str],
     ) -> list[dict[str, Any]] | None:
-        if self.openai_service is None or not self.openai_service.is_configured("primary"):
+        if self.openai_service is None:
+            return None
+        if not any(
+            self.openai_service.is_configured(target)
+            for target in [
+                "debate_advocate",
+                "debate_challenger",
+                "debate_arbitrator",
+                "primary",
+                "extraction",
+                "report",
+            ]
+        ):
             return None
 
         advocate_r1 = await self.openai_service.generate_debate_position(
@@ -367,12 +446,14 @@ class DebateService:
             topic=topic,
             trigger_type=trigger_type,
             context=context,
+            target=self._debate_target_for_role("advocate"),
         )
         challenger_r1 = await self.openai_service.generate_debate_position(
             role="challenger",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
+            target=self._debate_target_for_role("challenger"),
         )
         if advocate_r1 is None and challenger_r1 is None:
             return None
@@ -417,6 +498,7 @@ class DebateService:
             context=context,
             opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in chal_args_r1],
             own_previous=[{"claim": a.claim} for a in adv_args_r1],
+            target=self._debate_target_for_role("advocate"),
         )
         challenger_r2 = await self.openai_service.generate_debate_position(
             role="challenger",
@@ -425,6 +507,7 @@ class DebateService:
             context=context,
             opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in adv_args_r1],
             own_previous=[{"claim": a.claim} for a in chal_args_r1],
+            target=self._debate_target_for_role("challenger"),
         )
 
         if advocate_r2 is not None:
@@ -464,6 +547,7 @@ class DebateService:
             trigger_type=trigger_type,
             context=context,
             opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in all_adv_args + all_chal_args],
+            target=self._debate_target_for_role("arbitrator"),
         )
         if arbitrator is not None:
             rounds.append({
@@ -481,6 +565,19 @@ class DebateService:
             })
 
         return rounds if rounds else None
+
+    def _debate_target_for_role(self, role: str) -> str:
+        if self.openai_service is None:
+            return "primary"
+        role_targets = {
+            "advocate": ("debate_advocate", "primary"),
+            "challenger": ("debate_challenger", "extraction", "primary"),
+            "arbitrator": ("debate_arbitrator", "report", "primary"),
+        }
+        for target in role_targets.get(role, ("primary",)):
+            if self.openai_service.is_configured(target):
+                return target
+        return "primary"
 
     def _build_assessment_from_llm_rounds(
         self,

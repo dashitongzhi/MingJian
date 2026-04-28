@@ -11,7 +11,15 @@ from pydantic import BaseModel, Field
 from planagent.config import Settings
 from planagent.domain.api import OpenAIStatusResponse, OpenAITestResponse
 
-TargetRole = Literal["primary", "extraction", "x_search", "report"]
+TargetRole = Literal[
+    "primary",
+    "extraction",
+    "x_search",
+    "report",
+    "debate_advocate",
+    "debate_challenger",
+    "debate_arbitrator",
+]
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
@@ -77,10 +85,17 @@ class ActionDecisionPayload(BaseModel):
     expected_effect: dict[str, float] = Field(default_factory=dict)
 
 
+class DebateArgumentPayload(BaseModel):
+    claim: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    reasoning: str
+    strength: str = "MODERATE"
+
+
 class DebatePositionPayload(BaseModel):
     position: Literal["SUPPORT", "OPPOSE", "CONDITIONAL"]
     confidence: float = Field(ge=0.0, le=1.0)
-    arguments: list[dict[str, str]] = Field(default_factory=list)
+    arguments: list[DebateArgumentPayload] = Field(default_factory=list)
     rebuttals: list[dict[str, str]] = Field(default_factory=list)
     concessions: list[dict[str, str]] = Field(default_factory=list)
 
@@ -105,6 +120,18 @@ class OpenAIService:
             "report": self._build_client(
                 settings.resolved_openai_report_api_key,
                 settings.resolved_openai_report_base_url,
+            ),
+            "debate_advocate": self._build_client(
+                settings.resolved_openai_debate_advocate_api_key,
+                settings.resolved_openai_debate_advocate_base_url,
+            ),
+            "debate_challenger": self._build_client(
+                settings.resolved_openai_debate_challenger_api_key,
+                settings.resolved_openai_debate_challenger_base_url,
+            ),
+            "debate_arbitrator": self._build_client(
+                settings.resolved_openai_debate_arbitrator_api_key,
+                settings.resolved_openai_debate_arbitrator_base_url,
             ),
         }
         self.target_diagnostics: dict[TargetRole, dict[str, str | bool | None]] = {
@@ -169,22 +196,13 @@ class OpenAIService:
                 self.settings.resolved_openai_report_model
             ),
             model_sources={
-                "primary": self.settings.openai_model_source("primary"),
-                "extraction": self.settings.openai_model_source("extraction"),
-                "x_search": self.settings.openai_model_source("x_search"),
-                "report": self.settings.openai_model_source("report"),
+                target: self.settings.openai_model_source(target) for target in self.clients
             },
             api_key_sources={
-                "primary": self.settings.openai_api_key_source("primary"),
-                "extraction": self.settings.openai_api_key_source("extraction"),
-                "x_search": self.settings.openai_api_key_source("x_search"),
-                "report": self.settings.openai_api_key_source("report"),
+                target: self.settings.openai_api_key_source(target) for target in self.clients
             },
             base_url_sources={
-                "primary": self.settings.openai_base_url_source("primary"),
-                "extraction": self.settings.openai_base_url_source("extraction"),
-                "x_search": self.settings.openai_base_url_source("x_search"),
-                "report": self.settings.openai_base_url_source("report"),
+                target: self.settings.openai_base_url_source(target) for target in self.clients
             },
             target_diagnostics={
                 target: dict(values) for target, values in self.target_diagnostics.items()
@@ -714,6 +732,12 @@ class OpenAIService:
             return self.settings.resolved_openai_extraction_model
         if target == "x_search":
             return self.settings.resolved_openai_x_search_model
+        if target == "debate_advocate":
+            return self.settings.resolved_openai_debate_advocate_model
+        if target == "debate_challenger":
+            return self.settings.resolved_openai_debate_challenger_model
+        if target == "debate_arbitrator":
+            return self.settings.resolved_openai_debate_arbitrator_model
         return self.settings.resolved_openai_report_model
 
     def _base_url_for_target(self, target: TargetRole) -> str | None:
@@ -723,6 +747,12 @@ class OpenAIService:
             return self.settings.resolved_openai_extraction_base_url or None
         if target == "x_search":
             return self.settings.resolved_openai_x_search_base_url or None
+        if target == "debate_advocate":
+            return self.settings.resolved_openai_debate_advocate_base_url or None
+        if target == "debate_challenger":
+            return self.settings.resolved_openai_debate_challenger_base_url or None
+        if target == "debate_arbitrator":
+            return self.settings.resolved_openai_debate_arbitrator_base_url or None
         return self.settings.resolved_openai_report_base_url or None
 
     def _default_target_diagnostic(self, target: TargetRole) -> dict[str, str | bool | None]:

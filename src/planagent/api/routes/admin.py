@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -15,6 +14,7 @@ from planagent.domain.api import (
     AgentStartupPresetRunRead,
     AgentStartupPresetScenarioRead,
     AnalysisRequest,
+    AnalysisSourceRead,
     CalibrationComputeRequest,
     CalibrationRead,
     DebateTriggerRequest,
@@ -39,11 +39,13 @@ from planagent.domain.api import (
 from planagent.domain.models import (
     AnalysisCacheRecord,
     CalibrationRecord,
-    DecisionOption,
+    EvidenceItem,
     Hypothesis,
     JarvisRunRecord,
     KnowledgeGraphEdge,
     KnowledgeGraphNode,
+    NormalizedItem,
+    RawSourceItem,
     SimulationRun,
     SourceHealth,
     SourceSnapshot,
@@ -313,6 +315,12 @@ async def create_watch_rule(
         domain_id=payload.domain_id,
         query=payload.query,
         source_types=payload.source_types,
+        keywords=payload.keywords,
+        exclude_keywords=payload.exclude_keywords,
+        entity_tags=payload.entity_tags,
+        trigger_threshold=payload.trigger_threshold,
+        min_new_evidence_count=payload.min_new_evidence_count,
+        importance_threshold=payload.importance_threshold,
         poll_interval_minutes=payload.poll_interval_minutes,
         auto_trigger_simulation=payload.auto_trigger_simulation,
         auto_trigger_debate=payload.auto_trigger_debate,
@@ -415,6 +423,7 @@ async def trigger_watch_rule(
             include_weather="weather" in rule.source_types,
             include_aviation="aviation" in rule.source_types,
             include_x="x" in rule.source_types,
+            source_types=rule.source_types,
         )
         analysis = await analysis_service.analyze(analysis_request)
         for step in analysis.reasoning_steps:
@@ -436,14 +445,19 @@ async def trigger_watch_rule(
                 "source_metadata": {"origin": "watch_rule", "rule_id": rule.id},
             }
         ]
-        for source in analysis.sources:
+        qualified_sources = _qualified_watch_sources(rule, analysis.sources)
+        for source in qualified_sources:
             items.append(
                 {
                     "source_type": source.source_type,
                     "source_url": source.url,
                     "title": source.title,
                     "content_text": source.summary,
-                    "source_metadata": {"origin": "watch_rule_source"},
+                    "source_metadata": {
+                        "origin": "watch_rule_source",
+                        "importance_score": _watch_source_score(rule, source),
+                        **source.metadata,
+                    },
                 }
             )
 
@@ -461,7 +475,8 @@ async def trigger_watch_rule(
         simulation_run_id = None
         debate_id = None
 
-        if rule.auto_trigger_simulation:
+        threshold_met = _watch_threshold_met(rule, qualified_sources)
+        if rule.auto_trigger_simulation and threshold_met:
             sim_service = get_simulation_service(request)
 
             if rule.domain_id == "military":
@@ -551,9 +566,51 @@ def _source_type_from_step(message: str) -> str:
         return "aviation"
     if "rss" in lowered:
         return "rss"
-    if "x" in lowered:
+    if "linux.do" in lowered or "linux" in lowered:
+        return "linux_do"
+    if "xiaohongshu" in lowered:
+        return "xiaohongshu"
+    if "douyin" in lowered:
+        return "douyin"
+    if lowered.strip() == "x" or " x." in lowered or " x " in lowered:
         return "x"
     return "unknown"
+
+
+def _qualified_watch_sources(rule: WatchRule, sources: list[AnalysisSourceRead]) -> list[AnalysisSourceRead]:
+    qualified: list[AnalysisSourceRead] = []
+    for source in sources:
+        score = _watch_source_score(rule, source)
+        if score >= float(rule.importance_threshold or 0.0):
+            qualified.append(source)
+    return qualified
+
+
+def _watch_threshold_met(rule: WatchRule, sources: list[AnalysisSourceRead]) -> bool:
+    if len(sources) < int(rule.min_new_evidence_count or 0):
+        return False
+    if not sources:
+        return float(rule.trigger_threshold or 0.0) <= 0.0
+    top_score = max(_watch_source_score(rule, source) for source in sources)
+    return top_score >= float(rule.trigger_threshold or 0.0)
+
+
+def _watch_source_score(rule: WatchRule, source: AnalysisSourceRead) -> float:
+    haystack = f"{source.title} {source.summary}".lower()
+    exclude_terms = [term.lower() for term in (rule.exclude_keywords or []) if term]
+    if any(term in haystack for term in exclude_terms):
+        return 0.0
+    keywords = [term.lower() for term in (rule.keywords or []) if term]
+    entity_tags = [term.lower() for term in (rule.entity_tags or []) if term]
+    terms = keywords or entity_tags or [token.lower() for token in rule.query.split()[:6] if token]
+    matched = sum(1 for term in terms if term and term in haystack)
+    score = 0.35 + min(matched * 0.18, 0.45)
+    engagement = source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
+    if isinstance(engagement, dict) and any(value for value in engagement.values() if isinstance(value, (int, float))):
+        score += 0.1
+    if source.published_at:
+        score += 0.1
+    return round(max(0.0, min(score, 1.0)), 4)
 
 
 # ── Sources ──────────────────────────────────────────────────────────────────
@@ -724,6 +781,8 @@ async def compute_calibration(
     calibration_score = round(confirmed / verified, 4) if verified > 0 else 0.0
 
     rule_accuracy: dict[str, float] = {}
+    decision_option_accuracy: dict[str, float] = {}
+    source_type_accuracy: dict[str, float] = {}
     if verified > 0:
         verified_run_ids = sorted(
             {
@@ -769,6 +828,55 @@ async def compute_calibration(
             rid: round(rule_accuracy[rid] / cnt, 4) if cnt > 0 else 0.0
             for rid, cnt in rule_count.items()
         }
+        option_counts: dict[str, float] = {}
+        option_hits: dict[str, float] = {}
+        source_counts: dict[str, float] = {}
+        source_hits: dict[str, float] = {}
+        evidence_ids = sorted(
+            {
+                evidence_id
+                for decisions in decisions_by_run.values()
+                for decision in decisions
+                for evidence_id in (decision.evidence_ids or [])
+            }
+        )
+        evidence_source_types: dict[str, str] = {}
+        if evidence_ids:
+            evidence_rows = list(
+                (
+                    await session.execute(
+                        select(EvidenceItem.id, RawSourceItem.source_type)
+                        .join(NormalizedItem, EvidenceItem.normalized_item_id == NormalizedItem.id)
+                        .join(RawSourceItem, NormalizedItem.raw_source_item_id == RawSourceItem.id)
+                        .where(EvidenceItem.id.in_(evidence_ids))
+                    )
+                ).all()
+            )
+            evidence_source_types = {row[0]: row[1] for row in evidence_rows}
+        for h in hypotheses:
+            if h.verification_status == "PENDING":
+                continue
+            hit = 1.0 if h.verification_status in {"CONFIRMED", "PARTIAL"} else 0.0
+            if h.decision_option_id:
+                option_counts[h.decision_option_id] = option_counts.get(h.decision_option_id, 0.0) + 1.0
+                option_hits[h.decision_option_id] = option_hits.get(h.decision_option_id, 0.0) + hit
+            for d in decisions_by_run.get(h.run_id, []):
+                for evidence_id in d.evidence_ids or []:
+                    source_type = evidence_source_types.get(evidence_id)
+                    if not source_type:
+                        continue
+                    source_counts[source_type] = source_counts.get(source_type, 0.0) + 1.0
+                    source_hits[source_type] = source_hits.get(source_type, 0.0) + hit
+        decision_option_accuracy = {
+            option_id: round(option_hits.get(option_id, 0.0) / count, 4)
+            for option_id, count in option_counts.items()
+            if count > 0
+        }
+        source_type_accuracy = {
+            source_type: round(source_hits.get(source_type, 0.0) / count, 4)
+            for source_type, count in source_counts.items()
+            if count > 0
+        }
 
     record = CalibrationRecord(
         domain_id=payload.domain_id,
@@ -781,7 +889,11 @@ async def compute_calibration(
         partial=partial,
         pending=pending,
         calibration_score=calibration_score,
-        rule_accuracy=rule_accuracy,
+        rule_accuracy={
+            "rules": rule_accuracy,
+            "decision_options": decision_option_accuracy,
+            "source_types": source_type_accuracy,
+        },
     )
     session.add(record)
     await session.commit()

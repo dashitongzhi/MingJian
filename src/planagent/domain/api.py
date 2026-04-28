@@ -99,6 +99,7 @@ class SimulationRunCreate(APIModel):
     tenant_id: str | None = None
     preset_id: str | None = None
     initial_state: dict[str, float] = Field(default_factory=dict)
+    military_use_mode: Literal["osint", "training", "full_domain"] = "full_domain"
 
     @model_validator(mode="after")
     def validate_domain_subject(self) -> "SimulationRunCreate":
@@ -130,6 +131,7 @@ class SimulationRunRead(APIModel):
     completed_at: datetime | None = None
     tenant_id: str | None = None
     preset_id: str | None = None
+    military_use_mode: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -154,6 +156,8 @@ class SimulationRunRead(APIModel):
             "completed_at": value.completed_at,
             "tenant_id": getattr(value, "tenant_id", None) or configuration.get("tenant_id"),
             "preset_id": getattr(value, "preset_id", None) or configuration.get("preset_id"),
+            "military_use_mode": getattr(value, "military_use_mode", None)
+            or configuration.get("military_use_mode"),
         }
 
 
@@ -453,6 +457,8 @@ class StrategicAssistantRequest(APIModel):
     include_weather: bool = False
     include_aviation: bool = False
     include_x: bool = True
+    source_types: list[str] = Field(default_factory=list)
+    max_source_items: dict[str, int] = Field(default_factory=dict)
     max_news_items: int = Field(default=5, ge=0, le=10)
     max_tech_items: int = Field(default=3, ge=0, le=10)
     max_reddit_items: int = Field(default=3, ge=0, le=10)
@@ -504,6 +510,8 @@ class AnalysisRequest(APIModel):
     include_weather: bool = False
     include_aviation: bool = False
     include_x: bool = False
+    source_types: list[str] = Field(default_factory=list)
+    max_source_items: dict[str, int] = Field(default_factory=dict)
     max_news_items: int = Field(default=5, ge=0, le=10)
     max_tech_items: int = Field(default=3, ge=0, le=10)
     max_reddit_items: int = Field(default=3, ge=0, le=10)
@@ -521,6 +529,7 @@ class AnalysisSourceRead(APIModel):
     url: str
     summary: str
     published_at: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalysisStepRead(APIModel):
@@ -611,9 +620,7 @@ class OpenAIStatusResponse(APIModel):
     configured: bool
     responses_api: bool = True
     auth_mode: str = "api_key"
-    configured_targets: list[Literal["primary", "extraction", "x_search", "report"]] = Field(
-        default_factory=list
-    )
+    configured_targets: list[str] = Field(default_factory=list)
     primary_configured: bool
     extraction_configured: bool
     x_search_configured: bool
@@ -639,7 +646,15 @@ class OpenAIStatusResponse(APIModel):
 
 
 class OpenAITestRequest(APIModel):
-    target: Literal["primary", "extraction", "x_search", "report"] = "primary"
+    target: Literal[
+        "primary",
+        "extraction",
+        "x_search",
+        "report",
+        "debate_advocate",
+        "debate_challenger",
+        "debate_arbitrator",
+    ] = "primary"
     model: str | None = None
     prompt: str = "Reply with exactly: OK"
     max_output_tokens: int = Field(default=32, ge=1, le=256)
@@ -648,7 +663,7 @@ class OpenAITestRequest(APIModel):
 class OpenAITestResponse(APIModel):
     ok: bool
     configured: bool
-    target: Literal["primary", "extraction", "x_search", "report"]
+    target: str
     model: str
     resolved_model: str
     base_url: str | None = None
@@ -665,6 +680,12 @@ class WatchRuleCreate(APIModel):
     source_types: list[str] = Field(
         default_factory=lambda: ["google_news", "reddit", "hacker_news", "github", "rss", "gdelt", "aviation"]
     )
+    keywords: list[str] = Field(default_factory=list)
+    exclude_keywords: list[str] = Field(default_factory=list)
+    entity_tags: list[str] = Field(default_factory=list)
+    trigger_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
+    min_new_evidence_count: int = Field(default=1, ge=0, le=50)
+    importance_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
     poll_interval_minutes: int = Field(default=60, ge=5, le=1440)
     auto_trigger_simulation: bool = False
     auto_trigger_debate: bool = False
@@ -677,6 +698,12 @@ class WatchRuleUpdate(APIModel):
     name: str | None = None
     query: str | None = None
     source_types: list[str] | None = None
+    keywords: list[str] | None = None
+    exclude_keywords: list[str] | None = None
+    entity_tags: list[str] | None = None
+    trigger_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    min_new_evidence_count: int | None = Field(default=None, ge=0, le=50)
+    importance_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     poll_interval_minutes: int | None = Field(default=None, ge=5, le=1440)
     enabled: bool | None = None
     auto_trigger_simulation: bool | None = None
@@ -690,6 +717,12 @@ class WatchRuleRead(APIModel):
     domain_id: str
     query: str
     source_types: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    exclude_keywords: list[str] = Field(default_factory=list)
+    entity_tags: list[str] = Field(default_factory=list)
+    trigger_threshold: float = 0.0
+    min_new_evidence_count: int = 1
+    importance_threshold: float = 0.0
     poll_interval_minutes: int
     enabled: bool
     next_poll_at: datetime | None = None
