@@ -593,7 +593,7 @@ CalibrationWorker 定期检查到期假设
 **阶段 2 — 聚合校准记录：**
 - 按领域分组已验证假设
 - 计算校准分数：`(confirmed + 0.5 × partial) / total`
-- 持久化 `CalibrationRecord`，其 `rule_accuracy` 字段包含三个独立维度：`rules`（规则精度）、`decision_options`（决策选项精度）、`source_types`（信源类型精度），各自独立计算并存储
+- 持久化 `CalibrationRecord`，其 `rule_accuracy` 字段为 `dict[str, float]`，映射每条规则的 ID 到其历史决策准确率
 
 **阶段 3 — 计算规则精度并反馈：**
 - 将 `DecisionRecord` 通过 `run_id` 关联到 `Hypothesis`
