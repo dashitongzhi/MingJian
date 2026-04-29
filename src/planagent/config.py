@@ -2,14 +2,78 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class OpenAITargetConfig(BaseModel):
+    model: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+
+
+class OpenAIConfig(BaseModel):
+    shared_api_key: str | None = None
+    shared_base_url: str | None = None
+    timeout_seconds: float = 45.0
+    primary: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+    extraction: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+    x_search: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+    report: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+    debate_advocate: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+    debate_challenger: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+    debate_arbitrator: OpenAITargetConfig = Field(default_factory=OpenAITargetConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_flat_env_target_fields(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+
+        data = dict(data)
+        shared_aliases = {
+            "api_key": "shared_api_key",
+            "base_url": "shared_base_url",
+        }
+        target_names = (
+            "primary",
+            "extraction",
+            "x_search",
+            "report",
+            "debate_advocate",
+            "debate_challenger",
+            "debate_arbitrator",
+        )
+        field_names = ("model", "api_key", "base_url")
+
+        for alias, field_name in shared_aliases.items():
+            if alias in data and field_name not in data:
+                data[field_name] = data.pop(alias)
+
+        for target_name in target_names:
+            target_data = data.get(target_name)
+            if not isinstance(target_data, dict):
+                target_data = {}
+            else:
+                target_data = dict(target_data)
+
+            for field_name in field_names:
+                flat_key = f"{target_name}_{field_name}"
+                if flat_key in data:
+                    target_data[field_name] = data.pop(flat_key)
+
+            if target_data:
+                data[target_name] = target_data
+
+        return data
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="PLANAGENT_",
+        env_nested_delimiter="_",
+        env_nested_max_split=1,
         extra="ignore",
     )
 
@@ -38,30 +102,7 @@ class Settings(BaseSettings):
     inline_simulation_default: bool = True
     api_cache_ttl_seconds: int = 300
     stream_maxlen: int = 10000
-    openai_api_key: str | None = None
-    openai_base_url: str | None = None
-    openai_primary_model: str = "openai/gpt-5.2"
-    openai_primary_api_key: str | None = None
-    openai_primary_base_url: str | None = None
-    openai_extraction_model: str | None = None
-    openai_extraction_api_key: str | None = None
-    openai_extraction_base_url: str | None = None
-    openai_x_search_model: str | None = None
-    openai_x_search_api_key: str | None = None
-    openai_x_search_base_url: str | None = None
-    openai_report_model: str | None = None
-    openai_report_api_key: str | None = None
-    openai_report_base_url: str | None = None
-    openai_debate_advocate_model: str | None = None
-    openai_debate_advocate_api_key: str | None = None
-    openai_debate_advocate_base_url: str | None = None
-    openai_debate_challenger_model: str | None = None
-    openai_debate_challenger_api_key: str | None = None
-    openai_debate_challenger_base_url: str | None = None
-    openai_debate_arbitrator_model: str | None = None
-    openai_debate_arbitrator_api_key: str | None = None
-    openai_debate_arbitrator_base_url: str | None = None
-    openai_timeout_seconds: float = 45.0
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
     x_bearer_token: str | None = None
     x_base_url: str = "https://api.x.com/2"
     linux_do_base_url: str = "https://linux.do"
@@ -81,6 +122,155 @@ class Settings(BaseSettings):
     stream_consumer_count: int = 10
     sql_echo: bool = False
     rules_dir: Path = Field(default=Path("rules"))
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_flat_openai_fields(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+
+        data = dict(data)
+        openai_data = data.get("openai")
+        if not isinstance(openai_data, dict):
+            openai_data = {}
+        else:
+            openai_data = dict(openai_data)
+
+        shared_fields = {
+            "openai_api_key": "shared_api_key",
+            "openai_base_url": "shared_base_url",
+            "openai_timeout_seconds": "timeout_seconds",
+        }
+        target_names = (
+            "primary",
+            "extraction",
+            "x_search",
+            "report",
+            "debate_advocate",
+            "debate_challenger",
+            "debate_arbitrator",
+        )
+        field_names = ("model", "api_key", "base_url")
+
+        for flat_key, nested_key in shared_fields.items():
+            if flat_key in data:
+                openai_data[nested_key] = data.pop(flat_key)
+
+        for target_name in target_names:
+            target_data = openai_data.get(target_name)
+            if not isinstance(target_data, dict):
+                target_data = {}
+            else:
+                target_data = dict(target_data)
+
+            for field_name in field_names:
+                flat_key = f"openai_{target_name}_{field_name}"
+                if flat_key in data:
+                    target_data[field_name] = data.pop(flat_key)
+
+            if target_data:
+                openai_data[target_name] = target_data
+
+        if openai_data:
+            data["openai"] = openai_data
+
+        return data
+
+    @property
+    def openai_api_key(self) -> str | None:
+        return self.openai.shared_api_key
+
+    @property
+    def openai_base_url(self) -> str | None:
+        return self.openai.shared_base_url
+
+    @property
+    def openai_timeout_seconds(self) -> float:
+        return self.openai.timeout_seconds
+
+    @property
+    def openai_primary_model(self) -> str:
+        return self.openai.primary.model or "openai/gpt-5.2"
+
+    @property
+    def openai_primary_api_key(self) -> str | None:
+        return self.openai.primary.api_key
+
+    @property
+    def openai_primary_base_url(self) -> str | None:
+        return self.openai.primary.base_url
+
+    @property
+    def openai_extraction_model(self) -> str | None:
+        return self.openai.extraction.model
+
+    @property
+    def openai_extraction_api_key(self) -> str | None:
+        return self.openai.extraction.api_key
+
+    @property
+    def openai_extraction_base_url(self) -> str | None:
+        return self.openai.extraction.base_url
+
+    @property
+    def openai_x_search_model(self) -> str | None:
+        return self.openai.x_search.model
+
+    @property
+    def openai_x_search_api_key(self) -> str | None:
+        return self.openai.x_search.api_key
+
+    @property
+    def openai_x_search_base_url(self) -> str | None:
+        return self.openai.x_search.base_url
+
+    @property
+    def openai_report_model(self) -> str | None:
+        return self.openai.report.model
+
+    @property
+    def openai_report_api_key(self) -> str | None:
+        return self.openai.report.api_key
+
+    @property
+    def openai_report_base_url(self) -> str | None:
+        return self.openai.report.base_url
+
+    @property
+    def openai_debate_advocate_model(self) -> str | None:
+        return self.openai.debate_advocate.model
+
+    @property
+    def openai_debate_advocate_api_key(self) -> str | None:
+        return self.openai.debate_advocate.api_key
+
+    @property
+    def openai_debate_advocate_base_url(self) -> str | None:
+        return self.openai.debate_advocate.base_url
+
+    @property
+    def openai_debate_challenger_model(self) -> str | None:
+        return self.openai.debate_challenger.model
+
+    @property
+    def openai_debate_challenger_api_key(self) -> str | None:
+        return self.openai.debate_challenger.api_key
+
+    @property
+    def openai_debate_challenger_base_url(self) -> str | None:
+        return self.openai.debate_challenger.base_url
+
+    @property
+    def openai_debate_arbitrator_model(self) -> str | None:
+        return self.openai.debate_arbitrator.model
+
+    @property
+    def openai_debate_arbitrator_api_key(self) -> str | None:
+        return self.openai.debate_arbitrator.api_key
+
+    @property
+    def openai_debate_arbitrator_base_url(self) -> str | None:
+        return self.openai.debate_arbitrator.base_url
 
     @property
     def resolved_openai_api_key(self) -> str | None:
@@ -239,6 +429,8 @@ class Settings(BaseSettings):
             if self.openai_primary_api_key:
                 return "PLANAGENT_OPENAI_PRIMARY_API_KEY"
             if self.openai_api_key:
+                if os.getenv("PLANAGENT_OPENAI_SHARED_API_KEY"):
+                    return "PLANAGENT_OPENAI_SHARED_API_KEY"
                 return "PLANAGENT_OPENAI_API_KEY"
             if shared_env_key:
                 return "OPENAI_API_KEY"
@@ -280,6 +472,8 @@ class Settings(BaseSettings):
             if self.openai_primary_base_url:
                 return "PLANAGENT_OPENAI_PRIMARY_BASE_URL"
             if self.openai_base_url:
+                if os.getenv("PLANAGENT_OPENAI_SHARED_BASE_URL"):
+                    return "PLANAGENT_OPENAI_SHARED_BASE_URL"
                 return "PLANAGENT_OPENAI_BASE_URL"
             return "unset"
         if target == "extraction":

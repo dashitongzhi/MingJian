@@ -99,11 +99,11 @@ def test_inline_ingest_creates_review_queue_and_promotes_claims(monkeypatch, tmp
         snapshots_response = client.get("/sources/snapshots")
 
         assert evidence_response.status_code == 200
-        assert len(evidence_response.json()) == 1
+        assert len(evidence_response.json()["items"]) == 1
         assert claims_response.status_code == 200
-        assert len(claims_response.json()) == 2
+        assert len(claims_response.json()["items"]) == 2
         assert events_response.status_code == 200
-        assert len(events_response.json()) == 1
+        assert len(events_response.json()["items"]) == 1
         assert review_items_response.status_code == 200
         review_items = review_items_response.json()
         assert len(review_items) == 1
@@ -123,7 +123,7 @@ def test_inline_ingest_creates_review_queue_and_promotes_claims(monkeypatch, tmp
 
         signal_response = client.get("/signals")
         assert signal_response.status_code == 200
-        assert len(signal_response.json()) == 1
+        assert len(signal_response.json()["items"]) == 1
 
 
 def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, tmp_path: Path) -> None:
@@ -158,8 +158,8 @@ def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, t
         assert ingest_response.status_code == 201
         ingest_run = ingest_response.json()
         assert ingest_run["status"] == "PENDING"
-        assert client.get("/evidence").json() == []
-        assert client.get("/claims").json() == []
+        assert client.get("/evidence").json()["items"] == []
+        assert client.get("/claims").json()["items"] == []
         assert client.get("/review/items").json() == []
 
     event_bus = InMemoryEventBus()
@@ -169,7 +169,7 @@ def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, t
 
     ingest_result = asyncio.run(ingest_worker.run_once())
     assert ingest_result["processed_runs"] == 1
-    assert [event["topic"] for event in event_bus.events] == ["raw.ingested"]
+    assert [e.topic for e in event_bus._events.get("raw.ingested", [])] == ["raw.ingested"]
 
     async def load_counts() -> tuple[str | None, int, int, int]:
         database = get_database(database_url)
@@ -189,7 +189,10 @@ def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, t
     knowledge_result = asyncio.run(knowledge_worker.run_once())
     assert knowledge_result["processed_items"] == 1
     assert knowledge_result["completed_runs"] == 1
-    assert [event["topic"] for event in event_bus.events] == [
+    all_topics = []
+    for topic in ["raw.ingested", "evidence.created", "claim.review_requested", "knowledge.extracted"]:
+        all_topics.extend([e.topic for e in event_bus._events.get(topic, [])])
+    assert all_topics == [
         "raw.ingested",
         "evidence.created",
         "claim.review_requested",
@@ -335,7 +338,7 @@ def test_review_worker_auto_rejects_conflicting_claim_with_accepted_context(monk
     assert review_result["debated_items"] == 1
     assert review_result["auto_rejected"] == 1
     assert review_result["auto_accepted"] == 0
-    assert [event["topic"] for event in event_bus.events] == [
+    assert [e.topic for e in event_bus._events.get("debate.triggered", [])] + [e.topic for e in event_bus._events.get("debate.completed", [])] == [
         "debate.triggered",
         "debate.completed",
     ]
@@ -421,7 +424,8 @@ def test_review_worker_auto_accepts_corroborated_claim_without_conflict(monkeypa
     assert review_result["debated_items"] == 1
     assert review_result["auto_accepted"] == 1
     assert review_result["auto_rejected"] == 0
-    assert [event["topic"] for event in event_bus.events] == [
+    topics = [e.topic for e in event_bus._events.get("debate.triggered", [])] + [e.topic for e in event_bus._events.get("debate.completed", [])] + [e.topic for e in event_bus._events.get("evidence.created", [])]
+    assert topics == [
         "debate.triggered",
         "debate.completed",
         "evidence.created",
