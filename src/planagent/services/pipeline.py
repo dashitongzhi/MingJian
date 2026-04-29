@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 from pathlib import Path
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit, urlunsplit
 
 from sqlalchemy import and_, func, or_, select, update
@@ -30,9 +30,10 @@ from planagent.domain.models import (
     utc_now,
 )
 from planagent.events.bus import EventBus
-from planagent.services.openai_client import OpenAIService
-from planagent.services.openai_client import TargetRole
 from planagent.services.startup import normalize_tenant_id
+
+if TYPE_CHECKING:
+    from planagent.services.openai_client import OpenAIService, TargetRole
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -412,21 +413,6 @@ class PhaseOnePipelineService:
         run.updated_at = utc_now()
         if staged_items == 0:
             run.status = IngestRunStatus.COMPLETED.value
-
-    async def _find_duplicate(
-        self,
-        session: AsyncSession,
-        item: SourceSeedInput,
-        tenant_id: str | None,
-    ) -> RawSourceItem | None:
-        dedupe_key = build_dedupe_key(item)
-        query = select(RawSourceItem).where(RawSourceItem.dedupe_key == dedupe_key)
-        candidates = list((await session.scalars(query)).all())
-        for candidate in candidates:
-            candidate_tenant_id = normalize_tenant_id(candidate.tenant_id)
-            if candidate_tenant_id == normalize_tenant_id(tenant_id):
-                return candidate
-        return None
 
     async def _persist_raw_item(
         self,

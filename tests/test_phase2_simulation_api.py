@@ -517,27 +517,27 @@ def test_startup_tenant_isolation_keeps_reports_and_claims_separate(monkeypatch,
         )
         assert startup_claims.status_code == 200
         startup_claim_payload = startup_claims.json()
-        assert startup_claim_payload
-        assert len(startup_claim_payload) <= 2
-        assert {item["tenant_id"] for item in startup_claim_payload} == {"startup-lab"}
-        assert {item["preset_id"] for item in startup_claim_payload} == {"agent_startup"}
+        assert startup_claim_payload["items"]
+        assert len(startup_claim_payload["items"]) <= 2
+        assert {item["tenant_id"] for item in startup_claim_payload["items"]} == {"startup-lab"}
+        assert {item["preset_id"] for item in startup_claim_payload["items"]} == {"agent_startup"}
 
         history_claims = client.get(
             "/claims",
             params={"tenant_id": "history-lab", "limit": 5, "offset": 0},
         )
         assert history_claims.status_code == 200
-        assert history_claims.json()
-        assert {item["tenant_id"] for item in history_claims.json()} == {"history-lab"}
+        assert history_claims.json()["items"]
+        assert {item["tenant_id"] for item in history_claims.json()["items"]} == {"history-lab"}
 
         startup_evidence = client.get(
             "/evidence",
             params={"tenant_id": "startup-lab", "preset_id": "agent_startup", "limit": 5, "offset": 0},
         )
         assert startup_evidence.status_code == 200
-        assert startup_evidence.json()
-        assert {item["tenant_id"] for item in startup_evidence.json()} == {"startup-lab"}
-        assert {item["preset_id"] for item in startup_evidence.json()} == {"agent_startup"}
+        assert startup_evidence.json()["items"]
+        assert {item["tenant_id"] for item in startup_evidence.json()["items"]} == {"startup-lab"}
+        assert {item["preset_id"] for item in startup_evidence.json()["items"]} == {"agent_startup"}
 
 
 def test_agent_startup_preset_api_runs_examples_and_returns_kpis(monkeypatch, tmp_path: Path) -> None:

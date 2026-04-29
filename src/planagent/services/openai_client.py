@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from planagent.config import Settings
 from planagent.domain.api import OpenAIStatusResponse, OpenAITestResponse
+from planagent.services.pipeline import normalize_text
 
 TargetRole = Literal[
     "primary",
@@ -21,10 +22,6 @@ TargetRole = Literal[
     "debate_arbitrator",
 ]
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
-
-
-def _normalize_text(value: str) -> str:
-    return " ".join(value.split())
 
 
 def resolve_openclaw_model_selector(selector: str) -> str:
@@ -221,8 +218,8 @@ class OpenAIService:
             "Extract a concise evidence summary and up to 5 factual claims from the source below. "
             "Each claim must be grounded in the supplied text only. "
             "Classify each claim as signal, event, trend, or unclassified.\n\n"
-            f"Title: {_normalize_text(title)}\n\n"
-            f"Body:\n{_normalize_text(body_text)[:5000]}"
+            f"Title: {normalize_text(title)}\n\n"
+            f"Body:\n{normalize_text(body_text)[:5000]}"
         )
         return await self._parse_structured_output(
             target=target,
@@ -559,7 +556,7 @@ class OpenAIService:
     ) -> AnalysisNarrativePayload | None:
         prompt = (
             f"Domain: {domain_id}\n"
-            f"User input:\n{_normalize_text(content)[:3000]}\n\n"
+            f"User input:\n{normalize_text(content)[:3000]}\n\n"
             f"Related public sources:\n{json.dumps(related_sources[:8], ensure_ascii=False)}\n\n"
             "Return a concise analysis summary, up to 5 findings, a short reasoning trace with up to 5 steps, "
             "and up to 4 practical recommendations. Keep everything grounded in the provided sources."
