@@ -67,6 +67,8 @@ PlanAgent 的设计目标是同时解决这三个问题：
                          │   FastAPI Control Plane       │
                          │   (65+ REST/SSE endpoints)    │
                          └──┬───┬───┬───┬───┬───┬───┬───┘
+
+> **依赖注入工厂模式**：`api/routes/_deps.py` 实现了工厂函数模式——`ensure_app_services(request)` 惰性初始化共享服务（`event_bus`、`rule_registry`、`openai_service`）到 `request.app.state`；各 `get_*_service()` 工厂函数（`get_pipeline_service`、`get_simulation_service`、`get_analysis_service`、`get_debate_service`、`get_assistant_service` 等）组合注入所需依赖，确保每个 API 端点获取完整配置的服务实例。
                             │   │   │   │   │   │   │
            ┌────────────────┘   │   │   │   │   │   └────────────────┐
            ▼                    ▼   ▼   ▼   ▼   ▼                    ▼
@@ -251,6 +253,8 @@ Claim 可被自动升级为更高层级的分析对象：
 #### 3.4.3 Actor 三级降级决策模型
 
 这是推演内核最关键的创新设计。Actor 的决策采用三级降级策略，保证系统在任何条件下都能正常运行：
+
+> **SimulationRun 模型**：每个推演运行记录包含 `military_use_mode` 字段（`nullable String(32)`），取值为 `"osint"`、`"training"` 或 `"full_domain"`（默认），控制军事推演的执行模式——OSINT 模式仅采集情报、训练模式简化推演逻辑、完整域模式启用全部军事能力。
 
 | 级别 | 方法 | 触发条件 | 特点 |
 |------|------|---------|------|
@@ -763,12 +767,15 @@ class WatchRule:
     source_types: list[str]      # 指定数据源
     keywords: list[str]          # 匹配关键字
     exclude_keywords: list[str]  # 排除关键字
+    entity_tags: list[str]       # 实体标签（第三匹配维度，优先于 query 拆词）
     trigger_threshold: float     # 触发阈值（评分）
     min_new_evidence_count: int  # 最少新证据数
     importance_threshold: float  # 重要性阈值
     poll_interval_minutes: int   # 轮询间隔（分钟）
     auto_trigger_simulation: bool  # 自动触发推演
     auto_trigger_debate: bool    # 自动触发辩论
+    lease_owner: str | None      # 分布式 Worker 协调：当前持有租约的 Worker ID
+    lease_expires_at: datetime | None  # 分布式 Worker 协调：租约过期时间
 ```
 
 #### 关键字评分机制
@@ -776,8 +783,8 @@ class WatchRule:
 ```
 基础分 = 0.35
 + 匹配关键字（每个 0.18，上限 0.45）
-+ 互动量加成（engagement bonus）
-+ 发布时间加成（publication date bonus）
++ 互动量加成（engagement bonus，+0.1）
++ 发布时间加成（publication date bonus，+0.1）
 - 排除关键字命中 → 归零
 ```
 
@@ -841,6 +848,8 @@ class EventBus(Protocol):
 - **`InMemoryEventBus`**：进程内字典 + 集合实现，用于开发和测试
 - **`RedisStreamEventBus`**：基于 Redis Streams（`XADD` / `XREADGROUP` / `XACK`），用于生产环境，支持 Approximate maxlen 裁剪
 
+此外，`EventArchive` ORM 模型将关键事件（如 `debate.triggered`、`debate.completed`、`simulation.completed`、`report.generated` 等）持久化到 PostgreSQL `event_archive` 表，提供完整的事件审计轨迹。
+
 同一事件总线接口在不同环境下零代码切换。
 
 #### 双执行模式
@@ -878,7 +887,7 @@ calibration-worker (独立轮询)
 | 故障类型 | 策略 |
 |---------|------|
 | Worker 崩溃 | Consumer Group 自动将 pending 消息重分配给存活实例 |
-| 处理失败 | 指数退避重试 3 次（1s / 4s / 16s），超限进入 dead-letter stream |
+| 处理失败 | 指数退避重试 3 次（1s / 4s / 16s），超限同时持久化到 Redis DLQ stream 和 `dead_letter_events` 数据库表 |
 | 上游超时 | knowledge-worker 对单条处理设 60s 超时 |
 | 背压 | pending 消息数 > 1000 时暂停采集 |
 | 数据源不可用 | 连续 5 次失败标记源为 DEGRADED |
@@ -1082,6 +1091,7 @@ class DomainPack(ABC):
 | 后端框架 | FastAPI + SQLAlchemy (async ORM) |
 | 前端框架 | Next.js 15 + React 19 + TypeScript |
 | 数据库 | PostgreSQL + pgvector（向量检索）+ PostGIS（空间数据） |
+| 数据库连接池 | pool_size=20, max_overflow=10, pool_recycle=300（可在 `db_pool_size` / `db_max_overflow` / `db_pool_recycle` 配置项中覆盖） |
 | 缓存 / 事件 | Redis Streams（事件总线）+ Redis String（缓存/信号） |
 | 对象存储 | MinIO / 本地文件系统（可切换） |
 | LLM 集成 | OpenAI Responses API + 多厂商回退（Anthropic / Google Gemini / xAI Grok） |
