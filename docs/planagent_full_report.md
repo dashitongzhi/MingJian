@@ -259,7 +259,7 @@ Claim 可被自动升级为更高层级的分析对象：
 | 级别 | 方法 | 触发条件 | 特点 |
 |------|------|---------|------|
 | **Level 1** | 规则引擎 | 默认（确定性） | 可解释、可复现、零 LLM 成本 |
-| **Level 2** | LLM 辅助 | 规则匹配为空或所有 score < 30 | 复杂推理，单次 ≤ 2500 tokens，超时 10s |
+| **Level 2** | LLM 辅助 | 规则匹配为空或所有 total_score < 0.6（`_DECISION_MIN_SCORE`） | 复杂推理，超时 10s |
 | **Level 3** | 随机加权 | LLM 超时 / 失败 | 按历史成功率加权随机选择，标记 `fallback_random` |
 
 **Level 1 — 规则引擎（默认）：**
@@ -272,7 +272,7 @@ Claim 可被自动升级为更高层级的分析对象：
 - 当规则匹配结果为空或 score 均 < 30 时触发
 - 将当前状态 + 历史 3 步 DecisionRecord + 可用动作列表发给 LLM
 - 模型路由：企业域 → Claude，军事域 → Claude
-- token 预算：单次 Actor 决策 ≤ 2000 input + 500 output tokens
+- 超时限制：10 秒，超时降级到 Level 3
 - 超时：10s，超时则降级到 Level 3
 
 **Level 3 — 随机加权（降级兜底）：**
@@ -332,8 +332,8 @@ def handle_supply_disruption(shock: ExternalShock, state: StateSnapshot) -> list
 
 - 输入：所有 Actor 的 CandidateAction 列表
 - 冲突检测：标记修改同一资源的动作对
-- 选择策略：按 `score × actor_priority` 排序，贪心选择无冲突子集
-- 冲突解决规则：当多个 Actor 修改同一资源时，按 `priority_score` 排序，高优先级先执行；若资源已耗尽，后续动作标记为 `BLOCKED`
+- 选择策略：当前实现为单 Actor 单动作选择（每个 tick 选取 score 最高的动作），不涉及多 Actor 冲突解决
+- 冲突解决规则：当前为单 Actor 模型，不存在多 Actor 资源竞争
 - 输出：选定的 Action 列表 + 被拒绝的 Action 列表（含拒绝原因）
 
 ### 3.5 双领域包（Domain Pack）注册机制
@@ -364,11 +364,9 @@ class DomainPack(ABC):
     @abstractmethod
     def event_types(self) -> list[EventTypeSpec]: ...
 
+    @property
     @abstractmethod
-    def map_shock(self, event: Event, state: StateSnapshot) -> ExternalShock | None: ...
-
-    @abstractmethod
-    def default_actor_templates(self) -> list[ActorTemplate]: ...
+    def actor_templates(self) -> list[ActorTemplate]: ...
 
     def rules_dir(self) -> Path:
         return Path(f"rules/{self.domain_id}")
@@ -437,7 +435,7 @@ class DomainPack(ABC):
 平台还提供了可复用的场景模板包，如 `examples/agent_startup/` 下的企业级 Agent 创业场景，包含：
 - 证据采集配置
 - 基线推演配置
-- 乐观 / 乐观 / 悲观三种分支场景
+- 基线 / 乐观 / 悲观三种分支场景
 - 一键预设 API：`POST /presets/agent-startup/runs`
 
 ### 3.6 场景分支与 What-If 分析
@@ -454,8 +452,8 @@ Baseline 先完整推演，再在**高影响拐点**进行分支：
 - 合作 / 制裁 / 打击 / 事故触发
 
 **分支搜索参数：**
-- `depth = 3`（分支深度）
-- `beam width = 5`（束搜索宽度）
+- `depth` 默认 2，最大 3（分支深度）
+- `beam_width` 默认 3，最大 5（束搜索宽度）
 - 排序分数 = `plausibility × impact × survivability × explainability`
 
 **分支输出字段：**
@@ -472,7 +470,7 @@ Baseline 先完整推演，再在**高影响拐点**进行分支：
 `simulation_branching.py` 将分支评分逻辑提取为**无副作用的纯函数模块**：
 
 - 每个状态字段都有完整的 `MetricPolicy`（首选方向、预警阈值、危险阈值）
-- 企业域 14 个指标、军事域 19 个指标均有独立策略
+- 企业域 9 个追踪指标、军事域 13 个追踪指标用于分支评分（`tracked_branch_metrics`），另有 14/19 个 MetricPolicy 定义用于状态告警
 - `score_branch_delta()` 对所有指标的归一化偏差求和
 - `summarize_branch_trajectory()` 按绝对分数排序生成人类可读摘要
 
