@@ -42,5 +42,17 @@ source_snapshots/
 .vscode/
 .claude/
 
+# Frontend / Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/next-env.d.ts
+
+# Docker local compose
+docker-compose.yml
+docker/
+
+# Test reports
+docs/release_impact_test_report.md
+
 # Local workspace notes
 current-workspace-chat-history.md
