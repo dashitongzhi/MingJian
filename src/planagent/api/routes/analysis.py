@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import get_settings
@@ -27,6 +28,7 @@ from planagent.api.routes._deps import (
 
 router = APIRouter()
 _CONSOLE_HTML = Path(__file__).resolve().parents[2] / "ui" / "strategic_console.html"
+_APP_VERSION = "0.1.0"
 
 
 @router.get("/")
@@ -45,6 +47,41 @@ async def root(request: Request) -> dict[str, object]:
 @router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.get("/health/live")
+async def health_live() -> dict[str, str]:
+    return {"status": "ok", "version": _APP_VERSION}
+
+
+@router.get("/health/ready")
+async def health_ready(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    checks = {
+        "database": "fail",
+        "redis": "skip",
+    }
+
+    try:
+        await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "fail"
+
+    settings = get_settings()
+    if settings.event_bus_backend.lower() == "redis":
+        try:
+            event_bus = request.app.state.event_bus
+            await event_bus.client.ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "fail"
+
+    non_skip_checks = [check for check in checks.values() if check != "skip"]
+    status = "ok" if all(check == "ok" for check in non_skip_checks) else "degraded"
+    return {"status": status, "checks": checks}
 
 
 @router.post("/analysis", response_model=AnalysisResponse)

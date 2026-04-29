@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: planagent
+      POSTGRES_PASSWORD: planagent
+      POSTGRES_DB: planagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planagent -d planagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: planagent
+      MINIO_ROOT_PASSWORD: planagent123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_EVENT_BUS_BACKEND: redis
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./rules:/app/rules:ro
+
+  worker:
+    build:
+      context: .
+      target: worker
+    env_file:
+      - .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_EVENT_BUS_BACKEND: redis
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./rules:/app/rules:ro
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8000
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

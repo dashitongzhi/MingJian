@@ -70,6 +70,7 @@ from planagent.services.startup import (
     load_agent_startup_simulation_payload,
 )
 from planagent.workers.graph import embed_query, search_nodes_sql
+from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
 router = APIRouter()
 
@@ -77,56 +78,40 @@ router = APIRouter()
 # ── Jarvis ───────────────────────────────────────────────────────────────────
 
 
+def _get_jarvis(request: Request) -> JarvisOrchestrator:
+    return JarvisOrchestrator(get_settings(), request.app.state.openai_service, getattr(request.app.state, "event_bus", None))
+
+
 @router.post("/jarvis/runs", response_model=JarvisRunRead, status_code=201)
 async def create_jarvis_run(
     payload: JarvisRunCreate,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> JarvisRunRead:
-    result = {
-        "profile_id": "plan-agent",
-        "state_path": [
-            "INIT",
-            "ANALYZING",
-            "SELF_REVIEWING",
-            "CROSS_MODEL_REVIEWING",
-            "ARBITRATING",
-            "FINALIZING",
-            "DONE",
-        ],
-        "validation_dimensions": [
-            "requirements_coverage",
-            "logical_correctness",
-            "provenance_integrity",
-            "claim_consistency",
-            "scenario_logic",
-            "explainability",
-            "domain_rule_alignment",
-        ],
-        "verdict": "PASS",
-        "pass_score": 88,
-        "critical_issues": 0,
-        "notes": [
-            "Local PlanAgent orchestrator recorded the Jarvis verification lifecycle.",
-            "External multi-model execution can consume this persisted run payload via the plan-agent profile.",
-        ],
-    }
+    orchestrator = _get_jarvis(request)
+    task = JarvisTask(task_type=payload.target_type, payload={"run_id": payload.run_id, "target_id": payload.target_id}, run_id=payload.run_id, target_id=payload.target_id, profile_id="plan-agent")
+    jarvis_result = await orchestrator.orchestrate(task)
+    result = jarvis_result.to_dict()
     if payload.run_id is not None:
         run = await session.get(SimulationRun, payload.run_id)
         if run is not None:
             result["run_status"] = run.status
             result["run_summary"] = run.summary
-    record = JarvisRunRecord(
-        run_id=payload.run_id,
-        target_type=payload.target_type,
-        target_id=payload.target_id,
-        status="COMPLETED",
-        profile_id="plan-agent",
-        result_payload=result,
-    )
+    record = JarvisRunRecord(run_id=payload.run_id, target_type=payload.target_type, target_id=payload.target_id, status=jarvis_result.status, profile_id="plan-agent", result_payload=result)
     session.add(record)
     await session.commit()
     await session.refresh(record)
     return JarvisRunRead.model_validate(record)
+
+
+@router.get("/jarvis/profiles")
+async def get_jarvis_profiles(request: Request) -> dict[str, Any]:
+    return _get_jarvis(request).get_profiles()
+
+
+@router.post("/jarvis/test")
+async def test_jarvis_target(target: str = Query(default="primary"), request: Request = None) -> dict[str, Any]:
+    return await _get_jarvis(request).test_target(target)
 
 
 @router.get("/jarvis/runs", response_model=list[JarvisRunRead])

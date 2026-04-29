@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Literal
+from typing import Any, Literal
 
 import httpx
 from openai import AsyncOpenAI
@@ -754,6 +754,28 @@ class OpenAIService:
         if target == "debate_arbitrator":
             return self.settings.resolved_openai_debate_arbitrator_base_url or None
         return self.settings.resolved_openai_report_base_url or None
+
+    def is_target_configured(self, target: str) -> bool:
+        return self.is_configured(target)
+
+    async def generate_json_for_target(
+        self, target: str, system_prompt: str, user_content: str, max_tokens: int = 1000,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        client = self.clients.get(target)
+        if client is None:
+            return None, None
+        model = resolve_openclaw_model_selector(self._model_for_target(target))
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}],
+                max_tokens=max_tokens, temperature=0.3, response_format={"type": "json_object"},
+            )
+            text = response.choices[0].message.content or "{}"
+            parsed = _extract_json_payload(text)
+            return {"model": model, "api_mode": "chat.completions.json"}, parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None, None
 
     def _default_target_diagnostic(self, target: TargetRole) -> dict[str, str | bool | None]:
         return {

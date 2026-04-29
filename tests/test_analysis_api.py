@@ -92,6 +92,62 @@ def test_analysis_endpoint_returns_reasoned_result(monkeypatch, tmp_path: Path) 
         assert any(step["stage"] == "source_skip" for step in payload["reasoning_steps"])
 
 
+def test_health_live_returns_static_status(monkeypatch, tmp_path: Path) -> None:
+    database_path = tmp_path / "planagent-health-live.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app()) as client:
+        response = client.get("/health/live")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "version": "0.1.0"}
+
+
+def test_health_ready_reports_database_ok_and_redis_skip(monkeypatch, tmp_path: Path) -> None:
+    database_path = tmp_path / "planagent-health-ready.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app()) as client:
+        response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "checks": {"database": "ok", "redis": "skip"},
+    }
+
+
+def test_health_ready_reports_degraded_when_redis_ping_fails(monkeypatch, tmp_path: Path) -> None:
+    database_path = tmp_path / "planagent-health-ready-redis.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    monkeypatch.setattr(
+        "planagent.api.routes.analysis.get_settings",
+        lambda: Settings(event_bus_backend="redis"),
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "degraded",
+        "checks": {"database": "ok", "redis": "fail"},
+    }
+
+
 def test_analysis_stream_endpoint_emits_steps_sources_and_result(monkeypatch, tmp_path: Path) -> None:
     database_path = tmp_path / "planagent-analysis-stream.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))

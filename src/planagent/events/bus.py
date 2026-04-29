@@ -36,13 +36,18 @@ class EventBus(Protocol):
 
 
 class InMemoryEventBus:
-    supports_stream_consumers = False
+    supports_stream_consumers = True
 
     def __init__(self) -> None:
-        self.events: list[dict[str, Any]] = []
+        self._events: dict[str, list[ConsumedEvent]] = {}
+        self._acked: set[str] = set()
+        self._counter: int = 0
 
     async def publish(self, topic: str, payload: dict[str, Any]) -> None:
-        self.events.append({"topic": topic, "payload": payload})
+        self._counter += 1
+        message_id = f"mem-{self._counter}"
+        event = ConsumedEvent(topic=topic, message_id=message_id, payload=payload)
+        self._events.setdefault(topic, []).append(event)
 
     async def consume(
         self,
@@ -52,13 +57,19 @@ class InMemoryEventBus:
         count: int,
         block_ms: int,
     ) -> list[ConsumedEvent]:
-        return []
+        results: list[ConsumedEvent] = []
+        for topic in topics:
+            for event in self._events.get(topic, []):
+                ack_key = f"{group}:{event.message_id}"
+                if ack_key not in self._acked and len(results) < count:
+                    results.append(event)
+        return results
 
     async def ack(self, topic: str, group: str, message_id: str) -> None:
-        return None
+        self._acked.add(f"{group}:{message_id}")
 
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
-        self.events.append({"topic": f"{topic}.dlq", "payload": payload})
+        await self.publish(f"{topic}.dlq", payload)
 
     async def close(self) -> None:
         return None

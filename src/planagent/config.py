@@ -15,9 +15,13 @@ class Settings(BaseSettings):
 
     app_name: str = "PlanAgent"
     env: str = "development"
-    database_url: str = "sqlite+aiosqlite:///./planagent.db"
+    database_url: str = "postgresql+psycopg://planagent:planagent@localhost:5432/planagent"
     redis_url: str = "redis://localhost:6379/0"
-    event_bus_backend: str = "memory"
+    event_bus_backend: str = "redis"
+    db_pool_size: int = 20
+    db_max_overflow: int = 10
+    db_pool_recycle: int = 300
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "planagent"
     minio_secret_key: str = "planagent123"

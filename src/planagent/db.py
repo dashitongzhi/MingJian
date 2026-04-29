@@ -10,16 +10,34 @@ from planagent.domain.models import Base
 
 
 class Database:
-    def __init__(self, database_url: str, sql_echo: bool) -> None:
-        self.engine = create_async_engine(database_url, echo=sql_echo, future=True)
+    def __init__(
+        self,
+        database_url: str,
+        sql_echo: bool,
+        pool_size: int = 20,
+        max_overflow: int = 10,
+        pool_recycle: int = 300,
+    ) -> None:
+        engine_kwargs: dict = {"echo": sql_echo, "future": True}
+        if "sqlite" not in database_url:
+            engine_kwargs.update(
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                pool_recycle=pool_recycle,
+            )
+        self.engine = create_async_engine(database_url, **engine_kwargs)
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
         self._initialized = False
         self._init_lock = asyncio.Lock()
 
+    @property
+    def is_sqlite(self) -> bool:
+        return self.engine.dialect.name == "sqlite"
+
     async def init_models(self) -> None:
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
-            if self.engine.dialect.name == "sqlite":
+            if self.is_sqlite:
                 rows = (await connection.execute(text("PRAGMA table_info(decision_records)"))).all()
                 column_names = {row[1] for row in rows}
                 if rows and "decision_method" not in column_names:
@@ -80,7 +98,13 @@ class Database:
 def get_database(database_url: str | None = None) -> Database:
     settings = get_settings()
     url = database_url or settings.database_url
-    return Database(url, settings.sql_echo)
+    return Database(
+        url,
+        settings.sql_echo,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_recycle=settings.db_pool_recycle,
+    )
 
 
 def reset_database_cache() -> None:
