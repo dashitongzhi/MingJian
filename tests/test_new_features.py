@@ -350,9 +350,9 @@ def test_evidence_updated_event_topic() -> None:
 def test_in_memory_event_bus_records_dead_letter_topic() -> None:
     bus = InMemoryEventBus()
     asyncio.run(bus.publish_dead_letter("knowledge.extracted", {"error": "boom"}))
-    assert bus.events == [
-        {"topic": "knowledge.extracted.dlq", "payload": {"error": "boom"}},
-    ]
+    dlq_events = bus._events.get("knowledge.extracted.dlq", [])
+    assert len(dlq_events) == 1
+    assert dlq_events[0].payload == {"error": "boom"}
 
 
 # ── Knowledge Worker Re-evaluation ──────────────────────────────────────────
