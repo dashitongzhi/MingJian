@@ -601,7 +601,7 @@ CalibrationWorker 定期检查到期假设
 
 #### 规则自适应机制
 
-`RuleRegistry.apply_calibration()` 使用**指数平滑（40/60 混合）**漂移规则权重：
+`RuleRegistry.apply_calibration()` 使用**指数移动平均 EMA（40/60 混合）**漂移规则权重：
 
 | 规则精度 | 权重调整 | 效果 |
 |---------|---------|------|
@@ -796,7 +796,7 @@ class WatchRule:
 | Scenario Tree | 分支场景树结构 |
 | Decision Trace | 完整决策链（why_selected + evidence_ids + policy_rule_ids） |
 | KPI Comparator | 多分支指标对比数据 |
-| Startup KPI Pack | 企业创业场景专用计分卡 |
+| Startup KPI Pack | 企业创业场景专用计分卡（含 10 个派生 KPI：Design Partner Capacity、ROI Proof、Deployment Window 等，按 good/watch/risk 三级分级） |
 | Debate Records | 该运行关联的所有辩论记录 |
 
 ### 3.13 报告生成
@@ -1087,10 +1087,39 @@ class DomainPack(ABC):
 | LLM 集成 | OpenAI Responses API + 多厂商回退（Anthropic / Google Gemini / xAI Grok） |
 | 配置管理 | Pydantic Settings + 级联回退 + 诊断溯源 |
 | 容器化 | Docker Compose（8+ 服务编排） |
-| 数据库迁移 | Alembic（18 个版本迁移脚本） |
+| 数据库迁移 | Alembic（17 个版本迁移脚本） |
 | ID 生成 | UUID v7（含时间戳） |
 | 前端数据获取 | SWR（自动刷新 + 缓存） |
 | 流式通信 | Server-Sent Events (SSE) |
+
+#### 双 Docker Compose 部署拓扑
+
+项目提供两个编排文件，面向不同场景：
+
+| 文件 | 场景 | Worker 拓扑 | 数据库 | 特点 |
+|------|------|------------|--------|------|
+| `compose.yml` | 开发/测试 | 9 个独立 Worker 进程 | PostgreSQL (标准) | 每个 Worker 独立扩缩、独立日志 |
+| `docker-compose.yml` | 生产部署 | 合并 Worker + Frontend | pgvector/pgvector:pg16 | 含健康检查、前端构建、pgvector 镜像 |
+
+开发环境使用 `compose up` 启动全栈；生产环境使用 `docker-compose.yml`，Worker 合并为单容器以减少资源占用。
+
+#### 测试策略
+
+项目包含 9 个测试文件，覆盖所有核心阶段：
+
+| 测试文件 | 覆盖范围 |
+|---------|---------|
+| `test_phase1_api.py` | 证据采集、审核队列、Worker 联动 |
+| `test_phase2_simulation_api.py` | 企业推演、场景分支、创业预设 |
+| `test_phase3_military_api.py` | 军事推演、地理资产、外部冲击 |
+| `test_phase4_workbench_and_debates.py` | 工作台、辩论、规则热加载 |
+| `test_simulation_action_selection.py` | 动作选择、规则匹配、LLM 降级 |
+| `test_analysis_api.py` | 分析端点、缓存、健康检查 |
+| `test_analysis_x_search.py` | X/Twitter 搜索集成 |
+| `test_strategic_assistant.py` | 战略助手会话、每日简报 |
+| `test_new_features.py` | LLM 决策、辩论、假设、校准 |
+
+测试模式：SQLite 内存数据库 + `InMemoryEventBus` + `TestClient` 集成测试，LLM 调用通过 monkeypatch 禁用或 mock。所有测试通过 `pytest-asyncio` 的 `auto` 模式运行异步用例。
 
 ---
 
