@@ -625,70 +625,73 @@ Dashboard 页面展示完整的校准计分板：
 
 ### 3.9 多模型自助复验迭代引擎（Jarvis 集成）
 
-该能力作为横向层，作用于证据抽取、事件识别、推演解释、报告生成四个环节。
+Jarvis 当前实现是一个轻量级的多目标验证编排器，核心代码位于 `src/planagent/services/jarvis.py`。它不会引入额外的修复循环、人工仲裁状态机或外部 Profile 配置，而是根据任务类型选择一组 LLM target，对这些 target 发起验证调用，并汇总执行结果。
 
-#### 模型角色
+#### 固定状态路径
 
-| 角色 | 职责 |
+`STATE_PATH` 是一条固定的顺序路径，用于描述 Jarvis 任务的阶段元数据：
+
+```
+INIT → INGEST → EXTRACT → ANALYZE → SIMULATE → DEBATE → DONE
+```
+
+当前代码没有实现 `IMPLEMENTING → SELF_REVIEWING → CROSS_MODEL_REVIEWING → ARBITRATING → REPAIRING → REVERIFYING` 这类复杂状态机，也没有多轮修复或人工审核分支。`JarvisOrchestrator.orchestrate()` 创建 `JarvisResult` 后，将上述 `STATE_PATH` 写入结果，并按任务路由执行对应 target。
+
+#### 任务路由
+
+Jarvis 使用代码内置的 `TASK_ROUTES` 决定不同任务类型需要调用哪些 target：
+
+| 任务类型 | target 列表 |
+|---------|-------------|
+| `analysis` | `primary` |
+| `extraction` | `extraction` |
+| `x_search` | `x_search` |
+| `report` | `report` |
+| `debate` | `debate_advocate`、`debate_challenger`、`debate_arbitrator` |
+| `full_pipeline` | `primary`、`extraction`、`x_search`、`report`、`debate_advocate`、`debate_challenger`、`debate_arbitrator` |
+
+如果传入未知 `task_type`，默认只路由到 `primary`。provider 与 model 不是由 YAML Profile 指定，而是通过 `Settings` 中的 `openai_{target}_provider` 和 `resolved_openai_{target}_model` 动态读取。
+
+#### 7 维验证维度
+
+`VALIDATION_DIMENSIONS` 当前包含 7 个维度，作为结果元数据返回：
+
+| 维度 | 说明 |
 |------|------|
-| 主模型 | 初稿生成 |
-| 复验模型 | 挑错与找漏洞 |
-| 仲裁模型 | 决定 PASS / REPAIR / NEEDS_HUMAN |
-| 修复模型 | 按反馈局部修复 |
+| `source_coverage` | 跨平台信源完整性 |
+| `evidence_quality` | 声明置信度与来源深度 |
+| `simulation_fidelity` | tick 真实性与规则覆盖度 |
+| `debate_rigor` | 多轮辩证质量 |
+| `prediction_calibration` | 相对人类基线的 Brier Score 校准 |
+| `response_latency` | 端到端流水线速度 |
+| `cost_efficiency` | 单位决策质量输出的 token 成本 |
 
-#### 10 维验证维度
+这些维度没有单独权重表，也没有 10 维需求覆盖 / 代码质量 / 场景逻辑等验证配置。
 
-| 维度 | 权重 | 说明 |
-|------|------|------|
-| `requirements_coverage` | 1.0 | 需求覆盖 |
-| `logical_correctness` | 1.0 | 逻辑正确性 |
-| `error_handling` | 0.8 | 错误处理 |
-| `code_quality` | 0.7 | 代码质量 |
-| `completeness` | 1.0 | 完整性 |
-| `provenance_integrity` | 1.0 | 溯源完整性：所有推演输入可追溯到 EvidenceItem |
-| `claim_consistency` | 0.9 | 声明一致性：无矛盾声明进入同一推演 |
-| `scenario_logic` | 1.0 | 场景逻辑：分支条件合理，无死分支 |
-| `explainability` | 1.0 | 可解释性：DecisionRecord 包含完整 why 链 |
-| `domain_rule_alignment` | 0.8 | 领域规则对齐：动作效果符合领域常识 |
+#### 执行与评分
 
-#### 状态机扩展
+每个 target 会生成一个 `validate_{target}` step。若该 target 未配置，step 状态为 `skipped`，并返回 `Target {target} not configured`；若调用失败，step 状态为 `failed`；调用成功则状态为 `success`，输出为模型返回的 JSON。
 
-在基础状态机之后插入复验子流程：
+最终评分由成功和失败数量直接聚合：
 
-```
-IMPLEMENTING
-    ↓
-SELF_REVIEWING (自检，写 self-validation.json)
-    ↓ PASS                              ↓ FAIL
-CROSS_MODEL_REVIEWING              REPAIRING → REVERIFYING (循环 ≤ 3 次)
-    ↓ PASS          ↓ FAIL
-FINALIZING       ARBITRATING
-                    ↓ REPAIR    ↓ PASS      ↓ NEEDS_HUMAN
-                REPAIRING   FINALIZING   人工审核
+| 条件 | `status` | `verdict` | `pass_score` |
+|------|----------|-----------|--------------|
+| 没有任何成功 step | `FAILED` | `FAIL` | `0` |
+| 存在失败 step，且至少一个成功 step | `PARTIAL` | `CONDITIONAL_PASS` | `max(40, int(88 * success / total))` |
+| 全部成功 | `COMPLETED` | `PASS` | `88` |
+
+因此当前通过分是 `88`，不是 `80`；`critical_issues` 等于失败 step 数量。
+
+#### Prompt 构造方式
+
+Jarvis 没有读取外部 prompt 文件。`_execute_target()` 在代码中内联构造 system prompt：
+
+```text
+You are Jarvis orchestration. Validate {target} stage for '{task_type}'.
+Respond JSON: {"status":"ok|warn|fail","findings":[],"recommendations":[]}
 ```
 
-#### Jarvis Profile
-
-为外部 Jarvis 编排运行时定义了专用的 `plan-agent` Profile：
-
-```yaml
-profile_id: "plan-agent"
-model_routing:
-  planner: "claude"
-  implementer: "codex"
-  validator: "gemini"
-  evidence_extractor: "claude"
-  simulation_actor: "claude"
-thresholds:
-  pass_score: 80
-  critical_issues_max: 0
-  max_rounds: 5
-  max_retry_same_plan: 3
-```
-
-配套 Prompt 文件（7 个）：
-- `self_reviewer.md`、`cross_reviewer.md`、`repairer.md`、`arbitrator.md`
-- `debate_advocate.md`、`debate_challenger.md`、`debate_arbitrator.md`
+user content 取自 `payload.query` 或 `payload.topic`，并截断到 2000 字符。模型调用通过 `OpenAIService.generate_json_for_target()` 完成，最大输出 token 为 500。
 
 ### 3.10 战略助手（Strategic Assistant）
 
