@@ -843,6 +843,22 @@ class EventBus(Protocol):
 
 同一事件总线接口在不同环境下零代码切换。
 
+#### 双执行模式
+
+采集与推演入口均支持 `ExecutionMode`：
+
+```python
+class ExecutionMode(StrEnum):
+    INLINE = "INLINE"
+    QUEUED = "QUEUED"
+```
+
+`INLINE` 模式在 API 请求内同步处理本次任务，请求返回时已经完成核心处理链路，适合开发、测试和单机调试。`QUEUED` 模式只创建运行记录并通过事件总线分发给 Worker，由后台进程异步消费，适合生产环境的水平扩展与故障隔离。默认模式由 `inline_ingest_default` 和 `inline_simulation_default` 控制，二者默认均为 `True`，可按部署环境切换为队列优先。
+
+#### Worker 流式消费模式
+
+Worker 同时支持两种运行方式：传统 poll 模式会按固定间隔调用 `run_once()` 扫描待处理任务；stream consumer 模式则根据 Worker 声明的 `consumes` 主题阻塞等待事件，再触发 `run_once()` 处理。`RedisStreamEventBus` 使用 Redis Streams 的 `XREADGROUP` 进行阻塞读取，天然支持 consumer group、ack 和多实例消费；`InMemoryEventBus` 提供同一接口的进程内实现，便于开发和测试。流式模式的批量大小与阻塞时间由 `stream_consumer_count`、`stream_consumer_block_ms` 配置。
+
 #### Worker 依赖关系
 
 ```
@@ -918,6 +934,24 @@ debate_challenger.api_key
 - `openai_base_url_source(target)` → 返回实际提供 base_url 值的环境变量名
 
 通过 `GET /admin/openai/status` 可查看每个目标的实际配置来源，快速定位配置问题。
+
+#### LLM Provider 抽象层
+
+LLM 调用被隔离在 `services/providers/`，上层服务只依赖 `LLMProvider` 协议，不直接绑定具体厂商 SDK：
+
+```python
+class LLMProvider(Protocol):
+    provider_name: str
+    is_configured: bool
+
+    async def generate_text(...) -> LLMResponse | None: ...
+    async def generate_json(...) -> tuple[LLMResponse | None, dict | None]: ...
+    async def close() -> None: ...
+```
+
+`LLMResponse` 统一封装 `text`、`model`、`response_id`、`api_mode` 和 `usage`，使 OpenAI / Anthropic 的返回结构可以进入同一条后处理链路。`OpenAIProvider` 基于 `AsyncOpenAI` 和 Chat Completions 实现普通文本与 JSON 输出，JSON 模式使用 `response_format={"type": "json_object"}`。`AnthropicProvider` 基于 `AsyncAnthropic.messages.create()` 实现相同能力，结构化输出通过 JSON 指令与 schema 提示约束，并对 Markdown 代码块包裹进行清理后解析。
+
+这层抽象让系统可以在不改业务服务的情况下替换模型供应商；当 provider 未配置、SDK 不存在或调用失败时，方法返回 `None`，由上层继续走启发式降级路径。
 
 ---
 
