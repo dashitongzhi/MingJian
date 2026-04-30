@@ -1,0 +1,40 @@
+{
+  "requested_by": "investment-research",
+  "items": [
+    {
+      "source_type": "research",
+      "source_url": "https://example.com/ai-market/gpu-demand-2026",
+      "title": "GPU demand continues to outpace supply as AI training scales up",
+      "content_text": "Global GPU demand is projected to grow 45% year-over-year in 2026, driven by large language model training and inference workloads. Key suppliers face capacity constraints through Q3 2026.",
+      "published_at": "2026-04-28T09:00:00Z"
+    },
+    {
+      "source_type": "financial",
+      "source_url": "https://example.com/ai-market/foundation-model-funding",
+      "title": "Foundation model startups raise $12B in Q1 2026, up 30% from Q4 2025",
+      "content_text": "Venture capital investment in foundation model companies reached $12 billion in Q1 2026, a 30% increase from the previous quarter. Investors are focusing on companies with proprietary data moats and vertical specialization.",
+      "published_at": "2026-04-28T09:15:00Z"
+    },
+    {
+      "source_type": "market",
+      "source_url": "https://example.com/ai-market/enterprise-adoption",
+      "title": "Enterprise AI adoption accelerates with 67% of Fortune 500 deploying AI agents",
+      "content_text": "A new survey shows 67% of Fortune 500 companies have deployed AI agents in production, up from 42% a year ago. Customer service, code generation, and data analysis are the top use cases.",
+      "published_at": "2026-04-28T09:30:00Z"
+    },
+    {
+      "source_type": "competitive",
+      "source_url": "https://example.com/ai-market/open-source-disruption",
+      "title": "Open-source models close gap with proprietary models on key benchmarks",
+      "content_text": "Recent benchmarks show open-source language models have narrowed the performance gap with proprietary models to under 5% on reasoning tasks. This is disrupting pricing models and accelerating enterprise adoption of open-source alternatives.",
+      "published_at": "2026-04-28T09:45:00Z"
+    },
+    {
+      "source_type": "regulatory",
+      "source_url": "https://example.com/ai-market/eu-ai-act-impact",
+      "title": "EU AI Act compliance costs estimated at 2-5% of revenue for AI companies",
+      "content_text": "Industry analysis estimates that compliance with the EU AI Act will cost AI companies between 2-5% of annual revenue. Companies with robust safety and governance frameworks are expected to gain competitive advantages.",
+      "published_at": "2026-04-28T10:00:00Z"
+    }
+  ]
+}

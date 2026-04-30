@@ -1,0 +1,21 @@
+{
+  "company_id": "ai-startup-portfolio",
+  "company_name": "AI Startup Portfolio Analysis",
+  "market": "foundation-models",
+  "tick_count": 4,
+  "actor_template": "ai_model_provider",
+  "initial_state": {
+    "market_growth_rate": 0.35,
+    "funding_availability": 0.80,
+    "competitive_intensity": 0.75,
+    "regulatory_risk": 0.45,
+    "talent_availability": 0.60,
+    "technology_maturity": 0.70
+  },
+  "external_factors": {
+    "macro_economic_sentiment": 0.65,
+    "interest_rate_environment": 0.55,
+    "geopolitical_stability": 0.70,
+    "public_market_performance": 0.60
+  }
+}

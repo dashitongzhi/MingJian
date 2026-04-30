@@ -199,6 +199,30 @@ graph TB
 - **[Simulation Examples](examples/)**: Ready-to-use scenario templates
 - **[Architecture Overview](docs/architecture.md)**: System design and components
 
+## 🛣️ Roadmap
+
+| Milestone | Status | Description |
+|-----------|--------|-------------|
+| ✅ Phase 1 | Done | Evidence ingestion, source snapshots, claim extraction |
+| ✅ Phase 2 | Done | Corporate simulation, scenario branching, report generation |
+| ✅ Phase 3 | Done | Military baseline, geo-assets, external shocks |
+| ✅ Phase 4 | Done | Unified workbench, debate protocol, strategic console |
+| ✅ Phase 5 | Done | Jarvis integration, self-review, cross-review, repair cycles |
+| 🔄 Phase 6 | In Progress | Frontend workspace, WebSocket streaming, real-time collaboration |
+| 📋 Phase 7 | Planned | Multi-tenant support, role-based access control, SSO integration |
+| 📋 Phase 8 | Planned | ML model fine-tuning, automated insight generation, predictive analytics |
+
+## 🏆 Technical Highlights
+
+- **65+ API endpoints** covering evidence, simulation, debate, and administration
+- **10+ data source adapters**: Google News, Reddit, Hacker News, GitHub, X, GDELT, RSS, weather, aviation
+- **Multi-model AI integration**: GPT, Gemini, Claude, Grok with automatic fallback
+- **Streaming analysis** with real-time progress events
+- **Deterministic decision traces** for full auditability
+- **YAML-configurable rules** for corporate and military domains
+- **Event-driven architecture** with Redis Streams and dead-letter queues
+- **Docker Compose deployment** with PostgreSQL, Redis, and MinIO
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
