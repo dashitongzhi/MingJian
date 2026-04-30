@@ -7,10 +7,12 @@ and operational picture building for military domain simulations.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from planagent.domain.models import GeoAssetRecord, MilitaryResolution, SimulationRun, generate_id, utc_now
-from planagent.services.simulation import OperationalResponse, SelectedAction, Claim
+from planagent.domain.models import GeoAssetRecord, SimulationRun
+
+if TYPE_CHECKING:
+    from planagent.services.simulation import Claim, MilitaryResolution, OperationalResponse, SelectedAction
 
 
 class MilitaryCombatResolver:
