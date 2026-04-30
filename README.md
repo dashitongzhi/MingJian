@@ -7,6 +7,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/stargazers)
 
+![PlanAgent Dashboard](frontend/public/screenshot.png)
+
 PlanAgent is an AI-powered multi-agent platform that enables evidence-driven scenario simulation and strategic decision-making for both corporate and military domains. It features a debate protocol, real-time evidence ingestion, and advanced simulation capabilities.
 
 ## 🚀 Key Features
