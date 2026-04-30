@@ -18,6 +18,10 @@
 [![GitHub issues](https://img.shields.io/github/issues/dashitongzhi/mingjian)](https://github.com/dashitongzhi/mingjian/issues)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/dashitongzhi/mingjian)](https://github.com/dashitongzhi/mingjian/pulls)
 
+**🌐 Language Selection / 语言选择**
+
+[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md)
+
 ![明鉴 Dashboard](frontend/public/screenshot.png)
 
 ---
