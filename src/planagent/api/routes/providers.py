@@ -115,6 +115,7 @@ _configured_providers: dict[str, dict[str, Any]] = {}
 
 class ProviderConfig(BaseModel):
     provider_id: str
+    name: str | None = None
     api_key: str = ""
     base_url: str | None = None
     model: str | None = None

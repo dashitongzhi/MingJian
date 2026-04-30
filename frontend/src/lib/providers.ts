@@ -24,6 +24,7 @@ export interface ConfiguredProvider extends ProviderPreset {
 
 export interface ProviderConfig {
   provider_id: string;
+  name?: string;
   api_key: string;
   base_url?: string;
   model?: string;

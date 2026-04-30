@@ -409,11 +409,281 @@ function ConfigPanel({
   );
 }
 
+// ── Custom Provider Card ────────────────────────────────────────────────────
+
+function AddCustomCard({ onClick }: { onClick: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className="relative overflow-hidden rounded-xl border-2 border-dashed border-[var(--card-border)] p-5 cursor-pointer transition-all duration-200 hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 group flex flex-col items-center justify-center min-h-[140px]"
+    >
+      <div className="w-10 h-10 rounded-full bg-[var(--background)] border border-[var(--card-border)] flex items-center justify-center text-[var(--muted)] group-hover:text-[var(--accent)] group-hover:border-[var(--accent)] transition-colors text-xl">
+        +
+      </div>
+      <div className="mt-2 text-sm font-medium text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors">
+        自定义供应商
+      </div>
+      <div className="text-xs text-[var(--muted)] opacity-60 mt-0.5">
+        填入任意 Base URL + API Key
+      </div>
+    </div>
+  );
+}
+
+// ── Custom Config Panel ─────────────────────────────────────────────────────
+
+function CustomConfigPanel({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
+  const [apiFormat, setApiFormat] = useState("openai");
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+
+  const handleTest = useCallback(async () => {
+    if (!apiKey || !baseUrl) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testProvider({
+        base_url: baseUrl,
+        api_key: apiKey,
+        api_format: apiFormat,
+        model: model || undefined,
+      });
+      setTestResult(result);
+      if (result.models_available.length > 0) {
+        setFetchedModels(result.models_available);
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, latency_ms: 0, models_available: [], error: e.message });
+    } finally {
+      setTesting(false);
+    }
+  }, [apiKey, baseUrl, apiFormat, model]);
+
+  const handleSave = useCallback(async () => {
+    if (!name.trim() || !baseUrl.trim() || !apiKey.trim()) {
+      alert("请填写供应商名称、Base URL 和 API Key");
+      return;
+    }
+    setSaving(true);
+    try {
+      const providerId = `custom-${name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-")}`;
+      await saveProvider({
+        provider_id: providerId,
+        name: name,
+        api_key: apiKey,
+        base_url: baseUrl,
+        model: model || undefined,
+        api_format: apiFormat,
+        enabled: true,
+      });
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      alert(`保存失败: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [name, baseUrl, apiKey, model, apiFormat, onSaved, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl w-full max-w-lg mx-4 shadow-2xl overflow-hidden animate-fadeIn"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-[var(--card-border)]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--background)] border border-dashed border-[var(--accent)] text-[var(--accent)] text-lg">
+              +
+            </div>
+            <div>
+              <h3 className="font-semibold text-base">自定义供应商</h3>
+              <p className="text-xs text-[var(--muted)]">填入任意 OpenAI 兼容或 Anthropic 格式的接口</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1">
+            <XIcon />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+          {/* Name */}
+          <div>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">供应商名称</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1.5 w-full px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent)] transition-colors"
+              placeholder="例如: My Local LLM / 公司内部模型"
+            />
+          </div>
+
+          {/* API Format */}
+          <div>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">API 格式</label>
+            <div className="flex gap-2 mt-1.5">
+              {["openai", "anthropic"].map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => setApiFormat(fmt)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    apiFormat === fmt
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {fmt === "openai" ? "OpenAI 兼容" : "Anthropic 原生"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Base URL */}
+          <div>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">Base URL</label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              className="mt-1.5 w-full px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+              placeholder={apiFormat === "anthropic" ? "https://api.anthropic.com/v1/openai" : "https://your-api.com/v1"}
+            />
+          </div>
+
+          {/* API Key */}
+          <div>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">API Key</label>
+            <div className="relative mt-1.5">
+              <input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className="w-full px-3 py-2 pr-10 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+                placeholder="sk-... / your-api-key"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--muted)] hover:text-[var(--foreground)]"
+              >
+                {showKey ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          {/* Model */}
+          <div>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">模型</label>
+            <div className="flex gap-1.5 mt-1.5">
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+                placeholder="选择或输入模型名称"
+                list="custom-models"
+              />
+              <datalist id="custom-models">
+                {fetchedModels.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              {fetchedModels.length > 0 && (
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  className="px-2 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent)]"
+                >
+                  <option value="">▼</option>
+                  {fetchedModels.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          {/* Test button */}
+          <button
+            onClick={handleTest}
+            disabled={testing || !apiKey || !baseUrl}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            {testing ? (
+              <><LoaderIcon className="animate-spin" /> 测试连接中...</>
+            ) : (
+              <><TestTubeIcon /> 验活测试</>
+            )}
+          </button>
+
+          {/* Test result */}
+          {testResult && (
+            <div
+              className={`p-3 rounded-lg text-sm ${
+                testResult.ok
+                  ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                  : "bg-red-500/10 border border-red-500/20 text-red-400"
+              }`}
+            >
+              {testResult.ok ? (
+                <div className="flex items-center gap-2">
+                  <CheckIcon />
+                  <span>连接成功！延迟 {testResult.latency_ms}ms</span>
+                  {testResult.models_available.length > 0 && (
+                    <span className="text-xs opacity-70">({testResult.models_available.length} 个模型可用)</span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <XIcon />
+                  <span>{testResult.error || "连接失败"}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 p-5 border-t border-[var(--card-border)]">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+            取消
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !name || !baseUrl || !apiKey}
+            className="px-5 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40 transition-all"
+          >
+            {saving ? "保存中..." : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ProvidersPage() {
   const { data: providers, mutate } = useConfiguredProviders();
   const [configuring, setConfiguring] = useState<ConfiguredProvider | null>(null);
+  const [showCustomPanel, setShowCustomPanel] = useState(false);
 
   const configuredCount = providers?.filter((p) => p.api_key_set).length || 0;
 
@@ -443,6 +713,7 @@ export default function ProvidersPage() {
               onConfigure={() => setConfiguring(provider)}
             />
           ))}
+          <AddCustomCard onClick={() => setShowCustomPanel(true)} />
         </div>
 
         {/* Info banner */}
@@ -450,6 +721,7 @@ export default function ProvidersPage() {
           <strong className="text-[var(--foreground)]">💡 提示：</strong>
           只需配置一个供应商即可开始使用。系统会自动将未配置的槽位回退到已配置的供应商。
           所有供应商均使用 OpenAI 兼容格式（/chat/completions），Anthropic 也支持原生格式。
+          也可以点击「自定义供应商」接入任意兼容接口。
         </div>
       </div>
 
@@ -458,6 +730,14 @@ export default function ProvidersPage() {
         <ConfigPanel
           provider={configuring}
           onClose={() => setConfiguring(null)}
+          onSaved={() => mutate()}
+        />
+      )}
+
+      {/* Custom provider panel */}
+      {showCustomPanel && (
+        <CustomConfigPanel
+          onClose={() => setShowCustomPanel(false)}
           onSaved={() => mutate()}
         />
       )}
