@@ -15,8 +15,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
 
 **🌐 Language Selection / 语言选择**
 
@@ -165,19 +165,16 @@ Create a `.env` file in the project root with the following variables:
 # ═══════════════════════════════════════════════════════════════
 # AI Model Configuration
 # ═══════════════════════════════════════════════════════════════
-# You only need ONE API key and ONE base URL to get started.
-# The system automatically uses the same key/URL for all 7 model slots
+# You only need ONE API key to get started.
+# The system automatically uses the same key for all 7 model slots
 # (primary, extraction, x_search, report, debate_advocate,
 #  debate_challenger, debate_arbitrator) unless you override them.
 
-# Option A: Minimal — just set the shared key, everything works
 PLANAGENT_OPENAI_API_KEY=your_api_key_here
-PLANAGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 
-# Option B: Override individual targets (all fall back to shared if unset)
+# Override individual targets (all fall back to shared if unset)
 # PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
 # PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
-# PLANAGENT_OPENAI_PRIMARY_BASE_URL=https://api.openai.com/v1
 # PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
 # PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
 # PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
@@ -211,13 +208,31 @@ PLANAGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-> **💡 Key Point:** Even if you only have access to **one** model provider (e.g., OpenAI, or any OpenAI-compatible API), you can use it for all 7 model slots. Just set `PLANAGENT_OPENAI_API_KEY` and `PLANAGENT_OPENAI_BASE_URL` — the system fills in the rest automatically. No need for 4 different API keys to get started.
+> **💡 Key Point:** Even if you only have access to **one** model provider (e.g., OpenAI, or any OpenAI-compatible API), you can use it for all 7 model slots. Just set `PLANAGENT_OPENAI_API_KEY` — the system fills in the rest automatically. No need for 4 different API keys to get started.
+
+### Compatible Providers
+
+All slots use the OpenAI-compatible `/chat/completions` endpoint. You can mix and match providers freely:
+
+| Provider | Base URL | Notes |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | Native |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI-compatible endpoint |
+| DeepSeek | `https://api.deepseek.com/v1` | Cost-effective, strong Chinese |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI-compatible endpoint |
+| xAI Grok | `https://api.x.ai/v1` | Native compatible |
+| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | Compatible |
+| Together AI | `https://api.together.xyz/v1` | Open-source model aggregation |
+| Fireworks AI | `https://api.fireworks.ai/inference/v1` | Fast inference |
+| Any compatible proxy | Your proxy URL | vLLM, Ollama, LiteLLM, etc. |
+
+> **Example:** Use OpenAI for primary analysis, DeepSeek for extraction, Claude for debate — all in one config.
 
 ### Installation Steps
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/dashitongzhi/planagent.git
+git clone https://github.com/dashitongzhi/MingJian.git
 cd planagent
 
 # 2. Create and activate Python virtual environment
@@ -457,8 +472,8 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 ## 📞 Support
 
 - 📧 Email: [Your Email]
-- 🐛 Issues: [GitHub Issues](https://github.com/dashitongzhi/planagent/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/dashitongzhi/planagent/discussions)
+- 🐛 Issues: [GitHub Issues](https://github.com/dashitongzhi/MingJian/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/dashitongzhi/MingJian/discussions)
 
 ---
 
@@ -466,7 +481,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/planagent&type=Date)](https://star-history.com/#dashitongzhi/planagent&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/MingJian&type=Date)](https://star-history.com/#dashitongzhi/MingJian&Date)
 
 ---
 

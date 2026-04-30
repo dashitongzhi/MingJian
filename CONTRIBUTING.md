@@ -154,8 +154,8 @@ pytest -v
 ## 📞 Getting Help
 
 - 📧 Email: [Your Email]
-- 🐛 Issues: github.com/dashitongzhi/planagent/issues
-- 💬 Discussions: github.com/dashitongzhi/planagent/discussions
+- 🐛 Issues: github.com/dashitongzhi/MingJian/issues
+- 💬 Discussions: github.com/dashitongzhi/MingJian/discussions
 
 ## 🙏 Acknowledgments
 

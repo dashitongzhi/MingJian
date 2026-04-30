@@ -15,8 +15,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
 
 **🌐 语言选择 / Language Selection**
 
@@ -165,19 +165,16 @@
 # ═══════════════════════════════════════════════════════════════
 # AI 模型配置
 # ═══════════════════════════════════════════════════════════════
-# 只需一个 API Key + 一个 Base URL 即可启动。
+# 只需一个 API Key 即可启动。
 # 系统会自动将同一组凭证填充到全部 7 个模型槽位
 # （primary、extraction、x_search、report、debate_advocate、
 #  debate_challenger、debate_arbitrator），除非你单独覆盖。
 
-# 方案A：最简配置 — 只设 shared key，一切自动生效
 PLANAGENT_OPENAI_API_KEY=你的API密钥
-PLANAGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 
-# 方案B：按需覆盖单个槽位（未覆盖的自动回退到 shared）
+# 按需覆盖单个槽位（未覆盖的自动回退到 shared）
 # PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
 # PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
-# PLANAGENT_OPENAI_PRIMARY_BASE_URL=https://api.openai.com/v1
 # PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
 # PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
 # PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
@@ -211,13 +208,31 @@ PLANAGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-> **💡 关键提示：** 即使你只有**一个**模型供应商（比如 OpenAI，或任何兼容 OpenAI 接口的服务），也可以用它填满全部 7 个模型槽位。只需设置 `PLANAGENT_OPENAI_API_KEY` 和 `PLANAGENT_OPENAI_BASE_URL`，系统自动完成剩余配置。无需 4 个不同的 API Key 才能启动。
+> **💡 关键提示：** 即使你只有**一个**模型供应商（比如 OpenAI，或任何兼容 OpenAI 接口的服务），也可以用它填满全部 7 个模型槽位。只需设置 `PLANAGENT_OPENAI_API_KEY`，系统自动完成剩余配置。无需 4 个不同的 API Key 才能启动。
+
+### 兼容提供商
+
+所有槽位均使用 OpenAI 兼容的 `/chat/completions` 接口，可自由混搭：
+
+| 提供商 | Base URL | 备注 |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | 原生 |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI 兼容端点 |
+| DeepSeek | `https://api.deepseek.com/v1` | 性价比高，中文强 |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI 兼容端点 |
+| xAI Grok | `https://api.x.ai/v1` | 原生兼容 |
+| 小米 MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | 兼容 |
+| Together AI | `https://api.together.xyz/v1` | 开源模型聚合 |
+| Fireworks AI | `https://api.fireworks.ai/inference/v1` | 快速推理 |
+| 任意兼容代理 | 你的代理地址 | vLLM、Ollama、LiteLLM 等 |
+
+> **示例：** 主分析用 OpenAI，信息提取用 DeepSeek，辩论用 Claude —— 一个配置搞定。
 
 ### 安装步骤
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/dashitongzhi/planagent.git
+git clone https://github.com/dashitongzhi/MingJian.git
 cd planagent
 
 # 2. 创建并激活Python虚拟环境
@@ -457,8 +472,8 @@ git push origin feature/amazing-feature
 ## 📞 支持
 
 - 📧 邮箱：[Your Email]
-- 🐛 问题：[GitHub Issues](https://github.com/dashitongzhi/planagent/issues)
-- 💬 讨论：[GitHub Discussions](https://github.com/dashitongzhi/planagent/discussions)
+- 🐛 问题：[GitHub Issues](https://github.com/dashitongzhi/MingJian/issues)
+- 💬 讨论：[GitHub Discussions](https://github.com/dashitongzhi/MingJian/discussions)
 
 ---
 
@@ -466,7 +481,7 @@ git push origin feature/amazing-feature
 
 ## 🌟 Star历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/planagent&type=Date)](https://star-history.com/#dashitongzhi/planagent&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/MingJian&type=Date)](https://star-history.com/#dashitongzhi/MingJian&Date)
 
 ---
 

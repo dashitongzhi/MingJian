@@ -17,7 +17,7 @@ Why 明鉴 wins:
 
 One platform. Zero black boxes. Full transparency.
 
-🔗 github.com/dashitongzhi/planagent
+🔗 github.com/dashitongzhi/MingJian
 
 #AI #OpenSource #DecisionIntelligence #MultiAgent #MingJian
 
@@ -40,7 +40,7 @@ One platform. Zero black boxes. Full transparency.
 
 一个平台，零黑箱，完全透明。
 
-🔗 github.com/dashitongzhi/planagent
+🔗 github.com/dashitongzhi/MingJian
 
 #AI #开源 #决策智能 #多代理 #明鉴
 
@@ -103,8 +103,8 @@ MIT License - 免费使用，自由修改，商业友好
 ## 联系方式 / Contact
 
 - 📧 Email: [Your Email]
-- 🐛 Issues: github.com/dashitongzhi/planagent/issues
-- 💬 Discussions: github.com/dashitongzhi/planagent/discussions
+- 🐛 Issues: github.com/dashitongzhi/MingJian/issues
+- 💬 Discussions: github.com/dashitongzhi/MingJian/discussions
 - 🌐 Website: [Your Website]
 
 ---
