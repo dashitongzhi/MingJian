@@ -7,12 +7,35 @@ and operational picture building for military domain simulations.
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from planagent.domain.models import GeoAssetRecord, SimulationRun
 
 if TYPE_CHECKING:
-    from planagent.services.simulation import Claim, MilitaryResolution, OperationalResponse, SelectedAction
+    from planagent.services.simulation import Claim, SelectedAction
+
+
+@dataclass(frozen=True)
+class OperationalResponse:
+    """Enemy response action with effects."""
+
+    action_id: str
+    why_selected: str
+    effects: dict[str, float]
+
+
+@dataclass(frozen=True)
+class MilitaryResolution:
+    """Result of military combat resolution for a single tick."""
+
+    actual_effect: dict[str, float]
+    enemy_action_id: str
+    enemy_reason: str
+    fire_balance: float
+    objective_delta: float
+    supply_delta: float
+    recovery_delta: float
 
 
 class MilitaryCombatResolver:

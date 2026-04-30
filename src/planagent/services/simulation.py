@@ -78,23 +78,6 @@ class ActionCandidate:
         return round(self.base_score + self.state_adjustment - self.history_penalty, 4)
 
 
-@dataclass(frozen=True)
-class OperationalResponse:
-    action_id: str
-    why_selected: str
-    effects: dict[str, float]
-
-
-@dataclass(frozen=True)
-class MilitaryResolution:
-    actual_effect: dict[str, float]
-    enemy_action_id: str
-    enemy_reason: str
-    fire_balance: float
-    objective_delta: float
-    supply_delta: float
-    recovery_delta: float
-
 
 _DECISION_EVIDENCE_WINDOW = 3
 _DECISION_RECENCY_WEIGHTS = (1.0, 0.65, 0.45)
