@@ -1,0 +1,22 @@
+{
+  "domain_id": "military",
+  "force_id": "logistics-command-east",
+  "force_name": "Logistics Command East",
+  "theater": "eastern-sector",
+  "tick_count": 4,
+  "actor_template": "logistics_brigade",
+  "initial_state": {
+    "supply_route_efficiency": 0.75,
+    "fuel_reserves": 0.65,
+    "medical_supplies": 0.80,
+    "ammunition_stock": 0.70,
+    "vehicle_readiness": 0.85,
+    "personnel_availability": 0.90
+  },
+  "external_factors": {
+    "weather_impact": 0.3,
+    "security_threat_level": 0.6,
+    "infrastructure_condition": 0.7,
+    "civilian_population_density": 0.4
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "requested_by": "military-logistics-analysis",
+  "items": [
+    {
+      "source_type": "intelligence",
+      "source_url": "https://example.com/military/logistics-eastern-sector",
+      "title": "Eastern sector supply routes face increased disruption risk",
+      "content_text": "Intelligence reports indicate that primary supply routes in the eastern sector face increased risk of disruption due to infrastructure damage and security concerns. Alternative routes are being assessed but add 40% to transit times.",
+      "published_at": "2026-04-30T08:00:00Z"
+    },
+    {
+      "source_type": "logistics",
+      "source_url": "https://example.com/military/fuel-reserves-status",
+      "title": "Fuel reserves at 65% capacity with seasonal demand increase expected",
+      "content_text": "Current fuel reserves stand at 65% capacity across forward operating bases. Seasonal demand increase expected in next 30 days due to increased operational tempo and training exercises.",
+      "published_at": "2026-04-30T08:15:00Z"
+    },
+    {
+      "source_type": "weather",
+      "source_url": "https://example.com/military/weather-forecast-eastern",
+      "title": "Weather forecast shows 70% chance of heavy rainfall next week",
+      "content_text": "Meteorological data indicates 70% probability of heavy rainfall in eastern theater next week. This could impact road conditions, helicopter operations, and logistics scheduling.",
+      "published_at": "2026-04-30T08:30:00Z"
+    },
+    {
+      "source_type": "aviation",
+      "source_url": "https://example.com/military/airspace-restrictions",
+      "title": "Temporary airspace restrictions affect key logistics corridors",
+      "content_text": "Temporary airspace restrictions have been implemented affecting two key logistics corridors. Rotary-wing operations are being rerouted, adding 15 minutes to average flight times.",
+      "published_at": "2026-04-30T08:45:00Z"
+    }
+  ]
+}
