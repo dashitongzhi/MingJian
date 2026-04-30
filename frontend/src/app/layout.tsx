@@ -5,6 +5,32 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "PlanAgent — Decision Intelligence",
   description: "Multi-agent decision support and wargaming platform",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    other: [
+      {
+        rel: "mask-icon",
+        url: "/icon.svg",
+        color: "#4F46E5",
+      },
+    ],
+  },
+  manifest: "/manifest.json",
+};
+
+export const viewport = {
+  themeColor: "#4F46E5",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 const NAV = [
