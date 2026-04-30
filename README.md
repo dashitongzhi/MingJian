@@ -162,31 +162,56 @@ Before you begin, ensure you have the following installed:
 Create a `.env` file in the project root with the following variables:
 
 ```bash
-# Required: AI Model API Keys
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
-XAI_API_KEY=your_xai_api_key_here
+# ═══════════════════════════════════════════════════════════════
+# AI Model Configuration
+# ═══════════════════════════════════════════════════════════════
+# You only need ONE API key and ONE base URL to get started.
+# The system automatically uses the same key/URL for all 7 model slots
+# (primary, extraction, x_search, report, debate_advocate,
+#  debate_challenger, debate_arbitrator) unless you override them.
 
-# Database Configuration (optional, defaults to SQLite)
-DATABASE_URL=postgresql://user:password@localhost:5432/planagent
+# Option A: Minimal — just set the shared key, everything works
+PLANAGENT_OPENAI_API_KEY=your_api_key_here
+PLANAGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 
-# Redis Configuration (optional)
-REDIS_URL=redis://localhost:6379
+# Option B: Override individual targets (all fall back to shared if unset)
+# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+# PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
+# PLANAGENT_OPENAI_PRIMARY_BASE_URL=https://api.openai.com/v1
+# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
+# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
+# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
+# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
 
-# MinIO Configuration (optional)
-MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
+# ═══════════════════════════════════════════════════════════════
+# Database (optional — defaults to SQLite for local dev)
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_DATABASE_URL=postgresql+psycopg://planagent:planagent@localhost:5432/planagent
 
-# Application Settings
-APP_ENV=development
-APP_DEBUG=true
-APP_PORT=8000
+# ═══════════════════════════════════════════════════════════════
+# Redis (optional — for event bus in production)
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_REDIS_URL=redis://localhost:6379/0
 
-# Frontend Settings
+# ═══════════════════════════════════════════════════════════════
+# MinIO Object Storage (optional)
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_MINIO_ENDPOINT=localhost:9000
+# PLANAGENT_MINIO_ACCESS_KEY=minioadmin
+# PLANAGENT_MINIO_SECRET_KEY=minioadmin
+
+# ═══════════════════════════════════════════════════════════════
+# X / Twitter (optional — for social intelligence)
+# ═══════════════════════════════════════════════════════════════
+# X_BEARER_TOKEN=your_x_bearer_token
+
+# ═══════════════════════════════════════════════════════════════
+# Frontend
+# ═══════════════════════════════════════════════════════════════
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+> **💡 Key Point:** Even if you only have access to **one** model provider (e.g., OpenAI, or any OpenAI-compatible API), you can use it for all 7 model slots. Just set `PLANAGENT_OPENAI_API_KEY` and `PLANAGENT_OPENAI_BASE_URL` — the system fills in the rest automatically. No need for 4 different API keys to get started.
 
 ### Installation Steps
 

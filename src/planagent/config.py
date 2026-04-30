@@ -337,7 +337,7 @@ class Settings(BaseSettings):
 
     @property
     def resolved_openai_debate_advocate_api_key(self) -> str | None:
-        return self.openai_debate_advocate_api_key
+        return self.openai_debate_advocate_api_key or self.resolved_openai_primary_api_key
 
     @property
     def resolved_openai_debate_advocate_base_url(self) -> str | None:
@@ -349,7 +349,7 @@ class Settings(BaseSettings):
 
     @property
     def resolved_openai_debate_challenger_api_key(self) -> str | None:
-        return self.openai_debate_challenger_api_key
+        return self.openai_debate_challenger_api_key or self.resolved_openai_primary_api_key
 
     @property
     def resolved_openai_debate_challenger_base_url(self) -> str | None:
@@ -361,7 +361,7 @@ class Settings(BaseSettings):
 
     @property
     def resolved_openai_debate_arbitrator_api_key(self) -> str | None:
-        return self.openai_debate_arbitrator_api_key
+        return self.openai_debate_arbitrator_api_key or self.resolved_openai_primary_api_key
 
     @property
     def resolved_openai_debate_arbitrator_base_url(self) -> str | None:

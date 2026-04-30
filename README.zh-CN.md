@@ -162,31 +162,56 @@
 在项目根目录创建 `.env` 文件，包含以下变量：
 
 ```bash
-# 必需：AI模型API密钥
-OPENAI_API_KEY=your_openai_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
-XAI_API_KEY=your_xai_api_key_here
+# ═══════════════════════════════════════════════════════════════
+# AI 模型配置
+# ═══════════════════════════════════════════════════════════════
+# 只需一个 API Key + 一个 Base URL 即可启动。
+# 系统会自动将同一组凭证填充到全部 7 个模型槽位
+# （primary、extraction、x_search、report、debate_advocate、
+#  debate_challenger、debate_arbitrator），除非你单独覆盖。
 
-# 数据库配置（可选，默认使用SQLite）
-DATABASE_URL=postgresql://user:password@localhost:5432/planagent
+# 方案A：最简配置 — 只设 shared key，一切自动生效
+PLANAGENT_OPENAI_API_KEY=你的API密钥
+PLANAGENT_OPENAI_BASE_URL=https://api.openai.com/v1
 
-# Redis配置（可选）
-REDIS_URL=redis://localhost:6379
+# 方案B：按需覆盖单个槽位（未覆盖的自动回退到 shared）
+# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+# PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
+# PLANAGENT_OPENAI_PRIMARY_BASE_URL=https://api.openai.com/v1
+# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
+# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
+# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
+# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
 
-# MinIO配置（可选）
-MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
+# ═══════════════════════════════════════════════════════════════
+# 数据库（可选 — 本地开发默认使用 SQLite）
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_DATABASE_URL=postgresql+psycopg://planagent:planagent@localhost:5432/planagent
 
-# 应用设置
-APP_ENV=development
-APP_DEBUG=true
-APP_PORT=8000
+# ═══════════════════════════════════════════════════════════════
+# Redis（可选 — 生产环境用于事件总线）
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_REDIS_URL=redis://localhost:6379/0
 
-# 前端设置
+# ═══════════════════════════════════════════════════════════════
+# MinIO 对象存储（可选）
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_MINIO_ENDPOINT=localhost:9000
+# PLANAGENT_MINIO_ACCESS_KEY=minioadmin
+# PLANAGENT_MINIO_SECRET_KEY=minioadmin
+
+# ═══════════════════════════════════════════════════════════════
+# X / Twitter（可选 — 社交情报数据源）
+# ═══════════════════════════════════════════════════════════════
+# X_BEARER_TOKEN=你的X平台Bearer Token
+
+# ═══════════════════════════════════════════════════════════════
+# 前端
+# ═══════════════════════════════════════════════════════════════
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
+
+> **💡 关键提示：** 即使你只有**一个**模型供应商（比如 OpenAI，或任何兼容 OpenAI 接口的服务），也可以用它填满全部 7 个模型槽位。只需设置 `PLANAGENT_OPENAI_API_KEY` 和 `PLANAGENT_OPENAI_BASE_URL`，系统自动完成剩余配置。无需 4 个不同的 API Key 才能启动。
 
 ### 安装步骤
 
