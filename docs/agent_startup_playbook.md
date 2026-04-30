@@ -1,6 +1,6 @@
 # AI Agent Startup Playbook
 
-This playbook turns the PlanAgent startup scenario into an operating plan for the first 12 months of an enterprise-focused agent company.
+This playbook turns the 明鉴 startup scenario into an operating plan for the first 12 months of an enterprise-focused agent company.
 
 ## Positioning
 
@@ -111,7 +111,7 @@ Track these every month:
 - deployment gross margin
 - runway after delivery headcount is fully loaded
 
-## How to use this with PlanAgent
+## How to use this with 明鉴
 
 1. Load `examples/agent_startup/evidence_ingest.json`.
 2. Run the baseline, upside, and downside simulation payloads.

@@ -1,18 +1,18 @@
-# PlanAgent 发布影响测试报告
+# 明鉴 发布影响测试报告
 
 生成时间：2026-04-28
 
 ## 测试目标
 
-评估 PlanAgent 作为“可选择领域的预测型战略推演 Agent”发布后，可能对产品、融资叙事、竞品反应和早期客户转化产生什么影响。
+评估 明鉴 作为“可选择领域的预测型战略推演 Agent”发布后，可能对产品、融资叙事、竞品反应和早期客户转化产生什么影响。
 
 本次测试使用 `corporate` 领域，主题为：
 
-> PlanAgent 正式发布：一个可选择 corporate 或 military 领域的预测型战略推演 Agent。发布后产品获得早期用户关注，投资人询问预测准确率、信源声誉网络、双领域 domain pack、对抗性红队推演能力。与此同时，竞品可能复制通用 agent 工作流，客户担心军事 OSINT 边界和企业数据安全。
+> 明鉴 正式发布：一个可选择 corporate 或 military 领域的预测型战略推演 Agent。发布后产品获得早期用户关注，投资人询问预测准确率、信源声誉网络、双领域 domain pack、对抗性红队推演能力。与此同时，竞品可能复制通用 agent 工作流，客户担心军事 OSINT 边界和企业数据安全。
 
 ## 测试环境
 
-- 数据库：临时 SQLite `/tmp/planagent-release-impact.db`
+- 数据库：临时 SQLite `/tmp/mingjian-release-impact.db`
 - 外部抓取：关闭
 - OpenAI 模型调用：关闭
 - 执行模式：inline ingest + inline simulation
@@ -22,7 +22,7 @@
 
 ## 核心结论
 
-当前测试结果显示，PlanAgent 发布后的基础影响偏正面，但系统给出的策略倾向是稳健验证，而不是立即激进扩张。
+当前测试结果显示，明鉴 发布后的基础影响偏正面，但系统给出的策略倾向是稳健验证，而不是立即激进扩张。
 
 主要原因是：本次没有接入实时外部信源，系统只能基于输入描述进行内部推演。因此，它将“投资人关注、预测准确率、信源声誉、双领域能力、红队推演”识别为潜在增长信号，但仍建议继续监控这些信号是否被多来源确认。
 
@@ -37,7 +37,7 @@
 
 报告摘要：
 
-> PlanAgent completed 4 corporate ticks with 4 recorded decisions. Final runway is 78.0 weeks, pipeline coverage is 0.96, and support load is 0.33.
+> 明鉴 completed 4 corporate ticks with 4 recorded decisions. Final runway is 78.0 weeks, pipeline coverage is 0.96, and support load is 0.33.
 
 ## 预测卡片
 
@@ -64,7 +64,7 @@
 
 解释：
 
-竞品快速跟进会带来一定压力，但当前推演认为冲击处于中低水平。PlanAgent 的差异化不应放在“通用 agent 工作流”，而应继续强化预测卡片、信源声誉、双领域 domain pack 和可校验推演链路。
+竞品快速跟进会带来一定压力，但当前推演认为冲击处于中低水平。明鉴 的差异化不应放在“通用 agent 工作流”，而应继续强化预测卡片、信源声誉、双领域 domain pack 和可校验推演链路。
 
 系统建议的稳健动作：
 

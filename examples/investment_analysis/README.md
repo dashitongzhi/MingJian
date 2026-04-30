@@ -1,6 +1,6 @@
 # Investment Analysis Scenario
 
-This example demonstrates PlanAgent's capability to support data-driven investment research and portfolio analysis in the AI technology sector.
+This example demonstrates 明鉴's capability to support data-driven investment research and portfolio analysis in the AI technology sector.
 
 ## Overview
 

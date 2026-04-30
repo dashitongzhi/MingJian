@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PlanAgent will be documented in this file.
+All notable changes to 明鉴 (MingJian) will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Investment analysis example scenario
 - Military logistics example scenario
-- "Why Choose PlanAgent" section in README
+- "Why Choose 明鉴" section in README
 - Roadmap and Technical Highlights sections
 - Mermaid architecture diagram
 - MIT License
@@ -83,9 +83,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Alembic migration for Phase 1 schema
 - Basic health check and status endpoints
 
-[Unreleased]: https://github.com/dashitongzhi/planagent/compare/v0.5.0...HEAD
-[0.5.0]: https://github.com/dashitongzhi/planagent/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/dashitongzhi/planagent/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/dashitongzhi/planagent/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/dashitongzhi/planagent/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/dashitongzhi/planagent/releases/tag/v0.1.0
+[Unreleased]: https://github.com/dashitongzhi/mingjian/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/dashitongzhi/mingjian/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/dashitongzhi/mingjian/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/dashitongzhi/mingjian/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/dashitongzhi/mingjian/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/dashitongzhi/mingjian/releases/tag/v0.1.0

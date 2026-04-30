@@ -1,6 +1,6 @@
 # Military Logistics Scenario
 
-This example demonstrates PlanAgent's capability to analyze military logistics operations and simulate various scenarios for supply chain optimization.
+This example demonstrates 明鉴's capability to analyze military logistics operations and simulate various scenarios for supply chain optimization.
 
 ## Overview
 

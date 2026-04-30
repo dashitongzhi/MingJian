@@ -1,4 +1,4 @@
-# PlanAgent 完整实施计划（含双域推演与 Jarvis 编排）
+# 明鉴 完整实施计划（含双域推演与 Jarvis 编排）
 
 ## 摘要
 构建一个"证据驱动、可解释、可复验"的统一推演平台：同一套内核同时支持公司/产业生态推演与军事/冲突推演，并通过 `Jarvis` 提供多模型计划、复验、修复和重试闭环。首版采用"模块化单体 + 异步 Worker"，先打通证据链、推演链和复验链，再逐步扩展地图、工作台和高级模式。
@@ -376,7 +376,7 @@ Profile 文件位置：`E:\Project\jarvis\source\jarvis\profiles\plan-agent.yaml
 
 ```yaml
 profile_id: "plan-agent"
-display_name: "PlanAgent 推演平台"
+display_name: "明鉴 推演平台"
 work_dir: "E:\\Project\\plan-agent"
 
 model_routing:

@@ -1,6 +1,6 @@
 # Agent Startup Scenario Pack
 
-This folder captures a reusable "AI agent startup" simulation template for PlanAgent.
+This folder captures a reusable "AI agent startup" simulation template for 明鉴.
 
 ## Files
 
