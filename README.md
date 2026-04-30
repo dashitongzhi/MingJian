@@ -96,20 +96,69 @@ curl -X POST http://127.0.0.1:8000/analysis/stream \
 
 ## 🏗️ Architecture
 
+```mermaid
+graph TB
+    subgraph "User Interface"
+        Console[Strategic Console]
+        API[FastAPI Control Plane]
+    end
+    
+    subgraph "Core Services"
+        Evidence[Evidence Ingestion]
+        Simulation[Simulation Engine]
+        Debate[Debate Engine]
+        Jarvis[Jarvis Integration]
+    end
+    
+    subgraph "Data Sources"
+        RSS[RSS Feeds]
+        News[Google News]
+        Reddit[Reddit]
+        GitHub[GitHub]
+        X[X/Twitter]
+        GDELT[GDELT]
+    end
+    
+    subgraph "Storage"
+        PostgreSQL[(PostgreSQL)]
+        Redis[(Redis)]
+        MinIO[(MinIO)]
+    end
+    
+    Console --> API
+    API --> Evidence
+    API --> Simulation
+    API --> Debate
+    API --> Jarvis
+    
+    Evidence --> RSS
+    Evidence --> News
+    Evidence --> Reddit
+    Evidence --> GitHub
+    Evidence --> X
+    Evidence --> GDELT
+    
+    Evidence --> PostgreSQL
+    Simulation --> PostgreSQL
+    Debate --> PostgreSQL
+    Jarvis --> PostgreSQL
+    
+    Evidence --> Redis
+    Simulation --> Redis
+    Debate --> Redis
+    
+    Evidence --> MinIO
+    Simulation --> MinIO
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Strategic Console                 │
-├─────────────────────────────────────────────────────┤
-│                  FastAPI Control Plane              │
-├─────────────┬─────────────┬─────────────────────────┤
-│  Evidence   │ Simulation  │      Debate Engine      │
-│  Ingestion  │   Engine    │   (Multi-Agent AI)      │
-├─────────────┼─────────────┼─────────────────────────┤
-│  Source Adapters │ Corporate │ Military │  Jarvis   │
-│  (RSS, News,     │ Models    │ Models   │  Integration│
-│   Reddit, X...)  │           │          │            │
-└─────────────────────────────────────────────────────┘
-```
+
+**Key Components:**
+- **Strategic Console**: Web-based UI for evidence review, scenario comparison, and decision tracing
+- **FastAPI Control Plane**: RESTful API with 65+ endpoints for all platform operations
+- **Evidence Ingestion**: Multi-source data collection with AI-powered extraction
+- **Simulation Engine**: Corporate and military scenario modeling with deterministic decision traces
+- **Debate Engine**: Multi-agent AI debate protocol for rigorous decision validation
+- **Jarvis Integration**: External AI runtime for self-review, cross-review, and repair cycles
+- **Storage Layer**: PostgreSQL for persistence, Redis for event bus, MinIO for object storage
 
 ## 📚 Documentation
 
