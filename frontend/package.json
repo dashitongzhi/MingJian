@@ -1,5 +1,5 @@
 {
-  "name": "planagent-frontend",
+  "name": "mingjian-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "lint": "next lint",
     "package:standalone": "next build",
     "package:static": "NEXT_OUTPUT=export next build",
-    "package:docker": "docker build -t planagent-frontend .",
+    "package:docker": "docker build -t mingjian-frontend .",
     "preview": "next start"
   },
   "dependencies": {

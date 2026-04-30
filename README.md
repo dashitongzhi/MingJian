@@ -1,4 +1,4 @@
-# PlanAgent
+# 明鉴 (MingJian)
 
 **AI-Powered Multi-Agent Platform for Evidence-Driven Scenario Simulation & Strategic Decision-Making**
 
@@ -7,19 +7,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/mingjian?style=social)](https://github.com/dashitongzhi/mingjian/stargazers)
 
-![PlanAgent Dashboard](frontend/public/screenshot.png)
+![明鉴 Dashboard](frontend/public/screenshot.png)
 
 ---
 
-## 🌟 Why PlanAgent? / 为什么选择PlanAgent？
+## 🌟 Why 明鉴? / 为什么选择明鉴？
 
 ### 🔬 Evidence-Driven, Not Guess-Driven / 证据驱动，非猜测驱动
 
-Unlike traditional simulation platforms that rely on assumptions, PlanAgent grounds every decision in **real-world evidence** from 10+ data sources (Google News, Reddit, GitHub, X/Twitter, GDELT, RSS feeds, weather, aviation data). Every claim is traceable, every decision is auditable.
+Unlike traditional simulation platforms that rely on assumptions, 明鉴 grounds every decision in **real-world evidence** from 10+ data sources (Google News, Reddit, GitHub, X/Twitter, GDELT, RSS feeds, weather, aviation data). Every claim is traceable, every decision is auditable.
 
-与传统模拟平台不同，PlanAgent的每个决策都基于来自**10+数据源的真实证据**（Google News、Reddit、GitHub、X/Twitter、GDELT、RSS订阅、天气、航空数据）。每个声明可追溯，每个决策可审计。
+与传统模拟平台不同，明鉴的每个决策都基于来自**10+数据源的真实证据**（Google News、Reddit、GitHub、X/Twitter、GDELT、RSS订阅、天气、航空数据）。每个声明可追溯，每个决策可审计。
 
 ### 🤖 Multi-Agent Debate Protocol / 多代理辩论协议
 
@@ -57,8 +57,8 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 
 ### 详细对比 / Detailed Comparison
 
-| Feature / 特性 | PlanAgent | Traditional Simulation | Single-Agent AI | LangChain/AutoGen |
-|----------------|-----------|------------------------|-----------------|-------------------|
+| Feature / 特性 | 明鉴 | Traditional Simulation | Single-Agent AI | LangChain/AutoGen |
+|----------------|------|------------------------|-----------------|-------------------|
 | **Data Sources / 数据源** | ✅ 10+ real-time sources | ❌ Manual input only | ⚠️ Limited | ⚠️ Limited |
 | **Evidence Chain / 证据链** | ✅ Full traceability | ❌ No tracking | ❌ No tracking | ❌ No tracking |
 | **Multi-Agent Debate / 多代理辩论** | ✅ Adversarial reasoning | ❌ Single model | ❌ Single model | ⚠️ Basic multi-agent |
@@ -78,7 +78,7 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 ### 核心优势总结 / Key Advantages Summary
 
 ```
-PlanAgent vs Others:
+明鉴 vs Others:
 
 证据驱动     ✅ vs ❌    不是猜测，是真实数据
 多代理辩论   ✅ vs ❌    AI之间互相挑战验证
@@ -92,8 +92,8 @@ PlanAgent vs Others:
 
 ### 适用场景对比 / Use Case Comparison
 
-| 场景 / Scenario | PlanAgent | Others |
-|-----------------|-----------|--------|
+| 场景 / Scenario | 明鉴 | Others |
+|-----------------|------|--------|
 | 投资决策前的市场调研 | ✅ 自动采集+分析+辩论 | ❌ 手动搜索+单模型总结 |
 | 军事后勤规划 | ✅ 多源情报+实时模拟 | ❌ 静态分析+人工判断 |
 | 竞争对手分析 | ✅ 10+来源+知识图谱 | ⚠️ 单一来源+简单分析 |
@@ -102,7 +102,7 @@ PlanAgent vs Others:
 
 ---
 
-PlanAgent is an AI-powered multi-agent platform that enables evidence-driven scenario simulation and strategic decision-making for both corporate and military domains. It features a debate protocol, real-time evidence ingestion, and advanced simulation capabilities.
+明鉴 is an AI-powered multi-agent platform that enables evidence-driven scenario simulation and strategic decision-making for both corporate and military domains. It features a debate protocol, real-time evidence ingestion, and advanced simulation capabilities.
 
 ## 🚀 Key Features
 
@@ -113,10 +113,10 @@ PlanAgent is an AI-powered multi-agent platform that enables evidence-driven sce
 - **Strategic Console**: Unified workbench for evidence review, scenario comparison, and decision tracing
 - **Extensible Architecture**: Plugin-based design with YAML-configurable rules and models
 
-## 💡 Why Choose PlanAgent?
+## 💡 Why Choose 明鉴?
 
 ### **1. Evidence-Based Decision Making**
-Unlike traditional simulation platforms, PlanAgent grounds every decision in real-world evidence. The system automatically ingests data from 10+ sources, validates claims, and maintains a complete evidence chain for auditability.
+Unlike traditional simulation platforms, 明鉴 grounds every decision in real-world evidence. The system automatically ingests data from 10+ sources, validates claims, and maintains a complete evidence chain for auditability.
 
 ### **2. Multi-Agent Debate Protocol**
 Critical decisions undergo rigorous multi-agent debate, ensuring:
@@ -126,7 +126,7 @@ Critical decisions undergo rigorous multi-agent debate, ensuring:
 - **Conflict resolution** through structured debate protocols
 
 ### **3. Dual-Domain Expertise**
-PlanAgent supports both corporate and military domains with:
+明鉴 supports both corporate and military domains with:
 - **Corporate**: Market analysis, competitive intelligence, investment research
 - **Military**: Operational planning, logistics optimization, threat assessment
 - **Shared**: Risk management, scenario planning, strategic foresight
@@ -165,8 +165,8 @@ Built with enterprise-grade technologies:
 
 ```bash
 # Clone the repository
-git clone https://github.com/dashitongzhi/planagent.git
-cd planagent
+git clone https://github.com/dashitongzhi/mingjian.git
+cd mingjian
 
 # Backend setup
 python -m venv .venv
@@ -210,8 +210,8 @@ cd frontend
 npm run build
 npm start
 # Or use Docker
-docker build -t planagent-frontend .
-docker run -p 3000:3000 planagent-frontend
+docker build -t mingjian-frontend .
+docker run -p 3000:3000 mingjian-frontend
 ```
 
 **Alternative Packaging Options:**
@@ -297,69 +297,75 @@ graph TB
     Evidence --> GitHub
     Evidence --> X
     Evidence --> GDELT
-    
-    Evidence --> PostgreSQL
-    Simulation --> PostgreSQL
-    Debate --> PostgreSQL
-    Jarvis --> PostgreSQL
-    
-    Evidence --> Redis
-    Simulation --> Redis
-    Debate --> Redis
-    
-    Evidence --> MinIO
-    Simulation --> MinIO
 ```
 
-**Key Components:**
-- **Strategic Console**: Web-based UI for evidence review, scenario comparison, and decision tracing
-- **FastAPI Control Plane**: RESTful API with 65+ endpoints for all platform operations
-- **Evidence Ingestion**: Multi-source data collection with AI-powered extraction
-- **Simulation Engine**: Corporate and military scenario modeling with deterministic decision traces
-- **Debate Engine**: Multi-agent AI debate protocol for rigorous decision validation
-- **Jarvis Integration**: External AI runtime for self-review, cross-review, and repair cycles
-- **Storage Layer**: PostgreSQL for persistence, Redis for event bus, MinIO for object storage
+## 📁 Project Structure
+
+```
+├── src/planagent/           # Python backend
+│   ├── api/                 # FastAPI routes and dependencies
+│   ├── core/                # Database, configuration, logging
+│   ├── models/              # SQLAlchemy ORM models
+│   ├── services/            # Business logic services
+│   ├── engine/              # Simulation engine and actions
+│   ├── rules/               # YAML-based rule definitions
+│   └── worker/              # Background task processing
+├── frontend/                # Next.js frontend
+│   ├── src/app/             # React pages and components
+│   ├── src/lib/             # API client and utilities
+│   └── public/              # Static assets
+├── migrations/              # Alembic database migrations
+├── evidence/                # Evidence-related modules
+├── minio/                   # Object storage integration
+├── postgres/                # PostgreSQL configuration
+└── scripts/                 # Utility scripts
+```
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=planagent
+
+# Run specific test file
+pytest tests/test_debate.py
+
+# Run with verbose output
+pytest -v
+```
 
 ## 📚 Documentation
 
-- **[API Reference](docs/api.md)**: Complete endpoint documentation
-- **[Configuration Guide](docs/configuration.md)**: Environment variables and settings
-- **[Simulation Examples](examples/)**: Ready-to-use scenario templates
-- **[Architecture Overview](docs/architecture.md)**: System design and components
-
-## 🛣️ Roadmap
-
-| Milestone | Status | Description |
-|-----------|--------|-------------|
-| ✅ Phase 1 | Done | Evidence ingestion, source snapshots, claim extraction |
-| ✅ Phase 2 | Done | Corporate simulation, scenario branching, report generation |
-| ✅ Phase 3 | Done | Military baseline, geo-assets, external shocks |
-| ✅ Phase 4 | Done | Unified workbench, debate protocol, strategic console |
-| ✅ Phase 5 | Done | Jarvis integration, self-review, cross-review, repair cycles |
-| 🔄 Phase 6 | In Progress | Frontend workspace, WebSocket streaming, real-time collaboration |
-| 📋 Phase 7 | Planned | Multi-tenant support, role-based access control, SSO integration |
-| 📋 Phase 8 | Planned | ML model fine-tuning, automated insight generation, predictive analytics |
-
-## 🏆 Technical Highlights
-
-- **65+ API endpoints** covering evidence, simulation, debate, and administration
-- **10+ data source adapters**: Google News, Reddit, Hacker News, GitHub, X, GDELT, RSS, weather, aviation
-- **Multi-model AI integration**: GPT, Gemini, Claude, Grok with automatic fallback
-- **Streaming analysis** with real-time progress events
-- **Deterministic decision traces** for full auditability
-- **YAML-configurable rules** for corporate and military domains
-- **Event-driven architecture** with Redis Streams and dead-letter queues
-- **Docker Compose deployment** with PostgreSQL, Redis, and MinIO
+- [Full Technical Report](docs/planagent_full_report.md)
+- [Agent Startup Playbook](docs/agent_startup_playbook.md)
+- [Technical Debt Backlog](TECHNICAL_DEBT_BACKLOG.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```bash
+# Fork the repository
+# Create a feature branch
+git checkout -b feature/amazing-feature
+
+# Make your changes
+# Run tests
+pytest
+
+# Commit your changes
+git commit -m "feat: add amazing feature"
+
+# Push to the branch
+git push origin feature/amazing-feature
+
+# Open a Pull Request
+```
 
 ## 📄 License
 
@@ -368,11 +374,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Built with [FastAPI](https://fastapi.tiangolo.com/)
-- Powered by [SQLAlchemy](https://www.sqlalchemy.org/) and [Pydantic](https://docs.pydantic.dev/)
-- AI capabilities via OpenAI-compatible APIs
+- Frontend powered by [Next.js](https://nextjs.org/)
+- Database: [PostgreSQL](https://www.postgresql.org/) with [pgvector](https://github.com/pgvector/pgvector)
+- Event streaming: [Redis Streams](https://redis.io/docs/data-types/streams/)
+- Object storage: [MinIO](https://min.io/)
+
+## 📞 Support
+
+- 📧 Email: [Your Email]
+- 🐛 Issues: [GitHub Issues](https://github.com/dashitongzhi/mingjian/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/dashitongzhi/mingjian/discussions)
 
 ---
 
-**⭐ Star this repository if you find it useful!**
+**明鉴** — *明察秋毫，鉴往知来*
 
-**📧 Contact**: [dashitongzhi](https://github.com/dashitongzhi)
+**明鉴** — *See Clearly, Judge Wisely*

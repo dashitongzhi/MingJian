@@ -4,8 +4,8 @@ import Link from "next/link";
 import WelcomeGuide from "@/components/WelcomeGuide";
 
 export const metadata: Metadata = {
-  title: "PlanAgent — Decision Intelligence",
-  description: "Multi-agent decision support and wargaming platform",
+  title: "明鉴 (MingJian) — Decision Intelligence",
+  description: "AI-powered multi-agent platform for evidence-driven scenario simulation & strategic decision-making",
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
@@ -106,7 +106,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <path d="M2 12l10 5 10-5" />
                   </svg>
                 </div>
-                <span className="font-semibold text-sm tracking-wide gradient-text">PLANAGENT</span>
+                <span className="font-semibold text-sm tracking-wide gradient-text">明鉴</span>
               </Link>
             </div>
 
@@ -132,7 +132,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">User</div>
-                  <div className="text-xs text-[var(--muted)] truncate">user@planagent.ai</div>
+                  <div className="text-xs text-[var(--muted)] truncate">user@mingjian.ai</div>
                 </div>
               </div>
             </div>

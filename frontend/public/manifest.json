@@ -1,7 +1,7 @@
 {
-  "name": "PlanAgent",
-  "short_name": "PlanAgent",
-  "description": "AI-Powered Multi-Agent Platform for Evidence-Driven Scenario Simulation",
+  "name": "明鉴 (MingJian)",
+  "short_name": "明鉴",
+  "description": "AI-Powered Multi-Agent Platform for Evidence-Driven Scenario Simulation & Strategic Decision-Making",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

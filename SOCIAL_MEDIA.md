@@ -1,10 +1,10 @@
-# PlanAgent - Social Media Copy / 社交媒体文案
+# 明鉴 (MingJian) - Social Media Copy / 社交媒体文案
 
 ## English Version (Twitter/LinkedIn)
 
-🚀 Introducing PlanAgent - The open-source AI platform that's changing strategic decisions.
+🚀 Introducing 明鉴 (MingJian) - The open-source AI platform that's changing strategic decisions.
 
-Why PlanAgent wins:
+Why 明鉴 wins:
 
 ✅ 10+ real-time evidence sources | ❌ Others: manual input
 ✅ Multi-agent debate protocol | ❌ Others: single model
@@ -17,17 +17,17 @@ Why PlanAgent wins:
 
 One platform. Zero black boxes. Full transparency.
 
-🔗 github.com/dashitongzhi/planagent
+🔗 github.com/dashitongzhi/mingjian
 
-#AI #OpenSource #DecisionIntelligence #MultiAgent
+#AI #OpenSource #DecisionIntelligence #MultiAgent #MingJian
 
 ---
 
 ## 中文版 (微博/知乎/朋友圈)
 
-🚀 开源发布 PlanAgent - 改变战略决策方式的AI平台
+🚀 开源发布 明鉴 (MingJian) - 改变战略决策方式的AI平台
 
-为什么选择PlanAgent：
+为什么选择明鉴：
 
 ✅ 10+实时证据源 | ❌ 其他：手动输入
 ✅ 多代理辩论协议 | ❌ 其他：单模型
@@ -40,40 +40,75 @@ One platform. Zero black boxes. Full transparency.
 
 一个平台，零黑箱，完全透明。
 
-🔗 github.com/dashitongzhi/planagent
+🔗 github.com/dashitongzhi/mingjian
 
-#AI #开源 #决策智能 #多代理
+#AI #开源 #决策智能 #多代理 #明鉴
 
 ---
 
 ## 核心优势速记版 / Quick Advantages
 
-```
-PlanAgent vs Others:
+明鉴 vs Others:
 
-证据驱动     ✅ vs ❌
-多代理辩论   ✅ vs ❌
-决策追踪     ✅ vs ❌
-自我修复     ✅ vs ❌
-双领域支持   ✅ vs ❌
-实时流式     ✅ vs ❌
-知识图谱     ✅ vs ❌
-场景分支     ✅ vs ❌
-```
+证据驱动     ✅ vs ❌    不是猜测，是真实数据
+多代理辩论   ✅ vs ❌    AI之间互相挑战验证
+决策追踪     ✅ vs ❌    每一步都可审计
+自我修复     ✅ vs ❌    系统自动审查改进
+双领域支持   ✅ vs ❌    企业+军事全覆盖
+实时流式     ✅ vs ❌    不用等待黑箱完成
+知识图谱     ✅ vs ❌    语义搜索和关联
+场景分支     ✅ vs ❌    多路径模拟对比
 
 ---
 
-## 投资人/招聘版本
+## 适用场景 / Use Cases
 
-PlanAgent: Open-source AI for evidence-driven decisions.
+投资决策前的市场调研 | ✅ 自动采集+分析+辩论 | ❌ 手动搜索+单模型总结
+军事后勤规划 | ✅ 多源情报+实时模拟 | ❌ 静态分析+人工判断
+竞争对手分析 | ✅ 10+来源+知识图谱 | ⚠️ 单一来源+简单分析
+风险评估 | ✅ 多模型辩论+审计追踪 | ❌ 单模型+无追踪
+战略规划 | ✅ 场景分支+KPI对比 | ❌ 单一方案+主观评估
 
-Key differentiators (vs competitors):
-✅ 10+ real-time data sources (they have ❌)
-✅ Multi-agent debate protocol (they have ❌)
-✅ Full audit trails (they have ❌)
-✅ Self-repair engine (they have ❌)
-✅ Corporate + Military domains (they have ❌)
+---
 
-Tech: FastAPI, Next.js 15, PostgreSQL, Redis, pgvector
+## 口号 / Taglines
 
-GitHub: github.com/dashitongzhi/planagent
+**明鉴** — *明察秋毫，鉴往知来*
+
+**明鉴** — *See Clearly, Judge Wisely*
+
+**明鉴** — *Forge Your Decisions with AI*
+
+**明鉴** — *Evidence-Driven, Debate-Tested, Decision-Ready*
+
+---
+
+## 技术栈 / Tech Stack
+
+- **Backend**: FastAPI + SQLAlchemy + Redis Streams + pgvector
+- **Frontend**: Next.js + TypeScript + Tailwind CSS
+- **AI Models**: OpenAI GPT, Anthropic Claude, Google Gemini, xAI Grok
+- **Data Sources**: Google News, Reddit, GitHub, X/Twitter, GDELT, RSS, Weather, Aviation
+- **Storage**: PostgreSQL + MinIO
+- **Deployment**: Docker Compose + Kubernetes
+
+---
+
+## 开源协议 / License
+
+MIT License - 免费使用，自由修改，商业友好
+
+---
+
+## 联系方式 / Contact
+
+- 📧 Email: [Your Email]
+- 🐛 Issues: github.com/dashitongzhi/mingjian/issues
+- 💬 Discussions: github.com/dashitongzhi/mingjian/discussions
+- 🌐 Website: [Your Website]
+
+---
+
+**明鉴** — *明察秋毫，鉴往知来*
+
+**明鉴** — *See Clearly, Judge Wisely*
