@@ -5,6 +5,78 @@ import { fetchEvidence, fetchClaims, fetchKnowledgeGraph, searchKnowledge, fetch
 
 type Tab = "evidence" | "claims" | "graph" | "reputation" | "calibration";
 
+const TAB_CONFIG: { key: Tab; label: string; icon: React.ReactNode }[] = [
+  {
+    key: "evidence",
+    label: "Evidence",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+    ),
+  },
+  {
+    key: "claims",
+    label: "Claims",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
+      </svg>
+    ),
+  },
+  {
+    key: "graph",
+    label: "Knowledge Graph",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="2" y1="12" x2="22" y2="12" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </svg>
+    ),
+  },
+  {
+    key: "reputation",
+    label: "Source Reputation",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+    ),
+  },
+  {
+    key: "calibration",
+    label: "Calibration",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+  },
+];
+
+function ConfidenceBadge({ value }: { value: number }) {
+  const color = value >= 0.7 ? "badge-success" : value >= 0.4 ? "badge-warning" : "badge-error";
+  return <span className={`badge ${color}`}>{(value * 100).toFixed(0)}%</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { class: string; label: string }> = {
+    ACCEPTED: { class: "badge-success", label: "Accepted" },
+    REJECTED: { class: "badge-error", label: "Rejected" },
+    PENDING: { class: "badge-warning", label: "Pending" },
+  };
+  const cfg = config[status] || config.PENDING;
+  return <span className={`badge ${cfg.class}`}>{cfg.label}</span>;
+}
+
 export default function EvidencePage() {
   const [tab, setTab] = useState<Tab>("evidence");
   const [q, setQ] = useState("");
@@ -14,17 +86,280 @@ export default function EvidencePage() {
   const { data: rep } = useSWR(tab === "reputation" ? "rep" : null, fetchSourceReputations);
   const { data: sb } = useSWR(tab === "calibration" ? "sb" : null, fetchScoreboard);
   const { data: sr } = useSWR(q.length > 2 ? `sr-${q}` : null, () => searchKnowledge(q), { dedupingInterval: 1000 });
-  const TABS: { key: Tab; label: string }[] = [{ key: "evidence", label: "Evidence" }, { key: "claims", label: "Claims" }, { key: "graph", label: "Knowledge Graph" }, { key: "reputation", label: "Source Reputation" }, { key: "calibration", label: "Calibration" }];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-lg font-bold">Intelligence Center</h1>
-      <div className="flex gap-1">{TABS.map((t) => <button key={t.key} onClick={() => setTab(t.key)} className={`text-xs px-3 py-1.5 rounded ${tab === t.key ? "bg-[var(--accent)] text-white" : "bg-[var(--card)] text-[var(--muted)]"}`}>{t.label}</button>)}</div>
-      {tab === "evidence" && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg"><table className="w-full text-xs"><thead><tr className="text-[var(--muted)] border-b border-[var(--card-border)]"><th className="text-left p-3">Title</th><th className="text-left p-3">Summary</th><th className="text-right p-3">Confidence</th></tr></thead><tbody>{ev?.map((e) => <tr key={e.id} className="border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--background)]"><td className="p-3 max-w-xs truncate">{e.title}</td><td className="p-3 text-[var(--muted)] max-w-md truncate">{e.summary}</td><td className="p-3 text-right"><span className={e.confidence >= 0.7 ? "text-[var(--accent-green)]" : e.confidence >= 0.4 ? "text-[var(--accent-yellow)]" : "text-[var(--accent-red)]"}>{(e.confidence * 100).toFixed(0)}%</span></td></tr>)}</tbody></table>{(!ev || !ev.length) && <div className="text-sm text-[var(--muted)] text-center py-8">No evidence</div>}</div>}
-      {tab === "claims" && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg"><table className="w-full text-xs"><thead><tr className="text-[var(--muted)] border-b border-[var(--card-border)]"><th className="text-left p-3">Statement</th><th className="text-right p-3">Confidence</th><th className="text-right p-3">Status</th></tr></thead><tbody>{cl?.map((c) => <tr key={c.id} className="border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--background)]"><td className="p-3 max-w-xl truncate">{c.statement}</td><td className="p-3 text-right">{(c.confidence * 100).toFixed(0)}%</td><td className="p-3 text-right"><span className={`px-2 py-0.5 rounded ${c.status === "ACCEPTED" ? "bg-[var(--accent-green)]/20 text-[var(--accent-green)]" : c.status === "REJECTED" ? "bg-[var(--accent-red)]/20 text-[var(--accent-red)]" : "bg-[var(--accent-yellow)]/20 text-[var(--accent-yellow)]"}`}>{c.status}</span></td></tr>)}</tbody></table>{(!cl || !cl.length) && <div className="text-sm text-[var(--muted)] text-center py-8">No claims</div>}</div>}
-      {tab === "graph" && <div className="space-y-4"><div className="flex gap-2"><input className="flex-1 bg-[var(--card)] border border-[var(--card-border)] rounded p-2 text-sm" placeholder="Search knowledge graph..." value={q} onChange={(e) => setQ(e.target.value)} /></div>{sr && sr.length > 0 && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4"><h3 className="text-sm font-semibold mb-2">Results</h3>{sr.map((r) => <div key={r.node_id} className="text-xs py-1.5 flex justify-between border-b border-[var(--card-border)] last:border-0"><span>{r.label}</span><span className="text-[var(--accent)]">{(r.score * 100).toFixed(0)}%</span></div>)}</div>}{graph && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4"><h3 className="text-sm font-semibold mb-2">{graph.nodes.length} nodes, {graph.edges.length} edges</h3><div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">{graph.nodes.slice(0, 80).map((n) => <div key={n.node_id} className="text-xs p-2 rounded bg-[var(--background)] border border-[var(--card-border)]"><div className="font-medium truncate">{n.label}</div><div className="text-[var(--muted)]">{n.node_type}</div></div>)}</div></div>}</div>}
-      {tab === "reputation" && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg"><table className="w-full text-xs"><thead><tr className="text-[var(--muted)] border-b border-[var(--card-border)]"><th className="text-left p-3">Source</th><th className="text-left p-3">Type</th><th className="text-right p-3">Reputation</th><th className="text-right p-3">Confirmed</th><th className="text-right p-3">Refuted</th></tr></thead><tbody>{rep?.sort((a, b) => b.reputation_score - a.reputation_score).map((r, i) => <tr key={i} className="border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--background)]"><td className="p-3">{r.display_name || r.source_key}</td><td className="p-3 text-[var(--muted)]">{r.source_type || "—"}</td><td className="p-3 text-right"><span className={r.reputation_score >= 0.6 ? "text-[var(--accent-green)]" : "text-[var(--accent-yellow)]"}>{r.reputation_score.toFixed(3)}</span></td><td className="p-3 text-right text-[var(--accent-green)]">{r.confirmed_count}</td><td className="p-3 text-right text-[var(--accent-red)]">{r.refuted_count}</td></tr>)}</tbody></table>{(!rep || !rep.length) && <div className="text-sm text-[var(--muted)] text-center py-8">No data</div>}</div>}
-      {tab === "calibration" && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4">{sb ? <div className="space-y-4"><div className="grid grid-cols-4 gap-4 text-center"><div><div className="text-2xl font-bold">{sb.total_hypotheses}</div><div className="text-xs text-[var(--muted)]">Total</div></div><div><div className="text-2xl font-bold text-[var(--accent-green)]">{(sb.accuracy * 100).toFixed(0)}%</div><div className="text-xs text-[var(--muted)]">Accuracy</div></div><div><div className="text-2xl font-bold">{sb.brier_score?.toFixed(3) ?? "—"}</div><div className="text-xs text-[var(--muted)]">Brier</div></div><div><div className="text-2xl font-bold text-[var(--accent)]">{sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "—"}</div><div className="text-xs text-[var(--muted)]">vs Human</div></div></div><div className="grid grid-cols-3 gap-4 text-center"><div className="p-3 rounded bg-[var(--accent-green)]/10"><div className="text-lg font-bold text-[var(--accent-green)]">{sb.confirmed}</div><div className="text-xs text-[var(--muted)]">Confirmed</div></div><div className="p-3 rounded bg-[var(--accent-red)]/10"><div className="text-lg font-bold text-[var(--accent-red)]">{sb.refuted}</div><div className="text-xs text-[var(--muted)]">Refuted</div></div><div className="p-3 rounded bg-[var(--accent-yellow)]/10"><div className="text-lg font-bold text-[var(--accent-yellow)]">{sb.pending}</div><div className="text-xs text-[var(--muted)]">Pending</div></div></div></div> : <div className="text-sm text-[var(--muted)] text-center py-8">Loading...</div>}</div>}
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold">Intelligence Center</h1>
+        <p className="text-[var(--muted)] mt-1">Browse evidence, claims, knowledge graph, and source reputation</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 p-1 bg-[var(--card)] rounded-xl border border-[var(--card-border)]">
+        {TAB_CONFIG.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              tab === t.key
+                ? "bg-[var(--accent)] text-white"
+                : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]"
+            }`}
+          >
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {tab === "evidence" && (
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[var(--card-border)]">
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Title</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Summary</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ev?.map((e) => (
+                <tr key={e.id} className="border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--card-hover)] transition-colors">
+                  <td className="p-4 max-w-xs">
+                    <div className="text-sm font-medium truncate">{e.title}</div>
+                  </td>
+                  <td className="p-4 max-w-md">
+                    <div className="text-sm text-[var(--muted)] truncate">{e.summary}</div>
+                  </td>
+                  <td className="p-4 text-right">
+                    <ConfidenceBadge value={e.confidence} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(!ev || ev.length === 0) && (
+            <div className="empty-state py-12">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <div className="empty-state-title">No evidence yet</div>
+              <div className="empty-state-description">Evidence will appear here as the system ingests data</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "claims" && (
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[var(--card-border)]">
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Statement</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Confidence</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cl?.map((c) => (
+                <tr key={c.id} className="border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--card-hover)] transition-colors">
+                  <td className="p-4 max-w-xl">
+                    <div className="text-sm truncate">{c.statement}</div>
+                  </td>
+                  <td className="p-4 text-right">
+                    <ConfidenceBadge value={c.confidence} />
+                  </td>
+                  <td className="p-4 text-right">
+                    <StatusBadge status={c.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(!cl || cl.length === 0) && (
+            <div className="empty-state py-12">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <div className="empty-state-title">No claims yet</div>
+              <div className="empty-state-description">Claims will be extracted from evidence automatically</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "graph" && (
+        <div className="space-y-4">
+          {/* Search */}
+          <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input
+                  className="input pl-10"
+                  placeholder="Search knowledge graph..."
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Search results */}
+          {sr && sr.length > 0 && (
+            <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+              <h3 className="text-sm font-semibold mb-3">Search Results ({sr.length})</h3>
+              <div className="space-y-2">
+                {sr.map((r) => (
+                  <div key={r.node_id} className="flex items-center justify-between p-3 rounded-lg hover:bg-[var(--card-hover)] transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="2" y1="12" x2="22" y2="12" />
+                          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm">{r.label}</span>
+                    </div>
+                    <span className="badge badge-info">{(r.score * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Graph stats */}
+          {graph && (
+            <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold">Knowledge Graph</h3>
+                <div className="flex items-center gap-4 text-xs text-[var(--muted)]">
+                  <span>{graph.nodes.length} nodes</span>
+                  <span>•</span>
+                  <span>{graph.edges.length} edges</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto">
+                {graph.nodes.slice(0, 80).map((n) => (
+                  <div key={n.node_id} className="p-3 rounded-lg border border-[var(--card-border)] hover:border-[var(--accent)] transition-colors">
+                    <div className="text-sm font-medium truncate">{n.label}</div>
+                    <div className="text-xs text-[var(--muted)] mt-1">{n.node_type}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "reputation" && (
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[var(--card-border)]">
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Source</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Type</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Reputation</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Confirmed</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Refuted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rep
+                ?.sort((a, b) => b.reputation_score - a.reputation_score)
+                .map((r, i) => (
+                  <tr key={i} className="border-b border-[var(--card-border)] last:border-0 hover:bg-[var(--card-hover)] transition-colors">
+                    <td className="p-4">
+                      <div className="text-sm font-medium">{r.display_name || r.source_key}</div>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-sm text-[var(--muted)]">{r.source_type || "—"}</span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <span className={`text-sm font-mono ${r.reputation_score >= 0.6 ? "text-[var(--accent-green)]" : "text-[var(--accent-yellow)]"}`}>
+                        {r.reputation_score.toFixed(3)}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <span className="text-sm text-[var(--accent-green)]">{r.confirmed_count}</span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <span className="text-sm text-[var(--accent-red)]">{r.refuted_count}</span>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          {(!rep || rep.length === 0) && (
+            <div className="empty-state py-12">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <div className="empty-state-title">No reputation data</div>
+              <div className="empty-state-description">Source reputation will be tracked as evidence is validated</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "calibration" && (
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-6">
+          {sb ? (
+            <div className="space-y-6">
+              {/* Main stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="text-center p-4 rounded-lg bg-[var(--background)]">
+                  <div className="text-3xl font-bold">{sb.total_hypotheses}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">Total Hypotheses</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-[var(--background)]">
+                  <div className="text-3xl font-bold text-[var(--accent-green)]">{(sb.accuracy * 100).toFixed(0)}%</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">Accuracy</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-[var(--background)]">
+                  <div className="text-3xl font-bold">{sb.brier_score?.toFixed(3) ?? "—"}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">Brier Score</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-[var(--background)]">
+                  <div className="text-3xl font-bold text-[var(--accent)]">
+                    {sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "—"}
+                  </div>
+                  <div className="text-xs text-[var(--muted)] mt-1">vs Human</div>
+                </div>
+              </div>
+
+              {/* Status breakdown */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 rounded-lg bg-[var(--accent-green-bg)]">
+                  <div className="text-2xl font-bold text-[var(--accent-green)]">{sb.confirmed}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">Confirmed</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-[var(--accent-red-bg)]">
+                  <div className="text-2xl font-bold text-[var(--accent-red)]">{sb.refuted}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">Refuted</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-[var(--accent-yellow-bg)]">
+                  <div className="text-2xl font-bold text-[var(--accent-yellow)]">{sb.pending}</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">Pending</div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="empty-state py-12">
+              <div className="spinner mx-auto mb-4" />
+              <div className="empty-state-title">Loading calibration data...</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

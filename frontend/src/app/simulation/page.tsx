@@ -3,14 +3,73 @@ import { useState } from "react";
 import useSWR from "swr";
 import { fetchSimulationRuns, fetchWorkbench, createSimulationRun, type WorkbenchData } from "@/lib/api";
 
-function StateChart({ wb }: { wb: WorkbenchData }) {
-  const metrics = wb.kpi_comparator?.metrics || [];
-  if (!metrics.length) return null;
-  const mx = Math.max(...metrics.map((m) => Math.abs(m.delta ?? 0)), 1);
-  return <div className="space-y-2">{metrics.map((m) => {
-    const pct = ((m.delta ?? 0) / mx) * 50;
-    return <div key={m.metric} className="flex items-center gap-2 text-xs"><div className="w-32 text-right text-[var(--muted)] truncate">{m.metric}</div><div className="flex-1 h-4 bg-[var(--background)] rounded relative overflow-hidden"><div className={`absolute top-0 h-full rounded ${(m.delta ?? 0) >= 0 ? "bg-[var(--accent-green)]" : "bg-[var(--accent-red)]"}`} style={{ left: pct >= 0 ? "50%" : `${50 + pct}%`, width: `${Math.abs(pct)}%` }} /><div className="absolute top-0 left-1/2 w-px h-full bg-[var(--muted)]/30" /></div><div className="w-16 text-right font-mono">{(m.delta ?? 0).toFixed(3)}</div></div>;
-  })}</div>;
+function KPIBar({ metric, delta }: { metric: string; delta: number }) {
+  const maxDelta = Math.abs(delta);
+  const pct = (delta / Math.max(maxDelta, 1)) * 50;
+  const isPositive = delta >= 0;
+
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="w-32 text-right text-xs text-[var(--muted)] truncate">{metric}</div>
+      <div className="flex-1 h-6 bg-[var(--background)] rounded-full relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 w-px h-full bg-[var(--muted)]/20" />
+        <div
+          className={`absolute top-0 h-full rounded-full transition-all duration-500 ${isPositive ? "bg-[var(--accent-green)]" : "bg-[var(--accent-red)]"}`}
+          style={{
+            left: isPositive ? "50%" : `${50 + pct}%`,
+            width: `${Math.abs(pct)}%`,
+          }}
+        />
+      </div>
+      <div className={`w-20 text-right text-xs font-mono ${isPositive ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
+        {isPositive ? "+" : ""}{delta.toFixed(3)}
+      </div>
+    </div>
+  );
+}
+
+function TimelineEvent({ event }: { event: { event_id: string; tick?: number | null; event_type: string; title: string } }) {
+  const typeColors: Record<string, string> = {
+    decision: "bg-blue-500",
+    outcome: "bg-green-500",
+    risk: "bg-red-500",
+    opportunity: "bg-yellow-500",
+    default: "bg-gray-500",
+  };
+
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-[var(--card-border)] last:border-0">
+      <div className={`w-2 h-2 rounded-full mt-2 ${typeColors[event.event_type] || typeColors.default}`} />
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          {event.tick != null && (
+            <span className="text-xs font-mono text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded">
+              T{event.tick}
+            </span>
+          )}
+          <span className="text-xs text-[var(--muted)] uppercase">{event.event_type}</span>
+        </div>
+        <p className="text-sm mt-1">{event.title}</p>
+      </div>
+    </div>
+  );
+}
+
+function GeoAssetCard({ asset }: { asset: { name: string; asset_type: string; latitude: number; longitude: number } }) {
+  return (
+    <div className="p-3 rounded-lg border border-[var(--card-border)] hover:border-[var(--accent)] transition-colors">
+      <div className="flex items-center gap-2 mb-1">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+        <span className="text-sm font-medium">{asset.name}</span>
+      </div>
+      <div className="text-xs text-[var(--muted)]">
+        {asset.asset_type} &middot; {asset.latitude.toFixed(4)}, {asset.longitude.toFixed(4)}
+      </div>
+    </div>
+  );
 }
 
 export default function SimulationPage() {
@@ -20,26 +79,200 @@ export default function SimulationPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [domain, setDomain] = useState("corporate");
   const [ticks, setTicks] = useState(6);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      await createSimulationRun({
+        domain_id: domain,
+        tick_count: ticks,
+        actor_template: domain === "military" ? "brigade" : "ai_model_provider",
+      });
+      setShowCreate(false);
+      mutate();
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const statusColors: Record<string, { bg: string; text: string }> = {
+    COMPLETED: { bg: "badge-success", text: "text-[var(--accent-green)]" },
+    FAILED: { bg: "badge-error", text: "text-[var(--accent-red)]" },
+    RUNNING: { bg: "badge-warning", text: "text-[var(--accent-yellow)]" },
+    PENDING: { bg: "badge-warning", text: "text-[var(--accent-yellow)]" },
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between"><h1 className="text-lg font-bold">Simulation Runs</h1><button onClick={() => setShowCreate(!showCreate)} className="text-xs bg-[var(--accent)] text-white px-3 py-1.5 rounded">New Run</button></div>
-        {showCreate && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4 space-y-2">
-          <select className="w-full bg-[var(--background)] border border-[var(--card-border)] rounded p-2 text-sm" value={domain} onChange={(e) => setDomain(e.target.value)}><option value="corporate">Corporate</option><option value="military">Military</option></select>
-          <div className="text-xs text-[var(--muted)]">Ticks: {ticks}</div><input type="range" min={2} max={12} value={ticks} onChange={(e) => setTicks(Number(e.target.value))} className="w-full" />
-          <button onClick={async () => { await createSimulationRun({ domain_id: domain, tick_count: ticks, actor_template: domain === "military" ? "brigade" : "ai_model_provider" }); setShowCreate(false); mutate(); }} className="w-full bg-[var(--accent-green)] text-white rounded py-2 text-xs">Create & Run</button>
-        </div>}
-        <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto">{runs?.map((r) => <button key={r.id} onClick={() => setSel(r.id)} className={`w-full text-left p-3 rounded border transition-colors ${sel === r.id ? "border-[var(--accent)] bg-[var(--accent)]/10" : "border-[var(--card-border)] bg-[var(--card)]"}`}>
-          <div className="flex justify-between"><span className="text-xs font-mono">{r.id.slice(0, 8)}</span><span className={`text-xs ${r.status === "COMPLETED" ? "text-[var(--accent-green)]" : r.status === "FAILED" ? "text-[var(--accent-red)]" : "text-[var(--accent-yellow)]"}`}>{r.status}</span></div>
-          <div className="text-xs text-[var(--muted)] mt-1">{r.domain_id} &middot; {r.tick_count} ticks &middot; {r.actor_template}</div>
-        </button>)}{(!runs || !runs.length) && <div className="text-sm text-[var(--muted)] text-center py-8">No runs yet</div>}</div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Simulation</h1>
+          <p className="text-[var(--muted)] mt-1">Run and analyze scenario simulations with branching</p>
+        </div>
+        <button onClick={() => setShowCreate(!showCreate)} className="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Simulation
+        </button>
       </div>
-      <div className="space-y-4">{wb ? (<>
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4"><h2 className="text-sm font-semibold mb-3">KPI Comparator</h2><StateChart wb={wb} /></div>
-        {wb.timeline.length > 0 && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4"><h2 className="text-sm font-semibold mb-2">Timeline ({wb.timeline.length})</h2><div className="space-y-1 max-h-60 overflow-y-auto">{wb.timeline.map((e) => <div key={e.event_id} className="text-xs py-1 border-b border-[var(--card-border)] last:border-0"><span className="text-[var(--accent)] font-mono mr-2">{e.tick != null ? `T${e.tick}` : "—"}</span><span className="text-[var(--muted)] mr-2">[{e.event_type}]</span>{e.title}</div>)}</div></div>}
-        {wb.geo_map?.assets?.length > 0 && <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-lg p-4"><h2 className="text-sm font-semibold mb-2">Geo Assets {wb.geo_map.theater ? `— ${wb.geo_map.theater}` : ""}</h2><div className="grid grid-cols-2 gap-2">{wb.geo_map.assets.map((a, i) => <div key={i} className="text-xs p-2 rounded bg-[var(--background)]"><div className="font-medium">{a.name}</div><div className="text-[var(--muted)]">{a.asset_type} &middot; {a.latitude.toFixed(2)}, {a.longitude.toFixed(2)}</div></div>)}</div></div>}
-      </>) : <div className="text-sm text-[var(--muted)] text-center py-16">Select a simulation run</div>}</div>
+
+      {/* Create form */}
+      {showCreate && (
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 animate-fadeIn">
+          <h2 className="text-sm font-semibold mb-4">Create New Simulation</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-xs text-[var(--muted)] mb-1 block">Domain</label>
+              <select className="input select" value={domain} onChange={(e) => setDomain(e.target.value)}>
+                <option value="corporate">Corporate</option>
+                <option value="military">Military</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-[var(--muted)] mb-1 block">Time Steps: {ticks}</label>
+              <div className="flex items-center gap-3">
+                <input type="range" min={2} max={12} value={ticks} onChange={(e) => setTicks(Number(e.target.value))} className="flex-1" />
+                <span className="text-sm font-mono w-8 text-center">{ticks}</span>
+              </div>
+            </div>
+            <div className="flex items-end">
+              <button onClick={handleCreate} disabled={creating} className="btn btn-primary w-full">
+                {creating ? (
+                  <>
+                    <div className="spinner" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create & Run"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
+        {/* Left panel - Runs list */}
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+            Simulation Runs ({runs?.length ?? 0})
+          </h2>
+          <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
+            {runs?.map((r) => {
+              const status = statusColors[r.status] || statusColors.PENDING;
+              return (
+                <button
+                  key={r.id}
+                  onClick={() => setSel(r.id)}
+                  className={`w-full text-left p-4 rounded-lg border transition-all ${
+                    sel === r.id
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--card-border)] hover:border-[var(--muted)] hover:bg-[var(--card-hover)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-mono text-[var(--muted)]">{r.id.slice(0, 8)}</span>
+                    <span className={`badge ${status.bg}`}>{r.status}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                    <span className="capitalize">{r.domain_id}</span>
+                    <span>•</span>
+                    <span>{r.tick_count} ticks</span>
+                    <span>•</span>
+                    <span>{r.actor_template}</span>
+                  </div>
+                </button>
+              );
+            })}
+            {(!runs || runs.length === 0) && (
+              <div className="empty-state py-8">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+                <div className="empty-state-title">No simulations yet</div>
+                <div className="empty-state-description">Create a new simulation to get started</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right panel - Workbench */}
+        <div className="space-y-4">
+          {wb ? (
+            <>
+              {/* KPI Comparator */}
+              <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+                <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  </svg>
+                  KPI Comparator
+                </h2>
+                <KPIBar metric="Overall" delta={wb.kpi_comparator?.metrics?.[0]?.delta ?? 0} />
+                {wb.kpi_comparator?.metrics?.slice(1).map((m) => (
+                  <KPIBar key={m.metric} metric={m.metric} delta={m.delta ?? 0} />
+                ))}
+              </div>
+
+              {/* Timeline */}
+              {wb.timeline.length > 0 && (
+                <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+                  <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    Timeline ({wb.timeline.length})
+                  </h2>
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {wb.timeline.map((e) => (
+                      <TimelineEvent key={e.event_id} event={e} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Geo Assets */}
+              {wb.geo_map?.assets?.length > 0 && (
+                <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+                  <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    Geo Assets {wb.geo_map.theater ? `— ${wb.geo_map.theater}` : ""}
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {wb.geo_map.assets.map((a, i) => (
+                      <GeoAssetCard key={i} asset={a} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 min-h-[400px] flex items-center justify-center">
+              <div className="empty-state">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+                <div className="empty-state-title">Select a simulation run</div>
+                <div className="empty-state-description">Choose a simulation from the list to view its workbench and analysis results</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
