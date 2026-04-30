@@ -18,6 +18,38 @@ PlanAgent is an AI-powered multi-agent platform that enables evidence-driven sce
 - **Strategic Console**: Unified workbench for evidence review, scenario comparison, and decision tracing
 - **Extensible Architecture**: Plugin-based design with YAML-configurable rules and models
 
+## 💡 Why Choose PlanAgent?
+
+### **1. Evidence-Based Decision Making**
+Unlike traditional simulation platforms, PlanAgent grounds every decision in real-world evidence. The system automatically ingests data from 10+ sources, validates claims, and maintains a complete evidence chain for auditability.
+
+### **2. Multi-Agent Debate Protocol**
+Critical decisions undergo rigorous multi-agent debate, ensuring:
+- **Diverse perspectives** from different AI models
+- **Evidence-backed arguments** with source attribution
+- **Transparent reasoning** with complete audit trails
+- **Conflict resolution** through structured debate protocols
+
+### **3. Dual-Domain Expertise**
+PlanAgent supports both corporate and military domains with:
+- **Corporate**: Market analysis, competitive intelligence, investment research
+- **Military**: Operational planning, logistics optimization, threat assessment
+- **Shared**: Risk management, scenario planning, strategic foresight
+
+### **4. Production-Ready Architecture**
+Built with enterprise-grade technologies:
+- **FastAPI** for high-performance async APIs
+- **SQLAlchemy** for robust database operations
+- **Redis Streams** for scalable event processing
+- **pgvector** for AI-powered similarity search
+- **Docker Compose** for easy deployment
+
+### **5. Extensible & Customizable**
+- **YAML-based configuration** for rules and models
+- **Plugin architecture** for custom data sources
+- **API-first design** for integration with existing systems
+- **Open-source** with MIT license for maximum flexibility
+
 ## 🎯 Use Cases
 
 - **Corporate Strategy**: Market analysis, competitive intelligence, and scenario planning
