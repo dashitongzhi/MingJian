@@ -15,7 +15,7 @@ Thank you for your interest in contributing to 明鉴! This document provides gu
 
 1. **Fork and clone** the repository:
    ```bash
-   git clone https://github.com/your-username/mingjian.git
+   git clone https://github.com/your-username/planagent.git
    cd mingjian
    ```
 
@@ -154,8 +154,8 @@ pytest -v
 ## 📞 Getting Help
 
 - 📧 Email: [Your Email]
-- 🐛 Issues: github.com/dashitongzhi/mingjian/issues
-- 💬 Discussions: github.com/dashitongzhi/mingjian/discussions
+- 🐛 Issues: github.com/dashitongzhi/planagent/issues
+- 💬 Discussions: github.com/dashitongzhi/planagent/discussions
 
 ## 🙏 Acknowledgments
 

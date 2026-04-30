@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mingjian"
+name = "planagent"
 version = "0.1.0"
 description = "AI-powered multi-agent platform for evidence-driven scenario simulation & strategic decision-making."
 readme = "README.md"
@@ -34,8 +34,8 @@ dev = [
 ]
 
 [project.scripts]
-mingjian-api = "planagent.main:run"
-mingjian-worker = "planagent.worker_cli:main"
+planagent-api = "planagent.main:run"
+planagent-worker = "planagent.worker_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
