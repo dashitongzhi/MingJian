@@ -2,12 +2,69 @@
 
 **AI-Powered Multi-Agent Platform for Evidence-Driven Scenario Simulation & Strategic Decision-Making**
 
+**AI驱动的多代理平台 | 证据驱动的场景模拟与战略决策**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/planagent?style=social)](https://github.com/dashitongzhi/planagent/stargazers)
 
 ![PlanAgent Dashboard](frontend/public/screenshot.png)
+
+---
+
+## 🌟 Why PlanAgent? / 为什么选择PlanAgent？
+
+### 🔬 Evidence-Driven, Not Guess-Driven / 证据驱动，非猜测驱动
+
+Unlike traditional simulation platforms that rely on assumptions, PlanAgent grounds every decision in **real-world evidence** from 10+ data sources (Google News, Reddit, GitHub, X/Twitter, GDELT, RSS feeds, weather, aviation data). Every claim is traceable, every decision is auditable.
+
+与传统模拟平台不同，PlanAgent的每个决策都基于来自**10+数据源的真实证据**（Google News、Reddit、GitHub、X/Twitter、GDELT、RSS订阅、天气、航空数据）。每个声明可追溯，每个决策可审计。
+
+### 🤖 Multi-Agent Debate Protocol / 多代理辩论协议
+
+Critical decisions undergo **rigorous multi-agent debate** — multiple AI models (GPT, Gemini, Claude, Grok) argue different perspectives, challenge assumptions, and reach evidence-backed conclusions. This isn't just multi-model; it's **adversarial reasoning** for decision validation.
+
+关键决策经过**严格的多代理辩论** — 多个AI模型（GPT、Gemini、Claude、Grok）从不同角度论证、挑战假设、达成有证据支持的结论。这不是简单的多模型，而是用于决策验证的**对抗性推理**。
+
+### 🎯 Dual-Domain Expertise / 双领域专业能力
+
+One platform, two domains: **Corporate** (market analysis, competitive intelligence, investment research) and **Military** (operational planning, logistics optimization, threat assessment). Shared infrastructure, domain-specific rules.
+
+一个平台，两个领域：**企业**（市场分析、竞争情报、投资研究）和**军事**（作战规划、物流优化、威胁评估）。共享基础设施，领域特定规则。
+
+### 🔍 Full Auditability with Decision Traces / 完全可审计的决策追踪
+
+Every simulation produces a **deterministic decision trace** — a step-by-step record of how the AI reached its conclusion. No black boxes. Full transparency for compliance, review, and learning.
+
+每个模拟产生**确定性决策追踪** — AI如何得出结论的逐步记录。没有黑箱。完全透明，用于合规、审查和学习。
+
+### 🛡️ Jarvis Self-Repair Engine / Jarvis自我修复引擎
+
+Integrated AI runtime for **self-review, cross-review, and automatic repair**. The system reviews its own outputs, identifies weaknesses, and iterates until quality thresholds are met — all without human intervention.
+
+集成的AI运行时，用于**自我审查、交叉审查和自动修复**。系统审查自己的输出，识别弱点，并迭代直到达到质量阈值 — 全程无需人工干预。
+
+### ⚡ Real-Time Streaming Analysis / 实时流式分析
+
+Submit an analysis request and watch the AI work in real-time — streaming progress events, source attribution, and intermediate results. No waiting for black-box completion.
+
+提交分析请求，实时观看AI工作 — 流式进度事件、来源归属和中间结果。无需等待黑箱完成。
+
+---
+
+## 🆚 Comparison with Other Projects / 与其他项目的对比
+
+| Feature / 特性 | PlanAgent | Traditional Simulation | Single-Agent AI |
+|----------------|-----------|------------------------|-----------------|
+| Evidence Sources / 证据源 | 10+ real-time sources | Manual input | Limited |
+| Decision Validation / 决策验证 | Multi-agent debate | Single model | Single model |
+| Auditability / 可审计性 | Full decision traces | Limited | None |
+| Self-Repair / 自我修复 | Jarvis engine | None | None |
+| Domain Support / 领域支持 | Corporate + Military | Single domain | Generic |
+| Streaming / 流式 | Real-time events | Batch only | Batch only |
+
+---
 
 PlanAgent is an AI-powered multi-agent platform that enables evidence-driven scenario simulation and strategic decision-making for both corporate and military domains. It features a debate protocol, real-time evidence ingestion, and advanced simulation capabilities.
 
