@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E3A8A;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7C3AED;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#EC4899;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="64" fill="url(#grad1)"/>
+  
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="white" stroke-width="4" opacity="0.3"/>
+  
+  <!-- Inner ring -->
+  <circle cx="256" cy="256" r="140" fill="none" stroke="white" stroke-width="4" opacity="0.5"/>
+  
+  <!-- 明 character - stylized -->
+  <g transform="translate(176, 176)" fill="white">
+    <!-- Sun (日) -->
+    <rect x="20" y="20" width="60" height="60" rx="8" fill="none" stroke="white" stroke-width="6"/>
+    <line x1="50" y1="20" x2="50" y2="80" stroke="white" stroke-width="4" opacity="0.5"/>
+    <line x1="20" y1="50" x2="80" y2="50" stroke="white" stroke-width="4" opacity="0.5"/>
+    
+    <!-- Moon (月) -->
+    <rect x="100" y="20" width="60" height="60" rx="8" fill="none" stroke="white" stroke-width="6"/>
+    <line x1="130" y1="20" x2="130" y2="80" stroke="white" stroke-width="4" opacity="0.5"/>
+    <line x1="100" y1="50" x2="160" y2="50" stroke="white" stroke-width="4" opacity="0.5"/>
+    
+    <!-- 鉴 character - mirror element -->
+    <circle cx="80" cy="120" r="40" fill="none" stroke="white" stroke-width="6"/>
+    <circle cx="80" cy="120" r="20" fill="white" opacity="0.8"/>
+    
+    <!-- Reflection rays -->
+    <line x1="40" y1="80" x2="60" y2="100" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    <line x1="120" y1="80" x2="100" y2="100" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    <line x1="40" y1="160" x2="60" y2="140" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    <line x1="120" y1="160" x2="100" y2="140" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  
+  <!-- AI circuit nodes -->
+  <g fill="white" opacity="0.8">
+    <circle cx="100" cy="100" r="6"/>
+    <circle cx="412" cy="100" r="6"/>
+    <circle cx="100" cy="412" r="6"/>
+    <circle cx="412" cy="412" r="6"/>
+    <circle cx="256" cy="80" r="6"/>
+    <circle cx="256" cy="432" r="6"/>
+    <circle cx="80" cy="256" r="6"/>
+    <circle cx="432" cy="256" r="6"/>
+  </g>
+  
+  <!-- Connection lines -->
+  <g stroke="white" stroke-width="2" opacity="0.4">
+    <line x1="100" y1="100" x2="176" y2="176"/>
+    <line x1="412" y1="100" x2="336" y2="176"/>
+    <line x1="100" y1="412" x2="176" y2="336"/>
+    <line x1="412" y1="412" x2="336" y2="336"/>
+    <line x1="256" y1="80" x2="256" y2="176"/>
+    <line x1="256" y1="432" x2="256" y2="336"/>
+    <line x1="80" y1="256" x2="176" y2="256"/>
+    <line x1="432" y1="256" x2="336" y2="256"/>
+  </g>
+  
+  <!-- AI brain pattern -->
+  <g transform="translate(256, 256)" fill="none" stroke="white" stroke-width="2" opacity="0.6">
+    <circle cx="0" cy="0" r="30"/>
+    <circle cx="0" cy="0" r="20"/>
+    <circle cx="0" cy="0" r="10"/>
+    <line x1="0" y1="-30" x2="0" y2="-50"/>
+    <line x1="30" y1="0" x2="50" y2="0"/>
+    <line x1="0" y1="30" x2="0" y2="50"/>
+    <line x1="-30" y1="0" x2="-50" y2="0"/>
+  </g>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="knowledge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06B6D4" />
+      <stop offset="100%" style="stop-color:#3B82F6" />
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="45" fill="url(#knowledge)" opacity="0.1"/>
+  <circle cx="50" cy="50" r="35" fill="none" stroke="url(#knowledge)" stroke-width="3"/>
+  <!-- Network nodes -->
+  <circle cx="50" cy="30" r="8" fill="url(#knowledge)"/>
+  <circle cx="30" cy="55" r="8" fill="url(#knowledge)"/>
+  <circle cx="70" cy="55" r="8" fill="url(#knowledge)"/>
+  <circle cx="40" cy="75" r="6" fill="url(#knowledge)" opacity="0.7"/>
+  <circle cx="60" cy="75" r="6" fill="url(#knowledge)" opacity="0.7"/>
+  <!-- Connections -->
+  <line x1="50" y1="30" x2="30" y2="55" stroke="url(#knowledge)" stroke-width="2" opacity="0.6"/>
+  <line x1="50" y1="30" x2="70" y2="55" stroke="url(#knowledge)" stroke-width="2" opacity="0.6"/>
+  <line x1="30" y1="55" x2="70" y2="55" stroke="url(#knowledge)" stroke-width="2" opacity="0.6"/>
+  <line x1="30" y1="55" x2="40" y2="75" stroke="url(#knowledge)" stroke-width="2" opacity="0.6"/>
+  <line x1="70" y1="55" x2="60" y2="75" stroke="url(#knowledge)" stroke-width="2" opacity="0.6"/>
+  <line x1="40" y1="75" x2="60" y2="75" stroke="url(#knowledge)" stroke-width="2" opacity="0.6"/>
+</svg>

@@ -1,4 +1,8 @@
+<div align="center">
+
 # 明鉴 (MingJian)
+
+### *明察秋毫，鉴往知来*
 
 **AI-Powered Multi-Agent Platform for Evidence-Driven Scenario Simulation & Strategic Decision-Making**
 
@@ -7,45 +11,84 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/mingjian?style=social)](https://github.com/dashitongzhi/mingjian/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/mingjian?style=social)](https://github.com/dashitongzhi/mingjian/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/dashitongzhi/mingjian)](https://github.com/dashitongzhi/mingjian/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/dashitongzhi/mingjian)](https://github.com/dashitongzhi/mingjian/pulls)
 
 ![明鉴 Dashboard](frontend/public/screenshot.png)
 
 ---
 
-## 🌟 Why 明鉴? / 为什么选择明鉴？
+## 🏆 Why 明鉴 is the Future of Decision Intelligence
+
+> **"The first open-source platform that combines evidence-driven analysis, multi-agent debate, and real-time simulation in one unified workspace."**
+
+明鉴 is not just another AI tool — it's a **paradigm shift** in how organizations make strategic decisions. By combining 10+ real-time data sources, adversarial multi-agent debate, and deterministic decision traces, 明鉴 eliminates the "black box" problem that plagues traditional AI systems.
+
+---
+
+</div>
+
+## 🌟 Why Choose 明鉴? / 为什么选择明鉴？
+
+<div align="center">
 
 ### 🔬 Evidence-Driven, Not Guess-Driven / 证据驱动，非猜测驱动
+
+</div>
 
 Unlike traditional simulation platforms that rely on assumptions, 明鉴 grounds every decision in **real-world evidence** from 10+ data sources (Google News, Reddit, GitHub, X/Twitter, GDELT, RSS feeds, weather, aviation data). Every claim is traceable, every decision is auditable.
 
 与传统模拟平台不同，明鉴的每个决策都基于来自**10+数据源的真实证据**（Google News、Reddit、GitHub、X/Twitter、GDELT、RSS订阅、天气、航空数据）。每个声明可追溯，每个决策可审计。
 
+<div align="center">
+
 ### 🤖 Multi-Agent Debate Protocol / 多代理辩论协议
+
+</div>
 
 Critical decisions undergo **rigorous multi-agent debate** — multiple AI models (GPT, Gemini, Claude, Grok) argue different perspectives, challenge assumptions, and reach evidence-backed conclusions. This isn't just multi-model; it's **adversarial reasoning** for decision validation.
 
 关键决策经过**严格的多代理辩论** — 多个AI模型（GPT、Gemini、Claude、Grok）从不同角度论证、挑战假设、达成有证据支持的结论。这不是简单的多模型，而是用于决策验证的**对抗性推理**。
 
+<div align="center">
+
 ### 🎯 Dual-Domain Expertise / 双领域专业能力
+
+</div>
 
 One platform, two domains: **Corporate** (market analysis, competitive intelligence, investment research) and **Military** (operational planning, logistics optimization, threat assessment). Shared infrastructure, domain-specific rules.
 
 一个平台，两个领域：**企业**（市场分析、竞争情报、投资研究）和**军事**（作战规划、物流优化、威胁评估）。共享基础设施，领域特定规则。
 
+<div align="center">
+
 ### 🔍 Full Auditability with Decision Traces / 完全可审计的决策追踪
+
+</div>
 
 Every simulation produces a **deterministic decision trace** — a step-by-step record of how the AI reached its conclusion. No black boxes. Full transparency for compliance, review, and learning.
 
 每个模拟产生**确定性决策追踪** — AI如何得出结论的逐步记录。没有黑箱。完全透明，用于合规、审查和学习。
 
+<div align="center">
+
 ### 🛡️ Jarvis Self-Repair Engine / Jarvis自我修复引擎
+
+</div>
 
 Integrated AI runtime for **self-review, cross-review, and automatic repair**. The system reviews its own outputs, identifies weaknesses, and iterates until quality thresholds are met — all without human intervention.
 
 集成的AI运行时，用于**自我审查、交叉审查和自动修复**。系统审查自己的输出，识别弱点，并迭代直到达到质量阈值 — 全程无需人工干预。
 
+<div align="center">
+
 ### ⚡ Real-Time Streaming Analysis / 实时流式分析
+
+</div>
 
 Submit an analysis request and watch the AI work in real-time — streaming progress events, source attribution, and intermediate results. No waiting for black-box completion.
 
@@ -55,7 +98,11 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 
 ## 🆚 Comparison with Other Projects / 与其他项目的对比
 
+<div align="center">
+
 ### 详细对比 / Detailed Comparison
+
+</div>
 
 | Feature / 特性 | 明鉴 | Traditional Simulation | Single-Agent AI | LangChain/AutoGen |
 |----------------|------|------------------------|-----------------|-------------------|
@@ -75,6 +122,8 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 | **Docker Deployment / Docker部署** | ✅ One-click | ⚠️ Manual | ❌ None | ⚠️ Manual |
 | **Open Source / 开源** | ✅ MIT License | ⚠️ Varies | ⚠️ Varies | ✅ Various |
 
+<div align="center">
+
 ### 核心优势总结 / Key Advantages Summary
 
 ```
@@ -90,7 +139,13 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 场景分支     ✅ vs ❌    多路径模拟对比
 ```
 
+</div>
+
+<div align="center">
+
 ### 适用场景对比 / Use Case Comparison
+
+</div>
 
 | 场景 / Scenario | 明鉴 | Others |
 |-----------------|------|--------|
@@ -102,16 +157,24 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 
 ---
 
-明鉴 is an AI-powered multi-agent platform that enables evidence-driven scenario simulation and strategic decision-making for both corporate and military domains. It features a debate protocol, real-time evidence ingestion, and advanced simulation capabilities.
-
 ## 🚀 Key Features
 
-- **Evidence-Driven Intelligence**: Automatically ingest and analyze data from multiple sources (RSS, news, Reddit, GitHub, X, GDELT)
-- **Multi-Domain Simulation**: Support for both corporate and military scenario modeling
-- **AI Debate Protocol**: Multi-agent debate system for rigorous decision validation
-- **Real-Time Analysis**: Streaming analysis with progress tracking and source attribution
-- **Strategic Console**: Unified workbench for evidence review, scenario comparison, and decision tracing
-- **Extensible Architecture**: Plugin-based design with YAML-configurable rules and models
+<div align="center">
+
+| Feature | Description | Icon |
+|---------|-------------|------|
+| **Evidence-Driven Intelligence** | Automatically ingest and analyze data from 10+ sources | 🔍 |
+| **Multi-Agent Debate** | Adversarial reasoning with GPT, Gemini, Claude, Grok | ⚖️ |
+| **Real-Time Streaming** | Watch AI work in real-time with progress events | ⚡ |
+| **Decision Traces** | Deterministic, auditable decision records | 📋 |
+| **Self-Repair Engine** | Automatic review, cross-review, and repair | 🛡️ |
+| **Dual-Domain Support** | Corporate + Military in one platform | 🎯 |
+| **Knowledge Graph** | Embedding-backed semantic search | 🧠 |
+| **Scenario Branching** | Beam-search for multi-path simulation | 🌳 |
+
+</div>
+
+---
 
 ## 💡 Why Choose 明鉴?
 
@@ -145,12 +208,23 @@ Built with enterprise-grade technologies:
 - **API-first design** for integration with existing systems
 - **Open-source** with MIT license for maximum flexibility
 
+---
+
 ## 🎯 Use Cases
 
-- **Corporate Strategy**: Market analysis, competitive intelligence, and scenario planning
-- **Military Planning**: Operational analysis, logistics simulation, and threat assessment
-- **Risk Management**: Evidence-based risk assessment with multi-perspective validation
-- **Investment Research**: Data-driven investment thesis development and stress testing
+<div align="center">
+
+| Use Case | Description | Benefit |
+|----------|-------------|---------|
+| **Corporate Strategy** | Market analysis, competitive intelligence, scenario planning | Data-driven decisions |
+| **Military Planning** | Operational analysis, logistics simulation, threat assessment | Strategic advantage |
+| **Risk Management** | Evidence-based risk assessment with multi-perspective validation | Reduced uncertainty |
+| **Investment Research** | Data-driven investment thesis development and stress testing | Better returns |
+| **Policy Analysis** | Multi-stakeholder impact assessment and scenario modeling | Informed policy |
+
+</div>
+
+---
 
 ## 📦 Quick Start
 
@@ -254,7 +328,11 @@ curl -X POST http://127.0.0.1:8000/analysis/stream \
   }'
 ```
 
+---
+
 ## 🏗️ Architecture
+
+<div align="center">
 
 ```mermaid
 graph TB
@@ -299,6 +377,10 @@ graph TB
     Evidence --> GDELT
 ```
 
+</div>
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -321,6 +403,8 @@ graph TB
 └── scripts/                 # Utility scripts
 ```
 
+---
+
 ## 🧪 Testing
 
 ```bash
@@ -337,6 +421,8 @@ pytest tests/test_debate.py
 pytest -v
 ```
 
+---
+
 ## 📚 Documentation
 
 - [Full Technical Report](docs/planagent_full_report.md)
@@ -344,6 +430,8 @@ pytest -v
 - [Technical Debt Backlog](TECHNICAL_DEBT_BACKLOG.md)
 - [Contributing Guide](CONTRIBUTING.md)
 - [Changelog](CHANGELOG.md)
+
+---
 
 ## 🤝 Contributing
 
@@ -367,9 +455,13 @@ git push origin feature/amazing-feature
 # Open a Pull Request
 ```
 
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
 
 ## 🙏 Acknowledgments
 
@@ -379,6 +471,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Event streaming: [Redis Streams](https://redis.io/docs/data-types/streams/)
 - Object storage: [MinIO](https://min.io/)
 
+---
+
 ## 📞 Support
 
 - 📧 Email: [Your Email]
@@ -387,6 +481,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+<div align="center">
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/mingjian&type=Date)](https://star-history.com/#dashitongzhi/mingjian&Date)
+
+---
+
 **明鉴** — *明察秋毫，鉴往知来*
 
 **明鉴** — *See Clearly, Judge Wisely*
+
+**明鉴** — *Forge Your Decisions with AI*
+
+**明鉴** — *Evidence-Driven, Debate-Tested, Decision-Ready*
+
+---
+
+**Made with ❤️ by the 明鉴 Team**
+
+</div>

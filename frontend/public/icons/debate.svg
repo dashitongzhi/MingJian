@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="debate" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EF4444" />
+      <stop offset="100%" style="stop-color:#F97316" />
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="45" fill="url(#debate)" opacity="0.1"/>
+  <circle cx="50" cy="50" r="35" fill="none" stroke="url(#debate)" stroke-width="3"/>
+  <!-- Speech bubbles -->
+  <path d="M30 35 Q30 25 40 25 L60 25 Q70 25 70 35 L70 50 Q70 60 60 60 L45 60 L35 70 L35 60 L40 60 Q30 60 30 50 Z" fill="none" stroke="url(#debate)" stroke-width="2.5"/>
+  <path d="M35 40 L65 40" stroke="url(#debate)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M35 48 L55 48" stroke="url(#debate)" stroke-width="2" stroke-linecap="round"/>
+  <!-- VS symbol -->
+  <text x="50" y="82" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="url(#debate)" text-anchor="middle">VS</text>
+</svg>

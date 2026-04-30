@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="streaming" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F59E0B" />
+      <stop offset="100%" style="stop-color:#EF4444" />
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="45" fill="url(#streaming)" opacity="0.1"/>
+  <circle cx="50" cy="50" r="35" fill="none" stroke="url(#streaming)" stroke-width="3"/>
+  <!-- Streaming waves -->
+  <path d="M25 50 Q35 35 45 50 Q55 65 65 50 Q75 35 85 50" fill="none" stroke="url(#streaming)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M25 40 Q35 25 45 40 Q55 55 65 40 Q75 25 85 40" fill="none" stroke="url(#streaming)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M25 60 Q35 45 45 60 Q55 75 65 60 Q75 45 85 60" fill="none" stroke="url(#streaming)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <!-- Pulse dots -->
+  <circle cx="35" cy="50" r="4" fill="url(#streaming)"/>
+  <circle cx="55" cy="50" r="4" fill="url(#streaming)" opacity="0.7"/>
+  <circle cx="75" cy="50" r="4" fill="url(#streaming)" opacity="0.4"/>
+</svg>
