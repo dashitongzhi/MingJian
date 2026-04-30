@@ -23,7 +23,72 @@ from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import get_rule_registry
 
 
+_CACHED_SERVICE_ATTRS = (
+    "pipeline_service",
+    "simulation_service",
+    "analysis_service",
+    "debate_service",
+    "workbench_service",
+    "runtime_monitor_service",
+    "assistant_service",
+)
+_last_app_state = None
+_fallback_services_state = type("_FallbackServicesState", (), {})()
+
+
+def _remember_app_state(request: Request) -> None:
+    global _last_app_state
+    _last_app_state = request.app.state
+
+
+def _cache_business_services(state: object) -> None:
+    settings = get_settings()
+    if not hasattr(state, "pipeline_service"):
+        state.pipeline_service = PhaseOnePipelineService(
+            settings,
+            state.event_bus,
+            state.openai_service,
+        )
+    if not hasattr(state, "simulation_service"):
+        state.simulation_service = SimulationService(
+            settings,
+            state.event_bus,
+            state.rule_registry,
+            state.openai_service,
+        )
+    if not hasattr(state, "analysis_service"):
+        state.analysis_service = AutomatedAnalysisService(settings, state.openai_service)
+    if not hasattr(state, "debate_service"):
+        state.debate_service = DebateService(settings, state.event_bus, state.openai_service)
+    if not hasattr(state, "workbench_service"):
+        state.workbench_service = WorkbenchService()
+    if not hasattr(state, "runtime_monitor_service"):
+        state.runtime_monitor_service = RuntimeMonitorService(
+            settings.backpressure_pending_threshold
+        )
+    if not hasattr(state, "assistant_service"):
+        state.assistant_service = StrategicAssistantService(
+            analysis_service=state.analysis_service,
+            pipeline_service=state.pipeline_service,
+            simulation_service=state.simulation_service,
+            debate_service=state.debate_service,
+            workbench_service=state.workbench_service,
+        )
+
+
+def _get_state_or_fallback() -> object:
+    return _last_app_state if _last_app_state is not None else _fallback_services_state
+
+
+def clear_services_cache(request: Request | None = None) -> None:
+    state = request.app.state if request is not None else _get_state_or_fallback()
+    for attr in _CACHED_SERVICE_ATTRS:
+        if hasattr(state, attr):
+            delattr(state, attr)
+
+
 def ensure_app_services(request: Request) -> None:
+    _remember_app_state(request)
     settings = get_settings()
     if not hasattr(request.app.state, "event_bus"):
         request.app.state.event_bus = build_event_bus(settings)
@@ -31,53 +96,77 @@ def ensure_app_services(request: Request) -> None:
         request.app.state.rule_registry = get_rule_registry(settings.rules_dir)
     if not hasattr(request.app.state, "openai_service"):
         request.app.state.openai_service = OpenAIService(settings)
+    _cache_business_services(request.app.state)
 
 
 def get_pipeline_service(request: Request) -> PhaseOnePipelineService:
     ensure_app_services(request)
-    return PhaseOnePipelineService(
-        get_settings(),
-        request.app.state.event_bus,
-        request.app.state.openai_service,
-    )
+    if not hasattr(request.app.state, "pipeline_service"):
+        request.app.state.pipeline_service = PhaseOnePipelineService(
+            get_settings(),
+            request.app.state.event_bus,
+            request.app.state.openai_service,
+        )
+    return request.app.state.pipeline_service
 
 
 def get_simulation_service(request: Request) -> SimulationService:
     ensure_app_services(request)
-    return SimulationService(
-        get_settings(),
-        request.app.state.event_bus,
-        request.app.state.rule_registry,
-        request.app.state.openai_service,
-    )
+    if not hasattr(request.app.state, "simulation_service"):
+        request.app.state.simulation_service = SimulationService(
+            get_settings(),
+            request.app.state.event_bus,
+            request.app.state.rule_registry,
+            request.app.state.openai_service,
+        )
+    return request.app.state.simulation_service
 
 
 def get_analysis_service(request: Request) -> AutomatedAnalysisService:
     ensure_app_services(request)
-    return AutomatedAnalysisService(get_settings(), request.app.state.openai_service)
+    if not hasattr(request.app.state, "analysis_service"):
+        request.app.state.analysis_service = AutomatedAnalysisService(
+            get_settings(), request.app.state.openai_service
+        )
+    return request.app.state.analysis_service
 
 
 def get_debate_service(request: Request) -> DebateService:
     ensure_app_services(request)
-    return DebateService(get_settings(), request.app.state.event_bus, request.app.state.openai_service)
+    if not hasattr(request.app.state, "debate_service"):
+        request.app.state.debate_service = DebateService(
+            get_settings(), request.app.state.event_bus, request.app.state.openai_service
+        )
+    return request.app.state.debate_service
 
 
 def get_workbench_service() -> WorkbenchService:
-    return WorkbenchService()
+    state = _get_state_or_fallback()
+    if not hasattr(state, "workbench_service"):
+        state.workbench_service = WorkbenchService()
+    return state.workbench_service
 
 
 def get_assistant_service(request: Request) -> StrategicAssistantService:
-    return StrategicAssistantService(
-        analysis_service=get_analysis_service(request),
-        pipeline_service=get_pipeline_service(request),
-        simulation_service=get_simulation_service(request),
-        debate_service=get_debate_service(request),
-        workbench_service=get_workbench_service(),
-    )
+    ensure_app_services(request)
+    if not hasattr(request.app.state, "assistant_service"):
+        request.app.state.assistant_service = StrategicAssistantService(
+            analysis_service=get_analysis_service(request),
+            pipeline_service=get_pipeline_service(request),
+            simulation_service=get_simulation_service(request),
+            debate_service=get_debate_service(request),
+            workbench_service=get_workbench_service(),
+        )
+    return request.app.state.assistant_service
 
 
 def get_runtime_monitor_service() -> RuntimeMonitorService:
-    return RuntimeMonitorService(get_settings().backpressure_pending_threshold)
+    state = _get_state_or_fallback()
+    if not hasattr(state, "runtime_monitor_service"):
+        state.runtime_monitor_service = RuntimeMonitorService(
+            get_settings().backpressure_pending_threshold
+        )
+    return state.runtime_monitor_service
 
 
 def _analysis_cache_key(payload: object) -> str:
