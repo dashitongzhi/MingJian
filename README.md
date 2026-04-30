@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
+
 # 明鉴 (MingJian)
 
 ### *See Clearly, Judge Wisely*

@@ -8,20 +8,11 @@ export const metadata: Metadata = {
   description: "AI-powered multi-agent platform for evidence-driven scenario simulation & strategic decision-making",
   icons: {
     icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/mingjian-icon.jpg", sizes: "192x192", type: "image/jpeg" },
+      { url: "/favicon-icon.jpg", sizes: "512x512", type: "image/jpeg" },
     ],
     apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-    other: [
-      {
-        rel: "mask-icon",
-        url: "/icon.svg",
-        color: "#4F46E5",
-      },
+      { url: "/mingjian-icon.jpg", sizes: "180x180", type: "image/jpeg" },
     ],
   },
   manifest: "/manifest.json",
@@ -99,13 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {/* Logo */}
             <div className="h-[var(--header-height)] flex items-center px-6 border-b border-[var(--card-border)]">
               <Link href="/" className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                    <path d="M2 17l10 5 10-5" />
-                    <path d="M2 12l10 5 10-5" />
-                  </svg>
-                </div>
+                <img src="/mingjian-icon.jpg" alt="明鉴" className="w-8 h-8 rounded-lg object-cover" />
                 <span className="font-semibold text-sm tracking-wide gradient-text">明鉴</span>
               </Link>
             </div>

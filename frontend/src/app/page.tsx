@@ -49,9 +49,12 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Welcome section */}
-      <div>
-        <h1 className="text-2xl font-bold">Welcome back</h1>
-        <p className="text-[var(--muted)] mt-1">Here&apos;s what&apos;s happening with your intelligence platform</p>
+      <div className="flex items-center gap-4">
+        <img src="/mingjian-icon.jpg" alt="明鉴" className="w-14 h-14 rounded-xl object-cover shadow-lg" />
+        <div>
+          <h1 className="text-2xl font-bold">Welcome to 明鉴</h1>
+          <p className="text-[var(--muted)] mt-1">Evidence-driven intelligence platform — see clearly, judge wisely</p>
+        </div>
       </div>
 
       {/* Stats grid */}
