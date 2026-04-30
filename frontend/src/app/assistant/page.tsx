@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from "react";
 import useSWR from "swr";
 import { fetchSessions, streamAssistant, type AssistantEvent, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
+import { ProcessVisualizer, eventsToProcessSteps, debateRoundsToMessages, type ProcessStep, type DebateMessage } from "@/components/ProcessVisualizer";
 
 function StepIndicator({ step, index }: { step: AnalysisStep; index: number }) {
   const stageColors: Record<string, string> = {
@@ -124,9 +125,13 @@ export default function AssistantPage() {
   const [domainId, setDomainId] = useState("auto");
   const [subjectName, setSubjectName] = useState("");
   const [tickCount, setTickCount] = useState(4);
-  const [activeTab, setActiveTab] = useState<"reasoning" | "sources" | "panel" | "debate">("reasoning");
+  const [activeTab, setActiveTab] = useState<"reasoning" | "sources" | "panel" | "debate" | "process">("reasoning");
   const [showGuide, setShowGuide] = useState(false);
   const [guideStep, setGuideStep] = useState(0);
+  const [events, setEvents] = useState<Array<{ event: string; payload: any }>>([]);
+  const [processSteps, setProcessSteps] = useState<ProcessStep[]>([]);
+  const [debateMessages, setDebateMessages] = useState<DebateMessage[]>([]);
+  const [currentStage, setCurrentStage] = useState("ingest");
 
   // Check if first visit
   useState(() => {
@@ -148,24 +153,66 @@ export default function AssistantPage() {
     setDiscussions([]);
     setDebateRounds([]);
     setResult(null);
-    setActiveTab("reasoning");
+    setActiveTab("process");
+    setEvents([]);
+    setProcessSteps([]);
+    setDebateMessages([]);
+    setCurrentStage("ingest");
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
       await streamAssistant(
         { topic, domain_id: domainId, subject_name: subjectName || topic.slice(0, 50), tick_count: tickCount },
         (evt) => {
+          // Track all events
+          setEvents(prev => [...prev, evt]);
+          
           if (evt.event === "step") {
-            setSteps((p) => [...p, evt.payload as AnalysisStep]);
-            setActiveTab("reasoning");
+            const step = evt.payload as AnalysisStep;
+            setSteps(p => [...p, step]);
+            // Update process steps
+            setProcessSteps(prev => [...prev, {
+              id: `step-${Date.now()}`,
+              stage: step.stage as any || "analyze",
+              title: step.message || "Processing",
+              description: step.detail || "",
+              details: step.detail ? [step.detail] : undefined,
+              status: "completed",
+              timestamp: new Date().toLocaleTimeString()
+            }]);
+            // Update current stage
+            if (step.stage) setCurrentStage(step.stage);
           } else if (evt.event === "source") {
-            setSources((p) => [...p, evt.payload as { title: string; url: string }]);
+            const source = evt.payload as { title: string; url: string };
+            setSources(p => [...p, source]);
+            // Add source to last process step
+            setProcessSteps(prev => {
+              const newSteps = [...prev];
+              if (newSteps.length > 0) {
+                const lastStep = newSteps[newSteps.length - 1];
+                if (!lastStep.sources) lastStep.sources = [];
+                lastStep.sources.push({
+                  title: source.title,
+                  url: source.url
+                });
+              }
+              return newSteps;
+            });
           } else if (evt.event === "discussion") {
-            setDiscussions((p) => [...p, evt.payload as PanelMessage]);
-            setActiveTab("panel");
+            setDiscussions(p => [...p, evt.payload as PanelMessage]);
           } else if (evt.event === "debate_round") {
-            setDebateRounds((p) => [...p, evt.payload as DebateRound]);
-            setActiveTab("debate");
+            const round = evt.payload as DebateRound;
+            setDebateRounds(p => [...p, round]);
+            // Convert to debate message
+            setDebateMessages(prev => [...prev, {
+              role: round.role as "advocate" | "challenger" | "arbitrator",
+              round: round.round_number,
+              content: round.position,
+              confidence: round.confidence,
+              arguments: round.arguments?.map((a: any) => a.content || a) || [],
+              rebuttals: round.rebuttals?.map((r: any) => r.content || r) || []
+            }]);
+            setCurrentStage("debate");
           } else if (evt.event === "assistant_result") {
             setResult(evt.payload as AssistantResult);
           }
@@ -239,6 +286,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
   }, [result]);
 
   const tabs = [
+    { id: "process" as const, label: "Process", count: processSteps.length },
     { id: "reasoning" as const, label: "Reasoning", count: steps.length },
     { id: "sources" as const, label: "Sources", count: sources.length },
     { id: "panel" as const, label: "Panel", count: discussions.length },
@@ -420,6 +468,15 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
 
           {/* Tab content */}
           <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 min-h-[500px]">
+            {activeTab === "process" && (
+              <ProcessVisualizer
+                steps={processSteps}
+                debateMessages={debateMessages}
+                currentStage={currentStage}
+                isStreaming={streaming}
+              />
+            )}
+
             {activeTab === "reasoning" && (
               <div>
                 <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
