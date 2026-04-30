@@ -22,7 +22,7 @@
 
 ---
 
-![明鉴 Dashboard](frontend/public/screenshot.png)
+![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
 
 </div>
 
@@ -131,10 +131,56 @@ Every day, organizations make critical decisions based on:
 
 ### Prerequisites
 
-- Python 3.12+
-- Node.js 18+
-- PostgreSQL (optional, SQLite for development)
-- Redis (optional, for event bus)
+Before you begin, ensure you have the following installed:
+
+| Requirement | Version | Installation |
+|-------------|---------|--------------|
+| **Python** | 3.12+ | [python.org](https://www.python.org/downloads/) |
+| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) |
+| **npm** | 9+ | Comes with Node.js |
+| **Git** | 2.30+ | [git-scm.com](https://git-scm.com/) |
+| **PostgreSQL** | 14+ (optional) | [postgresql.org](https://www.postgresql.org/download/) |
+| **Redis** | 7+ (optional) | [redis.io](https://redis.io/download) |
+
+### System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **CPU** | 2 cores | 4+ cores |
+| **RAM** | 4 GB | 8+ GB |
+| **Storage** | 10 GB | 50+ GB |
+| **OS** | macOS, Linux, Windows | macOS or Linux |
+
+### Environment Variables
+
+Create a `.env` file in the project root with the following variables:
+
+```bash
+# Required: AI Model API Keys
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+GOOGLE_API_KEY=your_google_api_key_here
+XAI_API_KEY=your_xai_api_key_here
+
+# Database Configuration (optional, defaults to SQLite)
+DATABASE_URL=postgresql://user:password@localhost:5432/planagent
+
+# Redis Configuration (optional)
+REDIS_URL=redis://localhost:6379
+
+# MinIO Configuration (optional)
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+
+# Application Settings
+APP_ENV=development
+APP_DEBUG=true
+APP_PORT=8000
+
+# Frontend Settings
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
 ### Installation Steps
 
@@ -143,52 +189,90 @@ Every day, organizations make critical decisions based on:
 git clone https://github.com/dashitongzhi/planagent.git
 cd planagent
 
-# 2. Backend setup
+# 2. Create and activate Python virtual environment
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# 3. Install Python dependencies
 pip install -e ".[dev]"
 
-# 3. Frontend setup
+# 4. Install frontend dependencies
 cd frontend
 npm install
 cd ..
 
-# 4. Configure environment
+# 5. Configure environment
 cp .env.example .env
-# Edit .env file with your API keys
+# Edit .env file with your API keys and settings
 
-# 5. Start backend
-uvicorn planagent.main:app --reload
+# 6. Initialize database (if using PostgreSQL)
+# Create database named 'planagent'
+# Run migrations
+alembic upgrade head
 
-# 6. Start frontend (new terminal)
+# 7. Start backend server
+uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+
+# 8. Start frontend (in a new terminal)
 cd frontend
 npm run dev
 # Open http://localhost:3000
 ```
 
-### Your First Analysis
+### Docker Installation (Alternative)
 
 ```bash
-# Corporate analysis
-curl -X POST http://127.0.0.1:8000/analysis \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Analyze AI chip manufacturing trends",
-    "domain_id": "corporate",
-    "auto_fetch_news": true,
-    "include_google_news": true,
-    "include_reddit": true
-  }'
+# Using Docker Compose
+docker-compose up -d
 
-# Military analysis
-curl -X POST http://127.0.0.1:8000/analysis/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "Assess logistics challenges",
-    "domain_id": "military",
-    "auto_fetch_news": true
-  }'
+# Or build and run manually
+docker build -t planagent-backend .
+docker build -t planagent-frontend ./frontend
+docker run -p 8000:8000 planagent-backend
+docker run -p 3000:3000 planagent-frontend
 ```
+
+---
+
+## 📦 Dependencies
+
+### Backend Dependencies (Python)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| **FastAPI** | 0.110+ | High-performance async API framework |
+| **SQLAlchemy** | 2.0+ | Database ORM |
+| **Alembic** | 1.16+ | Database migrations |
+| **Pydantic** | 2.11+ | Data validation |
+| **OpenAI** | 2.28+ | OpenAI API client |
+| **Anthropic** | 0.52+ | Anthropic API client |
+| **Redis** | 6.2+ | Event bus and caching |
+| **pgvector** | 0.3+ | Vector similarity search |
+| **MinIO** | 7.2+ | Object storage |
+| **HTTPX** | 0.28+ | Async HTTP client |
+| **Uvicorn** | 0.35+ | ASGI server |
+
+### Frontend Dependencies (Node.js)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| **Next.js** | 15+ | React framework |
+| **React** | 19+ | UI library |
+| **TypeScript** | 5.8+ | Type safety |
+| **Tailwind CSS** | 4.1+ | Utility-first CSS |
+| **SWR** | 2.3+ | Data fetching |
+| **Recharts** | 2.15+ | Charting library |
+| **Zustand** | 5.0+ | State management |
+
+### Development Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| **pytest** | 8.4+ | Testing framework |
+| **pytest-asyncio** | 1.1+ | Async test support |
+| **Ruff** | 0.12+ | Python linter |
+| **ESLint** | 9+ | JavaScript linter |
+| **Prettier** | 3+ | Code formatter |
 
 ---
 
@@ -258,7 +342,11 @@ planagent/
 ├── migrations/              # Database migrations
 ├── tests/                   # Test files
 ├── docs/                    # Documentation
-└── examples/                # Example scenarios
+├── examples/                # Example scenarios
+├── .env.example             # Environment template
+├── docker-compose.yml       # Docker configuration
+├── pyproject.toml           # Python project config
+└── package.json             # Node.js project config
 ```
 
 ---
@@ -277,6 +365,10 @@ pytest tests/test_debate.py
 
 # Run with verbose output
 pytest -v
+
+# Run frontend tests
+cd frontend
+npm test
 ```
 
 ---

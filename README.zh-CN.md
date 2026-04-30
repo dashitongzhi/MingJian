@@ -22,7 +22,7 @@
 
 ---
 
-![明鉴 Dashboard](frontend/public/screenshot.png)
+![明鉴 平台概览](frontend/public/mingjian-hero.jpg)
 
 </div>
 
@@ -131,10 +131,56 @@
 
 ### 前置要求
 
-- Python 3.12+
-- Node.js 18+
-- PostgreSQL（可选，开发用SQLite）
-- Redis（可选，用于事件总线）
+在开始之前，请确保已安装以下软件：
+
+| 要求 | 版本 | 安装方式 |
+|------|------|----------|
+| **Python** | 3.12+ | [python.org](https://www.python.org/downloads/) |
+| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) |
+| **npm** | 9+ | 随Node.js一起安装 |
+| **Git** | 2.30+ | [git-scm.com](https://git-scm.com/) |
+| **PostgreSQL** | 14+（可选） | [postgresql.org](https://www.postgresql.org/download/) |
+| **Redis** | 7+（可选） | [redis.io](https://redis.io/download) |
+
+### 系统要求
+
+| 组件 | 最低要求 | 推荐配置 |
+|------|----------|----------|
+| **CPU** | 2核 | 4+核 |
+| **内存** | 4 GB | 8+ GB |
+| **存储** | 10 GB | 50+ GB |
+| **操作系统** | macOS、Linux、Windows | macOS或Linux |
+
+### 环境变量配置
+
+在项目根目录创建 `.env` 文件，包含以下变量：
+
+```bash
+# 必需：AI模型API密钥
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+GOOGLE_API_KEY=your_google_api_key_here
+XAI_API_KEY=your_xai_api_key_here
+
+# 数据库配置（可选，默认使用SQLite）
+DATABASE_URL=postgresql://user:password@localhost:5432/planagent
+
+# Redis配置（可选）
+REDIS_URL=redis://localhost:6379
+
+# MinIO配置（可选）
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+
+# 应用设置
+APP_ENV=development
+APP_DEBUG=true
+APP_PORT=8000
+
+# 前端设置
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
 ### 安装步骤
 
@@ -143,52 +189,90 @@
 git clone https://github.com/dashitongzhi/planagent.git
 cd planagent
 
-# 2. 后端设置
+# 2. 创建并激活Python虚拟环境
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# 3. 安装Python依赖
 pip install -e ".[dev]"
 
-# 3. 前端设置
+# 4. 安装前端依赖
 cd frontend
 npm install
 cd ..
 
-# 4. 配置环境
+# 5. 配置环境
 cp .env.example .env
-# 编辑 .env 文件，添加您的API密钥
+# 编辑 .env 文件，添加您的API密钥和设置
 
-# 5. 启动后端
-uvicorn planagent.main:app --reload
+# 6. 初始化数据库（如果使用PostgreSQL）
+# 创建名为 'planagent' 的数据库
+# 运行迁移
+alembic upgrade head
 
-# 6. 启动前端（新终端）
+# 7. 启动后端服务器
+uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+
+# 8. 启动前端（在新终端中）
 cd frontend
 npm run dev
 # 打开 http://localhost:3000
 ```
 
-### 您的第一次分析
+### Docker安装（替代方案）
 
 ```bash
-# 企业分析
-curl -X POST http://127.0.0.1:8000/analysis \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "分析AI芯片制造趋势",
-    "domain_id": "corporate",
-    "auto_fetch_news": true,
-    "include_google_news": true,
-    "include_reddit": true
-  }'
+# 使用Docker Compose
+docker-compose up -d
 
-# 军事分析
-curl -X POST http://127.0.0.1:8000/analysis/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "评估后勤保障挑战",
-    "domain_id": "military",
-    "auto_fetch_news": true
-  }'
+# 或手动构建和运行
+docker build -t planagent-backend .
+docker build -t planagent-frontend ./frontend
+docker run -p 8000:8000 planagent-backend
+docker run -p 3000:3000 planagent-frontend
 ```
+
+---
+
+## 📦 依赖项
+
+### 后端依赖（Python）
+
+| 包名 | 版本 | 用途 |
+|------|------|------|
+| **FastAPI** | 0.110+ | 高性能异步API框架 |
+| **SQLAlchemy** | 2.0+ | 数据库ORM |
+| **Alembic** | 1.16+ | 数据库迁移 |
+| **Pydantic** | 2.11+ | 数据验证 |
+| **OpenAI** | 2.28+ | OpenAI API客户端 |
+| **Anthropic** | 0.52+ | Anthropic API客户端 |
+| **Redis** | 6.2+ | 事件总线和缓存 |
+| **pgvector** | 0.3+ | 向量相似性搜索 |
+| **MinIO** | 7.2+ | 对象存储 |
+| **HTTPX** | 0.28+ | 异步HTTP客户端 |
+| **Uvicorn** | 0.35+ | ASGI服务器 |
+
+### 前端依赖（Node.js）
+
+| 包名 | 版本 | 用途 |
+|------|------|------|
+| **Next.js** | 15+ | React框架 |
+| **React** | 19+ | UI库 |
+| **TypeScript** | 5.8+ | 类型安全 |
+| **Tailwind CSS** | 4.1+ | 实用优先的CSS |
+| **SWR** | 2.3+ | 数据获取 |
+| **Recharts** | 2.15+ | 图表库 |
+| **Zustand** | 5.0+ | 状态管理 |
+
+### 开发依赖
+
+| 包名 | 版本 | 用途 |
+|------|------|------|
+| **pytest** | 8.4+ | 测试框架 |
+| **pytest-asyncio** | 1.1+ | 异步测试支持 |
+| **Ruff** | 0.12+ | Python代码检查 |
+| **ESLint** | 9+ | JavaScript代码检查 |
+| **Prettier** | 3+ | 代码格式化 |
 
 ---
 
@@ -258,7 +342,11 @@ planagent/
 ├── migrations/              # 数据库迁移
 ├── tests/                   # 测试文件
 ├── docs/                    # 文档
-└── examples/                # 示例场景
+├── examples/                # 示例场景
+├── .env.example             # 环境变量模板
+├── docker-compose.yml       # Docker配置
+├── pyproject.toml           # Python项目配置
+└── package.json             # Node.js项目配置
 ```
 
 ---
@@ -277,6 +365,10 @@ pytest tests/test_debate.py
 
 # 运行带详细输出
 pytest -v
+
+# 运行前端测试
+cd frontend
+npm test
 ```
 
 ---
