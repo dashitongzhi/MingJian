@@ -62,6 +62,7 @@ Built with enterprise-grade technologies:
 ### Prerequisites
 
 - Python 3.12+
+- Node.js 18+ (for frontend)
 - PostgreSQL (optional, SQLite for development)
 - Redis (optional, for event bus)
 
@@ -72,12 +73,15 @@ Built with enterprise-grade technologies:
 git clone https://github.com/dashitongzhi/planagent.git
 cd planagent
 
-# Create virtual environment
+# Backend setup
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
 pip install -e ".[dev]"
+
+# Frontend setup
+cd frontend
+npm install
+cd ..
 ```
 
 ### Configuration
@@ -93,12 +97,26 @@ cp .env.example .env
 
 ### Run the Application
 
+**Backend (FastAPI):**
 ```bash
-# Start the API server
 uvicorn planagent.main:app --reload
+```
 
-# Access the strategic console
-open http://127.0.0.1:8000/console
+**Frontend (Next.js):**
+```bash
+cd frontend
+npm run dev
+# Open http://localhost:3000
+```
+
+**Production Build:**
+```bash
+cd frontend
+npm run build
+npm start
+# Or use Docker
+docker build -t planagent-frontend .
+docker run -p 3000:3000 planagent-frontend
 ```
 
 ### Submit Your First Analysis
