@@ -1,6 +1,6 @@
 const API = process.env.NEXT_PUBLIC_API_URL || "";
 
-async function fetch_<T>(path: string, init?: RequestInit): Promise<T> {
+export async function fetch_<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, { headers: { "Content-Type": "application/json", ...init?.headers }, ...init });
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text().catch(() => "")}`);
   return res.json();
