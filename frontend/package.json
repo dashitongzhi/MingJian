@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "package:standalone": "next build",
+    "package:static": "NEXT_OUTPUT=export next build",
+    "package:docker": "docker build -t planagent-frontend .",
+    "preview": "next start"
   },
   "dependencies": {
     "next": "^15.3.1",

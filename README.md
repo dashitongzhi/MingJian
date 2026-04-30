@@ -121,6 +121,21 @@ docker build -t planagent-frontend .
 docker run -p 3000:3000 planagent-frontend
 ```
 
+**Alternative Packaging Options:**
+```bash
+# Standalone build (default)
+npm run package:standalone
+
+# Static export (for CDN deployment)
+npm run package:static
+
+# Docker build
+npm run package:docker
+
+# Preview production build
+npm run preview
+```
+
 ### Submit Your First Analysis
 
 ```bash
