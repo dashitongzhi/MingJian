@@ -2,75 +2,78 @@
 
 ## English Version (Twitter/LinkedIn)
 
-🚀 Introducing PlanAgent - An open-source AI platform that's changing how we make strategic decisions.
+🚀 Introducing PlanAgent - The open-source AI platform that's changing strategic decisions.
 
-Unlike traditional simulation tools, PlanAgent doesn't guess. It EVIDENCES.
+Why PlanAgent wins:
 
-🔬 10+ real-time data sources (News, Reddit, GitHub, X, GDELT...)
-🤖 Multi-agent debate protocol - AI models argue & challenge each other
-🔍 Full decision traces - every conclusion is auditable
-🛡️ Self-repair engine - the system reviews & fixes itself
-⚡ Real-time streaming analysis
+✅ 10+ real-time evidence sources | ❌ Others: manual input
+✅ Multi-agent debate protocol | ❌ Others: single model
+✅ Full decision traces | ❌ Others: black box
+✅ Self-repair engine | ❌ Others: none
+✅ Dual-domain (Corporate + Military) | ❌ Others: generic
+✅ Real-time streaming | ❌ Others: batch only
+✅ Knowledge graph | ❌ Others: none
+✅ Scenario branching | ❌ Others: manual
 
-Built for both corporate strategy & military operations.
+One platform. Zero black boxes. Full transparency.
 
-One platform. Two domains. Zero black boxes.
+🔗 github.com/dashitongzhi/planagent
 
-⭐ Star: github.com/dashitongzhi/planagent
-
-#AI #OpenSource #DecisionIntelligence #MultiAgent #Simulation
+#AI #OpenSource #DecisionIntelligence #MultiAgent
 
 ---
 
 ## 中文版 (微博/知乎/朋友圈)
 
-🚀 开源发布 PlanAgent - 一个正在改变战略决策方式的AI平台
+🚀 开源发布 PlanAgent - 改变战略决策方式的AI平台
 
-与传统模拟工具不同，PlanAgent不猜测，它用证据说话。
+为什么选择PlanAgent：
 
-🔬 10+实时数据源（新闻、Reddit、GitHub、X、GDELT...）
-🤖 多代理辩论协议 - 多个AI模型互相论证、挑战
-🔍 完整决策追踪 - 每个结论都可审计
-🛡️ 自我修复引擎 - 系统自动审查和修复
-⚡ 实时流式分析
+✅ 10+实时证据源 | ❌ 其他：手动输入
+✅ 多代理辩论协议 | ❌ 其他：单模型
+✅ 完整决策追踪 | ❌ 其他：黑箱
+✅ 自我修复引擎 | ❌ 其他：无
+✅ 双领域（企业+军事）| ❌ 其他：通用
+✅ 实时流式分析 | ❌ 其他：批量处理
+✅ 知识图谱 | ❌ 其他：无
+✅ 场景分支 | ❌ 其他：手动
 
-同时支持企业战略和军事作战。
+一个平台，零黑箱，完全透明。
 
-一个平台，两个领域，零黑箱。
+🔗 github.com/dashitongzhi/planagent
 
-⭐ Star: github.com/dashitongzhi/planagent
-
-#AI #开源 #决策智能 #多代理 #模拟仿真
+#AI #开源 #决策智能 #多代理
 
 ---
 
-## Short Version (适合快速分享)
+## 核心优势速记版 / Quick Advantages
 
-🔬 Evidence-driven, not guess-driven
-🤖 Multi-agent debate protocol
-🔍 Full auditability
-🛡️ Self-repair engine
-⚡ Real-time streaming
+```
+PlanAgent vs Others:
 
-PlanAgent: The open-source AI platform for strategic decisions.
-
-github.com/dashitongzhi/planagent
+证据驱动     ✅ vs ❌
+多代理辩论   ✅ vs ❌
+决策追踪     ✅ vs ❌
+自我修复     ✅ vs ❌
+双领域支持   ✅ vs ❌
+实时流式     ✅ vs ❌
+知识图谱     ✅ vs ❌
+场景分支     ✅ vs ❌
+```
 
 ---
 
 ## 投资人/招聘版本
 
-PlanAgent is an open-source AI platform for evidence-driven strategic decision-making.
+PlanAgent: Open-source AI for evidence-driven decisions.
 
-Key differentiators:
-• Multi-agent debate protocol (GPT, Gemini, Claude, Grok debate each other)
-• 10+ real-time evidence sources
-• Full decision traceability
-• Self-repair via Jarvis engine
-• Dual-domain support (corporate + military)
+Key differentiators (vs competitors):
+✅ 10+ real-time data sources (they have ❌)
+✅ Multi-agent debate protocol (they have ❌)
+✅ Full audit trails (they have ❌)
+✅ Self-repair engine (they have ❌)
+✅ Corporate + Military domains (they have ❌)
 
-Tech stack: FastAPI, Next.js 15, PostgreSQL, Redis, pgvector
-
-Looking for: Investment / Collaboration / Engineering roles
+Tech: FastAPI, Next.js 15, PostgreSQL, Redis, pgvector
 
 GitHub: github.com/dashitongzhi/planagent
