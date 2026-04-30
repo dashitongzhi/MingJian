@@ -55,14 +55,50 @@ Submit an analysis request and watch the AI work in real-time — streaming prog
 
 ## 🆚 Comparison with Other Projects / 与其他项目的对比
 
-| Feature / 特性 | PlanAgent | Traditional Simulation | Single-Agent AI |
-|----------------|-----------|------------------------|-----------------|
-| Evidence Sources / 证据源 | 10+ real-time sources | Manual input | Limited |
-| Decision Validation / 决策验证 | Multi-agent debate | Single model | Single model |
-| Auditability / 可审计性 | Full decision traces | Limited | None |
-| Self-Repair / 自我修复 | Jarvis engine | None | None |
-| Domain Support / 领域支持 | Corporate + Military | Single domain | Generic |
-| Streaming / 流式 | Real-time events | Batch only | Batch only |
+### 详细对比 / Detailed Comparison
+
+| Feature / 特性 | PlanAgent | Traditional Simulation | Single-Agent AI | LangChain/AutoGen |
+|----------------|-----------|------------------------|-----------------|-------------------|
+| **Data Sources / 数据源** | ✅ 10+ real-time sources | ❌ Manual input only | ⚠️ Limited | ⚠️ Limited |
+| **Evidence Chain / 证据链** | ✅ Full traceability | ❌ No tracking | ❌ No tracking | ❌ No tracking |
+| **Multi-Agent Debate / 多代理辩论** | ✅ Adversarial reasoning | ❌ Single model | ❌ Single model | ⚠️ Basic multi-agent |
+| **Decision Traces / 决策追踪** | ✅ Deterministic & auditable | ❌ Black box | ❌ Black box | ❌ Black box |
+| **Self-Repair / 自我修复** | ✅ Jarvis engine | ❌ None | ❌ None | ❌ None |
+| **Streaming Analysis / 流式分析** | ✅ Real-time events | ❌ Batch only | ❌ Batch only | ⚠️ Limited |
+| **Corporate Domain / 企业领域** | ✅ Full support | ⚠️ Generic | ❌ Generic | ❌ Generic |
+| **Military Domain / 军事领域** | ✅ Full support | ⚠️ Generic | ❌ Generic | ❌ Generic |
+| **Scenario Branching / 场景分支** | ✅ Beam-search | ❌ Manual | ❌ None | ❌ None |
+| **Knowledge Graph / 知识图谱** | ✅ Embedding-backed | ❌ None | ❌ None | ❌ None |
+| **Strategic Console / 战略控制台** | ✅ Full web UI | ⚠️ Basic | ❌ CLI only | ❌ CLI only |
+| **Debate Protocol / 辩论协议** | ✅ Advocate + Challenger + Arbitrator | ❌ None | ❌ None | ⚠️ Basic |
+| **Source Health Monitoring / 来源健康监控** | ✅ Automated | ❌ Manual | ❌ None | ❌ None |
+| **Docker Deployment / Docker部署** | ✅ One-click | ⚠️ Manual | ❌ None | ⚠️ Manual |
+| **Open Source / 开源** | ✅ MIT License | ⚠️ Varies | ⚠️ Varies | ✅ Various |
+
+### 核心优势总结 / Key Advantages Summary
+
+```
+PlanAgent vs Others:
+
+证据驱动     ✅ vs ❌    不是猜测，是真实数据
+多代理辩论   ✅ vs ❌    AI之间互相挑战验证
+决策追踪     ✅ vs ❌    每一步都可审计
+自我修复     ✅ vs ❌    系统自动审查改进
+双领域支持   ✅ vs ❌    企业+军事全覆盖
+实时流式     ✅ vs ❌    不用等待黑箱完成
+知识图谱     ✅ vs ❌    语义搜索和关联
+场景分支     ✅ vs ❌    多路径模拟对比
+```
+
+### 适用场景对比 / Use Case Comparison
+
+| 场景 / Scenario | PlanAgent | Others |
+|-----------------|-----------|--------|
+| 投资决策前的市场调研 | ✅ 自动采集+分析+辩论 | ❌ 手动搜索+单模型总结 |
+| 军事后勤规划 | ✅ 多源情报+实时模拟 | ❌ 静态分析+人工判断 |
+| 竞争对手分析 | ✅ 10+来源+知识图谱 | ⚠️ 单一来源+简单分析 |
+| 风险评估 | ✅ 多模型辩论+审计追踪 | ❌ 单模型+无追踪 |
+| 战略规划 | ✅ 场景分支+KPI对比 | ❌ 单一方案+主观评估 |
 
 ---
 
