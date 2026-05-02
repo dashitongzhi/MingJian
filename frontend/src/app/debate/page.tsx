@@ -2,23 +2,25 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetchDebateDetail, type DebateRound } from "@/lib/api";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 function DebateRoundCard({ round }: { round: DebateRound }) {
+  const { t } = useTranslation();
   const roleConfig: Record<string, { color: string; icon: string; label: string }> = {
     advocate: {
       color: "border-[var(--accent-green)] bg-[var(--accent-green-bg)]",
       icon: "✓",
-      label: "Advocate",
+      label: t("debate.advocate"),
     },
     challenger: {
       color: "border-[var(--accent-red)] bg-[var(--accent-red-bg)]",
       icon: "✗",
-      label: "Challenger",
+      label: t("debate.challenger"),
     },
     arbitrator: {
       color: "border-[var(--accent-purple)] bg-[var(--accent-purple-bg)]",
       icon: "⚖",
-      label: "Arbitrator",
+      label: t("debate.arbitrator"),
     },
   };
 
@@ -45,13 +47,13 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
       </div>
 
       <div className="mb-3">
-        <div className="text-xs text-[var(--muted)] uppercase mb-1">Position</div>
+        <div className="text-xs text-[var(--muted)] uppercase mb-1">{t("debate.position")}</div>
         <p className="text-sm font-medium">{round.position}</p>
       </div>
 
       {round.arguments.length > 0 && (
         <div className="mb-3">
-          <div className="text-xs text-[var(--muted)] uppercase mb-2">Arguments</div>
+          <div className="text-xs text-[var(--muted)] uppercase mb-2">{t("debate.arguments")}</div>
           <ul className="space-y-1">
             {round.arguments.map((a, i) => (
               <li key={i} className="flex items-start gap-2 text-xs">
@@ -65,7 +67,7 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
 
       {round.rebuttals.length > 0 && (
         <div>
-          <div className="text-xs text-[var(--accent-red)] uppercase mb-2">Rebuttals</div>
+          <div className="text-xs text-[var(--accent-red)] uppercase mb-2">{t("debate.rebuttals")}</div>
           <ul className="space-y-1">
             {round.rebuttals.map((rb, i) => (
               <li key={i} className="flex items-start gap-2 text-xs">
@@ -81,6 +83,7 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
 }
 
 export default function DebatePage() {
+  const { t } = useTranslation();
   const [inputId, setInputId] = useState("");
   const [qId, setQId] = useState<string | null>(null);
   const { data: debate, error } = useSWR(qId ? `debate-${qId}` : null, () => fetchDebateDetail(qId!));
@@ -98,8 +101,8 @@ export default function DebatePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Debate Center</h1>
-        <p className="text-[var(--muted)] mt-1">View multi-agent debate traces and verdicts</p>
+        <h1 className="text-2xl font-bold">{t("debate.title")}</h1>
+        <p className="text-[var(--muted)] mt-1">{t("debate.subtitle")}</p>
       </div>
 
       {/* Search */}
@@ -109,18 +112,18 @@ export default function DebatePage() {
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
-          Load Debate
+          {t("debate.loadDebate")}
         </h2>
         <div className="flex gap-3">
           <input
             className="input flex-1"
-            placeholder="Enter debate ID..."
+            placeholder={t("debate.debateIdPlaceholder")}
             value={inputId}
             onChange={(e) => setInputId(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleLoad()}
           />
           <button onClick={handleLoad} className="btn btn-primary">
-            Load
+            {t("common.load")}
           </button>
         </div>
         {error && (
@@ -130,7 +133,7 @@ export default function DebatePage() {
               <line x1="15" y1="9" x2="9" y2="15" />
               <line x1="9" y1="9" x2="15" y2="15" />
             </svg>
-            Debate not found
+            {t("debate.debateNotFound")}
           </div>
         )}
       </div>
@@ -144,9 +147,9 @@ export default function DebatePage() {
               <div>
                 <h2 className="text-lg font-semibold">{debate.topic}</h2>
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="text-xs text-[var(--muted)]">Trigger: {debate.trigger_type}</span>
+                  <span className="text-xs text-[var(--muted)]">{t("debate.trigger")}: {debate.trigger_type}</span>
                   <span className="text-xs text-[var(--muted)]">•</span>
-                  <span className="text-xs text-[var(--muted)]">Rounds: {Object.keys(grouped).length}</span>
+                  <span className="text-xs text-[var(--muted)]">{t("debate.rounds")}: {Object.keys(grouped).length}</span>
                 </div>
               </div>
               <span className={`badge ${debate.status === "COMPLETED" ? "badge-success" : "badge-warning"}`}>
@@ -163,28 +166,28 @@ export default function DebatePage() {
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
-                Final Verdict
+                {t("debate.finalVerdict")}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
-                  <div className="text-xs text-[var(--muted)] uppercase mb-1">Outcome</div>
+                  <div className="text-xs text-[var(--muted)] uppercase mb-1">{t("debate.outcome")}</div>
                   <div className={`text-2xl font-bold capitalize ${debate.verdict.verdict === "support" ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
                     {debate.verdict.verdict}
                   </div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
-                  <div className="text-xs text-[var(--muted)] uppercase mb-1">Confidence</div>
+                  <div className="text-xs text-[var(--muted)] uppercase mb-1">{t("debate.confidence")}</div>
                   <div className="text-2xl font-bold">{(debate.verdict.confidence * 100).toFixed(0)}%</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
-                  <div className="text-xs text-[var(--muted)] uppercase mb-1">Winning Args</div>
+                  <div className="text-xs text-[var(--muted)] uppercase mb-1">{t("debate.winningArgs")}</div>
                   <div className="text-2xl font-bold">{debate.verdict.winning_arguments.length}</div>
                 </div>
               </div>
 
               {debate.verdict.winning_arguments.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-[var(--card-border)]">
-                  <div className="text-xs text-[var(--muted)] uppercase mb-2">Winning Arguments</div>
+                  <div className="text-xs text-[var(--muted)] uppercase mb-2">{t("debate.winningArguments")}</div>
                   <ul className="space-y-2">
                     {debate.verdict.winning_arguments.map((a, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
@@ -200,7 +203,7 @@ export default function DebatePage() {
 
               {debate.verdict.minority_opinion && (
                 <div className="mt-4 pt-4 border-t border-[var(--card-border)]">
-                  <div className="text-xs text-[var(--accent-yellow)] uppercase mb-2">Minority Opinion</div>
+                  <div className="text-xs text-[var(--accent-yellow)] uppercase mb-2">{t("debate.minorityOpinion")}</div>
                   <p className="text-sm text-[var(--muted-foreground)]">{debate.verdict.minority_opinion}</p>
                 </div>
               )}
@@ -216,7 +219,7 @@ export default function DebatePage() {
                   <span className="w-6 h-6 rounded-full bg-[var(--accent)] text-white text-xs flex items-center justify-center">
                     {rn}
                   </span>
-                  Round {rn}
+                  {t("debate.round")} {rn}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {rounds.map((r, i) => (
@@ -233,8 +236,8 @@ export default function DebatePage() {
               <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
-              <div className="empty-state-title">Enter a debate ID</div>
-              <div className="empty-state-description">Load a debate to view the full multi-agent discussion trace</div>
+              <div className="empty-state-title">{t("debate.enterDebateId")}</div>
+              <div className="empty-state-description">{t("debate.enterDebateIdDescription")}</div>
             </div>
           </div>
         )

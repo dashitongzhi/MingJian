@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export interface ProcessStep {
   id: string;
@@ -33,38 +34,32 @@ const stageConfig = {
   ingest: {
     icon: "📥",
     color: "blue",
-    label: "Data Collection",
-    description: "Gathering evidence from multiple sources"
+    labelKey: "process.stages.ingest",
   },
   extract: {
     icon: "🔍",
     color: "purple",
-    label: "Information Extraction",
-    description: "Extracting key insights from raw data"
+    labelKey: "process.stages.extract",
   },
   analyze: {
     icon: "📊",
     color: "yellow",
-    label: "Deep Analysis",
-    description: "AI models analyzing patterns and trends"
+    labelKey: "process.stages.analyze",
   },
   simulate: {
     icon: "🎯",
     color: "green",
-    label: "Scenario Simulation",
-    description: "Running multi-path simulations"
+    labelKey: "process.stages.simulate",
   },
   debate: {
     icon: "⚖️",
     color: "red",
-    label: "Multi-Agent Debate",
-    description: "AI models debating different perspectives"
+    labelKey: "process.stages.debate",
   },
   synthesis: {
     icon: "📝",
     color: "indigo",
-    label: "Report Synthesis",
-    description: "Compiling final analysis report"
+    labelKey: "process.stages.synthesis",
   }
 };
 
@@ -74,6 +69,7 @@ export function ProcessVisualizer({
   currentStage,
   isStreaming
 }: ProcessVisualizerProps) {
+  const { t } = useTranslation();
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const [showModelOutput, setShowModelOutput] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -117,9 +113,15 @@ export function ProcessVisualizer({
               </svg>
             </div>
             <div>
-              <h3 className="font-semibold">Analysis Process</h3>
+              <h3 className="font-semibold">{t("process.analysisProcess")}</h3>
               <p className="text-xs text-[var(--muted)]">
-                {isStreaming ? `Processing: ${stageConfig[currentStage as keyof typeof stageConfig]?.label || currentStage}` : "Analysis complete"}
+                {isStreaming
+                  ? `${t("common.processing")}: ${
+                      stageConfig[currentStage as keyof typeof stageConfig]
+                        ? t(stageConfig[currentStage as keyof typeof stageConfig].labelKey)
+                        : currentStage
+                    }`
+                  : t("process.analysisComplete")}
               </p>
             </div>
           </div>
@@ -131,7 +133,7 @@ export function ProcessVisualizer({
                 : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            {showModelOutput ? "Hide" : "Show"} Model Output
+            {showModelOutput ? t("process.hide") : t("process.show")} {t("process.modelOutput")}
           </button>
         </div>
       </div>
@@ -159,7 +161,7 @@ export function ProcessVisualizer({
                 <div className="mt-2 text-center">
                   <span className="text-lg">{config.icon}</span>
                   <p className={`text-xs mt-1 ${isActive ? "text-[var(--accent)] font-medium" : "text-[var(--muted)]"}`}>
-                    {config.label}
+                    {t(config.labelKey)}
                   </p>
                 </div>
               </div>
@@ -220,7 +222,7 @@ export function ProcessVisualizer({
                         <span className="text-lg">{config.icon}</span>
                         <span className="font-medium text-sm">{step.title}</span>
                         <span className="text-xs text-[var(--muted)]">•</span>
-                        <span className="text-xs text-[var(--muted)]">{config.label}</span>
+                        <span className="text-xs text-[var(--muted)]">{t(config.labelKey)}</span>
                         {step.timestamp && (
                           <>
                             <span className="text-xs text-[var(--muted)]">•</span>
@@ -234,7 +236,7 @@ export function ProcessVisualizer({
                       {step.details && step.details.length > 0 && (
                         <div className="mt-2">
                           <span className="text-xs text-[var(--accent)]">
-                            {isExpanded ? "▼" : "▶"} {step.details.length} details
+                            {isExpanded ? "▼" : "▶"} {step.details.length} {t("process.details")}
                           </span>
                         </div>
                       )}
@@ -264,7 +266,7 @@ export function ProcessVisualizer({
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
                           <path d="M12 2L2 7l10 5 10-5-10-5z" />
                         </svg>
-                        <span className="text-xs font-medium text-purple-500">Model Output</span>
+                        <span className="text-xs font-medium text-purple-500">{t("process.modelOutput")}</span>
                       </div>
                       <pre className="text-xs font-mono whitespace-pre-wrap text-[var(--muted)]">
                         {step.modelOutput}
@@ -277,7 +279,7 @@ export function ProcessVisualizer({
                 {step.sources && step.sources.length > 0 && isExpanded && (
                   <div className="px-4 pb-4 pl-15">
                     <div className="space-y-2">
-                      <span className="text-xs text-[var(--muted)]">Sources:</span>
+                      <span className="text-xs text-[var(--muted)]">{t("process.sources")}:</span>
                       {step.sources.map((source, i) => (
                         <a
                           key={i}
@@ -317,8 +319,8 @@ export function ProcessVisualizer({
                 </svg>
               </div>
               <div>
-                <h4 className="font-medium text-sm">Multi-Agent Debate</h4>
-                <p className="text-xs text-[var(--muted)]">AI models debating different perspectives</p>
+                <h4 className="font-medium text-sm">{t("process.multiAgentDebate")}</h4>
+                <p className="text-xs text-[var(--muted)]">{t("process.debateDescription")}</p>
               </div>
             </div>
 
@@ -328,20 +330,20 @@ export function ProcessVisualizer({
                   advocate: {
                     icon: "🟢",
                     color: "green",
-                    label: "Advocate",
-                    description: "Supporting the analysis"
+                    label: t("assistant.roleAdvocate"),
+                    description: t("process.roleDescriptions.advocate")
                   },
                   challenger: {
                     icon: "🔴",
                     color: "red",
-                    label: "Challenger",
-                    description: "Questioning assumptions"
+                    label: t("assistant.roleChallenger"),
+                    description: t("process.roleDescriptions.challenger")
                   },
                   arbitrator: {
                     icon: "🟣",
                     color: "purple",
-                    label: "Arbitrator",
-                    description: "Making final judgment"
+                    label: t("assistant.roleArbitrator"),
+                    description: t("process.roleDescriptions.arbitrator")
                   }
                 };
 
@@ -358,11 +360,11 @@ export function ProcessVisualizer({
                         <span className="text-lg">{config.icon}</span>
                         <div>
                           <span className="font-medium text-sm">{config.label}</span>
-                          <span className="text-xs text-[var(--muted)] ml-2">Round {msg.round}</span>
+                          <span className="text-xs text-[var(--muted)] ml-2">{t("process.round")} {msg.round}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-[var(--muted)]">Confidence:</span>
+                        <span className="text-xs text-[var(--muted)]">{t("process.confidence")}:</span>
                         <span className={`text-sm font-medium ${getConfidenceColor(msg.confidence)}`}>
                           {(msg.confidence * 100).toFixed(0)}%
                         </span>
@@ -386,7 +388,7 @@ export function ProcessVisualizer({
                     {/* Arguments */}
                     {msg.arguments.length > 0 && (
                       <div className="space-y-1 mb-2">
-                        <span className="text-xs text-[var(--muted)]">Arguments:</span>
+                        <span className="text-xs text-[var(--muted)]">{t("process.arguments")}:</span>
                         {msg.arguments.map((arg, i) => (
                           <div key={i} className="flex items-start gap-2 text-xs">
                             <span className="text-[var(--accent)]">•</span>
@@ -399,7 +401,7 @@ export function ProcessVisualizer({
                     {/* Rebuttals */}
                     {msg.rebuttals && msg.rebuttals.length > 0 && (
                       <div className="space-y-1">
-                        <span className="text-xs text-[var(--muted)]">Rebuttals:</span>
+                        <span className="text-xs text-[var(--muted)]">{t("process.rebuttals")}:</span>
                         {msg.rebuttals.map((rebuttal, i) => (
                           <div key={i} className="flex items-start gap-2 text-xs">
                             <span className="text-red-500">•</span>
@@ -423,7 +425,7 @@ export function ProcessVisualizer({
               <div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
               <div className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
             </div>
-            <span className="text-sm text-[var(--muted)]">Processing analysis...</span>
+            <span className="text-sm text-[var(--muted)]">{t("process.processingAnalysis")}</span>
           </div>
         )}
       </div>

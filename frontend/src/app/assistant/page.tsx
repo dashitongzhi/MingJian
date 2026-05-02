@@ -3,8 +3,10 @@ import { useCallback, useRef, useState } from "react";
 import useSWR from "swr";
 import { fetchSessions, streamAssistant, type AssistantEvent, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
 import { ProcessVisualizer, eventsToProcessSteps, debateRoundsToMessages, type ProcessStep, type DebateMessage } from "@/components/ProcessVisualizer";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 function StepIndicator({ step, index }: { step: AnalysisStep; index: number }) {
+  const { t } = useTranslation();
   const stageColors: Record<string, string> = {
     ingest: "bg-blue-500",
     extract: "bg-purple-500",
@@ -24,7 +26,7 @@ function StepIndicator({ step, index }: { step: AnalysisStep; index: number }) {
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-[var(--accent)] uppercase">{step.stage}</span>
           <span className="text-xs text-[var(--muted)]">•</span>
-          <span className="text-xs text-[var(--muted)]">Step {index + 1}</span>
+          <span className="text-xs text-[var(--muted)]">{t("assistant.step")} {index + 1}</span>
         </div>
         <p className="text-sm mt-1">{step.message}</p>
       </div>
@@ -57,6 +59,7 @@ function SourceCard({ source, index }: { source: { title: string; url: string };
 }
 
 function PanelMessageCard({ msg }: { msg: PanelMessage }) {
+  const { t } = useTranslation();
   const stanceColors: Record<string, { bg: string; text: string; border: string }> = {
     support: { bg: "bg-[var(--accent-green-bg)]", text: "text-[var(--accent-green)]", border: "border-[var(--accent-green)]" },
     challenge: { bg: "bg-[var(--accent-red-bg)]", text: "text-[var(--accent-red)]", border: "border-[var(--accent-red)]" },
@@ -74,7 +77,7 @@ function PanelMessageCard({ msg }: { msg: PanelMessage }) {
       <p className="text-sm">{msg.summary}</p>
       {msg.recommendation && (
         <div className="mt-3 pt-3 border-t border-[var(--card-border)]">
-          <div className="text-xs text-[var(--muted)] mb-1">Recommendation</div>
+          <div className="text-xs text-[var(--muted)] mb-1">{t("assistant.recommendation")}</div>
           <p className="text-sm text-[var(--accent)]">→ {msg.recommendation}</p>
         </div>
       )}
@@ -83,6 +86,7 @@ function PanelMessageCard({ msg }: { msg: PanelMessage }) {
 }
 
 function DebateRoundCard({ round }: { round: DebateRound }) {
+  const { t } = useTranslation();
   const roleColors: Record<string, string> = {
     advocate: "border-[var(--accent-green)]",
     challenger: "border-[var(--accent-red)]",
@@ -94,7 +98,7 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium capitalize">{round.role}</span>
-          <span className="text-xs text-[var(--muted)]">Round {round.round_number}</span>
+          <span className="text-xs text-[var(--muted)]">{t("assistant.round")} {round.round_number}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-16 h-1.5 bg-[var(--background)] rounded-full overflow-hidden">
@@ -112,6 +116,7 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
 }
 
 export default function AssistantPage() {
+  const { t } = useTranslation();
   const { data: sessions, mutate: refreshSessions } = useSWR("sessions", fetchSessions);
   const [steps, setSteps] = useState<AnalysisStep[]>([]);
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
@@ -174,7 +179,7 @@ export default function AssistantPage() {
             setProcessSteps(prev => [...prev, {
               id: `step-${Date.now()}`,
               stage: step.stage as any || "analyze",
-              title: step.message || "Processing",
+              title: step.message || t("common.processing"),
               description: step.detail || "",
               details: step.detail ? [step.detail] : undefined,
               status: "completed",
@@ -225,7 +230,7 @@ export default function AssistantPage() {
     } finally {
       setStreaming(false);
     }
-  }, [topic, domainId, subjectName, tickCount, refreshSessions]);
+  }, [topic, domainId, subjectName, tickCount, refreshSessions, t]);
 
   const handleExport = useCallback(() => {
     if (!result) return;
@@ -286,19 +291,19 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
   }, [result]);
 
   const tabs = [
-    { id: "process" as const, label: "Process", count: processSteps.length },
-    { id: "reasoning" as const, label: "Reasoning", count: steps.length },
-    { id: "sources" as const, label: "Sources", count: sources.length },
-    { id: "panel" as const, label: "Panel", count: discussions.length },
-    { id: "debate" as const, label: "Debate", count: debateRounds.length },
+    { id: "process" as const, label: t("assistant.process"), count: processSteps.length },
+    { id: "reasoning" as const, label: t("assistant.reasoning"), count: steps.length },
+    { id: "sources" as const, label: t("assistant.sources"), count: sources.length },
+    { id: "panel" as const, label: t("assistant.panel"), count: discussions.length },
+    { id: "debate" as const, label: t("assistant.debate"), count: debateRounds.length },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Strategic Assistant</h1>
-        <p className="text-[var(--muted)] mt-1">AI-powered analysis with multi-agent debate and evidence synthesis</p>
+        <h1 className="text-2xl font-bold">{t("assistant.title")}</h1>
+        <p className="text-[var(--muted)] mt-1">{t("assistant.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
@@ -311,23 +316,23 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
-              Mission Input
+              {t("assistant.missionInput")}
             </h2>
             <textarea
               className="input min-h-[120px] resize-none"
-              placeholder="Enter your analysis topic..."
+              placeholder={t("assistant.topicPlaceholder")}
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
             />
             {/* Quick Experience Examples */}
             <div>
-              <label className="text-xs text-[var(--muted)] mb-2 block">Quick Start Examples</label>
+              <label className="text-xs text-[var(--muted)] mb-2 block">{t("assistant.quickStartExamples")}</label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { topic: "分析台海局势未来3年发展趋势", domain: "military", icon: "🎯" },
-                  { topic: "评估新能源汽车行业投资机会", domain: "corporate", icon: "💰" },
-                  { topic: "分析全球半导体供应链风险", domain: "corporate", icon: "🔬" },
-                  { topic: "评估中东地区地缘政治风险", domain: "military", icon: "🌍" },
+                  { topic: t("assistant.exampleTaiwan"), domain: "military", icon: "🎯" },
+                  { topic: t("assistant.exampleEv"), domain: "corporate", icon: "💰" },
+                  { topic: t("assistant.exampleSemiconductor"), domain: "corporate", icon: "🔬" },
+                  { topic: t("assistant.exampleMiddleEast"), domain: "military", icon: "🌍" },
                 ].map((example) => (
                   <button
                     key={example.topic}
@@ -345,15 +350,15 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-[var(--muted)] mb-1 block">Domain</label>
+                <label className="text-xs text-[var(--muted)] mb-1 block">{t("assistant.domain")}</label>
                 <select className="input select" value={domainId} onChange={(e) => setDomainId(e.target.value)}>
-                  <option value="auto">Auto-detect</option>
-                  <option value="corporate">Corporate</option>
-                  <option value="military">Military</option>
+                  <option value="auto">{t("assistant.autoDetect")}</option>
+                  <option value="corporate">{t("assistant.corporate")}</option>
+                  <option value="military">{t("assistant.military")}</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs text-[var(--muted)] mb-1 block">Ticks</label>
+                <label className="text-xs text-[var(--muted)] mb-1 block">{t("assistant.ticks")}</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="range"
@@ -368,28 +373,28 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               </div>
             </div>
             <div>
-              <label className="text-xs text-[var(--muted)] mb-1 block">Subject Name</label>
-              <input className="input" placeholder="Optional subject name" value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
+              <label className="text-xs text-[var(--muted)] mb-1 block">{t("assistant.subjectName")}</label>
+              <input className="input" placeholder={t("assistant.subjectPlaceholder")} value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
             </div>
             <div className="flex gap-3">
               <button onClick={handleRun} disabled={streaming || !topic.trim()} className="btn btn-primary flex-1">
                 {streaming ? (
                   <>
                     <div className="spinner" />
-                    Running...
+                    {t("common.running")}
                   </>
                 ) : (
                   <>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    Run Analysis
+                    {t("assistant.runAnalysis")}
                   </>
                 )}
               </button>
               {streaming && (
                 <button onClick={() => abortRef.current?.abort()} className="btn btn-danger">
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               )}
             </div>
@@ -408,7 +413,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <polyline points="23 4 23 10 17 10" />
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                   </svg>
-                  Retry
+                  {t("common.retry")}
                 </button>
               </div>
             )}
@@ -421,7 +426,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <path d="M12 8v4l3 3" />
                 <circle cx="12" cy="12" r="10" />
               </svg>
-              Recent Sessions
+              {t("assistant.recentSessions")}
             </h2>
             <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {sessions?.map((s) => (
@@ -429,14 +434,14 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium truncate">{s.name || s.topic.slice(0, 40)}</div>
                     <span className={`badge ${s.auto_refresh_enabled ? "badge-success" : "badge-warning"}`}>
-                      {s.auto_refresh_enabled ? "Auto" : "Manual"}
+                      {s.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
                     </span>
                   </div>
                   <div className="text-xs text-[var(--muted)] mt-1">{s.domain_id}</div>
                 </div>
               ))}
               {(!sessions || sessions.length === 0) && (
-                <div className="text-sm text-[var(--muted)] text-center py-4">No sessions yet</div>
+                <div className="text-sm text-[var(--muted)] text-center py-4">{t("assistant.noSessions")}</div>
               )}
             </div>
           </div>
@@ -485,7 +490,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <path d="M2 17l10 5 10-5" />
                     <path d="M2 12l10 5 10-5" />
                   </svg>
-                  Live Reasoning
+                  {t("assistant.liveReasoning")}
                 </h3>
                 {steps.length > 0 ? (
                   <div className="space-y-0">
@@ -500,8 +505,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                       <path d="M2 17l10 5 10-5" />
                       <path d="M2 12l10 5 10-5" />
                     </svg>
-                    <div className="empty-state-title">Waiting for analysis</div>
-                    <div className="empty-state-description">Run an analysis to see the AI reasoning process in real-time</div>
+                    <div className="empty-state-title">{t("assistant.waitingForAnalysis")}</div>
+                    <div className="empty-state-description">{t("assistant.waitingForAnalysisDescription")}</div>
                   </div>
                 )}
               </div>
@@ -515,7 +520,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <polyline points="15 3 21 3 21 9" />
                     <line x1="10" y1="14" x2="21" y2="3" />
                   </svg>
-                  Sources ({sources.length})
+                  {t("assistant.sources")} ({sources.length})
                 </h3>
                 {sources.length > 0 ? (
                   <div className="space-y-2">
@@ -530,8 +535,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                       <polyline points="15 3 21 3 21 9" />
                       <line x1="10" y1="14" x2="21" y2="3" />
                     </svg>
-                    <div className="empty-state-title">No sources yet</div>
-                    <div className="empty-state-description">Sources will appear here as the AI gathers evidence</div>
+                    <div className="empty-state-title">{t("assistant.noSources")}</div>
+                    <div className="empty-state-description">{t("assistant.noSourcesDescription")}</div>
                   </div>
                 )}
               </div>
@@ -546,7 +551,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
-                  Panel Discussion ({discussions.length})
+                  {t("assistant.panelDiscussion")} ({discussions.length})
                 </h3>
                 {discussions.length > 0 ? (
                   <div className="space-y-3">
@@ -562,8 +567,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
-                    <div className="empty-state-title">No panel discussion yet</div>
-                    <div className="empty-state-description">Panel members will discuss findings during analysis</div>
+                    <div className="empty-state-title">{t("assistant.noPanelDiscussion")}</div>
+                    <div className="empty-state-description">{t("assistant.noPanelDiscussionDescription")}</div>
                   </div>
                 )}
               </div>
@@ -575,7 +580,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
-                  Debate Trace ({debateRounds.length})
+                  {t("assistant.debateTrace")} ({debateRounds.length})
                 </h3>
                 {debateRounds.length > 0 ? (
                   <div className="space-y-3">
@@ -588,8 +593,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     </svg>
-                    <div className="empty-state-title">No debate yet</div>
-                    <div className="empty-state-description">Debate rounds will appear when AI models discuss the analysis</div>
+                    <div className="empty-state-title">{t("assistant.noDebate")}</div>
+                    <div className="empty-state-description">{t("assistant.noDebateDescription")}</div>
                   </div>
                 )}
               </div>
@@ -605,7 +610,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                     <polyline points="22 4 12 14.01 9 11.01" />
                   </svg>
-                  Analysis Complete
+                  {t("assistant.analysisComplete")}
                 </h3>
                 <button onClick={handleExport} className="btn btn-ghost text-xs">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -613,13 +618,13 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
-                  Export MD
+                  {t("common.exportMd")}
                 </button>
               </div>
               <p className="text-sm">{result.analysis.summary}</p>
               {result.analysis.findings.length > 0 && (
                 <div>
-                  <div className="text-xs text-[var(--muted)] mb-2">Key Findings</div>
+                  <div className="text-xs text-[var(--muted)] mb-2">{t("assistant.keyFindings")}</div>
                   <ul className="space-y-2">
                     {result.analysis.findings.map((f, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
@@ -635,7 +640,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               <div className="flex items-center gap-4 pt-3 border-t border-[var(--card-border)]">
                 {result.simulation_run && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--muted)]">Simulation:</span>
+                    <span className="text-xs text-[var(--muted)]">{t("assistant.simulation")}:</span>
                     <span className="text-xs font-mono">{result.simulation_run.id.slice(0, 8)}</span>
                     <span className={`badge ${result.simulation_run.status === "completed" ? "badge-success" : "badge-warning"}`}>
                       {result.simulation_run.status}
@@ -644,7 +649,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 )}
                 {result.debate?.verdict && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--muted)]">Verdict:</span>
+                    <span className="text-xs text-[var(--muted)]">{t("assistant.verdict")}:</span>
                     <span className={`badge ${result.debate.verdict.verdict === "support" ? "badge-success" : "badge-error"}`}>
                       {result.debate.verdict.verdict}
                     </span>
@@ -669,16 +674,16 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   <path d="M2 12l10 5 10-5" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold mb-2">Welcome to PlanAgent</h2>
-              <p className="text-[var(--muted)] text-sm">Your AI-powered decision intelligence platform</p>
+              <h2 className="text-xl font-bold mb-2">{t("assistant.onboardingTitle")}</h2>
+              <p className="text-[var(--muted)] text-sm">{t("assistant.onboardingSubtitle")}</p>
             </div>
 
             <div className="space-y-4 mb-6">
               {[
-                { icon: "📝", title: "Enter Your Topic", desc: "Describe the strategic question you want to analyze" },
-                { icon: "⚡", title: "AI Analysis", desc: "Watch as AI agents gather evidence and analyze in real-time" },
-                { icon: "🤖", title: "Multi-Agent Debate", desc: "Expert agents debate different perspectives" },
-                { icon: "📊", title: "Get Insights", desc: "Receive comprehensive analysis with recommendations" },
+                { icon: "📝", title: t("assistant.onboardingEnterTopic"), desc: t("assistant.onboardingEnterTopicDesc") },
+                { icon: "⚡", title: t("assistant.onboardingAiAnalysis"), desc: t("assistant.onboardingAiAnalysisDesc") },
+                { icon: "🤖", title: t("assistant.onboardingDebate"), desc: t("assistant.onboardingDebateDesc") },
+                { icon: "📊", title: t("assistant.onboardingInsights"), desc: t("assistant.onboardingInsightsDesc") },
               ].map((step, i) => (
                 <div
                   key={i}
@@ -700,7 +705,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 onClick={() => setShowGuide(false)}
                 className="btn btn-ghost flex-1"
               >
-                Skip
+                {t("common.skip")}
               </button>
               <button
                 onClick={() => {
@@ -712,7 +717,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 }}
                 className="btn btn-primary flex-1"
               >
-                {guideStep < 3 ? "Next" : "Get Started"}
+                {guideStep < 3 ? t("common.next") : t("common.getStarted")}
               </button>
             </div>
           </div>

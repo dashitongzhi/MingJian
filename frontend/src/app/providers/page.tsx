@@ -8,6 +8,7 @@ import {
   type ConfiguredProvider,
   type ProviderTestResult,
 } from "@/lib/providers";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 // ── Icons (inline SVG to avoid external deps) ──────────────────────────────
 
@@ -88,6 +89,7 @@ function ProviderCard({
   provider: ConfiguredProvider;
   onConfigure: () => void;
 }) {
+  const { t } = useTranslation();
   const isCustom = provider.custom;
   return (
     <div
@@ -122,12 +124,12 @@ function ProviderCard({
           {provider.api_key_set ? (
             <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              已配置
+              {t("providers.configuredBadge")}
             </span>
           ) : (
             <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-zinc-500/15 text-zinc-400">
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-              未配置
+              {t("providers.notConfiguredBadge")}
             </span>
           )}
         </div>
@@ -144,7 +146,7 @@ function ProviderCard({
 
       {/* Edit hint */}
       <div className="absolute bottom-3 right-4 text-xs text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
-        点击配置 →
+        {t("providers.editHint")} →
       </div>
     </div>
   );
@@ -161,6 +163,7 @@ function ConfigPanel({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState(provider.base_url);
   const [model, setModel] = useState(provider.active_model || "");
@@ -207,14 +210,14 @@ function ConfigPanel({
       onSaved();
       onClose();
     } catch (e: any) {
-      alert(`保存失败: ${e.message}`);
+      alert(`${t("providers.saveFailed")}: ${e.message}`);
     } finally {
       setSaving(false);
     }
   }, [provider.id, apiKey, baseUrl, model, apiFormat, onSaved, onClose]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm(`确定删除 ${provider.name} 的配置？`)) return;
+    if (!confirm(`${t("providers.deleteConfirmPrefix")} ${provider.name}?`)) return;
     await deleteProvider(provider.id);
     onSaved();
     onClose();
@@ -249,7 +252,7 @@ function ConfigPanel({
         <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* API Format */}
           <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">API 格式</label>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.apiFormat")}</label>
             <div className="flex gap-2 mt-1.5">
               {["openai", "anthropic"].map((fmt) => (
                 <button
@@ -261,7 +264,7 @@ function ConfigPanel({
                       : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  {fmt === "openai" ? "OpenAI 兼容" : "Anthropic 原生"}
+                  {fmt === "openai" ? t("providers.openaiCompatible") : t("providers.anthropicNative")}
                 </button>
               ))}
             </div>
@@ -288,7 +291,7 @@ function ConfigPanel({
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="w-full px-3 py-2 pr-10 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
-                placeholder={provider.placeholder || "Enter API Key..."}
+                placeholder={provider.placeholder || t("providers.apiKeyPlaceholder")}
                 autoComplete="off"
               />
               <button
@@ -306,21 +309,21 @@ function ConfigPanel({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-[var(--accent)] mt-1.5 hover:underline"
               >
-                获取 API Key <ExternalLinkIcon />
+                {t("providers.getApiKey")} <ExternalLinkIcon />
               </a>
             )}
           </div>
 
           {/* Model */}
           <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">模型</label>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.model")}</label>
             <div className="flex gap-1.5 mt-1.5">
               <input
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
-                placeholder="选择或输入模型名称"
+                placeholder={t("providers.chooseModelPlaceholder")}
                 list={`models-${provider.id}`}
               />
               <datalist id={`models-${provider.id}`}>
@@ -350,9 +353,9 @@ function ConfigPanel({
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {testing ? (
-              <><LoaderIcon className="animate-spin" /> 测试连接中...</>
+              <><LoaderIcon className="animate-spin" /> {t("providers.testing")}</>
             ) : (
-              <><TestTubeIcon /> 验活测试</>
+              <><TestTubeIcon /> {t("providers.testConnection")}</>
             )}
           </button>
 
@@ -368,15 +371,15 @@ function ConfigPanel({
               {testResult.ok ? (
                 <div className="flex items-center gap-2">
                   <CheckIcon />
-                  <span>连接成功！延迟 {testResult.latency_ms}ms</span>
+                  <span>{t("providers.connectionSuccess")}! {t("providers.latency")} {testResult.latency_ms}ms</span>
                   {testResult.models_available.length > 0 && (
-                    <span className="text-xs opacity-70">({testResult.models_available.length} 个模型可用)</span>
+                    <span className="text-xs opacity-70">({testResult.models_available.length} {t("providers.modelsAvailable")})</span>
                   )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <XIcon />
-                  <span>{testResult.error || "连接失败"}</span>
+                  <span>{testResult.error || t("providers.connectionFailed")}</span>
                 </div>
               )}
             </div>
@@ -389,18 +392,18 @@ function ConfigPanel({
             onClick={handleDelete}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors"
           >
-            <TrashIcon /> 删除
+            <TrashIcon /> {t("common.delete")}
           </button>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-              取消
+              {t("common.cancel")}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
               className="px-5 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40 transition-all"
             >
-              {saving ? "保存中..." : "保存"}
+              {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </div>
@@ -412,6 +415,7 @@ function ConfigPanel({
 // ── Custom Provider Card ────────────────────────────────────────────────────
 
 function AddCustomCard({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       onClick={onClick}
@@ -421,10 +425,10 @@ function AddCustomCard({ onClick }: { onClick: () => void }) {
         +
       </div>
       <div className="mt-2 text-sm font-medium text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors">
-        自定义供应商
+        {t("providers.customProvider")}
       </div>
       <div className="text-xs text-[var(--muted)] opacity-60 mt-0.5">
-        填入任意 Base URL + API Key
+        {t("providers.customProviderDescription")}
       </div>
     </div>
   );
@@ -439,6 +443,7 @@ function CustomConfigPanel({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -474,7 +479,7 @@ function CustomConfigPanel({
 
   const handleSave = useCallback(async () => {
     if (!name.trim() || !baseUrl.trim() || !apiKey.trim()) {
-      alert("请填写供应商名称、Base URL 和 API Key");
+      alert(t("providers.requiredFields"));
       return;
     }
     setSaving(true);
@@ -492,7 +497,7 @@ function CustomConfigPanel({
       onSaved();
       onClose();
     } catch (e: any) {
-      alert(`保存失败: ${e.message}`);
+      alert(`${t("providers.saveFailed")}: ${e.message}`);
     } finally {
       setSaving(false);
     }
@@ -511,8 +516,8 @@ function CustomConfigPanel({
               +
             </div>
             <div>
-              <h3 className="font-semibold text-base">自定义供应商</h3>
-              <p className="text-xs text-[var(--muted)]">填入任意 OpenAI 兼容或 Anthropic 格式的接口</p>
+              <h3 className="font-semibold text-base">{t("providers.customProvider")}</h3>
+              <p className="text-xs text-[var(--muted)]">{t("providers.customProviderSubtitle")}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1">
@@ -524,19 +529,19 @@ function CustomConfigPanel({
         <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* Name */}
           <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">供应商名称</label>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.providerName")}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="mt-1.5 w-full px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent)] transition-colors"
-              placeholder="例如: My Local LLM / 公司内部模型"
+              placeholder={t("providers.providerNamePlaceholder")}
             />
           </div>
 
           {/* API Format */}
           <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">API 格式</label>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.apiFormat")}</label>
             <div className="flex gap-2 mt-1.5">
               {["openai", "anthropic"].map((fmt) => (
                 <button
@@ -548,7 +553,7 @@ function CustomConfigPanel({
                       : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  {fmt === "openai" ? "OpenAI 兼容" : "Anthropic 原生"}
+                  {fmt === "openai" ? t("providers.openaiCompatible") : t("providers.anthropicNative")}
                 </button>
               ))}
             </div>
@@ -590,14 +595,14 @@ function CustomConfigPanel({
 
           {/* Model */}
           <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">模型</label>
+            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.model")}</label>
             <div className="flex gap-1.5 mt-1.5">
               <input
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
-                placeholder="选择或输入模型名称"
+                placeholder={t("providers.chooseModelPlaceholder")}
                 list="custom-models"
               />
               <datalist id="custom-models">
@@ -627,9 +632,9 @@ function CustomConfigPanel({
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
             {testing ? (
-              <><LoaderIcon className="animate-spin" /> 测试连接中...</>
+              <><LoaderIcon className="animate-spin" /> {t("providers.testing")}</>
             ) : (
-              <><TestTubeIcon /> 验活测试</>
+              <><TestTubeIcon /> {t("providers.testConnection")}</>
             )}
           </button>
 
@@ -645,15 +650,15 @@ function CustomConfigPanel({
               {testResult.ok ? (
                 <div className="flex items-center gap-2">
                   <CheckIcon />
-                  <span>连接成功！延迟 {testResult.latency_ms}ms</span>
+                  <span>{t("providers.connectionSuccess")}! {t("providers.latency")} {testResult.latency_ms}ms</span>
                   {testResult.models_available.length > 0 && (
-                    <span className="text-xs opacity-70">({testResult.models_available.length} 个模型可用)</span>
+                    <span className="text-xs opacity-70">({testResult.models_available.length} {t("providers.modelsAvailable")})</span>
                   )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <XIcon />
-                  <span>{testResult.error || "连接失败"}</span>
+                  <span>{testResult.error || t("providers.connectionFailed")}</span>
                 </div>
               )}
             </div>
@@ -663,14 +668,14 @@ function CustomConfigPanel({
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 p-5 border-t border-[var(--card-border)]">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-            取消
+            {t("common.cancel")}
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !name || !baseUrl || !apiKey}
             className="px-5 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40 transition-all"
           >
-            {saving ? "保存中..." : "保存"}
+            {saving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>
@@ -681,6 +686,7 @@ function CustomConfigPanel({
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function ProvidersPage() {
+  const { t } = useTranslation();
   const { data: providers, mutate } = useConfiguredProviders();
   const [configuring, setConfiguring] = useState<ConfiguredProvider | null>(null);
   const [showCustomPanel, setShowCustomPanel] = useState(false);
@@ -697,9 +703,9 @@ export default function ProvidersPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">模型供应商</h1>
+            <h1 className="text-2xl font-bold">{t("providers.title")}</h1>
             <p className="text-[var(--muted)] mt-1">
-              配置 AI 模型接入 · 已配置 {configuredCount}/{providers?.length || 0} 个供应商
+              {t("providers.subtitlePrefix")} · {t("providers.configured")} {configuredCount}/{providers?.length || 0} {t("providers.providers")}
             </p>
           </div>
         </div>
@@ -718,10 +724,8 @@ export default function ProvidersPage() {
 
         {/* Info banner */}
         <div className="p-4 rounded-xl bg-[var(--accent)]/5 border border-[var(--accent)]/10 text-sm text-[var(--muted)]">
-          <strong className="text-[var(--foreground)]">💡 提示：</strong>
-          只需配置一个供应商即可开始使用。系统会自动将未配置的槽位回退到已配置的供应商。
-          所有供应商均使用 OpenAI 兼容格式（/chat/completions），Anthropic 也支持原生格式。
-          也可以点击「自定义供应商」接入任意兼容接口。
+          <strong className="text-[var(--foreground)]">💡 {t("providers.hintTitle")}</strong>
+          {t("providers.hint")}
         </div>
       </div>
 

@@ -2,13 +2,14 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetchEvidence, fetchClaims, fetchKnowledgeGraph, searchKnowledge, fetchSourceReputations, fetchScoreboard } from "@/lib/api";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 type Tab = "evidence" | "claims" | "graph" | "reputation" | "calibration";
 
-const TAB_CONFIG: { key: Tab; label: string; icon: React.ReactNode }[] = [
+const TAB_CONFIG: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   {
     key: "evidence",
-    label: "Evidence",
+    labelKey: "evidence.evidence",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -21,7 +22,7 @@ const TAB_CONFIG: { key: Tab; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "claims",
-    label: "Claims",
+    labelKey: "evidence.claims",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -31,7 +32,7 @@ const TAB_CONFIG: { key: Tab; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "graph",
-    label: "Knowledge Graph",
+    labelKey: "evidence.knowledgeGraph",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -42,7 +43,7 @@ const TAB_CONFIG: { key: Tab; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "reputation",
-    label: "Source Reputation",
+    labelKey: "evidence.sourceReputation",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -51,7 +52,7 @@ const TAB_CONFIG: { key: Tab; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: "calibration",
-    label: "Calibration",
+    labelKey: "evidence.calibration",
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10" />
@@ -68,16 +69,18 @@ function ConfidenceBadge({ value }: { value: number }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   const config: Record<string, { class: string; label: string }> = {
-    ACCEPTED: { class: "badge-success", label: "Accepted" },
-    REJECTED: { class: "badge-error", label: "Rejected" },
-    PENDING: { class: "badge-warning", label: "Pending" },
+    ACCEPTED: { class: "badge-success", label: t("common.accepted") },
+    REJECTED: { class: "badge-error", label: t("common.rejected") },
+    PENDING: { class: "badge-warning", label: t("common.pending") },
   };
   const cfg = config[status] || config.PENDING;
   return <span className={`badge ${cfg.class}`}>{cfg.label}</span>;
 }
 
 export default function EvidencePage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("evidence");
   const [q, setQ] = useState("");
   const { data: ev } = useSWR(tab === "evidence" ? "ev" : null, () => fetchEvidence(100));
@@ -91,24 +94,24 @@ export default function EvidencePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Intelligence Center</h1>
-        <p className="text-[var(--muted)] mt-1">Browse evidence, claims, knowledge graph, and source reputation</p>
+        <h1 className="text-2xl font-bold">{t("evidence.title")}</h1>
+        <p className="text-[var(--muted)] mt-1">{t("evidence.subtitle")}</p>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1 bg-[var(--card)] rounded-xl border border-[var(--card-border)]">
-        {TAB_CONFIG.map((t) => (
+        {TAB_CONFIG.map((tabItem) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={tabItem.key}
+            onClick={() => setTab(tabItem.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === t.key
+              tab === tabItem.key
                 ? "bg-[var(--accent)] text-white"
                 : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]"
             }`}
           >
-            {t.icon}
-            {t.label}
+            {tabItem.icon}
+            {t(tabItem.labelKey)}
           </button>
         ))}
       </div>
@@ -119,9 +122,9 @@ export default function EvidencePage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--card-border)]">
-                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Title</th>
-                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Summary</th>
-                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Confidence</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("common.title")}</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("common.summary")}</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.confidence")}</th>
               </tr>
             </thead>
             <tbody>
@@ -146,8 +149,8 @@ export default function EvidencePage() {
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
-              <div className="empty-state-title">No evidence yet</div>
-              <div className="empty-state-description">Evidence will appear here as the system ingests data</div>
+              <div className="empty-state-title">{t("evidence.noEvidence")}</div>
+              <div className="empty-state-description">{t("evidence.noEvidenceDescription")}</div>
             </div>
           )}
         </div>
@@ -158,9 +161,9 @@ export default function EvidencePage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--card-border)]">
-                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Statement</th>
-                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Confidence</th>
-                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Status</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.statement")}</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.confidence")}</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -185,8 +188,8 @@ export default function EvidencePage() {
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                 <polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              <div className="empty-state-title">No claims yet</div>
-              <div className="empty-state-description">Claims will be extracted from evidence automatically</div>
+              <div className="empty-state-title">{t("evidence.noClaims")}</div>
+              <div className="empty-state-description">{t("evidence.noClaimsDescription")}</div>
             </div>
           )}
         </div>
@@ -204,7 +207,7 @@ export default function EvidencePage() {
                 </svg>
                 <input
                   className="input pl-10"
-                  placeholder="Search knowledge graph..."
+                  placeholder={t("evidence.searchPlaceholder")}
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                 />
@@ -215,7 +218,7 @@ export default function EvidencePage() {
           {/* Search results */}
           {sr && sr.length > 0 && (
             <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
-              <h3 className="text-sm font-semibold mb-3">Search Results ({sr.length})</h3>
+              <h3 className="text-sm font-semibold mb-3">{t("evidence.searchResults")} ({sr.length})</h3>
               <div className="space-y-2">
                 {sr.map((r) => (
                   <div key={r.node_id} className="flex items-center justify-between p-3 rounded-lg hover:bg-[var(--card-hover)] transition-colors">
@@ -240,11 +243,11 @@ export default function EvidencePage() {
           {graph && (
             <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold">Knowledge Graph</h3>
+                <h3 className="text-sm font-semibold">{t("evidence.knowledgeGraph")}</h3>
                 <div className="flex items-center gap-4 text-xs text-[var(--muted)]">
-                  <span>{graph.nodes.length} nodes</span>
+                  <span>{graph.nodes.length} {t("evidence.nodes")}</span>
                   <span>•</span>
-                  <span>{graph.edges.length} edges</span>
+                  <span>{graph.edges.length} {t("evidence.edges")}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto">
@@ -265,11 +268,11 @@ export default function EvidencePage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--card-border)]">
-                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Source</th>
-                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">Type</th>
-                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Reputation</th>
-                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Confirmed</th>
-                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">Refuted</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("common.source")}</th>
+                <th className="text-left p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("common.type")}</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.reputation")}</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.confirmed")}</th>
+                <th className="text-right p-4 text-xs font-medium text-[var(--muted)] uppercase">{t("evidence.refuted")}</th>
               </tr>
             </thead>
             <tbody>
@@ -303,8 +306,8 @@ export default function EvidencePage() {
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
-              <div className="empty-state-title">No reputation data</div>
-              <div className="empty-state-description">Source reputation will be tracked as evidence is validated</div>
+              <div className="empty-state-title">{t("evidence.noReputation")}</div>
+              <div className="empty-state-description">{t("evidence.noReputationDescription")}</div>
             </div>
           )}
         </div>
@@ -318,21 +321,21 @@ export default function EvidencePage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
                   <div className="text-3xl font-bold">{sb.total_hypotheses}</div>
-                  <div className="text-xs text-[var(--muted)] mt-1">Total Hypotheses</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("evidence.totalHypotheses")}</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
                   <div className="text-3xl font-bold text-[var(--accent-green)]">{(sb.accuracy * 100).toFixed(0)}%</div>
-                  <div className="text-xs text-[var(--muted)] mt-1">Accuracy</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("evidence.accuracy")}</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
                   <div className="text-3xl font-bold">{sb.brier_score?.toFixed(3) ?? "—"}</div>
-                  <div className="text-xs text-[var(--muted)] mt-1">Brier Score</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("evidence.brierScore")}</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--background)]">
                   <div className="text-3xl font-bold text-[var(--accent)]">
                     {sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "—"}
                   </div>
-                  <div className="text-xs text-[var(--muted)] mt-1">vs Human</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("evidence.vsHuman")}</div>
                 </div>
               </div>
 
@@ -340,22 +343,22 @@ export default function EvidencePage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center p-4 rounded-lg bg-[var(--accent-green-bg)]">
                   <div className="text-2xl font-bold text-[var(--accent-green)]">{sb.confirmed}</div>
-                  <div className="text-xs text-[var(--muted)] mt-1">Confirmed</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("evidence.confirmed")}</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--accent-red-bg)]">
                   <div className="text-2xl font-bold text-[var(--accent-red)]">{sb.refuted}</div>
-                  <div className="text-xs text-[var(--muted)] mt-1">Refuted</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("evidence.refuted")}</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-[var(--accent-yellow-bg)]">
                   <div className="text-2xl font-bold text-[var(--accent-yellow)]">{sb.pending}</div>
-                  <div className="text-xs text-[var(--muted)] mt-1">Pending</div>
+                  <div className="text-xs text-[var(--muted)] mt-1">{t("common.pending")}</div>
                 </div>
               </div>
             </div>
           ) : (
             <div className="empty-state py-12">
               <div className="spinner mx-auto mb-4" />
-              <div className="empty-state-title">Loading calibration data...</div>
+              <div className="empty-state-title">{t("evidence.loadingCalibration")}</div>
             </div>
           )}
         </div>

@@ -1,6 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules } from "@/lib/api";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 function StatCard({ label, value, sub, trend, icon }: { label: string; value: string | number; sub?: string; trend?: "up" | "down" | "neutral"; icon: React.ReactNode }) {
   return (
@@ -39,6 +40,7 @@ function QuickAction({ label, description, icon, href }: { label: string; descri
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const { data: sessions } = useSWR("sessions", fetchSessions, { refreshInterval: 30000 });
   const { data: sb } = useSWR("scoreboard", fetchScoreboard, { refreshInterval: 60000 });
   const { data: health } = useSWR("health", fetchQueueHealth, { refreshInterval: 15000 });
@@ -52,17 +54,17 @@ export default function DashboardPage() {
       <div className="flex items-center gap-4">
         <img src="/mingjian-icon.jpg" alt="明鉴" className="w-14 h-14 rounded-xl object-cover shadow-lg" />
         <div>
-          <h1 className="text-2xl font-bold">Welcome to 明鉴</h1>
-          <p className="text-[var(--muted)] mt-1">Evidence-driven intelligence platform — see clearly, judge wisely</p>
+          <h1 className="text-2xl font-bold">{t("dashboard.welcome")}</h1>
+          <p className="text-[var(--muted)] mt-1">{t("dashboard.tagline")}</p>
         </div>
       </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Active Sessions"
+          label={t("dashboard.activeSessions")}
           value={sessions?.length ?? "—"}
-          sub="strategic analyses"
+          sub={t("dashboard.strategicAnalyses")}
           trend="up"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -73,9 +75,9 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Prediction Accuracy"
+          label={t("dashboard.predictionAccuracy")}
           value={sb ? `${(sb.accuracy * 100).toFixed(0)}%` : "—"}
-          sub={sb?.brier_score != null ? `Brier: ${sb.brier_score.toFixed(3)}` : undefined}
+          sub={sb?.brier_score != null ? `${t("dashboard.brier")}: ${sb.brier_score.toFixed(3)}` : undefined}
           trend="up"
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -84,9 +86,9 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Queue Health"
+          label={t("dashboard.queueHealth")}
           value={pendingItems}
-          sub="pending items"
+          sub={t("dashboard.pendingItems")}
           trend={pendingItems > 10 ? "down" : "neutral"}
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -97,9 +99,9 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Watch Rules"
+          label={t("dashboard.watchRules")}
           value={rules?.filter((r) => r.enabled).length ?? "—"}
-          sub="active monitors"
+          sub={t("dashboard.activeMonitors")}
           icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -111,11 +113,11 @@ export default function DashboardPage() {
 
       {/* Quick Actions */}
       <div>
-        <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
+        <h2 className="text-lg font-semibold mb-4">{t("dashboard.quickActions")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <QuickAction
-            label="New Analysis"
-            description="Start a new strategic analysis with real-time evidence gathering"
+            label={t("dashboard.newAnalysis")}
+            description={t("dashboard.newAnalysisDescription")}
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
@@ -125,8 +127,8 @@ export default function DashboardPage() {
             href="/assistant"
           />
           <QuickAction
-            label="Run Simulation"
-            description="Execute scenario simulations with branching and comparison"
+            label={t("dashboard.runSimulation")}
+            description={t("dashboard.runSimulationDescription")}
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
@@ -136,8 +138,8 @@ export default function DashboardPage() {
             href="/simulation"
           />
           <QuickAction
-            label="Start Debate"
-            description="Initiate multi-agent debate for decision validation"
+            label={t("dashboard.startDebate")}
+            description={t("dashboard.startDebateDescription")}
             icon={
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -151,14 +153,14 @@ export default function DashboardPage() {
       {/* Scoreboard */}
       {sb && (
         <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Prediction Scoreboard</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("dashboard.predictionScoreboard")}</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {[
-              { label: "Total Hypotheses", value: sb.total_hypotheses, color: "text-[var(--foreground)]" },
-              { label: "Confirmed", value: sb.confirmed, color: "text-[var(--accent-green)]" },
-              { label: "Refuted", value: sb.refuted, color: "text-[var(--accent-red)]" },
-              { label: "Pending", value: sb.pending, color: "text-[var(--accent-yellow)]" },
-              { label: "vs Human", value: sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "—", color: "text-[var(--accent)]" },
+              { label: t("dashboard.totalHypotheses"), value: sb.total_hypotheses, color: "text-[var(--foreground)]" },
+              { label: t("dashboard.confirmed"), value: sb.confirmed, color: "text-[var(--accent-green)]" },
+              { label: t("dashboard.refuted"), value: sb.refuted, color: "text-[var(--accent-red)]" },
+              { label: t("dashboard.pending"), value: sb.pending, color: "text-[var(--accent-yellow)]" },
+              { label: t("dashboard.vsHuman"), value: sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "—", color: "text-[var(--accent)]" },
             ].map((item) => (
               <div key={item.label} className="text-center">
                 <div className={`text-2xl font-bold ${item.color}`}>{item.value}</div>
@@ -172,8 +174,8 @@ export default function DashboardPage() {
       {/* Recent Sessions */}
       <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Recent Sessions</h2>
-          <a href="/assistant" className="text-sm text-[var(--accent)] hover:underline">View all →</a>
+          <h2 className="text-lg font-semibold">{t("dashboard.recentSessions")}</h2>
+          <a href="/assistant" className="text-sm text-[var(--accent)] hover:underline">{t("dashboard.viewAll")} →</a>
         </div>
         {sessions && sessions.length > 0 ? (
           <div className="space-y-3">
@@ -188,13 +190,13 @@ export default function DashboardPage() {
                   <div>
                     <div className="text-sm font-medium">{s.name || s.topic}</div>
                     <div className="text-xs text-[var(--muted)] mt-1">
-                      {s.domain_id} &middot; {s.subject_name || "auto"}
+                      {s.domain_id} &middot; {s.subject_name || t("common.auto").toLowerCase()}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`badge ${s.auto_refresh_enabled ? "badge-success" : "badge-warning"}`}>
-                    {s.auto_refresh_enabled ? "Auto" : "Manual"}
+                    {s.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
                   </span>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--muted)]">
                     <path d="M9 18l6-6-6-6" />
@@ -210,8 +212,8 @@ export default function DashboardPage() {
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
-            <div className="empty-state-title">No sessions yet</div>
-            <div className="empty-state-description">Start a new strategic analysis to see your sessions here</div>
+            <div className="empty-state-title">{t("dashboard.noSessions")}</div>
+            <div className="empty-state-description">{t("dashboard.noSessionsDescription")}</div>
           </div>
         )}
       </div>

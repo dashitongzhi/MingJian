@@ -2,6 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetchSimulationRuns, fetchWorkbench, createSimulationRun, type WorkbenchData } from "@/lib/api";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 function KPIBar({ metric, delta }: { metric: string; delta: number }) {
   const maxDelta = Math.abs(delta);
@@ -73,6 +74,7 @@ function GeoAssetCard({ asset }: { asset: { name: string; asset_type: string; la
 }
 
 export default function SimulationPage() {
+  const { t } = useTranslation();
   const { data: runs, mutate } = useSWR("sim-runs", () => fetchSimulationRuns(30));
   const [sel, setSel] = useState<string | null>(null);
   const { data: wb } = useSWR(sel ? `wb-${sel}` : null, () => fetchWorkbench(sel!));
@@ -108,32 +110,32 @@ export default function SimulationPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Simulation</h1>
-          <p className="text-[var(--muted)] mt-1">Run and analyze scenario simulations with branching</p>
+          <h1 className="text-2xl font-bold">{t("simulation.title")}</h1>
+          <p className="text-[var(--muted)] mt-1">{t("simulation.subtitle")}</p>
         </div>
         <button onClick={() => setShowCreate(!showCreate)} className="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          New Simulation
+          {t("simulation.newSimulation")}
         </button>
       </div>
 
       {/* Create form */}
       {showCreate && (
         <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 animate-fadeIn">
-          <h2 className="text-sm font-semibold mb-4">Create New Simulation</h2>
+          <h2 className="text-sm font-semibold mb-4">{t("simulation.createNewSimulation")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs text-[var(--muted)] mb-1 block">Domain</label>
+              <label className="text-xs text-[var(--muted)] mb-1 block">{t("simulation.domain")}</label>
               <select className="input select" value={domain} onChange={(e) => setDomain(e.target.value)}>
-                <option value="corporate">Corporate</option>
-                <option value="military">Military</option>
+                <option value="corporate">{t("simulation.corporate")}</option>
+                <option value="military">{t("simulation.military")}</option>
               </select>
             </div>
             <div>
-              <label className="text-xs text-[var(--muted)] mb-1 block">Time Steps: {ticks}</label>
+              <label className="text-xs text-[var(--muted)] mb-1 block">{t("simulation.timeSteps")}: {ticks}</label>
               <div className="flex items-center gap-3">
                 <input type="range" min={2} max={12} value={ticks} onChange={(e) => setTicks(Number(e.target.value))} className="flex-1" />
                 <span className="text-sm font-mono w-8 text-center">{ticks}</span>
@@ -144,10 +146,10 @@ export default function SimulationPage() {
                 {creating ? (
                   <>
                     <div className="spinner" />
-                    Creating...
+                    {t("common.creating")}
                   </>
                 ) : (
-                  "Create & Run"
+                  t("simulation.createAndRun")
                 )}
               </button>
             </div>
@@ -163,7 +165,7 @@ export default function SimulationPage() {
               <circle cx="12" cy="12" r="10" />
               <path d="M12 6v6l4 2" />
             </svg>
-            Simulation Runs ({runs?.length ?? 0})
+            {t("simulation.simulationRuns")} ({runs?.length ?? 0})
           </h2>
           <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
             {runs?.map((r) => {
@@ -185,7 +187,7 @@ export default function SimulationPage() {
                   <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
                     <span className="capitalize">{r.domain_id}</span>
                     <span>•</span>
-                    <span>{r.tick_count} ticks</span>
+                    <span>{r.tick_count} {t("simulation.ticks")}</span>
                     <span>•</span>
                     <span>{r.actor_template}</span>
                   </div>
@@ -198,8 +200,8 @@ export default function SimulationPage() {
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 6v6l4 2" />
                 </svg>
-                <div className="empty-state-title">No simulations yet</div>
-                <div className="empty-state-description">Create a new simulation to get started</div>
+                <div className="empty-state-title">{t("simulation.noSimulations")}</div>
+                <div className="empty-state-description">{t("simulation.noSimulationsDescription")}</div>
               </div>
             )}
           </div>
@@ -215,9 +217,9 @@ export default function SimulationPage() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                   </svg>
-                  KPI Comparator
+                  {t("simulation.kpiComparator")}
                 </h2>
-                <KPIBar metric="Overall" delta={wb.kpi_comparator?.metrics?.[0]?.delta ?? 0} />
+                <KPIBar metric={t("simulation.overall")} delta={wb.kpi_comparator?.metrics?.[0]?.delta ?? 0} />
                 {wb.kpi_comparator?.metrics?.slice(1).map((m) => (
                   <KPIBar key={m.metric} metric={m.metric} delta={m.delta ?? 0} />
                 ))}
@@ -231,7 +233,7 @@ export default function SimulationPage() {
                       <circle cx="12" cy="12" r="10" />
                       <polyline points="12 6 12 12 16 14" />
                     </svg>
-                    Timeline ({wb.timeline.length})
+                    {t("simulation.timeline")} ({wb.timeline.length})
                   </h2>
                   <div className="max-h-[300px] overflow-y-auto">
                     {wb.timeline.map((e) => (
@@ -249,7 +251,7 @@ export default function SimulationPage() {
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
                     </svg>
-                    Geo Assets {wb.geo_map.theater ? `— ${wb.geo_map.theater}` : ""}
+                    {t("simulation.geoAssets")} {wb.geo_map.theater ? `— ${wb.geo_map.theater}` : ""}
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {wb.geo_map.assets.map((a, i) => (
@@ -266,8 +268,8 @@ export default function SimulationPage() {
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 6v6l4 2" />
                 </svg>
-                <div className="empty-state-title">Select a simulation run</div>
-                <div className="empty-state-description">Choose a simulation from the list to view its workbench and analysis results</div>
+                <div className="empty-state-title">{t("simulation.selectRun")}</div>
+                <div className="empty-state-description">{t("simulation.selectRunDescription")}</div>
               </div>
             </div>
           )}
