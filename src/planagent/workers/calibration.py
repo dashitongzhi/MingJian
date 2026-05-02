@@ -14,6 +14,9 @@ from planagent.domain.models import (
     Claim,
     DecisionRecordRecord,
     Hypothesis,
+    PredictionBacktestRecord,
+    PredictionSeries,
+    PredictionVersion,
     SimulationRun,
     utc_now,
 )
@@ -64,13 +67,15 @@ class CalibrationWorker(Worker):
         errors: list[str] = []
         async with database.session() as session:
             verified, verify_errors = await self._verify_pending_hypotheses(session)
+            verified_predictions, prediction_errors = await self._verify_pending_predictions(session)
             calibration_records = await self._aggregate_calibration(session)
             rule_accuracies = await self._compute_rule_accuracies(session)
             if rule_accuracies:
                 self.rule_registry.apply_calibration(rule_accuracies)
-            errors = verify_errors
+            errors = verify_errors + prediction_errors
         return {
             "verified_hypotheses": verified,
+            "verified_predictions": verified_predictions,
             "calibration_records": calibration_records,
             "rules_adjusted": len(rule_accuracies),
             "errors": errors,
@@ -112,6 +117,167 @@ class CalibrationWorker(Worker):
                 errors.append(f"hypothesis:{hypo.id}:{type(exc).__name__}:{exc}")
         await session.commit()
         return verified, errors
+
+    async def _verify_pending_predictions(self, session: AsyncSession) -> tuple[int, list[str]]:
+        """验证到期的 PredictionVersion。"""
+        now = utc_now()
+        versions = list(
+            (
+                await session.scalars(
+                    select(PredictionVersion)
+                    .where(PredictionVersion.status == "ACTIVE")
+                    .order_by(PredictionVersion.created_at.asc())
+                    .limit(200)
+                )
+            ).all()
+        )
+        if not versions:
+            return 0, []
+
+        series_ids = {version.series_id for version in versions}
+        series_map = {
+            series.id: series
+            for series in (
+                (
+                    await session.scalars(
+                        select(PredictionSeries).where(PredictionSeries.id.in_(series_ids))
+                    )
+                ).all()
+            )
+        }
+        verified = 0
+        errors: list[str] = []
+        for version in versions:
+            try:
+                horizon_days = _TIME_HORIZON_DAYS.get(version.time_horizon, 90)
+                due_at = (version.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(days=horizon_days)
+                if now < due_at:
+                    continue
+
+                existing = (
+                    await session.scalars(
+                        select(PredictionBacktestRecord)
+                        .where(PredictionBacktestRecord.prediction_version_id == version.id)
+                        .limit(1)
+                    )
+                ).first()
+                if existing is not None:
+                    continue
+
+                status, actual_outcome = await self._resolve_prediction_verdict(session, version)
+                series = series_map.get(version.series_id)
+                if series is None:
+                    raise LookupError(f"Prediction series {version.series_id} was not found.")
+
+                score = 1.0 if status == "CONFIRMED" else 0.5 if status == "PARTIAL" else 0.0
+                record = PredictionBacktestRecord(
+                    prediction_version_id=version.id,
+                    series_id=version.series_id,
+                    run_id=version.run_id,
+                    domain_id=series.domain_id,
+                    tenant_id=series.tenant_id,
+                    preset_id=series.preset_id,
+                    verification_status=status,
+                    actual_outcome=actual_outcome[:1000],
+                    score=score,
+                    verified_at=now,
+                )
+                version.status = status
+                version.updated_at = now
+                version.version_metadata = {
+                    **(version.version_metadata or {}),
+                    "verification_status": status,
+                    "actual_outcome": actual_outcome[:1000],
+                    "backtest_score": score,
+                    "verified_at": now.isoformat(),
+                    "verification_source": "calibration_worker",
+                }
+                session.add(record)
+                verified += 1
+            except Exception as exc:
+                errors.append(f"prediction:{version.id}:{type(exc).__name__}:{exc}")
+        if verified:
+            await session.commit()
+        return verified, errors
+
+    async def _resolve_prediction_verdict(
+        self,
+        session: AsyncSession,
+        version: PredictionVersion,
+    ) -> tuple[str, str]:
+        hypothesis = await self._version_hypothesis(session, version)
+        if hypothesis is not None and hypothesis.verification_status != "PENDING":
+            return (
+                hypothesis.verification_status,
+                hypothesis.actual_outcome or "Prediction resolved from linked hypothesis.",
+            )
+
+        claim = await self._find_prediction_claim(session, version)
+        if claim is not None:
+            status = self._resolve_prediction_claim_verdict(version, claim)
+            return status, claim.statement
+        return "PARTIAL", "No confirming or refuting evidence found in the target window."
+
+    async def _version_hypothesis(
+        self,
+        session: AsyncSession,
+        version: PredictionVersion,
+    ) -> Hypothesis | None:
+        if version.hypothesis_id is not None:
+            hypothesis = await session.get(Hypothesis, version.hypothesis_id)
+            if hypothesis is not None:
+                return hypothesis
+        return (
+            await session.scalars(
+                select(Hypothesis)
+                .where(Hypothesis.prediction_version_id == version.id)
+                .order_by(Hypothesis.updated_at.desc())
+                .limit(1)
+            )
+        ).first()
+
+    async def _find_prediction_claim(
+        self,
+        session: AsyncSession,
+        version: PredictionVersion,
+    ) -> Claim | None:
+        horizon_days = _TIME_HORIZON_DAYS.get(version.time_horizon, 90)
+        horizon_start = (version.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(days=horizon_days // 2)
+        version_tokens = self._text_tokens(version.prediction_text)
+        if not version_tokens:
+            return None
+
+        candidates = list(
+            (
+                await session.scalars(
+                    select(Claim)
+                    .where(
+                        Claim.created_at > horizon_start,
+                        Claim.confidence >= 0.45,
+                    )
+                    .order_by(Claim.confidence.desc())
+                    .limit(50)
+                )
+            ).all()
+        )
+        best: tuple[float, Claim | None] = (0.0, None)
+        for candidate in candidates:
+            sim = self._token_overlap(version_tokens, self._text_tokens(candidate.statement))
+            if sim > best[0]:
+                best = (sim, candidate)
+        return best[1] if best[0] >= 0.15 else None
+
+    def _resolve_prediction_claim_verdict(self, version: PredictionVersion, claim: Claim) -> str:
+        version_tokens = self._text_tokens(version.prediction_text)
+        claim_tokens = self._text_tokens(claim.statement)
+        overlap = len(version_tokens & claim_tokens)
+        union = len(version_tokens | claim_tokens) or 1
+        sim = overlap / union
+        if sim >= 0.35:
+            return "CONFIRMED"
+        if sim >= 0.2:
+            return "PARTIAL"
+        return "REFUTED"
 
     async def _find_verification_claim(self, session: AsyncSession, hypo: Hypothesis) -> Claim | None:
         horizon_days = _TIME_HORIZON_DAYS.get(hypo.time_horizon, 90)

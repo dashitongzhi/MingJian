@@ -28,6 +28,7 @@ from planagent.domain.models import (
     ExternalShockRecord,
     ForceProfile,
     GeneratedReport,
+    PredictionVersion,
     ReviewItem,
     ScenarioBranchRecord,
     SimulationRun,
@@ -79,6 +80,7 @@ class WorkbenchService:
         scenario_tree = await self._build_scenario_tree(session, run)
         comparator = await self._build_kpi_comparator(session, run, state_snapshots)
         debates = await self._list_run_debates(session, run.id)
+        prediction_versions = await self._list_prediction_versions(session, run.id)
         timeline = await self._build_timeline(session, run, decision_trace, debates, latest_report)
         start_state = state_snapshots[0].state if state_snapshots else {}
         final_state = state_snapshots[-1].state if state_snapshots else {}
@@ -117,10 +119,52 @@ class WorkbenchService:
                 }
                 for record in decision_trace
             ],
+            prediction_versions=prediction_versions,
             kpi_comparator=comparator,
             startup_kpi_pack=startup_kpi_pack,
             debate_records=debates,
         )
+
+    async def _list_prediction_versions(
+        self,
+        session: AsyncSession,
+        run_id: str,
+    ) -> list[dict[str, Any]]:
+        versions = list(
+            (
+                await session.scalars(
+                    select(PredictionVersion)
+                    .where(PredictionVersion.run_id == run_id)
+                    .order_by(PredictionVersion.version_number.asc())
+                )
+            ).all()
+        )
+        return [
+            {
+                "id": version.id,
+                "series_id": version.series_id,
+                "run_id": version.run_id,
+                "base_version_id": version.base_version_id,
+                "parent_version_id": version.parent_version_id,
+                "hypothesis_id": version.hypothesis_id,
+                "decision_option_id": version.decision_option_id,
+                "version_number": version.version_number,
+                "trigger_type": version.trigger_type,
+                "trigger_ref_id": version.trigger_ref_id,
+                "trigger_event_id": version.trigger_event_id,
+                "prediction_text": version.prediction_text,
+                "time_horizon": version.time_horizon,
+                "probability": version.probability,
+                "confidence": version.confidence,
+                "status": version.status,
+                "summary_delta": version.summary_delta,
+                "version_metadata": version.version_metadata,
+                "created_at": version.created_at,
+                "updated_at": version.updated_at,
+                "superseded_at": version.superseded_at,
+            }
+            for version in versions
+        ]
 
     async def _load_review_queue(
         self,

@@ -310,6 +310,7 @@ class RunWorkbenchRead(APIModel):
     scenario_tree: ScenarioTreeRead
     scenario_compare: ScenarioCompareRead | None = None
     decision_trace: list[dict[str, Any]] = Field(default_factory=list)
+    prediction_versions: list[dict[str, Any]] = Field(default_factory=list)
     kpi_comparator: KPIComparatorRead
     startup_kpi_pack: StartupKPIPackRead | None = None
     debate_records: list[DebateSummaryRead] = Field(default_factory=list)
@@ -603,6 +604,7 @@ class StrategicRunSnapshotRead(APIModel):
     simulation_run_id: str | None = None
     debate_id: str | None = None
     generated_report_id: str | None = None
+    latest_prediction_version: dict[str, Any] | None = None
     result: StrategicAssistantResponse
     generated_at: datetime
 

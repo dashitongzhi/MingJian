@@ -914,6 +914,31 @@ class PredictionVersion(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class PredictionBacktestRecord(Base):
+    __tablename__ = "prediction_backtest_records"
+    __table_args__ = (UniqueConstraint("prediction_version_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    prediction_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True
+    )
+    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    domain_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    verification_status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    actual_outcome: Mapped[str] = mapped_column(Text, nullable=False)
+    score: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
 class PredictionEvidenceLink(Base):
     __tablename__ = "prediction_evidence_links"
     __table_args__ = (UniqueConstraint("version_id", "evidence_item_id", "claim_id"),)

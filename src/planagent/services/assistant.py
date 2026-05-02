@@ -29,6 +29,7 @@ from planagent.domain.api import (
 from planagent.domain.models import (
     GeneratedReport,
     Hypothesis,
+    PredictionVersion,
     StrategicBriefRecord,
     StrategicRunSnapshot,
     StrategicSession,
@@ -254,10 +255,17 @@ class StrategicAssistantService:
                 )
             ).all()
         )
+        latest_predictions = await self._latest_prediction_versions_by_run(session, run_rows)
         return StrategicSessionDetailRead(
             session=StrategicSessionRead.model_validate(session_record),
             daily_briefs=[self._brief_record_read(item) for item in brief_rows],
-            recent_runs=[self._run_snapshot_read(item) for item in run_rows],
+            recent_runs=[
+                self._run_snapshot_read(
+                    item,
+                    latest_prediction_version=latest_predictions.get(item.simulation_run_id or ""),
+                )
+                for item in run_rows
+            ],
         )
 
     async def load_session_payload(
@@ -486,7 +494,38 @@ class StrategicAssistantService:
             generated_at=row.generated_at,
         )
 
-    def _run_snapshot_read(self, row: StrategicRunSnapshot) -> StrategicRunSnapshotRead:
+    async def _latest_prediction_versions_by_run(
+        self,
+        session: AsyncSession,
+        rows: list[StrategicRunSnapshot],
+    ) -> dict[str, dict[str, Any]]:
+        run_ids = [row.simulation_run_id for row in rows if row.simulation_run_id is not None]
+        if not run_ids:
+            return {}
+        versions = list(
+            (
+                await session.scalars(
+                    select(PredictionVersion)
+                    .where(PredictionVersion.run_id.in_(run_ids))
+                    .order_by(
+                        PredictionVersion.run_id.asc(),
+                        PredictionVersion.version_number.desc(),
+                    )
+                )
+            ).all()
+        )
+        latest: dict[str, dict[str, Any]] = {}
+        for version in versions:
+            if version.run_id is None or version.run_id in latest:
+                continue
+            latest[version.run_id] = self._prediction_version_payload(version)
+        return latest
+
+    def _run_snapshot_read(
+        self,
+        row: StrategicRunSnapshot,
+        latest_prediction_version: dict[str, Any] | None = None,
+    ) -> StrategicRunSnapshotRead:
         return StrategicRunSnapshotRead(
             id=row.id,
             session_id=row.session_id,
@@ -496,9 +535,43 @@ class StrategicAssistantService:
             simulation_run_id=row.simulation_run_id,
             debate_id=row.debate_id,
             generated_report_id=row.generated_report_id,
+            latest_prediction_version=latest_prediction_version
+            or self._latest_prediction_from_payload(row.result_payload),
             result=StrategicAssistantResponse.model_validate(row.result_payload),
             generated_at=row.generated_at,
         )
+
+    def _latest_prediction_from_payload(self, payload: dict[str, Any]) -> dict[str, Any] | None:
+        workbench = (payload.get("workbench") if isinstance(payload, dict) else None) or {}
+        versions = workbench.get("prediction_versions") or []
+        if not versions:
+            return None
+        return max(versions, key=lambda item: int(item.get("version_number") or 0))
+
+    def _prediction_version_payload(self, version: PredictionVersion) -> dict[str, Any]:
+        return {
+            "id": version.id,
+            "series_id": version.series_id,
+            "run_id": version.run_id,
+            "base_version_id": version.base_version_id,
+            "parent_version_id": version.parent_version_id,
+            "hypothesis_id": version.hypothesis_id,
+            "decision_option_id": version.decision_option_id,
+            "version_number": version.version_number,
+            "trigger_type": version.trigger_type,
+            "trigger_ref_id": version.trigger_ref_id,
+            "trigger_event_id": version.trigger_event_id,
+            "prediction_text": version.prediction_text,
+            "time_horizon": version.time_horizon,
+            "probability": version.probability,
+            "confidence": version.confidence,
+            "status": version.status,
+            "summary_delta": version.summary_delta,
+            "version_metadata": version.version_metadata,
+            "created_at": version.created_at,
+            "updated_at": version.updated_at,
+            "superseded_at": version.superseded_at,
+        }
 
     def _session_display_name(
         self,

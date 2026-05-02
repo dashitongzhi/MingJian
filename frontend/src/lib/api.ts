@@ -6,6 +6,8 @@ export async function fetch_<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export const apiFetch = fetch_;
+
 export interface AnalysisSource { source_type: string; title: string; url: string; summary: string; published_at: string | null }
 export interface AnalysisStep { stage: string; message: string; detail: string | null }
 export interface AnalysisResponse { query: string; domain_id: string; summary: string; reasoning_steps: AnalysisStep[]; findings: string[]; recommendations: string[]; sources: AnalysisSource[]; generated_at: string }
