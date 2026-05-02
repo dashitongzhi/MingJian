@@ -135,7 +135,40 @@ Current AI analysis systems — from ChatGPT to enterprise copilots — share th
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### One-Click Docker Setup
+
+The fastest way to run 明鉴 locally is the Docker setup script. It checks Docker, creates `.env` from `.env.example`, asks for your OpenAI API key, and starts the full stack.
+
+#### Prerequisites
+
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) first, then run:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+When the script finishes, open:
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| API | http://localhost:8000 |
+| MinIO Console | http://localhost:9001 |
+
+MinIO login: `planagent` / `planagent123`
+
+To stop the Docker stack:
+
+```bash
+docker compose -f docker-compose.yml down
+```
+
+### Manual Development Setup
+
+Use this path if you want to run the backend and frontend directly on your machine for development.
+
+#### Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -148,7 +181,7 @@ Before you begin, ensure you have the following installed:
 | **PostgreSQL** | 14+ (optional) | [postgresql.org](https://www.postgresql.org/download/) |
 | **Redis** | 7+ (optional) | [redis.io](https://redis.io/download) |
 
-### System Requirements
+#### System Requirements
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
@@ -157,7 +190,7 @@ Before you begin, ensure you have the following installed:
 | **Storage** | 10 GB | 50+ GB |
 | **OS** | macOS, Linux, Windows | macOS or Linux |
 
-### Environment Variables
+#### Environment Variables
 
 Create a `.env` file in the project root with the following variables:
 
@@ -210,7 +243,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 > **💡 Key Point:** Even if you only have access to **one** model provider (e.g., OpenAI, or any OpenAI-compatible API), you can use it for all 7 model slots. Just set `PLANAGENT_OPENAI_API_KEY` — the system fills in the rest automatically. No need for 4 different API keys to get started.
 
-### Compatible Providers
+#### Compatible Providers
 
 All slots use the OpenAI-compatible `/chat/completions` endpoint. You can mix and match providers freely:
 
@@ -228,7 +261,7 @@ All slots use the OpenAI-compatible `/chat/completions` endpoint. You can mix an
 
 > **Example:** Use OpenAI for primary analysis, DeepSeek for extraction, Claude for debate — all in one config.
 
-### Installation Steps
+#### Installation Steps
 
 ```bash
 # 1. Clone the repository
@@ -263,19 +296,6 @@ uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 cd frontend
 npm run dev
 # Open http://localhost:3000
-```
-
-### Docker Installation (Alternative)
-
-```bash
-# Using Docker Compose
-docker-compose up -d
-
-# Or build and run manually
-docker build -t planagent-backend .
-docker build -t planagent-frontend ./frontend
-docker run -p 8000:8000 planagent-backend
-docker run -p 3000:3000 planagent-frontend
 ```
 
 ---

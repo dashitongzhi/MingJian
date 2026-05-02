@@ -1,0 +1,44 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv*
+venv/
+dist/
+build/
+
+# Node / Frontend
+frontend/node_modules
+frontend/.next
+frontend/out
+
+# Environment & secrets
+.env
+.env.*
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docker
+docker-compose.yml
+compose.yml
+Dockerfile
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs & misc
+*.md
+!README.md
+docs/
+examples/
+tests/

@@ -4,6 +4,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+import sqlalchemy as sa
 
 from planagent.config import get_settings
 from planagent.domain.models import Base
@@ -47,7 +48,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table_column_type=sa.String(64),
+        )
 
         with context.begin_transaction():
             context.run_migrations()

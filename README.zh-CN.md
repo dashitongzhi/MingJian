@@ -135,7 +135,38 @@
 
 ## 🚀 快速开始
 
-### 前置要求
+### 一键 Docker 部署
+
+最快的方式是使用 Docker 一键部署脚本。脚本会自动检测 Docker 环境、创建 `.env` 文件、提示输入 API Key，然后启动全部服务。
+
+**前置要求：** 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+```bash
+git clone https://github.com/dashitongzhi/MingJian.git
+cd MingJian
+chmod +x setup.sh
+./setup.sh
+```
+
+启动后打开：
+
+| 服务 | URL |
+|------|-----|
+| 前端 | http://localhost:3000 |
+| API | http://localhost:8000 |
+| MinIO 控制台 | http://localhost:9001 |
+
+停止服务：
+
+```bash
+docker compose down
+```
+
+### 手动开发环境部署
+
+如果你想在本地直接运行后端和前端进行开发，请按以下步骤操作。
+
+#### 前置要求
 
 在开始之前，请确保已安装以下软件：
 
@@ -148,7 +179,7 @@
 | **PostgreSQL** | 14+（可选） | [postgresql.org](https://www.postgresql.org/download/) |
 | **Redis** | 7+（可选） | [redis.io](https://redis.io/download) |
 
-### 系统要求
+#### 系统要求
 
 | 组件 | 最低要求 | 推荐配置 |
 |------|----------|----------|
@@ -157,7 +188,7 @@
 | **存储** | 10 GB | 50+ GB |
 | **操作系统** | macOS、Linux、Windows | macOS或Linux |
 
-### 环境变量配置
+#### 环境变量配置
 
 在项目根目录创建 `.env` 文件，包含以下变量：
 
@@ -210,7 +241,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 > **💡 关键提示：** 即使你只有**一个**模型供应商（比如 OpenAI，或任何兼容 OpenAI 接口的服务），也可以用它填满全部 7 个模型槽位。只需设置 `PLANAGENT_OPENAI_API_KEY`，系统自动完成剩余配置。无需 4 个不同的 API Key 才能启动。
 
-### 兼容提供商
+#### 兼容提供商
 
 所有槽位均使用 OpenAI 兼容的 `/chat/completions` 接口，可自由混搭：
 
@@ -228,7 +259,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 > **示例：** 主分析用 OpenAI，信息提取用 DeepSeek，辩论用 Claude —— 一个配置搞定。
 
-### 安装步骤
+#### 安装步骤
 
 ```bash
 # 1. 克隆仓库
@@ -263,19 +294,6 @@ uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 cd frontend
 npm run dev
 # 打开 http://localhost:3000
-```
-
-### Docker安装（替代方案）
-
-```bash
-# 使用Docker Compose
-docker-compose up -d
-
-# 或手动构建和运行
-docker build -t planagent-backend .
-docker build -t planagent-frontend ./frontend
-docker run -p 8000:8000 planagent-backend
-docker run -p 3000:3000 planagent-frontend
 ```
 
 ---

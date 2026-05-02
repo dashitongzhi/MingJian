@@ -28,7 +28,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
 
-    with op.batch_alter_table("simulation_runs", recreate="always") as batch_op:
+    with op.batch_alter_table("simulation_runs", recreate="auto") as batch_op:
         batch_op.alter_column("company_id", existing_type=sa.String(length=120), nullable=True)
         batch_op.add_column(sa.Column("force_id", sa.String(length=120), nullable=True))
         batch_op.add_column(sa.Column("parent_run_id", sa.String(length=36), nullable=True))
@@ -61,7 +61,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("run_id"),
     )
 
-    with op.batch_alter_table("generated_reports", recreate="always") as batch_op:
+    with op.batch_alter_table("generated_reports", recreate="auto") as batch_op:
         batch_op.add_column(sa.Column("force_id", sa.String(length=120), nullable=True))
         batch_op.add_column(sa.Column("scenario_id", sa.String(length=36), nullable=True))
         batch_op.create_foreign_key(
