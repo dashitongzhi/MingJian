@@ -1,0 +1,516 @@
+<div align="center">
+
+<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
+
+# 明鉴 (MingJian)
+
+### *स्पष्ट देखें, बुद्धिमत्ता से निर्णय लें*
+
+**AI-संचालित मल्टी-एजेंट प्लेटफ़ॉर्म | प्रमाण-आधारित परिदृश्य सिमुलेशन और रणनीतिक निर्णय लेना**
+
+---
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
+
+**🌐 भाषा चयन / Language Selection**
+
+[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
+
+---
+
+![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
+
+</div>
+
+---
+
+## 🌟 明鉴 क्यों चुनें?
+
+> **"पहला ओपन-सोर्स प्लेटफ़ॉर्म जो प्रमाण-आधारित विश्लेषण, मल्टी-एजेंट बहस, और रीयल-टाइम सिमुलेशन को एकीकृत कार्यक्षेत्र में जोड़ता है।"**
+
+明鉴 केवल एक और AI उपकरण नहीं है — यह संगठनों द्वारा रणनीतिक निर्णय लेने के तरीके में एक **प्रतिमान बदलाव** है। 10+ रीयल-टाइम डेटा स्रोतों, प्रतिस्पर्धी मल्टी-एजेंट बहस, और निर्धारक निर्णय ट्रेस को मिलाकर, 明鉴 उस "ब्लैक बॉक्स" समस्या को समाप्त करता है जो पारंपरिक AI प्रणालियों को परेशान करती है।
+
+---
+
+## 🎯 आज की बुद्धिमान विश्लेषण प्रणालियों की समस्या
+
+वर्तमान AI विश्लेषण प्रणालियाँ — ChatGPT से लेकर एंटरप्राइज़ कोपायलट तक — एक ही मूलभूत दोष साझा करती हैं:
+
+- ❌ **भ्रम को तथ्य मानना** — LLM बिना वास्तविक डेटा के आधार के आत्मविश्वास से आँकड़े, स्रोत और निष्कर्ष गढ़ते हैं। आप सत्य को कल्पना से अलग नहीं कर सकते।
+- ❌ **एकल-मॉडल अंधे धब्बे** — एक मॉडल, एक विश्वदृष्टि। कोई जिरह नहीं, कोई प्रतिस्पर्धी चुनौती नहीं, कोई दूसरी राय नहीं। पूर्वाग्रह अनदेखे रह जाते हैं।
+- ❌ **ब्लैक बॉक्स तर्क** — आपको उत्तर मिलता है, लेकिन *कैसे*? कोई प्रमाण श्रृंखला नहीं, कोई स्रोत श्रेय नहीं, तर्क की ऑडिट या पुनरुत्पादन का कोई तरीका नहीं।
+- ❌ **पुराना ज्ञान, कोई प्रमाण नहीं** — मॉडल समय में जमे प्रशिक्षण डेटा पर निर्भर करते हैं। वे समाचार, बाज़ार या सेंसर से लाइव इंटेलिजेंस प्राप्त नहीं कर सकते — वे *जानने* के बजाय *अनुमान लगाते* हैं।
+- ❌ **कोई स्व-सुधार नहीं** — AI आउटपुट फायर-एंड-फॉरगेट हैं। त्रुटियाँ चुपचाप फैलती हैं। कोई समीक्षा लूप नहीं, कोई गुणवत्ता गेट नहीं, कोई पुनरावृत्ति परिशोधन नहीं।
+- ❌ **खंडित कार्यप्रवाह** — डेटा संग्रह, विश्लेषण, बहस और रिपोर्टिंग अलग-अलग उपकरणों में रहते हैं। हर हैंडऑफ़ पर संदर्भ खो जाता है।
+- ❌ **शून्य पुनरुत्पादनशीलता** — एक ही प्रश्न दो बार चलाएँ, अलग उत्तर मिलें। कोई निर्धारक ट्रेस नहीं, कोई निर्णय लॉग नहीं, कोई जवाबदेही नहीं।
+
+## 💡 明鉴 इसे कैसे हल करता है
+
+明鉴 अनुमान को **प्रमाण** से, राय को **बहस** से, और ब्लैक बॉक्स को **ट्रेस** से बदलता है:
+
+- ✅ **प्रमाण-आधारित** — प्रत्येक विश्लेषण 10+ स्रोतों (Google News, Reddit, GitHub, GDELT, X/Twitter, और अधिक) से रीयल-टाइम डेटा पर आधारित है। कोई भ्रम नहीं, कोई मनगढ़ंत बात नहीं।
+- ✅ **मल्टी-एजेंट प्रतिस्पर्धी बहस** — GPT, Gemini, Claude, और Grok केवल सहमत नहीं होते — वे एक-दूसरे को **चुनौती** देते हैं। अंधे धब्बे उजागर होते हैं, पूर्वाग्रहों को चुनौती मिलती है।
+- ✅ **पूर्ण ऑडिट ट्रेल** — हर कदम दर्ज किया जाता है: परामर्श किए गए स्रोत, किए गए तर्क, लिए गए निर्णय। पूर्णतः पारदर्शी, पूर्णतः पुनरुत्पादनीय।
+- ✅ **रीयल-टाइम इंटेलिजेंस** — लाइव डेटा इनजेशन, स्ट्रीमिंग विश्लेषण, और तत्काल अंतर्दृष्टि वितरण। कोई जमा हुआ प्रशिक्षण डेटा नहीं।
+- ✅ **स्व-उपचार पाइपलाइन** — Jarvis इंजन अपने आउटपुट की समीक्षा, आलोचना और पुनरावृत्ति करता है जब तक गुणवत्ता थ्रेसहोल्ड पूरे नहीं हो जाते। त्रुटियाँ आप तक पहुँचने से पहले पकड़ी जाती हैं।
+
+---
+
+## 🔬 मुख्य विशेषताएँ
+
+### 1. प्रमाण-संचालित, अनुमान-संचालित नहीं
+
+**समस्या:** पारंपरिक AI उपकरण आपको बिना काम दिखाए उत्तर देते हैं।
+
+**हमारा समाधान:** 明鉴 हर निर्णय को 10+ डेटा स्रोतों से **वास्तविक-विश्व प्रमाण** में आधारित करता है। हर दावा ट्रेस करने योग्य, हर निर्णय ऑडिट करने योग्य।
+
+### 2. मल्टी-एजेंट बहस प्रोटोकॉल
+
+**समस्या:** एकल AI मॉडल में अंधे धब्बे और पूर्वाग्रह होते हैं।
+
+**हमारा समाधान:** कई AI मॉडल (GPT, Gemini, Claude, Grok) आपके निर्णयों पर **बहस** करते हैं, धारणाओं को चुनौती देते हैं और प्रमाण-समर्थित निष्कर्षों तक पहुँचते हैं।
+
+### 3. दोहरे-डोमेन विशेषज्ञता
+
+**समस्या:** अधिकांश AI उपकरण सामान्य हैं और आपके विशिष्ट डोमेन को नहीं समझते।
+
+**हमारा समाधान:** 明鉴 **कॉर्पोरेट** (बाज़ार विश्लेषण, प्रतिस्पर्धी इंटेलिजेंस) और **सैन्य** (संचालन योजना, रसद) दोनों को डोमेन-विशिष्ट नियमों और मॉडलों के साथ समर्थन करता है।
+
+### 4. निर्णय ट्रेस के साथ पूर्ण ऑडिटेबिलिटी
+
+**समस्या:** आप यह समझा नहीं सकते कि AI ने किसी निष्कर्ष तक कैसे पहुँचा।
+
+**हमारा समाधान:** हर सिमुलेशन एक **निर्धारक निर्णय ट्रेस** उत्पन्न करता है — AI ने अपने निष्कर्ष तक कैसे पहुँचा इसका चरण-दर-चरण रिकॉर्ड। कोई ब्लैक बॉक्स नहीं।
+
+### 5. Jarvis स्व-मरम्मत इंजन
+
+**समस्या:** AI आउटपुट गलत हो सकते हैं, लेकिन आपको तब तक पता नहीं चलता जब तक बहुत देर हो चुकी होती है।
+
+**हमारा समाधान:** 明鉴 अपने आउटपुट की समीक्षा करता है, कमज़ोरियों की पहचान करता है, और गुणवत्ता थ्रेसहोल्ड पूरे होने तक पुनरावृत्ति करता है — सब कुछ बिना मानवीय हस्तक्षेप के।
+
+### 6. रीयल-टाइम स्ट्रीमिंग विश्लेषण
+
+**समस्या:** आप AI के समाप्त होने का इंतज़ार करते हैं, फिर ब्लैक-बॉक्स परिणाम प्राप्त करते हैं।
+
+**हमारा समाधान:** एक विश्लेषण अनुरोध सबमिट करें और AI को रीयल-टाइम में काम करते देखें — स्ट्रीमिंग प्रगति इवेंट, स्रोत श्रेय और मध्यवर्ती परिणाम।
+
+---
+
+## 🆚 明鉴 बनाम प्रतिस्पर्धा
+
+| विशेषता | 明鉴 | पारंपरिक AI | सिंगल-एजेंट | LangChain |
+|---------|------|----------------|--------------|-----------|
+| **डेटा स्रोत** | ✅ 10+ रीयल-टाइम | ❌ मैनुअल इनपुट | ⚠️ सीमित | ⚠️ सीमित |
+| **प्रमाण श्रृंखला** | ✅ पूर्ण ट्रेसेबिलिटी | ❌ कोई ट्रैकिंग नहीं | ❌ कोई ट्रैकिंग नहीं | ❌ कोई ट्रैकिंग नहीं |
+| **मल्टी-एजेंट बहस** | ✅ प्रतिस्पर्धी तर्क | ❌ एकल मॉडल | ❌ एकल मॉडल | ⚠️ बेसिक |
+| **निर्णय ट्रेस** | ✅ निर्धारक | ❌ ब्लैक बॉक्स | ❌ ब्लैक बॉक्स | ❌ ब्लैक बॉक्स |
+| **स्व-मरम्मत** | ✅ Jarvis इंजन | ❌ कोई नहीं | ❌ कोई नहीं | ❌ कोई नहीं |
+| **स्ट्रीमिंग विश्लेषण** | ✅ रीयल-टाइम | ❌ केवल बैच | ❌ केवल बैच | ⚠️ सीमित |
+| **कॉर्पोरेट डोमेन** | ✅ पूर्ण समर्थन | ⚠️ सामान्य | ❌ सामान्य | ❌ सामान्य |
+| **सैन्य डोमेन** | ✅ पूर्ण समर्थन | ⚠️ सामान्य | ❌ सामान्य | ❌ सामान्य |
+| **परिदृश्य शाखांकन** | ✅ बीम-सर्च | ❌ मैनुअल | ❌ कोई नहीं | ❌ कोई नहीं |
+| **ज्ञान ग्राफ़** | ✅ एम्बेडिंग-समर्थित | ❌ कोई नहीं | ❌ कोई नहीं | ❌ कोई नहीं |
+| **ओपन सोर्स** | ✅ MIT लाइसेंस | ⚠️ भिन्न | ⚠️ भिन्न | ✅ विभिन्न |
+
+---
+
+## 🎯 उपयोग के मामले
+
+| उपयोग का मामला | विवरण | लाभ |
+|----------|-------------|---------|
+| **📊 निवेश अनुसंधान** | बाज़ार रुझानों का विश्लेषण, निवेश थीसिस पर बहस | तेज़ अनुसंधान, बेहतर निर्णय |
+| **🏭 कॉर्पोरेट रणनीति** | प्रतिस्पर्धी इंटेलिजेंस, परिदृश्य योजना | डेटा-संचालित निर्णय, कम जोखिम |
+| **⚔️ सैन्य योजना** | संचालन विश्लेषण, रसद अनुकूलन | रणनीतिक लाभ, बेहतर परिणाम |
+| **🛡️ जोखिम प्रबंधन** | बहु-दृष्टिकोण जोखिम मूल्यांकन | अनिश्चितता में कमी |
+| **📈 बाज़ार विश्लेषण** | रीयल-टाइम बाज़ार इंटेलिजेंस | तेज़ अंतर्दृष्टि, बेहतर स्थिति |
+| **🎯 नीति विश्लेषण** | बहु-हितधारक प्रभाव मूल्यांकन | सूचित नीति, बेहतर परिणाम |
+
+---
+
+## 🚀 त्वरित शुरुआत
+
+### वन-क्लिक Docker सेटअप
+
+明鉴 को स्थानीय रूप से चलाने का सबसे तेज़ तरीका Docker सेटअप स्क्रिप्ट है। यह Docker की जाँच करता है, `.env.example` से `.env` बनाता है, आपकी OpenAI API कुंजी पूछता है, और पूरा स्टैक शुरू करता है।
+
+#### पूर्वापेक्षाएँ
+
+पहले [Docker Desktop](https://www.docker.com/products/docker-desktop/) इंस्टॉल करें, फिर चलाएँ:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+जब स्क्रिप्ट समाप्त हो, खोलें:
+
+| सेवा | URL |
+|---------|-----|
+| फ्रंटएंड | http://localhost:3001 |
+| API | http://localhost:8000 |
+| MinIO कंसोल | http://localhost:9001 |
+
+MinIO लॉगिन: `planagent` / `planagent123`
+
+Docker स्टैक रोकने के लिए:
+
+```bash
+docker compose -f docker-compose.yml down
+```
+
+### मैनुअल डेवलपमेंट सेटअप
+
+यदि आप बैकएंड और फ्रंटएंड को सीधे अपनी मशीन पर डेवलपमेंट के लिए चलाना चाहते हैं तो इस मार्ग का उपयोग करें।
+
+#### पूर्वापेक्षाएँ
+
+शुरू करने से पहले, सुनिश्चित करें कि आपके पास निम्नलिखित स्थापित हैं:
+
+| आवश्यकता | संस्करण | स्थापना |
+|-------------|---------|--------------|
+| **Python** | 3.12+ | [python.org](https://www.python.org/downloads/) |
+| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) |
+| **npm** | 9+ | Node.js के साथ आता है |
+| **Git** | 2.30+ | [git-scm.com](https://git-scm.com/) |
+| **PostgreSQL** | 14+ (वैकल्पिक) | [postgresql.org](https://www.postgresql.org/download/) |
+| **Redis** | 7+ (वैकल्पिक) | [redis.io](https://redis.io/download) |
+
+#### सिस्टम आवश्यकताएँ
+
+| घटक | न्यूनतम | अनुशंसित |
+|-----------|---------|-------------|
+| **CPU** | 2 कोर | 4+ कोर |
+| **RAM** | 4 GB | 8+ GB |
+| **स्टोरेज** | 10 GB | 50+ GB |
+| **OS** | macOS, Linux, Windows | macOS या Linux |
+
+#### वातावरण चर
+
+प्रोजेक्ट रूट में एक `.env` फ़ाइल बनाएँ जिसमें निम्नलिखित चर हों:
+
+```bash
+# ═══════════════════════════════════════════════════════════════
+# AI Model Configuration
+# ═══════════════════════════════════════════════════════════════
+# You only need ONE API key to get started.
+# The system automatically uses the same key for all 7 model slots
+# (primary, extraction, x_search, report, debate_advocate,
+#  debate_challenger, debate_arbitrator) unless you override them.
+
+PLANAGENT_OPENAI_API_KEY=your_api_key_here
+
+# Override individual targets (all fall back to shared if unset)
+# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+# PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
+# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
+# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
+# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
+# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
+
+# ═══════════════════════════════════════════════════════════════
+# Database (optional — defaults to SQLite for local dev)
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_DATABASE_URL=postgresql+psycopg://planagent:planagent@localhost:5432/planagent
+
+# ═══════════════════════════════════════════════════════════════
+# Redis (optional — for event bus in production)
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_REDIS_URL=redis://localhost:6379/0
+
+# ═══════════════════════════════════════════════════════════════
+# MinIO Object Storage (optional)
+# ═══════════════════════════════════════════════════════════════
+# PLANAGENT_MINIO_ENDPOINT=localhost:9000
+# PLANAGENT_MINIO_ACCESS_KEY=minioadmin
+# PLANAGENT_MINIO_SECRET_KEY=minioadmin
+
+# ═══════════════════════════════════════════════════════════════
+# X / Twitter (optional — for social intelligence)
+# ═══════════════════════════════════════════════════════════════
+# X_BEARER_TOKEN=your_x_bearer_token
+
+# ═══════════════════════════════════════════════════════════════
+# Frontend
+# ═══════════════════════════════════════════════════════════════
+NEXT_PUBLIC_API_URL=/api
+```
+
+> **💡 मुख्य बिंदु:** भले ही आपके पास केवल **एक** मॉडल प्रदाता (जैसे OpenAI, या कोई भी OpenAI-संगत API) तक पहुँच हो, आप इसे सभी 7 मॉडल स्लॉट के लिए उपयोग कर सकते हैं। बस `PLANAGENT_OPENAI_API_KEY` सेट करें — सिस्टम बाकी स्वचालित रूप से भर देता है। शुरू करने के लिए 4 अलग-अलग API कुंजियों की आवश्यकता नहीं है।
+
+#### संगत प्रदाता
+
+सभी स्लॉट OpenAI-संगत `/chat/completions` एंडपॉइंट का उपयोग करते हैं। आप प्रदाताओं को स्वतंत्र रूप से मिला-जुला सकते हैं:
+
+| प्रदाता | बेस URL | नोट्स |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | नेटिव |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI-संगत एंडपॉइंट |
+| DeepSeek | `https://api.deepseek.com/v1` | किफायती, मजबूत चीनी |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI-संगत एंडपॉइंट |
+| xAI Grok | `https://api.x.ai/v1` | नेटिव संगत |
+| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | संगत |
+| Together AI | `https://api.together.xyz/v1` | ओपन-सोर्स मॉडल एग्रीगेशन |
+| Fireworks AI | `https://api.fireworks.ai/inference/v1` | तेज़ इनफेरेंस |
+| कोई भी संगत प्रॉक्सी | आपका प्रॉक्सी URL | vLLM, Ollama, LiteLLM, आदि |
+
+> **उदाहरण:** प्राथमिक विश्लेषण के लिए OpenAI, निष्कर्षण के लिए DeepSeek, बहस के लिए Claude — सब एक कॉन्फ़िगरेशन में।
+
+#### स्थापना चरण
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/dashitongzhi/MingJian.git
+cd planagent
+
+# 2. Create and activate Python virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# 3. Install Python dependencies
+pip install -e ".[dev]"
+
+# 4. Install frontend dependencies
+cd frontend
+npm install
+cd ..
+
+# 5. Configure environment
+cp .env.example .env
+# Edit .env file with your API keys and settings
+
+# 6. Initialize database (if using PostgreSQL)
+# Create database named 'planagent'
+# Run migrations
+alembic upgrade head
+
+# 7. Start backend server
+uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+
+# 8. Start frontend (in a new terminal)
+cd frontend
+npm run dev
+# Open http://localhost:3000
+```
+
+---
+
+## 📦 निर्भरताएँ
+
+### बैकएंड निर्भरताएँ (Python)
+
+| पैकेज | संस्करण | उद्देश्य |
+|---------|---------|---------|
+| **FastAPI** | 0.110+ | उच्च-प्रदर्शन एसिंक API फ्रेमवर्क |
+| **SQLAlchemy** | 2.0+ | डेटाबेस ORM |
+| **Alembic** | 1.16+ | डेटाबेस माइग्रेशन |
+| **Pydantic** | 2.11+ | डेटा सत्यापन |
+| **OpenAI** | 2.28+ | OpenAI API क्लाइंट |
+| **Anthropic** | 0.52+ | Anthropic API क्लाइंट |
+| **Redis** | 6.2+ | इवेंट बस और कैशिंग |
+| **pgvector** | 0.3+ | वेक्टर समानता खोज |
+| **MinIO** | 7.2+ | ऑब्जेक्ट स्टोरेज |
+| **HTTPX** | 0.28+ | एसिंक HTTP क्लाइंट |
+| **Uvicorn** | 0.35+ | ASGI सर्वर |
+
+### फ्रंटएंड निर्भरताएँ (Node.js)
+
+| पैकेज | संस्करण | उद्देश्य |
+|---------|---------|---------|
+| **Next.js** | 15+ | React फ्रेमवर्क |
+| **React** | 19+ | UI लाइब्रेरी |
+| **TypeScript** | 5.8+ | टाइप सुरक्षा |
+| **Tailwind CSS** | 4.1+ | यूटिलिटी-फर्स्ट CSS |
+| **SWR** | 2.3+ | डेटा फ़ेचिंग |
+| **Recharts** | 2.15+ | चार्टिंग लाइब्रेरी |
+| **Zustand** | 5.0+ | स्टेट प्रबंधन |
+
+### डेवलपमेंट निर्भरताएँ
+
+| पैकेज | संस्करण | उद्देश्य |
+|---------|---------|---------|
+| **pytest** | 8.4+ | टेस्टिंग फ्रेमवर्क |
+| **pytest-asyncio** | 1.1+ | एसिंक टेस्ट समर्थन |
+| **Ruff** | 0.12+ | Python लिंटर |
+| **ESLint** | 9+ | JavaScript लिंटर |
+| **Prettier** | 3+ | कोड फ़ॉर्मेटर |
+
+---
+
+## 🏗️ सिस्टम आर्किटेक्चर
+
+```mermaid
+graph TB
+    subgraph "User Interface"
+        Console[Strategic Console]
+        API[FastAPI Control Plane]
+    end
+    
+    subgraph "Core Services"
+        Evidence[Evidence Ingestion]
+        Simulation[Simulation Engine]
+        Debate[Debate Engine]
+        Jarvis[Jarvis Integration]
+    end
+    
+    subgraph "Data Sources"
+        RSS[RSS Feeds]
+        News[Google News]
+        Reddit[Reddit]
+        GitHub[GitHub]
+        X[X/Twitter]
+        GDELT[GDELT]
+    end
+    
+    subgraph "Storage"
+        PostgreSQL[(PostgreSQL)]
+        Redis[(Redis)]
+        MinIO[(MinIO)]
+    end
+    
+    Console --> API
+    API --> Evidence
+    API --> Simulation
+    API --> Debate
+    API --> Jarvis
+    
+    Evidence --> RSS
+    Evidence --> News
+    Evidence --> Reddit
+    Evidence --> GitHub
+    Evidence --> X
+    Evidence --> GDELT
+```
+
+---
+
+## 📁 प्रोजेक्ट संरचना
+
+```
+planagent/
+├── src/planagent/           # Python backend
+│   ├── api/                 # FastAPI routes
+│   ├── core/                # Database, config
+│   ├── models/              # SQLAlchemy models
+│   ├── services/            # Business logic
+│   ├── engine/              # Simulation engine
+│   ├── rules/               # YAML rules
+│   └── worker/              # Background tasks
+├── frontend/                # Next.js frontend
+│   ├── src/app/             # React pages
+│   ├── src/lib/             # API client
+│   └── public/              # Static assets
+├── migrations/              # Database migrations
+├── tests/                   # Test files
+├── docs/                    # Documentation
+├── examples/                # Example scenarios
+├── .env.example             # Environment template
+├── docker-compose.yml       # Docker configuration
+├── pyproject.toml           # Python project config
+└── package.json             # Node.js project config
+```
+
+---
+
+## 🧪 टेस्ट चलाना
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=planagent
+
+# Run specific tests
+pytest tests/test_debate.py
+
+# Run with verbose output
+pytest -v
+
+# Run frontend tests
+cd frontend
+npm test
+```
+
+---
+
+## 📚 दस्तावेज़
+
+- [📖 पूर्ण तकनीकी रिपोर्ट](docs/planagent_full_report.md)
+- [🚀 एजेंट स्टार्टअप प्लेबुक](docs/agent_startup_playbook.md)
+- [🔧 तकनीकी ऋण बैकलॉग](TECHNICAL_DEBT_BACKLOG.md)
+- [🤝 योगदान गाइड](CONTRIBUTING.md)
+- [📝 चेंजलॉग](CHANGELOG.md)
+
+---
+
+## 🤝 योगदान
+
+हम योगदान का स्वागत करते हैं! हमारा [योगदान गाइड](CONTRIBUTING.md) देखें।
+
+```bash
+# 1. Fork the repository
+# 2. Create a feature branch
+git checkout -b feature/amazing-feature
+
+# 3. Make your changes
+# 4. Run tests
+pytest
+
+# 5. Commit your changes
+git commit -m "feat: add amazing feature"
+
+# 6. Push to the branch
+git push origin feature/amazing-feature
+
+# 7. Open a Pull Request
+```
+
+---
+
+## 📄 लाइसेंस
+
+यह प्रोजेक्ट MIT लाइसेंस के तहत लाइसेंस प्राप्त है - विवरण के लिए [LICENSE](LICENSE) देखें।
+
+---
+
+## 🙏 आभार
+
+- [FastAPI](https://fastapi.tiangolo.com/) - उच्च-प्रदर्शन एसिंक API
+- [Next.js](https://nextjs.org/) - React फ्रेमवर्क
+- [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - डेटाबेस
+- [Redis Streams](https://redis.io/docs/data-types/streams/) - इवेंट स्ट्रीमिंग
+- [MinIO](https://min.io/) - ऑब्जेक्ट स्टोरेज
+
+---
+
+## 📞 सहायता
+
+- 📧 ईमेल: [Your Email]
+- 🐛 इश्यू: [GitHub Issues](https://github.com/dashitongzhi/MingJian/issues)
+- 💬 चर्चाएँ: [GitHub Discussions](https://github.com/dashitongzhi/MingJian/discussions)
+
+---
+
+<div align="center">
+
+## 🌟 स्टार इतिहास
+
+[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/MingJian&type=Date)](https://star-history.com/#dashitongzhi/MingJian&Date)
+
+---
+
+**明鉴** — *स्पष्ट देखें, बुद्धिमत्ता से निर्णय लें*
+
+**明鉴** — *See Clearly, Judge Wisely*
+
+---
+
+**Made with ❤️ by the 明鉴 Team**
+
+</div>
