@@ -62,6 +62,10 @@ class Database:
                     "trigger_threshold": "FLOAT NOT NULL DEFAULT 0.0",
                     "min_new_evidence_count": "INTEGER NOT NULL DEFAULT 1",
                     "importance_threshold": "FLOAT NOT NULL DEFAULT 0.0",
+                    "incremental_enabled": "BOOLEAN NOT NULL DEFAULT 1",
+                    "force_full_refresh_every": "INTEGER NOT NULL DEFAULT 24",
+                    "last_cursor_reset_at": "DATETIME",
+                    "change_significance_threshold": "VARCHAR(32) NOT NULL DEFAULT 'medium'",
                 }
                 for column_name, ddl_type in watch_columns.items():
                     if watch_rows and column_name not in watch_column_names:

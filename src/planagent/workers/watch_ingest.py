@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import timedelta
 
 from sqlalchemy import or_, select, update
@@ -16,10 +17,12 @@ from planagent.domain.enums import EventTopic
 from planagent.domain.models import WatchRule, utc_now
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
+from planagent.services.change_detection import ChangeDetectionService
 from planagent.services.debate import DebateService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.simulation import SimulationService
+from planagent.services.source_state import SourceStateService
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
 
@@ -90,6 +93,26 @@ class WatchIngestWorker(Worker):
         }
 
     async def _poll_rule(self, session, rule: WatchRule) -> dict:
+        source_state_service = SourceStateService(self.settings)
+        change_service = ChangeDetectionService(self.settings)
+        state = await source_state_service.get_or_create_state(
+            session,
+            source_type=rule.source_types[0] if rule.source_types else "unknown",
+            source_url_or_query=rule.query,
+            watch_rule_id=rule.id,
+            tenant_id=rule.tenant_id,
+            preset_id=rule.preset_id,
+        )
+        if rule.incremental_enabled:
+            should_fetch = await source_state_service.should_fetch(
+                session,
+                state,
+                force_full_refresh_every=rule.force_full_refresh_every,
+            )
+            if not should_fetch:
+                await self._mark_poll_success(session, rule)
+                return {"skipped": True, "reason": "no_change"}
+
         analysis_request = AnalysisRequest(
             content=rule.query,
             domain_id=rule.domain_id,
@@ -139,6 +162,46 @@ class WatchIngestWorker(Worker):
                         **source.metadata,
                     },
                 }
+            )
+
+        content_text = self._change_detection_text(rule, analysis.sources)
+        content_hash = hashlib.sha256(content_text.encode()).hexdigest()
+        change_record = await change_service.detect_change(
+            session,
+            state,
+            new_hash=content_hash,
+            new_content_text=content_text,
+            new_title=rule.name,
+            new_raw_source_item_id=None,
+        )
+        await source_state_service.update_after_fetch(
+            session,
+            state.id,
+            success=True,
+            content_hash=content_hash,
+            raw_source_item_id=None,
+        )
+        if rule.incremental_enabled:
+            threshold = rule.change_significance_threshold
+            significance_order = {"none": 0, "low": 1, "medium": 2, "high": 3}
+            if significance_order.get(change_record.significance, 0) < significance_order.get(
+                threshold, 2
+            ):
+                await self._mark_poll_success(session, rule)
+                return {
+                    "skipped": True,
+                    "reason": "below_threshold",
+                    "significance": change_record.significance,
+                }
+
+        if change_record.change_type != "unchanged":
+            await self.event_bus.publish(
+                EventTopic.SOURCE_CHANGED.value,
+                {
+                    "change_id": change_record.id,
+                    "source_type": state.source_type,
+                    "significance": change_record.significance,
+                },
             )
 
         ingest_run = await self.pipeline_service.create_ingest_run(
@@ -195,13 +258,7 @@ class WatchIngestWorker(Worker):
                 )
                 debate_id = debate.id
 
-        now = utc_now()
-        rule.last_poll_at = now
-        rule.last_poll_error = None
-        rule.lease_owner = None
-        rule.lease_expires_at = None
-        rule.next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
-        await session.commit()
+        await self._mark_poll_success(session, rule)
 
         return {
             "ingest_run_id": ingest_run.id,
@@ -269,6 +326,30 @@ class WatchIngestWorker(Worker):
         if source.published_at:
             score += 0.1
         return round(max(0.0, min(score, 1.0)), 4)
+
+    def _change_detection_text(self, rule: WatchRule, sources) -> str:
+        parts = [f"watch:{rule.id}", f"name:{rule.name}", f"query:{rule.query}"]
+        for source in sources:
+            parts.append(
+                "\n".join(
+                    [
+                        f"source_type:{source.source_type}",
+                        f"url:{source.url}",
+                        f"title:{source.title}",
+                        f"summary:{source.summary}",
+                    ]
+                )
+            )
+        return "\n\n".join(parts)
+
+    async def _mark_poll_success(self, session, rule: WatchRule) -> None:
+        now = utc_now()
+        rule.last_poll_at = now
+        rule.last_poll_error = None
+        rule.lease_owner = None
+        rule.lease_expires_at = None
+        rule.next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
+        await session.commit()
 
     async def _claim_due_rules(
         self,

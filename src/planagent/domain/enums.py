@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum, StrEnum
 
 
 class ExecutionMode(StrEnum):
@@ -46,10 +46,28 @@ class EventTopic(StrEnum):
     DEBATE_COMPLETED = "debate.completed"
     EVIDENCE_UPDATED = "evidence.updated"
     WATCH_RULE_TRIGGERED = "watch.rule_triggered"
+    SOURCE_CHANGED = "source.changed"
+    SOURCE_UNCHANGED = "source.unchanged"
+    CHANGE_EXPLAINED = "source.change_explained"
     PREDICTION_VERSION_CREATED = "prediction.version_created"
     PREDICTION_REVISION_REQUESTED = "prediction.revision_requested"
     PREDICTION_REVISION_COMPLETED = "prediction.revision_completed"
     PREDICTION_REVISION_FAILED = "prediction.revision_failed"
+
+
+class ChangeType(str, Enum):
+    NEW = "new"
+    UNCHANGED = "unchanged"
+    UPDATED = "updated"
+    DELETED = "deleted"
+    RECOVERED = "recovered"
+
+
+class ChangeSignificance(str, Enum):
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 
 class PredictionSeriesStatus(StrEnum):

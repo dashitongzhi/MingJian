@@ -690,6 +690,9 @@ class WatchRuleCreate(APIModel):
     auto_trigger_simulation: bool = False
     auto_trigger_debate: bool = False
     tick_count: int = Field(default=0, ge=0)
+    incremental_enabled: bool = True
+    force_full_refresh_every: int = Field(default=24, ge=1, le=24 * 30)
+    change_significance_threshold: Literal["none", "low", "medium", "high"] = "medium"
     tenant_id: str | None = None
     preset_id: str | None = None
 
@@ -709,6 +712,9 @@ class WatchRuleUpdate(APIModel):
     auto_trigger_simulation: bool | None = None
     auto_trigger_debate: bool | None = None
     tick_count: int | None = Field(default=None, ge=0)
+    incremental_enabled: bool | None = None
+    force_full_refresh_every: int | None = Field(default=None, ge=1, le=24 * 30)
+    change_significance_threshold: Literal["none", "low", "medium", "high"] | None = None
 
 
 class WatchRuleRead(APIModel):
@@ -732,6 +738,10 @@ class WatchRuleRead(APIModel):
     auto_trigger_simulation: bool
     auto_trigger_debate: bool
     tick_count: int
+    incremental_enabled: bool = True
+    force_full_refresh_every: int = 24
+    last_cursor_reset_at: datetime | None = None
+    change_significance_threshold: str = "medium"
     tenant_id: str | None = None
     preset_id: str | None = None
     created_at: datetime
@@ -1013,3 +1023,34 @@ class CalibrationRead(APIModel):
 class CalibrationComputeRequest(APIModel):
     domain_id: str
     tenant_id: str | None = None
+
+
+class SourceCursorStateRead(APIModel):
+    id: str
+    watch_rule_id: str | None = None
+    source_type: str
+    source_url_or_query: str
+    cursor: str | None = None
+    etag: str | None = None
+    last_modified: str | None = None
+    last_seen_hash: str | None = None
+    last_success_at: datetime | None = None
+    last_failure_at: datetime | None = None
+    consecutive_failures: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class SourceChangeRecordRead(APIModel):
+    id: str
+    source_state_id: str
+    watch_rule_id: str | None = None
+    old_hash: str | None = None
+    new_hash: str | None = None
+    change_type: str
+    significance: str
+    diff_summary: str | None = None
+    changed_fields: dict
+    claim_ids: list
+    prediction_revision_job_ids: list
+    created_at: datetime

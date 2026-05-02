@@ -310,6 +310,9 @@ async def create_watch_rule(
         auto_trigger_simulation=payload.auto_trigger_simulation,
         auto_trigger_debate=payload.auto_trigger_debate,
         tick_count=payload.tick_count,
+        incremental_enabled=payload.incremental_enabled,
+        force_full_refresh_every=payload.force_full_refresh_every,
+        change_significance_threshold=payload.change_significance_threshold,
         tenant_id=payload.tenant_id,
         preset_id=payload.preset_id,
         next_poll_at=now,
@@ -337,6 +340,25 @@ async def list_watch_rules(
         query = query.where(WatchRule.enabled == enabled)
     rules = list((await session.scalars(query.limit(limit))).all())
     return [WatchRuleRead.model_validate(r) for r in rules]
+
+
+@router.get("/admin/watch-rules", response_model=list[WatchRuleRead], include_in_schema=False)
+@router.get("/watch-rules", response_model=list[WatchRuleRead], include_in_schema=False)
+async def list_watch_rules_alias(
+    domain_id: str | None = None,
+    tenant_id: str | None = None,
+    enabled: bool | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+) -> list[WatchRuleRead]:
+    """Compatibility alias for the legacy /admin/watch-rules frontend path."""
+    return await list_watch_rules(
+        domain_id=domain_id,
+        tenant_id=tenant_id,
+        enabled=enabled,
+        limit=limit,
+        session=session,
+    )
 
 
 @router.get("/watch/rules/{rule_id}", response_model=WatchRuleRead)

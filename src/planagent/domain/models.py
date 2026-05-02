@@ -768,6 +768,12 @@ class WatchRule(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
+    incremental_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    force_full_refresh_every: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
+    last_cursor_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    change_significance_threshold: Mapped[str] = mapped_column(
+        String(16), default="medium", nullable=False
+    )
 
 
 class CalibrationRecord(Base):
@@ -958,3 +964,58 @@ class PredictionRevisionJob(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SourceCursorState(Base):
+    __tablename__ = "source_cursor_states"
+    __table_args__ = (
+        UniqueConstraint("watch_rule_id", "source_type", "source_url_or_query"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    watch_rule_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("watch_rules.id"), index=True
+    )
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_url_or_query: Mapped[str] = mapped_column(Text, nullable=False)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    cursor: Mapped[str | None] = mapped_column(Text)
+    etag: Mapped[str | None] = mapped_column(String(256))
+    last_modified: Mapped[str | None] = mapped_column(String(256))
+    last_seen_hash: Mapped[str | None] = mapped_column(String(64))
+    last_seen_raw_source_item_id: Mapped[str | None] = mapped_column(String(36))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class SourceChangeRecord(Base):
+    __tablename__ = "source_change_records"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    source_state_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("source_cursor_states.id"), nullable=False, index=True
+    )
+    watch_rule_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("watch_rules.id"), index=True
+    )
+    old_raw_source_item_id: Mapped[str | None] = mapped_column(String(36))
+    new_raw_source_item_id: Mapped[str | None] = mapped_column(String(36))
+    old_hash: Mapped[str | None] = mapped_column(String(64))
+    new_hash: Mapped[str | None] = mapped_column(String(64))
+    change_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    significance: Mapped[str] = mapped_column(String(16), default="none", nullable=False)
+    diff_summary: Mapped[str | None] = mapped_column(Text)
+    changed_fields: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    claim_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    prediction_revision_job_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
