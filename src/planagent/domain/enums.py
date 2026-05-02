@@ -46,3 +46,49 @@ class EventTopic(StrEnum):
     DEBATE_COMPLETED = "debate.completed"
     EVIDENCE_UPDATED = "evidence.updated"
     WATCH_RULE_TRIGGERED = "watch.rule_triggered"
+    PREDICTION_VERSION_CREATED = "prediction.version_created"
+    PREDICTION_REVISION_REQUESTED = "prediction.revision_requested"
+    PREDICTION_REVISION_COMPLETED = "prediction.revision_completed"
+    PREDICTION_REVISION_FAILED = "prediction.revision_failed"
+
+
+class PredictionSeriesStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+
+
+class PredictionVersionStatus(StrEnum):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    FAILED = "FAILED"
+
+
+class RevisionJobStatus(StrEnum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
+class TriggerType(StrEnum):
+    INITIAL = "initial"
+    EVIDENCE_UPDATE = "evidence_update"
+    MANUAL = "manual"
+    BACKTEST = "backtest"
+
+
+class LinkType(StrEnum):
+    SUPPORTING = "supporting"
+    CONFLICTING = "conflicting"
+    SHOCK = "shock"
+    DECISION_BASIS = "decision_basis"
+    REVISION_TRIGGER = "revision_trigger"
+
+
+class ImpactDirection(StrEnum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    NEUTRAL = "neutral"
+    UNKNOWN = "unknown"

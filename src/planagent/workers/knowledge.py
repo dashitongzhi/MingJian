@@ -168,12 +168,22 @@ class KnowledgeWorker(Worker):
                     EventTopic.EVIDENCE_UPDATED.value,
                     {
                         "claim_id": claim.id,
+                        "evidence_item_id": claim.evidence_item_id,
                         "old_confidence": old_confidence,
                         "new_confidence": new_confidence,
                         "old_status": old_status,
                         "new_status": claim.status,
                         "supportive_count": supportive_count,
                         "conflicting_count": conflicting_count,
+                    },
+                )
+                await self.event_bus.publish(
+                    EventTopic.KNOWLEDGE_EXTRACTED.value,
+                    {
+                        "claim_id": claim.id,
+                        "evidence_item_id": claim.evidence_item_id,
+                        "tenant_id": claim.tenant_id,
+                        "preset_id": claim.preset_id,
                     },
                 )
             except Exception as exc:

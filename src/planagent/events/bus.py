@@ -30,6 +30,15 @@ class EventBus(Protocol):
 
     async def ack(self, topic: str, group: str, message_id: str) -> None: ...
 
+    async def reclaim_pending(
+        self,
+        topics: list[str],
+        group: str,
+        consumer: str,
+        min_idle_ms: int = 60_000,
+        count: int = 50,
+    ) -> list[ConsumedEvent]: ...
+
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None: ...
 
     async def close(self) -> None: ...
@@ -67,6 +76,16 @@ class InMemoryEventBus:
 
     async def ack(self, topic: str, group: str, message_id: str) -> None:
         self._acked.add(f"{group}:{message_id}")
+
+    async def reclaim_pending(
+        self,
+        topics: list[str],
+        group: str,
+        consumer: str,
+        min_idle_ms: int = 60_000,
+        count: int = 50,
+    ) -> list[ConsumedEvent]:
+        return []
 
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
         await self.publish(f"{topic}.dlq", payload)
@@ -133,7 +152,62 @@ class RedisStreamEventBus:
                         message_id=message_id,
                         payload=payload if isinstance(payload, dict) else {},
                     )
+        )
+        return events
+
+    async def reclaim_pending(
+        self,
+        topics: list[str],
+        group: str,
+        consumer: str,
+        min_idle_ms: int = 60_000,
+        count: int = 50,
+    ) -> list[ConsumedEvent]:
+        """Reclaim pending messages that have been idle too long."""
+        if not topics:
+            return []
+
+        streams = [self._stream_key(topic) for topic in topics]
+        events: list[ConsumedEvent] = []
+        for stream_key in streams:
+            try:
+                response = await self.client.xautoclaim(
+                    name=stream_key,
+                    groupname=group,
+                    consumername=consumer,
+                    min_idle_time=min_idle_ms,
+                    start_id="0-0",
+                    count=count,
                 )
+                if response and len(response) >= 2:
+                    events.extend(self._decode_messages(stream_key, response[1]))
+            except redis.ResponseError:
+                try:
+                    pending = await self.client.xpending_range(
+                        name=stream_key,
+                        groupname=group,
+                        min="-",
+                        max="+",
+                        count=count,
+                    )
+                    idle_ids = [
+                        self._pending_message_id(item)
+                        for item in (pending or [])
+                        if self._pending_idle_ms(item) >= min_idle_ms
+                    ]
+                    idle_ids = [message_id for message_id in idle_ids if message_id is not None]
+                    if not idle_ids:
+                        continue
+                    claimed = await self.client.xclaim(
+                        name=stream_key,
+                        groupname=group,
+                        consumername=consumer,
+                        min_idle_time=min_idle_ms,
+                        message_ids=idle_ids,
+                    )
+                    events.extend(self._decode_messages(stream_key, claimed))
+                except Exception:
+                    pass
         return events
 
     async def ack(self, topic: str, group: str, message_id: str) -> None:
@@ -147,6 +221,42 @@ class RedisStreamEventBus:
 
     def _stream_key(self, topic: str) -> str:
         return f"stream:{topic}"
+
+    def _decode_messages(
+        self,
+        stream_key: str,
+        messages: list[tuple[str, dict[str, str]]],
+    ) -> list[ConsumedEvent]:
+        topic = stream_key.removeprefix("stream:")
+        events: list[ConsumedEvent] = []
+        for message_id, fields in messages:
+            raw_payload = fields.get("payload", "{}")
+            payload = json.loads(raw_payload) if isinstance(raw_payload, str) else {}
+            events.append(
+                ConsumedEvent(
+                    topic=topic,
+                    message_id=message_id,
+                    payload=payload if isinstance(payload, dict) else {},
+                )
+            )
+        return events
+
+    def _pending_message_id(self, item: object) -> str | None:
+        if isinstance(item, dict):
+            message_id = item.get("message_id")
+            return message_id if isinstance(message_id, str) else None
+        if isinstance(item, (list, tuple)) and item:
+            message_id = item[0]
+            return message_id if isinstance(message_id, str) else None
+        return None
+
+    def _pending_idle_ms(self, item: object) -> int:
+        if isinstance(item, dict):
+            value = item.get("time_since_delivered", item.get("idle_time", 0))
+            return int(value or 0)
+        if isinstance(item, (list, tuple)) and len(item) >= 3:
+            return int(item[2] or 0)
+        return 0
 
 
 def build_event_bus(settings: Settings) -> EventBus:

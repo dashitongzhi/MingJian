@@ -78,6 +78,12 @@ class Database:
                     await connection.execute(
                         text("ALTER TABLE knowledge_graph_nodes ADD COLUMN embedding_model VARCHAR(120)")
                     )
+                hypothesis_rows = (await connection.execute(text("PRAGMA table_info(hypotheses)"))).all()
+                hypothesis_column_names = {row[1] for row in hypothesis_rows}
+                if hypothesis_rows and "prediction_version_id" not in hypothesis_column_names:
+                    await connection.execute(
+                        text("ALTER TABLE hypotheses ADD COLUMN prediction_version_id VARCHAR(36)")
+                    )
         self._initialized = True
 
     async def ensure_initialized(self) -> None:

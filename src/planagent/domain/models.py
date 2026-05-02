@@ -833,6 +833,9 @@ class Hypothesis(Base):
     decision_option_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("decision_options.id"), index=True
     )
+    prediction_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), index=True
+    )
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120))
     prediction: Mapped[str] = mapped_column(Text, nullable=False)
@@ -846,3 +849,112 @@ class Hypothesis(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
+
+
+class PredictionSeries(Base):
+    __tablename__ = "prediction_series"
+    __table_args__ = (UniqueConstraint("source_type", "source_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    subject_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    subject_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    domain_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    decision_option_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("decision_options.id"), index=True)
+    hypothesis_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("hypotheses.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False, index=True)
+    current_version_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    series_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class PredictionVersion(Base):
+    __tablename__ = "prediction_versions"
+    __table_args__ = (UniqueConstraint("series_id", "version_number"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    base_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
+    parent_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
+    hypothesis_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("hypotheses.id"), index=True)
+    decision_option_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("decision_options.id"), index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    trigger_ref_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    trigger_event_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    prediction_text: Mapped[str] = mapped_column(Text, nullable=False)
+    time_horizon: Mapped[str] = mapped_column(String(64), default="3_months", nullable=False)
+    probability: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False, index=True)
+    summary_delta: Mapped[str | None] = mapped_column(Text)
+    version_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PredictionEvidenceLink(Base):
+    __tablename__ = "prediction_evidence_links"
+    __table_args__ = (UniqueConstraint("version_id", "evidence_item_id", "claim_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
+    version_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True)
+    prediction_version_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True)
+    evidence_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("evidence_items.id"), index=True)
+    claim_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("claims.id"), index=True)
+    run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    decision_record_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("decision_records.id"), index=True)
+    link_type: Mapped[str] = mapped_column(String(32), default="supporting", nullable=False)
+    impact_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    impact_direction: Mapped[str] = mapped_column(String(32), default="unknown", nullable=False)
+    impact_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class PredictionRevisionJob(Base):
+    __tablename__ = "prediction_revision_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
+    base_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
+    claim_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("claims.id"), index=True)
+    trigger_claim_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("claims.id"), index=True)
+    evidence_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("evidence_items.id"), index=True)
+    trigger_evidence_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("evidence_items.id"), index=True)
+    trigger_topic: Mapped[str | None] = mapped_column(String(128), index=True)
+    reason: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False, index=True)
+    revision_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    new_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    new_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
+    lease_owner: Mapped[str | None] = mapped_column(String(120), index=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    processing_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    job_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

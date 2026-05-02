@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import get_settings
+from planagent.db import get_session
 from planagent.domain.api import AnalysisResponse, AnalysisStepRead
 from planagent.domain.models import AnalysisCacheRecord, utc_now
 from planagent.events.bus import build_event_bus

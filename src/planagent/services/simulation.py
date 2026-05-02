@@ -793,6 +793,10 @@ class SimulationService:
         await self.event_bus.publish(event_topic, event_payload)
 
         await self._generate_decision_options(session, run, current_state)
+        from planagent.services.prediction import PredictionService
+
+        prediction_service = PredictionService(self.settings, self.event_bus)
+        await prediction_service.create_initial_versions_for_run(session, run_id=run.id)
 
     async def _generate_decision_options(
         self,

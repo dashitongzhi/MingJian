@@ -17,6 +17,7 @@ from planagent.workers.base import Worker
 from planagent.workers.graph import GraphWorker
 from planagent.workers.ingest import IngestWorker
 from planagent.workers.knowledge import KnowledgeWorker
+from planagent.workers.prediction_revision import PredictionRevisionWorker
 from planagent.workers.report import ReportWorker
 from planagent.workers.review import ReviewWorker
 from planagent.workers.simulation import SimulationWorker
@@ -49,6 +50,12 @@ def build_worker(worker_name: str) -> Worker:
             rule_registry,
             openai_service,
         ),
+        "prediction-revision-worker": lambda: PredictionRevisionWorker(
+            settings,
+            event_bus,
+            rule_registry,
+            openai_service,
+        ),
         "calibration-worker": lambda: CalibrationWorker(
             settings,
             rule_registry,
@@ -73,6 +80,7 @@ def list_workers() -> list[dict[str, object]]:
         ReportWorker.description.to_dict(),
         StrategicWatchWorker.description.to_dict(),
         WatchIngestWorker.description.to_dict(),
+        PredictionRevisionWorker.description.to_dict(),
         CalibrationWorker.description.to_dict(),
     ]
 
@@ -108,6 +116,8 @@ async def run_worker(worker_name: str, loop: bool, interval_seconds: float) -> N
 def _supports_stream_consumers(worker: Worker, event_bus: object | None) -> bool:
     if event_bus is None:
         return False
+    if getattr(worker, "uses_internal_event_consumer", False):
+        return False
     consumes = getattr(worker.description, "consumes", ())
     return bool(consumes) and bool(getattr(event_bus, "supports_stream_consumers", False))
 
@@ -124,13 +134,21 @@ async def _run_stream_worker(
     print(json.dumps({"worker": worker_name, "triggered_by": ["startup_sweep"], "result": initial_result}, ensure_ascii=True))
 
     while True:
-        events = await event_bus.consume(
+        events = await event_bus.reclaim_pending(
             topics=consumes,
             group=worker_name,
             consumer=consumer_name,
+            min_idle_ms=60_000,
             count=settings.stream_consumer_count,
-            block_ms=settings.stream_consumer_block_ms,
         )
+        if not events:
+            events = await event_bus.consume(
+                topics=consumes,
+                group=worker_name,
+                consumer=consumer_name,
+                count=settings.stream_consumer_count,
+                block_ms=settings.stream_consumer_block_ms,
+            )
         if not events:
             continue
 

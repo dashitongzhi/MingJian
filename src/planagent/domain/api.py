@@ -816,6 +816,7 @@ class HypothesisRead(APIModel):
     id: str
     run_id: str
     decision_option_id: str | None = None
+    prediction_version_id: str | None = None
     tenant_id: str | None = None
     preset_id: str | None = None
     prediction: str
@@ -825,6 +826,172 @@ class HypothesisRead(APIModel):
     verified_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class PredictionSeriesRead(APIModel):
+    id: str
+    subject_type: str
+    subject_id: str | None = None
+    domain_id: str
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    source_run_id: str | None = None
+    current_version_id: str | None = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_domain(cls, value: object) -> object:
+        if isinstance(value, dict) or hasattr(value, "domain_id"):
+            return value
+        metadata = getattr(value, "series_metadata", {}) or {}
+        return {
+            "id": value.id,
+            "subject_type": value.subject_type,
+            "subject_id": value.subject_id,
+            "domain_id": metadata.get("domain_id", "unknown"),
+            "tenant_id": value.tenant_id,
+            "preset_id": value.preset_id,
+            "source_run_id": value.source_run_id,
+            "current_version_id": value.current_version_id,
+            "status": value.status,
+            "created_at": value.created_at,
+            "updated_at": value.updated_at,
+        }
+
+
+class PredictionVersionRead(APIModel):
+    id: str
+    series_id: str
+    version_number: int
+    run_id: str | None = None
+    hypothesis_id: str | None = None
+    decision_option_id: str | None = None
+    parent_version_id: str | None = None
+    trigger_type: str
+    trigger_event_id: str | None = None
+    prediction_text: str
+    time_horizon: str
+    probability: float | None = None
+    confidence: float | None = None
+    status: str
+    summary_delta: str | None = None
+    created_at: datetime
+    superseded_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_version_aliases(cls, value: object) -> object:
+        if isinstance(value, dict) or hasattr(value, "parent_version_id"):
+            return value
+        metadata = getattr(value, "version_metadata", {}) or {}
+        return {
+            "id": value.id,
+            "series_id": value.series_id,
+            "version_number": value.version_number,
+            "run_id": value.run_id,
+            "hypothesis_id": metadata.get("hypothesis_id"),
+            "decision_option_id": metadata.get("decision_option_id"),
+            "parent_version_id": getattr(value, "base_version_id", None),
+            "trigger_type": value.trigger_type,
+            "trigger_event_id": getattr(value, "trigger_ref_id", None),
+            "prediction_text": value.prediction_text,
+            "time_horizon": metadata.get("time_horizon") or "3_months",
+            "probability": value.probability,
+            "confidence": value.confidence,
+            "status": value.status,
+            "summary_delta": metadata.get("summary_delta"),
+            "created_at": value.created_at,
+            "superseded_at": None,
+        }
+
+
+class PredictionEvidenceLinkRead(APIModel):
+    id: str
+    prediction_version_id: str
+    evidence_item_id: str | None = None
+    claim_id: str | None = None
+    run_id: str | None = None
+    decision_record_id: str | None = None
+    link_type: str
+    impact_score: float
+    impact_direction: str
+    impact_reason: str | None = None
+    created_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_link_aliases(cls, value: object) -> object:
+        if isinstance(value, dict) or hasattr(value, "prediction_version_id"):
+            return value
+        return {
+            "id": value.id,
+            "prediction_version_id": value.version_id,
+            "evidence_item_id": value.evidence_item_id,
+            "claim_id": value.claim_id,
+            "run_id": None,
+            "decision_record_id": None,
+            "link_type": value.link_type,
+            "impact_score": value.impact_score,
+            "impact_direction": "unknown",
+            "impact_reason": None,
+            "created_at": value.created_at,
+        }
+
+
+class PredictionRevisionJobRead(APIModel):
+    id: str
+    series_id: str
+    base_version_id: str | None = None
+    trigger_claim_id: str | None = None
+    trigger_evidence_item_id: str | None = None
+    trigger_topic: str | None = None
+    status: str
+    reason: str | None = None
+    lease_owner: str | None = None
+    lease_expires_at: datetime | None = None
+    attempts: int
+    last_error: str | None = None
+    new_run_id: str | None = None
+    new_version_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_job_aliases(cls, value: object) -> object:
+        if isinstance(value, dict) or hasattr(value, "trigger_claim_id"):
+            return value
+        metadata = getattr(value, "job_metadata", {}) or {}
+        return {
+            "id": value.id,
+            "series_id": value.series_id,
+            "base_version_id": value.base_version_id,
+            "trigger_claim_id": getattr(value, "claim_id", None),
+            "trigger_evidence_item_id": getattr(value, "evidence_item_id", None),
+            "trigger_topic": metadata.get("trigger_topic"),
+            "status": value.status,
+            "reason": value.reason,
+            "lease_owner": value.lease_owner,
+            "lease_expires_at": value.lease_expires_at,
+            "attempts": getattr(value, "processing_attempts", 0),
+            "last_error": value.last_error,
+            "new_run_id": getattr(value, "revision_run_id", None),
+            "new_version_id": metadata.get("new_version_id"),
+            "created_at": value.created_at,
+            "updated_at": value.updated_at,
+            "completed_at": value.completed_at,
+        }
+
+
+class RefForecastRequest(APIModel):
+    reason: str | None = None
+    trigger_claim_id: str | None = None
+    trigger_evidence_item_id: str | None = None
+    trigger_topic: str = "manual"
 
 
 class CalibrationRead(APIModel):
