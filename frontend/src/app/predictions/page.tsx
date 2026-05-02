@@ -56,30 +56,120 @@ function formatPercent(value?: number | null) {
   return value == null ? "-" : `${(value * 100).toFixed(0)}%`;
 }
 
+function clampPercent(value?: number | null) {
+  if (value == null) return 0;
+  return Math.max(0, Math.min(100, value * 100));
+}
+
 function StatusBadge({ status }: { status?: string | null }) {
   const normalized = (status || "UNKNOWN").toUpperCase();
   const className =
     normalized === "ACTIVE" || normalized === "CURRENT"
-      ? "badge-success"
+      ? "border-[var(--accent-green)]/30 bg-[var(--accent-green-bg)] text-[var(--accent-green)]"
       : normalized === "SUPERSEDED"
-        ? "badge-warning"
+        ? "border-[var(--accent-yellow)]/30 bg-[var(--accent-yellow-bg)] text-[var(--accent-yellow)]"
         : normalized === "VERIFIED"
-          ? "badge-info"
-          : "badge-error";
-  return <span className={`badge ${className}`}>{normalized}</span>;
+          ? "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--accent)]"
+          : "border-[var(--accent-red)]/30 bg-[var(--accent-red-bg)] text-[var(--accent-red)]";
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-4 ${className}`}>
+      {normalized}
+    </span>
+  );
 }
 
 function ProbabilityDelta({ current, previous }: { current?: number | null; previous?: number | null }) {
   const delta = current != null && previous != null ? current - previous : null;
+  const width = clampPercent(current);
+
   return (
-    <div className="flex items-center gap-2">
-      <span className="font-mono text-sm">{formatPercent(current)}</span>
-      {delta != null && (
-        <span className={`text-xs font-mono ${delta >= 0 ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
-          {delta >= 0 ? "+" : ""}
-          {(delta * 100).toFixed(0)}pt
-        </span>
+    <div className="min-w-[150px]">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="font-mono text-lg text-[var(--foreground)]">{formatPercent(current)}</span>
+        {delta != null && (
+          <span className={`font-mono text-xs ${delta >= 0 ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
+            {delta >= 0 ? "+" : ""}
+            {(delta * 100).toFixed(0)}pt
+          </span>
+        )}
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--background)]">
+        <div
+          className="h-full rounded-full bg-[var(--accent)] transition-[width,opacity] duration-300"
+          style={{ width: `${width}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ProbabilitySparkline({ values }: { values: Array<number | null | undefined> }) {
+  const normalized = values.map((value) => clampPercent(value));
+  if (normalized.length === 0) {
+    return <div className="h-8 rounded border border-dashed border-[var(--card-border)]" />;
+  }
+
+  return (
+    <div className="flex h-8 items-end gap-1">
+      {normalized.map((value, index) => (
+        <span
+          key={`${value}-${index}`}
+          className="w-1.5 rounded-t-sm bg-[var(--accent)]/75 transition-[height,opacity] duration-300"
+          style={{ height: `${Math.max(10, value)}%`, opacity: 0.35 + (index + 1) / (normalized.length * 1.8) }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DiffBlock({
+  before,
+  after,
+  evidence,
+}: {
+  before?: string | null;
+  after?: string | null;
+  evidence?: string | null;
+}) {
+  if (!before && !after && !evidence) return null;
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--background)] font-mono text-xs">
+      {before && (
+        <div className="flex gap-3 border-b border-[var(--card-border)] px-3 py-2 text-[var(--accent-red)]/90">
+          <span className="select-none text-[var(--muted)]">-</span>
+          <span className="line-clamp-3">{before}</span>
+        </div>
       )}
+      {after && (
+        <div className="flex gap-3 border-b border-[var(--card-border)] px-3 py-2 text-[var(--accent-green)]/90 last:border-b-0">
+          <span className="select-none text-[var(--muted)]">+</span>
+          <span className="line-clamp-4">{after}</span>
+        </div>
+      )}
+      {evidence && (
+        <div className="flex gap-3 px-3 py-2 text-[var(--muted-foreground)]">
+          <span className="select-none text-[var(--muted)]">@</span>
+          <span className="line-clamp-4">{evidence}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineSkeleton() {
+  return (
+    <div className="space-y-5">
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="grid grid-cols-[72px_1fr] gap-5">
+          <div className="h-4 rounded bg-[var(--card-border)]/60 animate-pulse" />
+          <div className="space-y-3 border-l border-[var(--card-border)] pl-6">
+            <div className="h-4 w-1/3 rounded bg-[var(--card-border)]/70 animate-pulse" />
+            <div className="h-20 rounded-lg bg-[var(--card)] animate-pulse" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -93,16 +183,21 @@ export default function PredictionsPage() {
   const { t } = useTranslation();
   const [predictions, setPredictions] = useState<PredictionSeries[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<PredictionTimelineItem[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
 
   const loadPredictions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await apiFetch<PredictionSeries[]>("/predictions");
       setPredictions(data);
     } catch (e) {
       console.error(e);
+      setError(e instanceof Error ? e.message : "Request failed");
     } finally {
       setLoading(false);
     }
@@ -110,6 +205,7 @@ export default function PredictionsPage() {
 
   const loadTimeline = useCallback(async (seriesId: string) => {
     setTimelineLoading(true);
+    setTimelineError(null);
     try {
       const data = await apiFetch<PredictionTimelineResponse>(`/predictions/${seriesId}/timeline`);
       setTimeline(normalizeTimeline(data));
@@ -118,6 +214,7 @@ export default function PredictionsPage() {
       console.error(e);
       setTimeline([]);
       setSelectedSeries(seriesId);
+      setTimelineError(e instanceof Error ? e.message : "Request failed");
     } finally {
       setTimelineLoading(false);
     }
@@ -130,23 +227,33 @@ export default function PredictionsPage() {
   const selectedPrediction = predictions.find((item) => item.id === selectedSeries);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">{t("predictions.title")}</h1>
-        <p className="text-[var(--muted)] mt-1">{t("predictions.subtitle")}</p>
+    <div className="space-y-8">
+      <div className="grid gap-6 border-b border-[var(--card-border)] pb-6 lg:grid-cols-[1fr_320px]">
+        <div>
+          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--accent)]">{t("predictions.series")}</p>
+          <h1 className="text-3xl font-semibold tracking-normal">{t("predictions.title")}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("predictions.subtitle")}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-border)]">
+          <div className="bg-[var(--card)] p-4">
+            <div className="text-xs text-[var(--muted)]">{t("predictions.series")}</div>
+            <div className="mt-2 font-mono text-2xl">{predictions.length}</div>
+          </div>
+          <div className="bg-[var(--card)] p-4">
+            <div className="text-xs text-[var(--muted)]">{t("predictions.versions")}</div>
+            <div className="mt-2 font-mono text-2xl">{timeline.length}</div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v18h18" />
-              <path d="m19 9-5 5-4-4-3 3" />
-            </svg>
-            {t("predictions.series")} ({predictions.length})
-          </h2>
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[390px_1fr]">
+        <aside className="min-w-0">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium">{t("predictions.series")}</h2>
+            <span className="font-mono text-xs text-[var(--muted)]">{predictions.length}</span>
+          </div>
 
-          <div className="space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto">
+          <div className="max-h-[calc(100vh-250px)] overflow-y-auto border-y border-[var(--card-border)]">
             {predictions.map((prediction) => {
               const subject =
                 prediction.subject ||
@@ -156,157 +263,160 @@ export default function PredictionsPage() {
                 prediction.id.slice(0, 8);
               const domain = prediction.domain || prediction.domain_id || "-";
               const currentVersion = prediction.current_version || prediction.current_version_id?.slice(0, 8) || "-";
+              const selected = selectedSeries === prediction.id;
 
               return (
                 <button
                   key={prediction.id}
                   onClick={() => loadTimeline(prediction.id)}
-                  className={`w-full text-left p-4 rounded-lg border transition-all ${
-                    selectedSeries === prediction.id
-                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                      : "border-[var(--card-border)] hover:border-[var(--muted)] hover:bg-[var(--card-hover)]"
+                  className={`group grid w-full grid-cols-[56px_1fr] gap-4 border-b border-[var(--card-border)] px-0 py-4 text-left transition-[background-color,opacity] duration-200 last:border-b-0 ${
+                    selected ? "bg-[var(--accent)]/8" : "hover:bg-[var(--card)]"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{subject}</div>
-                      <div className="text-xs text-[var(--muted)] mt-1">{domain}</div>
-                    </div>
-                    <StatusBadge status={prediction.status} />
+                  <div className="pl-3 font-mono text-xs text-[var(--muted)]">
+                    <div className={selected ? "text-[var(--accent)]" : ""}>v{currentVersion}</div>
+                    <div className="mt-2 h-px w-8 bg-[var(--card-border)] group-hover:bg-[var(--accent)]/50" />
                   </div>
-                  <div className="flex items-center justify-between text-xs text-[var(--muted)]">
-                    <span className="font-mono">v{currentVersion}</span>
-                    <span>{formatDate(prediction.created_at)}</span>
+                  <div className="min-w-0 pr-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{subject}</div>
+                        <div className="mt-1 truncate text-xs text-[var(--muted)]">{domain}</div>
+                      </div>
+                      <StatusBadge status={prediction.status} />
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-xs text-[var(--muted)]">
+                      <span>{formatDate(prediction.created_at)}</span>
+                      <span>{formatDate(prediction.updated_at)}</span>
+                    </div>
                   </div>
                 </button>
               );
             })}
 
             {loading && (
-              <div className="flex items-center justify-center py-10 text-sm text-[var(--muted)]">
-                <div className="spinner mr-2" />
-                {t("common.loading")}
+              <div className="space-y-4 py-4">
+                {[0, 1, 2, 3].map((item) => (
+                  <div key={item} className="grid grid-cols-[56px_1fr] gap-4 px-3">
+                    <div className="h-3 rounded bg-[var(--card-border)] animate-pulse" />
+                    <div className="space-y-3">
+                      <div className="h-4 w-3/4 rounded bg-[var(--card-border)] animate-pulse" />
+                      <div className="h-3 w-1/2 rounded bg-[var(--card-border)]/70 animate-pulse" />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {!loading && predictions.length === 0 && (
-              <div className="empty-state py-10">
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                  <path d="M3 3v18h18" />
-                  <path d="m19 9-5 5-4-4-3 3" />
-                </svg>
+            {!loading && error && (
+              <div className="px-4 py-10 text-sm text-[var(--accent-red)]">
+                <div className="font-medium">{t("common.failed")}</div>
+                <div className="mt-1 text-xs text-[var(--muted)]">{error}</div>
+              </div>
+            )}
+
+            {!loading && !error && predictions.length === 0 && (
+              <div className="empty-state py-12">
                 <div className="empty-state-title">{t("predictions.noPredictions")}</div>
               </div>
             )}
           </div>
-        </div>
+        </aside>
 
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4 mb-5">
+        <main className="min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)]/55 p-5 md:p-6">
+          <div className="mb-8 flex flex-col justify-between gap-4 border-b border-[var(--card-border)] pb-5 md:flex-row md:items-start">
             <div>
-              <h2 className="text-sm font-semibold flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 8v4l3 3" />
-                  <circle cx="12" cy="12" r="10" />
-                </svg>
-                {t("predictions.versionHistory")}
-              </h2>
+              <h2 className="text-sm font-medium">{t("predictions.versionHistory")}</h2>
               {selectedPrediction && (
-                <p className="text-xs text-[var(--muted)] mt-1">
+                <p className="mt-2 text-xs text-[var(--muted)]">
                   {selectedPrediction.domain || selectedPrediction.domain_id || "-"} / {selectedPrediction.status}
                 </p>
               )}
             </div>
-            {timeline.length > 0 && <span className="badge badge-info">{timeline.length} {t("predictions.versions")}</span>}
+            {timeline.length > 0 && (
+              <div className="flex min-w-[180px] items-end justify-between gap-4">
+                <ProbabilitySparkline values={timeline.map((item) => item.probability)} />
+                <span className="font-mono text-xs text-[var(--muted)]">
+                  {timeline.length} {t("predictions.versions")}
+                </span>
+              </div>
+            )}
           </div>
 
-          {timelineLoading && (
-            <div className="flex items-center justify-center py-16 text-sm text-[var(--muted)]">
-              <div className="spinner mr-2" />
-              {t("common.loading")}
+          {timelineLoading && <TimelineSkeleton />}
+
+          {!timelineLoading && timelineError && (
+            <div className="rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red-bg)] p-4 text-sm text-[var(--accent-red)]">
+              <div className="font-medium">{t("common.failed")}</div>
+              <div className="mt-1 text-xs text-[var(--muted-foreground)]">{timelineError}</div>
             </div>
           )}
 
-          {!timelineLoading && selectedSeries && timeline.length > 0 && (
-            <div className="relative">
-              <div className="absolute left-[11px] top-2 bottom-2 w-px bg-[var(--card-border)]" />
-              <div className="space-y-4">
-                {timeline.map((version, index) => {
-                  const previous = timeline[index - 1];
-                  const evidence = version.trigger_evidence || version.evidence_title || version.summary_delta;
+          {!timelineLoading && !timelineError && selectedSeries && timeline.length > 0 && (
+            <div className="space-y-8">
+              {timeline.map((version, index) => {
+                const previous = timeline[index - 1];
+                const evidence = version.trigger_evidence || version.evidence_title || version.summary_delta;
 
-                  return (
-                    <div key={version.id} className="relative pl-9">
-                      <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-[var(--accent)] text-white text-xs font-mono flex items-center justify-center">
-                        {version.version_number}
-                      </div>
-                      <div className="rounded-lg border border-[var(--card-border)] p-4 hover:border-[var(--muted)] transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-sm font-semibold">v{version.version_number}</span>
+                return (
+                  <article key={version.id} className="grid grid-cols-[72px_1fr] gap-5 md:grid-cols-[92px_1fr]">
+                    <div className="pt-1 text-right">
+                      <div className="font-mono text-xs text-[var(--accent)]">v{version.version_number}</div>
+                      <div className="mt-2 text-[11px] leading-4 text-[var(--muted)]">{formatDate(version.created_at)}</div>
+                    </div>
+                    <div className="relative border-l border-[var(--card-border)] pl-6">
+                      <span className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full border border-[var(--accent)] bg-[var(--card)]" />
+                      <div className="rounded-lg bg-[var(--background)]/70 p-4 ring-1 ring-[var(--card-border)] transition-[transform,opacity,background-color] duration-200 hover:-translate-y-0.5 hover:bg-[var(--background)]">
+                        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
                               <StatusBadge status={version.status} />
+                              <span className="text-xs text-[var(--muted)]">{version.trigger_type || "-"}</span>
                             </div>
-                            <div className="text-xs text-[var(--muted)]">{formatDate(version.created_at)}</div>
+                            {version.prediction_text && (
+                              <p className="mt-4 max-w-3xl text-sm leading-6 text-[var(--foreground)]">{version.prediction_text}</p>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <div className="text-xs text-[var(--muted)] mb-1">{t("predictions.probability")}</div>
-                            <ProbabilityDelta current={version.probability} previous={previous?.probability} />
+                          <ProbabilityDelta current={version.probability} previous={previous?.probability} />
+                        </div>
+
+                        <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-border)] md:grid-cols-3">
+                          <div className="bg-[var(--card)] p-3">
+                            <div className="text-[11px] text-[var(--muted)]">{t("predictions.confidence")}</div>
+                            <div className="mt-1 font-mono text-sm">{formatPercent(version.confidence)}</div>
+                          </div>
+                          <div className="bg-[var(--card)] p-3">
+                            <div className="text-[11px] text-[var(--muted)]">{t("predictions.triggerType")}</div>
+                            <div className="mt-1 truncate text-sm">{version.trigger_type || "-"}</div>
+                          </div>
+                          <div className="bg-[var(--card)] p-3">
+                            <div className="text-[11px] text-[var(--muted)]">{t("predictions.status")}</div>
+                            <div className="mt-1 truncate text-sm">{version.status || "-"}</div>
                           </div>
                         </div>
 
-                        {version.prediction_text && <p className="text-sm mt-3 text-[var(--foreground)]">{version.prediction_text}</p>}
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-                          <div>
-                            <div className="text-xs text-[var(--muted)]">{t("predictions.confidence")}</div>
-                            <div className="text-sm font-mono mt-1">{formatPercent(version.confidence)}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-[var(--muted)]">{t("predictions.triggerType")}</div>
-                            <div className="text-sm mt-1">{version.trigger_type || "-"}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-[var(--muted)]">{t("predictions.status")}</div>
-                            <div className="text-sm mt-1">{version.status || "-"}</div>
-                          </div>
-                        </div>
-
-                        {evidence && (
-                          <div className="mt-4 p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)]">
-                            <div className="text-xs text-[var(--muted)] mb-1">{t("predictions.timeline")}</div>
-                            <div className="text-sm">{evidence}</div>
-                          </div>
-                        )}
+                        <DiffBlock before={previous?.prediction_text} after={version.prediction_text} evidence={evidence} />
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </article>
+                );
+              })}
             </div>
           )}
 
-          {!timelineLoading && !selectedSeries && (
+          {!timelineLoading && !timelineError && !selectedSeries && (
             <div className="empty-state py-16">
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                <path d="M12 8v4l3 3" />
-                <circle cx="12" cy="12" r="10" />
-              </svg>
               <div className="empty-state-title">{t("predictions.timeline")}</div>
               <div className="empty-state-description">{t("predictions.subtitle")}</div>
             </div>
           )}
 
-          {!timelineLoading && selectedSeries && timeline.length === 0 && (
+          {!timelineLoading && !timelineError && selectedSeries && timeline.length === 0 && (
             <div className="empty-state py-16">
-              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                <path d="M12 8v4l3 3" />
-                <circle cx="12" cy="12" r="10" />
-              </svg>
               <div className="empty-state-title">{t("predictions.noPredictions")}</div>
             </div>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );

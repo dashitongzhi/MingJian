@@ -1,5 +1,6 @@
 "use client";
-import { useState, useCallback } from "react";
+
+import { useState, useCallback, type ReactNode } from "react";
 import {
   useConfiguredProviders,
   saveProvider,
@@ -9,8 +10,6 @@ import {
   type ProviderTestResult,
 } from "@/lib/providers";
 import { useTranslation } from "@/contexts/LanguageContext";
-
-// ── Icons (inline SVG to avoid external deps) ──────────────────────────────
 
 function CheckIcon() {
   return (
@@ -23,14 +22,15 @@ function CheckIcon() {
 function XIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
 
 function LoaderIcon({ className = "" }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} style={{ animation: "spin 1s linear infinite" }}>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   );
@@ -39,7 +39,8 @@ function LoaderIcon({ className = "" }: { className?: string }) {
 function EyeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -57,8 +58,9 @@ function EyeOffIcon() {
 function TestTubeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.5 2v17.5c0 1.4-1.1 2.5-2.5 2.5h0c-1.4 0-2.5-1.1-2.5-2.5V2" />
-      <path d="M8.5 2h7" /><path d="M14.5 16h-5" />
+      <path d="M14.5 2v17.5c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5V2" />
+      <path d="M8.5 2h7" />
+      <path d="M14.5 16h-5" />
     </svg>
   );
 }
@@ -67,7 +69,8 @@ function ExternalLinkIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
     </svg>
   );
 }
@@ -75,12 +78,22 @@ function ExternalLinkIcon() {
 function TrashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   );
 }
 
-// ── Provider Card ───────────────────────────────────────────────────────────
+function ProviderStatus({ configured }: { configured: boolean }) {
+  const { t } = useTranslation();
+
+  return (
+    <span className={`inline-flex items-center gap-2 text-xs ${configured ? "text-[var(--accent-green)]" : "text-[var(--muted)]"}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${configured ? "bg-[var(--accent-green)]" : "bg-[var(--muted)]"}`} />
+      {configured ? t("providers.configuredBadge") : t("providers.notConfiguredBadge")}
+    </span>
+  );
+}
 
 function ProviderCard({
   provider,
@@ -90,69 +103,150 @@ function ProviderCard({
   onConfigure: () => void;
 }) {
   const { t } = useTranslation();
-  const isCustom = provider.custom;
-  return (
-    <div
-      onClick={onConfigure}
-      className="relative overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5 cursor-pointer transition-all duration-200 hover:border-[var(--accent)] hover:shadow-lg hover:shadow-[var(--accent)]/5 group"
-    >
-      {/* Color accent bar */}
-      <div
-        className="absolute top-0 left-0 right-0 h-1 opacity-80"
-        style={{ background: provider.color || "#666" }}
-      />
 
-      <div className="flex items-start justify-between mt-1">
-        <div className="flex items-center gap-3">
-          {/* Provider icon */}
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-md"
-            style={{ background: provider.color || "#666" }}
-          >
+  return (
+    <button
+      onClick={onConfigure}
+      className="group grid min-h-[150px] w-full grid-rows-[auto_1fr_auto] rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5 text-left transition-[border-color,transform,opacity,background-color] duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)] hover:bg-[var(--card-hover)]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[var(--card-border)] bg-[var(--background)] text-sm font-semibold text-[var(--accent)]">
             {provider.name.charAt(0)}
           </div>
-          <div>
-            <div className="font-medium text-sm">{provider.name}</div>
-            <div className="text-xs text-[var(--muted)] mt-0.5 truncate max-w-[180px]">
-              {provider.base_url}
-            </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{provider.name}</div>
+            <div className="mt-1 truncate text-xs text-[var(--muted)]">{provider.base_url}</div>
           </div>
         </div>
+        <ProviderStatus configured={provider.api_key_set} />
+      </div>
 
-        {/* Status badge */}
-        <div className="flex items-center gap-1.5">
-          {provider.api_key_set ? (
-            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              {t("providers.configuredBadge")}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-zinc-500/15 text-zinc-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-              {t("providers.notConfiguredBadge")}
-            </span>
-          )}
+      <div className="mt-5 border-t border-[var(--card-border)] pt-4">
+        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{t("providers.model")}</div>
+        <div className="mt-2 min-h-5 truncate font-mono text-xs text-[var(--muted-foreground)]">
+          {provider.active_model || "-"}
         </div>
       </div>
 
-      {/* Model info */}
-      {provider.active_model && (
-        <div className="mt-3 text-xs text-[var(--muted)]">
-          <span className="text-[var(--foreground)] font-mono bg-[var(--background)] px-1.5 py-0.5 rounded">
-            {provider.active_model}
-          </span>
-        </div>
-      )}
+      <div className="mt-4 flex items-center justify-between text-xs text-[var(--muted)]">
+        <span>{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</span>
+        <span className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">{t("providers.editHint")}</span>
+      </div>
+    </button>
+  );
+}
 
-      {/* Edit hint */}
-      <div className="absolute bottom-3 right-4 text-xs text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
-        {t("providers.editHint")} →
+function WizardRail({ steps, active = 0 }: { steps: string[]; active?: number }) {
+  return (
+    <div className="hidden border-r border-[var(--card-border)] bg-[var(--background)]/55 p-5 md:block">
+      <div className="space-y-4">
+        {steps.map((step, index) => (
+          <div key={step} className="flex items-center gap-3">
+            <span
+              className={`grid h-6 w-6 place-items-center rounded-full border font-mono text-[11px] ${
+                index <= active
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                  : "border-[var(--card-border)] text-[var(--muted)]"
+              }`}
+            >
+              {index + 1}
+            </span>
+            <span className={`text-xs ${index <= active ? "text-[var(--foreground)]" : "text-[var(--muted)]"}`}>{step}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── Config Panel ────────────────────────────────────────────────────────────
+function FieldBlock({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: ReactNode;
+}) {
+  return (
+    <div className="grid gap-2 md:grid-cols-[140px_1fr] md:items-start">
+      <label className="pt-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">{label}</label>
+      <div>
+        {children}
+        {hint && <div className="mt-2 text-xs text-[var(--muted)]">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function FormatToggle({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-border)]">
+      {["openai", "anthropic"].map((fmt) => (
+        <button
+          key={fmt}
+          type="button"
+          onClick={() => onChange(fmt)}
+          className={`px-3 py-2 text-sm transition-[background-color,color,opacity] duration-200 ${
+            value === fmt
+              ? "bg-[var(--accent)] text-black"
+              : "bg-[var(--background)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          {fmt === "openai" ? t("providers.openaiCompatible") : t("providers.anthropicNative")}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function InlineTestResult({ result }: { result: ProviderTestResult | null }) {
+  const { t } = useTranslation();
+  if (!result) return null;
+
+  return (
+    <div className={`mt-3 flex items-start gap-2 text-sm ${result.ok ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
+      <span className="mt-0.5">{result.ok ? <CheckIcon /> : <XIcon />}</span>
+      <span>
+        {result.ok ? (
+          <>
+            {t("providers.connectionSuccess")} · {t("providers.latency")} {result.latency_ms}ms
+            {result.models_available.length > 0 && (
+              <span className="text-[var(--muted)]"> · {result.models_available.length} {t("providers.modelsAvailable")}</span>
+            )}
+          </>
+        ) : (
+          result.error || t("providers.connectionFailed")
+        )}
+      </span>
+    </div>
+  );
+}
+
+function PanelShell({
+  children,
+  onClose,
+  rail,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+  rail: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="grid w-full max-w-4xl overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] animate-fadeIn md:grid-cols-[220px_1fr]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {rail}
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function ConfigPanel({
   provider,
@@ -188,7 +282,6 @@ function ConfigPanel({
       setTestResult(result);
       if (result.models_available.length > 0) {
         setFetchedModels(result.models_available);
-        // Auto-select first model if none selected
         if (!model) {
           setModel(result.models_available[0]);
         }
@@ -218,83 +311,62 @@ function ConfigPanel({
     } finally {
       setSaving(false);
     }
-  }, [provider.id, apiKey, baseUrl, model, apiFormat, onSaved, onClose]);
+  }, [provider.id, apiKey, baseUrl, model, apiFormat, onSaved, onClose, t]);
 
   const handleDelete = useCallback(async () => {
     if (!confirm(`${t("providers.deleteConfirmPrefix")} ${provider.name}?`)) return;
     await deleteProvider(provider.id);
     onSaved();
     onClose();
-  }, [provider.id, provider.name, onSaved, onClose]);
+  }, [provider.id, provider.name, onSaved, onClose, t]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl w-full max-w-lg mx-4 shadow-2xl overflow-hidden animate-fadeIn"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[var(--card-border)]">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold"
-              style={{ background: provider.color || "#666" }}
-            >
-              {provider.name.charAt(0)}
-            </div>
-            <div>
-              <h3 className="font-semibold text-base">{provider.name}</h3>
-              <p className="text-xs text-[var(--muted)]">{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</p>
-            </div>
+    <PanelShell
+      onClose={onClose}
+      rail={<WizardRail active={testResult?.ok ? 3 : 2} steps={[t("providers.apiFormat"), "Base URL", "API Key", t("providers.model")]} />}
+    >
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold">{provider.name}</h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</p>
           </div>
-          <button onClick={onClose} className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1">
+          <button onClick={onClose} className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
             <XIcon />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* API Format */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.apiFormat")}</label>
-            <div className="flex gap-2 mt-1.5">
-              {["openai", "anthropic"].map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => setApiFormat(fmt)}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    apiFormat === fmt
-                      ? "bg-[var(--accent)] text-white"
-                      : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  {fmt === "openai" ? t("providers.openaiCompatible") : t("providers.anthropicNative")}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="max-h-[68vh] space-y-5 overflow-y-auto p-5">
+          <FieldBlock label={t("providers.apiFormat")}>
+            <FormatToggle value={apiFormat} onChange={setApiFormat} />
+          </FieldBlock>
 
-          {/* Base URL */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">Base URL</label>
+          <FieldBlock label="Base URL">
             <input
               type="text"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              className="mt-1.5 w-full px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
               placeholder="https://api.openai.com/v1"
             />
-          </div>
+          </FieldBlock>
 
-          {/* API Key */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">API Key</label>
-            <div className="relative mt-1.5">
+          <FieldBlock
+            label="API Key"
+            hint={
+              provider.website ? (
+                <a href={provider.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--accent)] hover:opacity-80">
+                  {t("providers.getApiKey")} <ExternalLinkIcon />
+                </a>
+              ) : null
+            }
+          >
+            <div className="relative">
               <input
                 type={showKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="w-full px-3 py-2 pr-10 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 pr-10 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
                 placeholder={provider.placeholder || t("providers.apiKeyPlaceholder")}
                 autoComplete="off"
               />
@@ -306,27 +378,18 @@ function ConfigPanel({
                 {showKey ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
-            {provider.website && (
-              <a
-                href={provider.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-[var(--accent)] mt-1.5 hover:underline"
-              >
-                {t("providers.getApiKey")} <ExternalLinkIcon />
-              </a>
-            )}
-          </div>
+          </FieldBlock>
 
-          {/* Model */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.model")}</label>
-            <div className="flex gap-1.5 mt-1.5">
+          <FieldBlock
+            label={t("providers.model")}
+            hint={fetchedModels.length === 0 ? t("providers.testToLoadModels") : undefined}
+          >
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+                className="min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
                 placeholder={t("providers.modelInputPlaceholder")}
                 list={`models-${provider.id}`}
               />
@@ -339,7 +402,7 @@ function ConfigPanel({
                 <select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  className="px-2 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent)]"
+                  className="w-24 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
                 >
                   <option value="">▼</option>
                   {fetchedModels.map((m) => (
@@ -348,102 +411,69 @@ function ConfigPanel({
                 </select>
               )}
             </div>
-            {fetchedModels.length === 0 && (
-              <p className="text-xs text-[var(--muted)] mt-1.5 opacity-70">
-                {t("providers.testToLoadModels")}
-              </p>
-            )}
-          </div>
+          </FieldBlock>
 
-          {/* Test button */}
-          <button
-            onClick={handleTest}
-            disabled={testing || (!apiKey && !provider.api_key_set)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            {testing ? (
-              <><LoaderIcon className="animate-spin" /> {t("providers.testing")}</>
-            ) : (
-              <><TestTubeIcon /> {t("providers.testConnection")}</>
-            )}
-          </button>
-
-          {/* Test result */}
-          {testResult && (
-            <div
-              className={`p-3 rounded-lg text-sm ${
-                testResult.ok
-                  ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                  : "bg-red-500/10 border border-red-500/20 text-red-400"
-              }`}
+          <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
+            <button
+              onClick={handleTest}
+              disabled={testing || (!apiKey && !provider.api_key_set)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-4 py-2.5 text-sm font-medium transition-[border-color,opacity,background-color] hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {testResult.ok ? (
-                <div className="flex items-center gap-2">
-                  <CheckIcon />
-                  <span>{t("providers.connectionSuccess")}! {t("providers.latency")} {testResult.latency_ms}ms</span>
-                  {testResult.models_available.length > 0 && (
-                    <span className="text-xs opacity-70">({testResult.models_available.length} {t("providers.modelsAvailable")})</span>
-                  )}
-                </div>
+              {testing ? (
+                <>
+                  <LoaderIcon className="animate-spin" /> {t("providers.testing")}
+                </>
               ) : (
-                <div className="flex items-center gap-2">
-                  <XIcon />
-                  <span>{testResult.error || t("providers.connectionFailed")}</span>
-                </div>
+                <>
+                  <TestTubeIcon /> {t("providers.testConnection")}
+                </>
               )}
-            </div>
-          )}
+            </button>
+            <InlineTestResult result={testResult} />
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between p-5 border-t border-[var(--card-border)]">
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--card-border)] p-5">
           <button
             onClick={handleDelete}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red-bg)]"
           >
             <TrashIcon /> {t("common.delete")}
           </button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+            <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
               {t("common.cancel")}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-5 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40 transition-all"
+              className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {saving ? t("common.saving") : t("common.save")}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </PanelShell>
   );
 }
-
-// ── Custom Provider Card ────────────────────────────────────────────────────
 
 function AddCustomCard({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
+
   return (
-    <div
+    <button
       onClick={onClick}
-      className="relative overflow-hidden rounded-xl border-2 border-dashed border-[var(--card-border)] p-5 cursor-pointer transition-all duration-200 hover:border-[var(--accent)] hover:bg-[var(--accent)]/5 group flex flex-col items-center justify-center min-h-[140px]"
+      className="grid min-h-[150px] w-full place-items-center rounded-xl border border-dashed border-[var(--card-border)] bg-transparent p-5 text-center transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)] hover:bg-[var(--card)]"
     >
-      <div className="w-10 h-10 rounded-full bg-[var(--background)] border border-[var(--card-border)] flex items-center justify-center text-[var(--muted)] group-hover:text-[var(--accent)] group-hover:border-[var(--accent)] transition-colors text-xl">
-        +
+      <div>
+        <div className="mx-auto grid h-9 w-9 place-items-center rounded-lg border border-[var(--card-border)] text-lg text-[var(--accent)]">+</div>
+        <div className="mt-3 text-sm font-medium">{t("providers.customProvider")}</div>
+        <div className="mt-1 max-w-[220px] text-xs leading-5 text-[var(--muted)]">{t("providers.customProviderDescription")}</div>
       </div>
-      <div className="mt-2 text-sm font-medium text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors">
-        {t("providers.customProvider")}
-      </div>
-      <div className="text-xs text-[var(--muted)] opacity-60 mt-0.5">
-        {t("providers.customProviderDescription")}
-      </div>
-    </div>
+    </button>
   );
 }
-
-// ── Custom Config Panel ─────────────────────────────────────────────────────
 
 function CustomConfigPanel({
   onClose,
@@ -478,7 +508,6 @@ function CustomConfigPanel({
       setTestResult(result);
       if (result.models_available.length > 0) {
         setFetchedModels(result.models_available);
-        // Auto-select first model if none selected
         if (!model) {
           setModel(result.models_available[0]);
         }
@@ -514,85 +543,56 @@ function CustomConfigPanel({
     } finally {
       setSaving(false);
     }
-  }, [name, baseUrl, apiKey, model, apiFormat, onSaved, onClose]);
+  }, [name, baseUrl, apiKey, model, apiFormat, onSaved, onClose, t]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl w-full max-w-lg mx-4 shadow-2xl overflow-hidden animate-fadeIn"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[var(--card-border)]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--background)] border border-dashed border-[var(--accent)] text-[var(--accent)] text-lg">
-              +
-            </div>
-            <div>
-              <h3 className="font-semibold text-base">{t("providers.customProvider")}</h3>
-              <p className="text-xs text-[var(--muted)]">{t("providers.customProviderSubtitle")}</p>
-            </div>
+    <PanelShell
+      onClose={onClose}
+      rail={<WizardRail active={testResult?.ok ? 4 : 3} steps={[t("providers.providerName"), t("providers.apiFormat"), "Base URL", "API Key", t("providers.model")]} />}
+    >
+      <div className="min-w-0">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
+          <div>
+            <h3 className="text-base font-semibold">{t("providers.customProvider")}</h3>
+            <p className="mt-1 text-xs text-[var(--muted)]">{t("providers.customProviderSubtitle")}</p>
           </div>
-          <button onClick={onClose} className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors p-1">
+          <button onClick={onClose} className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
             <XIcon />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* Name */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.providerName")}</label>
+        <div className="max-h-[68vh] space-y-5 overflow-y-auto p-5">
+          <FieldBlock label={t("providers.providerName")}>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1.5 w-full px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent)] transition-colors"
+              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
               placeholder={t("providers.providerNamePlaceholder")}
             />
-          </div>
+          </FieldBlock>
 
-          {/* API Format */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.apiFormat")}</label>
-            <div className="flex gap-2 mt-1.5">
-              {["openai", "anthropic"].map((fmt) => (
-                <button
-                  key={fmt}
-                  onClick={() => setApiFormat(fmt)}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    apiFormat === fmt
-                      ? "bg-[var(--accent)] text-white"
-                      : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
-                  }`}
-                >
-                  {fmt === "openai" ? t("providers.openaiCompatible") : t("providers.anthropicNative")}
-                </button>
-              ))}
-            </div>
-          </div>
+          <FieldBlock label={t("providers.apiFormat")}>
+            <FormatToggle value={apiFormat} onChange={setApiFormat} />
+          </FieldBlock>
 
-          {/* Base URL */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">Base URL</label>
+          <FieldBlock label="Base URL">
             <input
               type="text"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              className="mt-1.5 w-full px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
               placeholder={apiFormat === "anthropic" ? "https://api.anthropic.com/v1/openai" : "https://your-api.com/v1"}
             />
-          </div>
+          </FieldBlock>
 
-          {/* API Key */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">API Key</label>
-            <div className="relative mt-1.5">
+          <FieldBlock label="API Key">
+            <div className="relative">
               <input
                 type={showKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="w-full px-3 py-2 pr-10 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 pr-10 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
                 placeholder="sk-... / your-api-key"
                 autoComplete="off"
               />
@@ -604,17 +604,15 @@ function CustomConfigPanel({
                 {showKey ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
-          </div>
+          </FieldBlock>
 
-          {/* Model */}
-          <div>
-            <label className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider">{t("providers.model")}</label>
-            <div className="flex gap-1.5 mt-1.5">
+          <FieldBlock label={t("providers.model")}>
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
+                className="min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
                 placeholder={t("providers.chooseModelPlaceholder")}
                 list="custom-models"
               />
@@ -627,7 +625,7 @@ function CustomConfigPanel({
                 <select
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
-                  className="px-2 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm focus:outline-none focus:border-[var(--accent)]"
+                  className="w-24 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
                 >
                   <option value="">▼</option>
                   {fetchedModels.map((m) => (
@@ -636,113 +634,132 @@ function CustomConfigPanel({
                 </select>
               )}
             </div>
-          </div>
+          </FieldBlock>
 
-          {/* Test button */}
-          <button
-            onClick={handleTest}
-            disabled={testing || !apiKey || !baseUrl}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            {testing ? (
-              <><LoaderIcon className="animate-spin" /> {t("providers.testing")}</>
-            ) : (
-              <><TestTubeIcon /> {t("providers.testConnection")}</>
-            )}
-          </button>
-
-          {/* Test result */}
-          {testResult && (
-            <div
-              className={`p-3 rounded-lg text-sm ${
-                testResult.ok
-                  ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                  : "bg-red-500/10 border border-red-500/20 text-red-400"
-              }`}
+          <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
+            <button
+              onClick={handleTest}
+              disabled={testing || !apiKey || !baseUrl}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-4 py-2.5 text-sm font-medium transition-[border-color,opacity,background-color] hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {testResult.ok ? (
-                <div className="flex items-center gap-2">
-                  <CheckIcon />
-                  <span>{t("providers.connectionSuccess")}! {t("providers.latency")} {testResult.latency_ms}ms</span>
-                  {testResult.models_available.length > 0 && (
-                    <span className="text-xs opacity-70">({testResult.models_available.length} {t("providers.modelsAvailable")})</span>
-                  )}
-                </div>
+              {testing ? (
+                <>
+                  <LoaderIcon className="animate-spin" /> {t("providers.testing")}
+                </>
               ) : (
-                <div className="flex items-center gap-2">
-                  <XIcon />
-                  <span>{testResult.error || t("providers.connectionFailed")}</span>
-                </div>
+                <>
+                  <TestTubeIcon /> {t("providers.testConnection")}
+                </>
               )}
-            </div>
-          )}
+            </button>
+            <InlineTestResult result={testResult} />
+          </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 p-5 border-t border-[var(--card-border)]">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
+        <div className="flex items-center justify-end gap-2 border-t border-[var(--card-border)] p-5">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
             {t("common.cancel")}
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !name || !baseUrl || !apiKey}
-            className="px-5 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40 transition-all"
+            className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {saving ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>
+    </PanelShell>
+  );
+}
+
+function ProvidersSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {[0, 1, 2, 3, 4, 5].map((item) => (
+        <div key={item} className="min-h-[150px] rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-[var(--card-border)] animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-1/2 rounded bg-[var(--card-border)] animate-pulse" />
+              <div className="h-3 w-3/4 rounded bg-[var(--card-border)]/70 animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-8 h-8 rounded bg-[var(--card-border)]/60 animate-pulse" />
+        </div>
+      ))}
     </div>
   );
 }
 
-// ── Main Page ───────────────────────────────────────────────────────────────
-
 export default function ProvidersPage() {
   const { t } = useTranslation();
-  const { data: providers, mutate } = useConfiguredProviders();
+  const { data: providers, error, isLoading, mutate } = useConfiguredProviders();
   const [configuring, setConfiguring] = useState<ConfiguredProvider | null>(null);
   const [showCustomPanel, setShowCustomPanel] = useState(false);
 
   const configuredCount = providers?.filter((p) => p.api_key_set).length || 0;
+  const totalProviders = providers?.length || 0;
 
   return (
     <>
-      <style jsx global>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
-
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+      <div className="space-y-8">
+        <div className="grid gap-6 border-b border-[var(--card-border)] pb-6 lg:grid-cols-[1fr_280px]">
           <div>
-            <h1 className="text-2xl font-bold">{t("providers.title")}</h1>
-            <p className="text-[var(--muted)] mt-1">
-              {t("providers.subtitlePrefix")} · {t("providers.configured")} {configuredCount}/{providers?.length || 0} {t("providers.providers")}
-            </p>
+            <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--accent)]">{t("providers.configured")}</p>
+            <h1 className="text-3xl font-semibold tracking-normal">{t("providers.title")}</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("providers.subtitlePrefix")}</p>
+          </div>
+          <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--muted)]">{t("providers.providers")}</span>
+              <span className="font-mono text-xs text-[var(--accent)]">{configuredCount}/{totalProviders}</span>
+            </div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--background)]">
+              <div
+                className="h-full rounded-full bg-[var(--accent)] transition-[width,opacity] duration-300"
+                style={{ width: totalProviders ? `${(configuredCount / totalProviders) * 100}%` : "0%" }}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Provider grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {providers?.map((provider) => (
-            <ProviderCard
-              key={provider.id}
-              provider={provider}
-              onConfigure={() => setConfiguring(provider)}
-            />
-          ))}
-          <AddCustomCard onClick={() => setShowCustomPanel(true)} />
-        </div>
+        {isLoading && <ProvidersSkeleton />}
 
-        {/* Info banner */}
-        <div className="p-4 rounded-xl bg-[var(--accent)]/5 border border-[var(--accent)]/10 text-sm text-[var(--muted)]">
-          <strong className="text-[var(--foreground)]">💡 {t("providers.hintTitle")}</strong>
-          {t("providers.hint")}
-        </div>
+        {!isLoading && error && (
+          <div className="rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red-bg)] p-5 text-sm text-[var(--accent-red)]">
+            <div className="font-medium">{t("common.failed")}</div>
+            <div className="mt-1 text-xs text-[var(--muted-foreground)]">{error.message || "Request failed"}</div>
+          </div>
+        )}
+
+        {!isLoading && !error && (
+          <>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {providers?.map((provider) => (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  onConfigure={() => setConfiguring(provider)}
+                />
+              ))}
+              <AddCustomCard onClick={() => setShowCustomPanel(true)} />
+            </div>
+
+            {providers?.length === 0 && (
+              <div className="empty-state rounded-xl border border-[var(--card-border)] py-12">
+                <div className="empty-state-title">{t("providers.providers")}</div>
+              </div>
+            )}
+
+            <div className="border-l border-[var(--accent)]/40 bg-[var(--card)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
+              <strong className="mr-2 text-[var(--foreground)]">{t("providers.hintTitle")}</strong>
+              {t("providers.hint")}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Config panel overlay */}
       {configuring && (
         <ConfigPanel
           provider={configuring}
@@ -751,7 +768,6 @@ export default function ProvidersPage() {
         />
       )}
 
-      {/* Custom provider panel */}
       {showCustomPanel && (
         <CustomConfigPanel
           onClose={() => setShowCustomPanel(false)}

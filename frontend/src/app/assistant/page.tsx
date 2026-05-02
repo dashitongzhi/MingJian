@@ -1,34 +1,118 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import useSWR from "swr";
-import { fetchSessions, streamAssistant, type AssistantEvent, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
-import { ProcessVisualizer, eventsToProcessSteps, debateRoundsToMessages, type ProcessStep, type DebateMessage } from "@/components/ProcessVisualizer";
+import { fetchSessions, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
+import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">{children}</div>;
+}
+
+function SkeletonLine({ className = "" }: { className?: string }) {
+  return <div className={`motion-safe:animate-pulse rounded bg-[var(--card-border)]/55 ${className}`} />;
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex min-h-[320px] items-center border-t border-[var(--card-border)]">
+      <div className="max-w-md py-12">
+        <div className="text-sm font-medium text-[var(--foreground)]">{title}</div>
+        <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</div>
+      </div>
+    </div>
+  );
+}
+
+function StreamingSkeleton({ label }: { label: string }) {
+  return (
+    <div className="border-t border-[var(--card-border)] py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+      <div className="mb-4 flex items-center gap-3 text-xs text-[var(--accent)]">
+        <span className="h-2 w-2 rounded-full bg-[var(--accent)] motion-safe:animate-pulse" />
+        <span>{label}</span>
+      </div>
+      <div className="space-y-3">
+        <SkeletonLine className="h-3 w-11/12" />
+        <SkeletonLine className="h-3 w-8/12" />
+        <SkeletonLine className="h-3 w-10/12" />
+      </div>
+    </div>
+  );
+}
+
+function RichText({ text }: { text: string }) {
+  const segments: Array<{ type: "text" | "code"; content: string }> = [];
+  const regex = /```[\w-]*\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) segments.push({ type: "text", content: text.slice(lastIndex, match.index) });
+    segments.push({ type: "code", content: match[1].trim() });
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) segments.push({ type: "text", content: text.slice(lastIndex) });
+
+  return (
+    <div className="space-y-3 text-sm leading-7 text-[var(--muted-foreground)]">
+      {segments.map((segment, index) => {
+        if (segment.type === "code") {
+          return (
+            <pre key={index} className="overflow-x-auto border-l border-[var(--accent)] bg-[#0f0e0c] px-4 py-3 font-mono text-xs leading-6 text-[var(--foreground)]">
+              <code>{segment.content}</code>
+            </pre>
+          );
+        }
+
+        return segment.content
+          .split(/\n{2,}/)
+          .filter(Boolean)
+          .map((block, blockIndex) => {
+            const trimmed = block.trim();
+            if (trimmed.startsWith(">")) {
+              return (
+                <blockquote key={`${index}-${blockIndex}`} className="border-l border-[var(--accent)] pl-4 text-[var(--foreground)]">
+                  {trimmed.replace(/^>\s?/gm, "")}
+                </blockquote>
+              );
+            }
+            return <p key={`${index}-${blockIndex}`}>{trimmed}</p>;
+          });
+      })}
+    </div>
+  );
+}
 
 function StepIndicator({ step, index }: { step: AnalysisStep; index: number }) {
   const { t } = useTranslation();
-  const stageColors: Record<string, string> = {
-    ingest: "bg-blue-500",
-    extract: "bg-purple-500",
-    analyze: "bg-yellow-500",
-    simulate: "bg-green-500",
-    debate: "bg-red-500",
-    default: "bg-gray-500",
+  const tone: Record<string, string> = {
+    ingest: "opacity-55",
+    extract: "opacity-65",
+    analyze: "opacity-80",
+    simulate: "opacity-90",
+    debate: "opacity-100",
+    default: "opacity-70",
   };
 
   return (
-    <div className="flex items-start gap-3 animate-slideIn">
-      <div className="flex flex-col items-center">
-        <div className={`w-2 h-2 rounded-full ${stageColors[step.stage] || stageColors.default} mt-2`} />
-        {index > 0 && <div className="w-0.5 h-full bg-[var(--card-border)] mt-1" />}
-      </div>
-      <div className="flex-1 pb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-[var(--accent)] uppercase">{step.stage}</span>
-          <span className="text-xs text-[var(--muted)]">•</span>
+    <div className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
+      <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--accent)] ${tone[step.stage] || tone.default}`}>
+            {step.stage}
+          </span>
           <span className="text-xs text-[var(--muted)]">{t("assistant.step")} {index + 1}</span>
         </div>
-        <p className="text-sm mt-1">{step.message}</p>
+        <div className="mt-2">
+          <RichText text={step.message} />
+        </div>
+        {step.detail && (
+          <div className="mt-3 border-l border-[var(--card-border)] pl-4 font-mono text-xs leading-6 text-[var(--muted)]">
+            {step.detail}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -40,45 +124,39 @@ function SourceCard({ source, index }: { source: { title: string; url: string };
       href={source.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-3 p-3 rounded-lg border border-[var(--card-border)] hover:border-[var(--accent)] hover:bg-[var(--card-hover)] transition-all animate-fadeIn"
-      style={{ animationDelay: `${index * 50}ms` }}
+      className="grid grid-cols-[48px_minmax(0,1fr)_18px] gap-4 border-t border-[var(--card-border)] py-4 outline-none motion-safe:animate-[fadeIn_0.25s_ease-out] motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      style={{ animationDelay: `${index * 45}ms` }}
     >
-      <div className="w-8 h-8 rounded bg-[var(--background)] flex items-center justify-center text-[var(--muted)] flex-shrink-0">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-          <polyline points="15 3 21 3 21 9" />
-          <line x1="10" y1="14" x2="21" y2="3" />
-        </svg>
+      <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium">{source.title}</div>
+        <div className="mt-1 truncate font-mono text-xs text-[var(--muted)]">{source.url}</div>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate">{source.title}</div>
-        <div className="text-xs text-[var(--muted)] truncate">{source.url}</div>
-      </div>
+      <div className="text-[var(--accent)]">↗</div>
     </a>
   );
 }
 
 function PanelMessageCard({ msg }: { msg: PanelMessage }) {
   const { t } = useTranslation();
-  const stanceColors: Record<string, { bg: string; text: string; border: string }> = {
-    support: { bg: "bg-[var(--accent-green-bg)]", text: "text-[var(--accent-green)]", border: "border-[var(--accent-green)]" },
-    challenge: { bg: "bg-[var(--accent-red-bg)]", text: "text-[var(--accent-red)]", border: "border-[var(--accent-red)]" },
-    neutral: { bg: "bg-[var(--accent-yellow-bg)]", text: "text-[var(--accent-yellow)]", border: "border-[var(--accent-yellow)]" },
-  };
-
-  const style = stanceColors[msg.stance] || stanceColors.neutral;
+  const stance = msg.stance === "support" ? "S" : msg.stance === "challenge" ? "C" : "M";
 
   return (
-    <div className={`p-4 rounded-lg border ${style.border} ${style.bg} animate-fadeIn`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium">{msg.label}</span>
-        <span className={`badge ${style.bg} ${style.text}`}>{msg.stance}</span>
+    <div className="border-t border-[var(--card-border)] py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center border border-[var(--card-border)] font-mono text-[11px] text-[var(--accent)]">
+            {stance}
+          </span>
+          <span className="truncate text-sm font-medium">{msg.label}</span>
+        </div>
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">{msg.stance}</span>
       </div>
-      <p className="text-sm">{msg.summary}</p>
+      <RichText text={msg.summary} />
       {msg.recommendation && (
-        <div className="mt-3 pt-3 border-t border-[var(--card-border)]">
-          <div className="text-xs text-[var(--muted)] mb-1">{t("assistant.recommendation")}</div>
-          <p className="text-sm text-[var(--accent)]">→ {msg.recommendation}</p>
+        <div className="mt-4 border-l border-[var(--accent)] pl-4">
+          <div className="mb-1 text-xs text-[var(--muted)]">{t("assistant.recommendation")}</div>
+          <RichText text={msg.recommendation} />
         </div>
       )}
     </div>
@@ -87,37 +165,99 @@ function PanelMessageCard({ msg }: { msg: PanelMessage }) {
 
 function DebateRoundCard({ round }: { round: DebateRound }) {
   const { t } = useTranslation();
-  const roleColors: Record<string, string> = {
-    advocate: "border-[var(--accent-green)]",
-    challenger: "border-[var(--accent-red)]",
-    arbitrator: "border-[var(--accent-purple)]",
-  };
+  const confidence = Math.max(0, Math.min(1, round.confidence));
 
   return (
-    <div className={`p-4 rounded-lg border-l-4 ${roleColors[round.role] || "border-[var(--card-border)]"} bg-[var(--card)] animate-slideIn`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium capitalize">{round.role}</span>
-          <span className="text-xs text-[var(--muted)]">{t("assistant.round")} {round.round_number}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-1.5 bg-[var(--background)] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${round.confidence > 0.7 ? "bg-[var(--accent-green)]" : round.confidence > 0.4 ? "bg-[var(--accent-yellow)]" : "bg-[var(--accent-red)]"}`}
-              style={{ width: `${round.confidence * 100}%` }}
-            />
+    <div className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
+      <div className="font-mono text-xs text-[var(--muted)]">{String(round.round_number).padStart(2, "0")}</div>
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium capitalize">{round.role}</span>
+            <span className="text-xs text-[var(--muted)]">{t("assistant.round")} {round.round_number}</span>
           </div>
-          <span className="text-xs text-[var(--muted)]">{(round.confidence * 100).toFixed(0)}%</span>
+          <div className="flex items-center gap-3">
+            <div className="h-1 w-24 overflow-hidden bg-[#0f0e0c]">
+              <div className="h-full origin-left bg-[var(--accent)] motion-safe:transition-transform" style={{ transform: `scaleX(${confidence})` }} />
+            </div>
+            <span className="font-mono text-xs text-[var(--muted)]">{(confidence * 100).toFixed(0)}%</span>
+          </div>
+        </div>
+        <div className="mt-3">
+          <RichText text={round.position} />
         </div>
       </div>
-      <p className="text-sm text-[var(--muted-foreground)]">{round.position}</p>
+    </div>
+  );
+}
+
+function ProcessTimeline({
+  steps,
+  debateMessages,
+  currentStage,
+  isStreaming,
+}: {
+  steps: ProcessStep[];
+  debateMessages: DebateMessage[];
+  currentStage: string;
+  isStreaming: boolean;
+}) {
+  const { t } = useTranslation();
+
+  if (steps.length === 0 && debateMessages.length === 0 && !isStreaming) {
+    return <EmptyState title={t("assistant.waitingForAnalysis")} description={t("assistant.waitingForAnalysisDescription")} />;
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-4 text-xs text-[var(--muted)]">
+        <span>ST</span>
+        <span className="font-mono uppercase tracking-[0.14em] text-[var(--accent)]">{currentStage}</span>
+      </div>
+      {steps.map((step, index) => (
+        <div key={step.id} className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5">
+          <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--accent)]">{step.stage}</span>
+              <span className="text-xs text-[var(--muted)]">{step.timestamp}</span>
+            </div>
+            <div className="mt-2 text-sm font-medium">{step.title}</div>
+            {step.description && <div className="mt-1 text-sm leading-6 text-[var(--muted)]">{step.description}</div>}
+            {step.sources && step.sources.length > 0 && (
+              <div className="mt-3 space-y-1 border-l border-[var(--card-border)] pl-3">
+                {step.sources.map((source, sourceIndex) => (
+                  <a key={sourceIndex} href={source.url} target="_blank" rel="noopener noreferrer" className="block truncate text-xs text-[var(--muted-foreground)] hover:text-[var(--accent)]">
+                    {source.title}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+      {debateMessages.map((message, index) => (
+        <div key={`${message.role}-${message.round}-${index}`} className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5">
+          <div className="font-mono text-xs text-[var(--muted)]">D{message.round}</div>
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium capitalize">{message.role}</span>
+              <span className="font-mono text-xs text-[var(--muted)]">{(message.confidence * 100).toFixed(0)}%</span>
+            </div>
+            <div className="mt-2">
+              <RichText text={message.content} />
+            </div>
+          </div>
+        </div>
+      ))}
+      {isStreaming && <StreamingSkeleton label={t("common.processing")} />}
     </div>
   );
 }
 
 export default function AssistantPage() {
   const { t } = useTranslation();
-  const { data: sessions, mutate: refreshSessions } = useSWR("sessions", fetchSessions);
+  const { data: sessions, error: sessionsError, mutate: refreshSessions } = useSWR("sessions", fetchSessions);
   const [steps, setSteps] = useState<AnalysisStep[]>([]);
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [discussions, setDiscussions] = useState<PanelMessage[]>([]);
@@ -138,16 +278,13 @@ export default function AssistantPage() {
   const [debateMessages, setDebateMessages] = useState<DebateMessage[]>([]);
   const [currentStage, setCurrentStage] = useState("ingest");
 
-  // Check if first visit
-  useState(() => {
-    if (typeof window !== "undefined") {
-      const hasVisited = localStorage.getItem("planagent_assistant_visited");
-      if (!hasVisited) {
-        setShowGuide(true);
-        localStorage.setItem("planagent_assistant_visited", "true");
-      }
+  useEffect(() => {
+    const hasVisited = localStorage.getItem("planagent_assistant_visited");
+    if (!hasVisited) {
+      setShowGuide(true);
+      localStorage.setItem("planagent_assistant_visited", "true");
     }
-  });
+  }, []);
 
   const handleRun = useCallback(async () => {
     if (!topic.trim()) return;
@@ -169,13 +306,11 @@ export default function AssistantPage() {
       await streamAssistant(
         { topic, domain_id: domainId, subject_name: subjectName || topic.slice(0, 50), tick_count: tickCount },
         (evt) => {
-          // Track all events
           setEvents(prev => [...prev, evt]);
-          
+
           if (evt.event === "step") {
             const step = evt.payload as AnalysisStep;
             setSteps(p => [...p, step]);
-            // Update process steps
             setProcessSteps(prev => [...prev, {
               id: `step-${Date.now()}`,
               stage: step.stage as any || "analyze",
@@ -185,12 +320,10 @@ export default function AssistantPage() {
               status: "completed",
               timestamp: new Date().toLocaleTimeString()
             }]);
-            // Update current stage
             if (step.stage) setCurrentStage(step.stage);
           } else if (evt.event === "source") {
             const source = evt.payload as { title: string; url: string };
             setSources(p => [...p, source]);
-            // Add source to last process step
             setProcessSteps(prev => {
               const newSteps = [...prev];
               if (newSteps.length > 0) {
@@ -208,14 +341,13 @@ export default function AssistantPage() {
           } else if (evt.event === "debate_round") {
             const round = evt.payload as DebateRound;
             setDebateRounds(p => [...p, round]);
-            // Convert to debate message
             setDebateMessages(prev => [...prev, {
               role: round.role as "advocate" | "challenger" | "arbitrator",
               round: round.round_number,
               content: round.position,
               confidence: round.confidence,
-              arguments: round.arguments?.map((a: any) => a.content || a) || [],
-              rebuttals: round.rebuttals?.map((r: any) => r.content || r) || []
+              arguments: round.arguments?.map((a: any) => String(a.content || a)) || [],
+              rebuttals: round.rebuttals?.map((r: any) => String(r.content || r)) || []
             }]);
             setCurrentStage("debate");
           } else if (evt.event === "assistant_result") {
@@ -234,7 +366,7 @@ export default function AssistantPage() {
 
   const handleExport = useCallback(() => {
     if (!result) return;
-    
+
     const report = `# PlanAgent Analysis Report
 
 ## Topic
@@ -299,402 +431,347 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">{t("assistant.title")}</h1>
-        <p className="text-[var(--muted)] mt-1">{t("assistant.subtitle")}</p>
-      </div>
+    <div className="space-y-8">
+      <header className="border-b border-[var(--card-border)] pb-7">
+        <SectionLabel>{t("assistant.title")}</SectionLabel>
+        <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-balance">{t("assistant.subtitle")}</h1>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6">
-        {/* Left panel - Input */}
-        <div className="space-y-4">
-          {/* Input card */}
-          <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 space-y-4">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-              {t("assistant.missionInput")}
-            </h2>
-            <textarea
-              className="input min-h-[120px] resize-none"
-              placeholder={t("assistant.topicPlaceholder")}
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-            />
-            {/* Quick Experience Examples */}
-            <div>
-              <label className="text-xs text-[var(--muted)] mb-2 block">{t("assistant.quickStartExamples")}</label>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { topic: t("assistant.exampleTaiwan"), domain: "military", icon: "🎯" },
-                  { topic: t("assistant.exampleEv"), domain: "corporate", icon: "💰" },
-                  { topic: t("assistant.exampleSemiconductor"), domain: "corporate", icon: "🔬" },
-                  { topic: t("assistant.exampleMiddleEast"), domain: "military", icon: "🌍" },
-                ].map((example) => (
-                  <button
-                    key={example.topic}
-                    onClick={() => {
-                      setTopic(example.topic);
-                      setDomainId(example.domain);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[var(--card-border)] hover:border-[var(--accent)] hover:bg-[var(--card-hover)] transition-all"
-                  >
-                    <span>{example.icon}</span>
-                    <span className="truncate max-w-[180px]">{example.topic}</span>
-                  </button>
-                ))}
-              </div>
+      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[390px_minmax(0,1fr)]">
+        <aside className="space-y-6 xl:sticky xl:top-[76px] xl:self-start">
+          <section className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]/85 backdrop-blur">
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+              <h2 className="text-sm font-semibold">{t("assistant.missionInput")}</h2>
+              <span className="font-mono text-[11px] text-[var(--muted)]">CMD</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-[var(--muted)] mb-1 block">{t("assistant.domain")}</label>
-                <select className="input select" value={domainId} onChange={(e) => setDomainId(e.target.value)}>
-                  <option value="auto">{t("assistant.autoDetect")}</option>
-                  <option value="corporate">{t("assistant.corporate")}</option>
-                  <option value="military">{t("assistant.military")}</option>
-                </select>
+
+            <div className="p-5">
+              <div className="overflow-hidden border border-[var(--card-border)] bg-[#0f0e0c] focus-within:ring-2 focus-within:ring-[var(--accent)]">
+                <div className="border-b border-[var(--card-border)] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+                  {t("assistant.topicPlaceholder")}
+                </div>
+                <textarea
+                  className="min-h-[150px] w-full resize-none bg-transparent px-4 py-4 text-sm leading-7 text-[var(--foreground)] outline-none placeholder:text-[var(--muted)]"
+                  placeholder={t("assistant.topicPlaceholder")}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                />
               </div>
-              <div>
-                <label className="text-xs text-[var(--muted)] mb-1 block">{t("assistant.ticks")}</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={2}
-                    max={12}
-                    value={tickCount}
-                    onChange={(e) => setTickCount(Number(e.target.value))}
-                    className="flex-1"
-                  />
-                  <span className="text-sm font-mono w-8 text-center">{tickCount}</span>
+
+              <div className="mt-5">
+                <label className="mb-3 block text-xs text-[var(--muted)]">{t("assistant.quickStartExamples")}</label>
+                <div className="space-y-1 border-y border-[var(--card-border)]">
+                  {[
+                    { topic: t("assistant.exampleTaiwan"), domain: "military" },
+                    { topic: t("assistant.exampleEv"), domain: "corporate" },
+                    { topic: t("assistant.exampleSemiconductor"), domain: "corporate" },
+                    { topic: t("assistant.exampleMiddleEast"), domain: "military" },
+                  ].map((example, index) => (
+                    <button
+                      key={example.topic}
+                      onClick={() => {
+                        setTopic(example.topic);
+                        setDomainId(example.domain);
+                      }}
+                      className="grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3 py-3 text-left text-xs outline-none motion-safe:transition-colors hover:bg-[#0f0e0c] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                    >
+                      <span className="font-mono text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="truncate text-[var(--muted-foreground)]">{example.topic}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
-            <div>
-              <label className="text-xs text-[var(--muted)] mb-1 block">{t("assistant.subjectName")}</label>
-              <input className="input" placeholder={t("assistant.subjectPlaceholder")} value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handleRun} disabled={streaming || !topic.trim()} className="btn btn-primary flex-1">
-                {streaming ? (
-                  <>
-                    <div className="spinner" />
-                    {t("common.running")}
-                  </>
-                ) : (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                    {t("assistant.runAnalysis")}
-                  </>
-                )}
-              </button>
-              {streaming && (
-                <button onClick={() => abortRef.current?.abort()} className="btn btn-danger">
-                  {t("common.cancel")}
+
+              <div className="mt-5 grid grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.domain")}</span>
+                  <select
+                    className="w-full border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    value={domainId}
+                    onChange={(e) => setDomainId(e.target.value)}
+                  >
+                    <option value="auto">{t("assistant.autoDetect")}</option>
+                    <option value="corporate">{t("assistant.corporate")}</option>
+                    <option value="military">{t("assistant.military")}</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.ticks")}</span>
+                  <div className="flex h-[38px] items-center gap-3 border border-[var(--card-border)] bg-[#0f0e0c] px-3">
+                    <input
+                      type="range"
+                      min={2}
+                      max={12}
+                      value={tickCount}
+                      onChange={(e) => setTickCount(Number(e.target.value))}
+                      className="min-w-0 flex-1 accent-[var(--accent)]"
+                    />
+                    <span className="w-6 text-right font-mono text-sm text-[var(--accent)]">{tickCount}</span>
+                  </div>
+                </label>
+              </div>
+
+              <label className="mt-5 block">
+                <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.subjectName")}</span>
+                <input
+                  className="w-full border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
+                  placeholder={t("assistant.subjectPlaceholder")}
+                  value={subjectName}
+                  onChange={(e) => setSubjectName(e.target.value)}
+                />
+              </label>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={handleRun}
+                  disabled={streaming || !topic.trim()}
+                  className="flex flex-1 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#0f0e0c] outline-none motion-safe:transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                >
+                  {streaming ? (
+                    <>
+                      <span className="h-2 w-2 rounded-full bg-[#0f0e0c] motion-safe:animate-pulse" />
+                      {t("common.running")}
+                    </>
+                  ) : (
+                    <>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                      {t("assistant.runAnalysis")}
+                    </>
+                  )}
                 </button>
+                {streaming && (
+                  <button
+                    onClick={() => abortRef.current?.abort()}
+                    className="border border-[var(--accent-red)] px-4 py-2.5 text-sm text-[var(--accent-red)] outline-none motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent-red)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  >
+                    {t("common.cancel")}
+                  </button>
+                )}
+              </div>
+
+              {error && (
+                <div className="mt-5 border-l border-[var(--accent-red)] bg-[var(--accent-red-bg)] px-4 py-3 text-sm text-[var(--accent-red)]">
+                  <div>{error}</div>
+                  <button onClick={handleRun} className="mt-3 text-xs underline underline-offset-4">
+                    {t("common.retry")}
+                  </button>
+                </div>
               )}
             </div>
-            {error && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-[var(--accent-red-bg)] text-[var(--accent-red)] text-sm">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="15" y1="9" x2="9" y2="15" />
-                    <line x1="9" y1="9" x2="15" y2="15" />
-                  </svg>
-                  {error}
-                </div>
-                <button onClick={handleRun} className="btn btn-ghost w-full text-sm">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="23 4 23 10 17 10" />
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                  </svg>
-                  {t("common.retry")}
-                </button>
-              </div>
-            )}
-          </div>
+          </section>
 
-          {/* Sessions list */}
-          <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
-            <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 8v4l3 3" />
-                <circle cx="12" cy="12" r="10" />
-              </svg>
-              {t("assistant.recentSessions")}
-            </h2>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{t("assistant.recentSessions")}</h2>
+              <span className="font-mono text-[11px] text-[var(--muted)]">{sessions?.length ?? 0}</span>
+            </div>
+            <div className="max-h-[310px] overflow-y-auto border-y border-[var(--card-border)]">
+              {!sessions && !sessionsError && (
+                <div className="space-y-3 py-4">
+                  <SkeletonLine className="h-4 w-10/12" />
+                  <SkeletonLine className="h-4 w-7/12" />
+                  <SkeletonLine className="h-4 w-9/12" />
+                </div>
+              )}
+              {sessionsError && <div className="py-4 text-sm text-[var(--accent-red)]">{sessionsError.message}</div>}
               {sessions?.map((s) => (
-                <div key={s.id} className="p-3 rounded-lg hover:bg-[var(--card-hover)] transition-colors cursor-pointer">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium truncate">{s.name || s.topic.slice(0, 40)}</div>
-                    <span className={`badge ${s.auto_refresh_enabled ? "badge-success" : "badge-warning"}`}>
+                <div key={s.id} className="border-b border-[var(--card-border)] py-3 last:border-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="truncate text-sm font-medium">{s.name || s.topic.slice(0, 40)}</div>
+                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">
                       {s.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
                     </span>
                   </div>
-                  <div className="text-xs text-[var(--muted)] mt-1">{s.domain_id}</div>
+                  <div className="mt-1 text-xs text-[var(--muted)]">{s.domain_id}</div>
                 </div>
               ))}
-              {(!sessions || sessions.length === 0) && (
-                <div className="text-sm text-[var(--muted)] text-center py-4">{t("assistant.noSessions")}</div>
+              {sessions && sessions.length === 0 && (
+                <div className="py-6 text-sm text-[var(--muted)]">{t("assistant.noSessions")}</div>
               )}
             </div>
-          </div>
-        </div>
+          </section>
+        </aside>
 
-        {/* Right panel - Results */}
-        <div className="space-y-4">
-          {/* Tabs */}
-          <div className="flex items-center gap-1 p-1 bg-[var(--card)] rounded-xl border border-[var(--card-border)]">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab.id
-                    ? "bg-[var(--accent)] text-white"
-                    : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]"
-                }`}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? "bg-white/20" : "bg-[var(--background)]"}`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
+        <main className="min-w-0">
+          <div className="sticky top-[56px] z-10 -mx-1 mb-4 bg-[var(--background)]/80 px-1 py-2 backdrop-blur">
+            <div className="flex gap-px overflow-x-auto border border-[var(--card-border)] bg-[var(--card-border)]">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`min-w-28 flex-1 px-4 py-3 text-sm outline-none motion-safe:transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                    activeTab === tab.id
+                      ? "bg-[var(--accent)] text-[#0f0e0c]"
+                      : "bg-[var(--card)] text-[var(--muted-foreground)] hover:bg-[var(--card-hover)]"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {tab.count > 0 && <span className="ml-2 font-mono text-[11px] opacity-70">{tab.count}</span>}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Tab content */}
-          <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 min-h-[500px]">
-            {activeTab === "process" && (
-              <ProcessVisualizer
-                steps={processSteps}
-                debateMessages={debateMessages}
-                currentStage={currentStage}
-                isStreaming={streaming}
-              />
-            )}
-
-            {activeTab === "reasoning" && (
+          <section className="min-h-[560px] border border-[var(--card-border)] bg-[var(--card)]/60 backdrop-blur">
+            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
               <div>
-                <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                    <path d="M2 17l10 5 10-5" />
-                    <path d="M2 12l10 5 10-5" />
-                  </svg>
-                  {t("assistant.liveReasoning")}
-                </h3>
-                {steps.length > 0 ? (
-                  <div className="space-y-0">
-                    {steps.map((s, i) => (
-                      <StepIndicator key={i} step={s} index={i} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state py-12">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                      <path d="M2 17l10 5 10-5" />
-                      <path d="M2 12l10 5 10-5" />
-                    </svg>
-                    <div className="empty-state-title">{t("assistant.waitingForAnalysis")}</div>
-                    <div className="empty-state-description">{t("assistant.waitingForAnalysisDescription")}</div>
-                  </div>
-                )}
+                <SectionLabel>{tabs.find((tab) => tab.id === activeTab)?.label}</SectionLabel>
               </div>
-            )}
-
-            {activeTab === "sources" && (
-              <div>
-                <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                  {t("assistant.sources")} ({sources.length})
-                </h3>
-                {sources.length > 0 ? (
-                  <div className="space-y-2">
-                    {sources.map((s, i) => (
-                      <SourceCard key={i} source={s} index={i} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state py-12">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                    <div className="empty-state-title">{t("assistant.noSources")}</div>
-                    <div className="empty-state-description">{t("assistant.noSourcesDescription")}</div>
-                  </div>
-                )}
+              <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+                {streaming ? t("common.running") : result ? t("assistant.analysisComplete") : t("common.auto")}
               </div>
-            )}
+            </div>
+            <div className="px-5">
+              {activeTab === "process" && (
+                <ProcessTimeline
+                  steps={processSteps}
+                  debateMessages={debateMessages}
+                  currentStage={currentStage}
+                  isStreaming={streaming}
+                />
+              )}
 
-            {activeTab === "panel" && (
-              <div>
-                <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  {t("assistant.panelDiscussion")} ({discussions.length})
-                </h3>
-                {discussions.length > 0 ? (
-                  <div className="space-y-3">
-                    {discussions.map((d, i) => (
-                      <PanelMessageCard key={i} msg={d} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state py-12">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                    <div className="empty-state-title">{t("assistant.noPanelDiscussion")}</div>
-                    <div className="empty-state-description">{t("assistant.noPanelDiscussionDescription")}</div>
-                  </div>
-                )}
-              </div>
-            )}
+              {activeTab === "reasoning" && (
+                <>
+                  {steps.length > 0 ? (
+                    <div>
+                      {steps.map((s, i) => (
+                        <StepIndicator key={i} step={s} index={i} />
+                      ))}
+                      {streaming && <StreamingSkeleton label={t("assistant.liveReasoning")} />}
+                    </div>
+                  ) : streaming ? (
+                    <StreamingSkeleton label={t("assistant.liveReasoning")} />
+                  ) : (
+                    <EmptyState title={t("assistant.waitingForAnalysis")} description={t("assistant.waitingForAnalysisDescription")} />
+                  )}
+                </>
+              )}
 
-            {activeTab === "debate" && (
-              <div>
-                <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                  {t("assistant.debateTrace")} ({debateRounds.length})
-                </h3>
-                {debateRounds.length > 0 ? (
-                  <div className="space-y-3">
-                    {debateRounds.map((r, i) => (
-                      <DebateRoundCard key={i} round={r} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state py-12">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="empty-state-icon">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <div className="empty-state-title">{t("assistant.noDebate")}</div>
-                    <div className="empty-state-description">{t("assistant.noDebateDescription")}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+              {activeTab === "sources" && (
+                <>
+                  {sources.length > 0 ? (
+                    <div>
+                      {sources.map((s, i) => (
+                        <SourceCard key={i} source={s} index={i} />
+                      ))}
+                      {streaming && <StreamingSkeleton label={t("assistant.sources")} />}
+                    </div>
+                  ) : streaming ? (
+                    <StreamingSkeleton label={t("assistant.sources")} />
+                  ) : (
+                    <EmptyState title={t("assistant.noSources")} description={t("assistant.noSourcesDescription")} />
+                  )}
+                </>
+              )}
 
-          {/* Result summary */}
+              {activeTab === "panel" && (
+                <>
+                  {discussions.length > 0 ? (
+                    <div>
+                      {discussions.map((d, i) => (
+                        <PanelMessageCard key={i} msg={d} />
+                      ))}
+                      {streaming && <StreamingSkeleton label={t("assistant.panelDiscussion")} />}
+                    </div>
+                  ) : streaming ? (
+                    <StreamingSkeleton label={t("assistant.panelDiscussion")} />
+                  ) : (
+                    <EmptyState title={t("assistant.noPanelDiscussion")} description={t("assistant.noPanelDiscussionDescription")} />
+                  )}
+                </>
+              )}
+
+              {activeTab === "debate" && (
+                <>
+                  {debateRounds.length > 0 ? (
+                    <div>
+                      {debateRounds.map((r, i) => (
+                        <DebateRoundCard key={i} round={r} />
+                      ))}
+                      {streaming && <StreamingSkeleton label={t("assistant.debateTrace")} />}
+                    </div>
+                  ) : streaming ? (
+                    <StreamingSkeleton label={t("assistant.debateTrace")} />
+                  ) : (
+                    <EmptyState title={t("assistant.noDebate")} description={t("assistant.noDebateDescription")} />
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+
           {result && (
-            <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5 space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <polyline points="22 4 12 14.01 9 11.01" />
-                  </svg>
-                  {t("assistant.analysisComplete")}
-                </h3>
-                <button onClick={handleExport} className="btn btn-ghost text-xs">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
+            <section className="mt-6 border border-[var(--card-border)] bg-[var(--card)]/70 p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h3 className="text-sm font-semibold">{t("assistant.analysisComplete")}</h3>
+                <button
+                  onClick={handleExport}
+                  className="border border-[var(--card-border)] px-3 py-2 text-xs text-[var(--muted-foreground)] outline-none motion-safe:transition-colors hover:bg-[var(--card-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                >
                   {t("common.exportMd")}
                 </button>
               </div>
-              <p className="text-sm">{result.analysis.summary}</p>
+
+              <RichText text={result.analysis.summary} />
+
               {result.analysis.findings.length > 0 && (
-                <div>
-                  <div className="text-xs text-[var(--muted)] mb-2">{t("assistant.keyFindings")}</div>
-                  <ul className="space-y-2">
+                <div className="mt-6">
+                  <SectionLabel>{t("assistant.keyFindings")}</SectionLabel>
+                  <div className="mt-3 divide-y divide-[var(--card-border)] border-y border-[var(--card-border)]">
                     {result.analysis.findings.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        {f}
-                      </li>
+                      <div key={i} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-3">
+                        <span className="font-mono text-xs text-[var(--accent)]">{String(i + 1).padStart(2, "0")}</span>
+                        <RichText text={f} />
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
-              <div className="flex items-center gap-4 pt-3 border-t border-[var(--card-border)]">
+
+              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-[var(--card-border)] pt-4 text-xs text-[var(--muted)]">
                 {result.simulation_run && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--muted)]">{t("assistant.simulation")}:</span>
-                    <span className="text-xs font-mono">{result.simulation_run.id.slice(0, 8)}</span>
-                    <span className={`badge ${result.simulation_run.status === "completed" ? "badge-success" : "badge-warning"}`}>
-                      {result.simulation_run.status}
-                    </span>
+                    <span>{t("assistant.simulation")}:</span>
+                    <span className="font-mono text-[var(--muted-foreground)]">{result.simulation_run.id.slice(0, 8)}</span>
+                    <span className="font-mono uppercase">{result.simulation_run.status}</span>
                   </div>
                 )}
                 {result.debate?.verdict && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--muted)]">{t("assistant.verdict")}:</span>
-                    <span className={`badge ${result.debate.verdict.verdict === "support" ? "badge-success" : "badge-error"}`}>
-                      {result.debate.verdict.verdict}
-                    </span>
-                    <span className="text-xs text-[var(--muted)]">{(result.debate.verdict.confidence * 100).toFixed(0)}%</span>
+                    <span>{t("assistant.verdict")}:</span>
+                    <span className="font-mono uppercase text-[var(--muted-foreground)]">{result.debate.verdict.verdict}</span>
+                    <span className="font-mono">{(result.debate.verdict.confidence * 100).toFixed(0)}%</span>
                   </div>
                 )}
               </div>
-            </div>
+            </section>
           )}
-        </div>
+        </main>
       </div>
 
-      {/* Onboarding Guide Modal */}
       {showGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl p-6 max-w-md w-full mx-4 animate-fadeIn">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center mx-auto mb-4">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold mb-2">{t("assistant.onboardingTitle")}</h2>
-              <p className="text-[var(--muted)] text-sm">{t("assistant.onboardingSubtitle")}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/70 px-4 backdrop-blur">
+          <div className="w-full max-w-md border border-[var(--card-border)] bg-[var(--card)] p-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+            <div className="mb-6">
+              <SectionLabel>{t("assistant.onboardingTitle")}</SectionLabel>
+              <h2 className="mt-3 text-2xl font-semibold leading-tight text-balance">{t("assistant.onboardingSubtitle")}</h2>
             </div>
 
-            <div className="space-y-4 mb-6">
+            <div className="mb-6 divide-y divide-[var(--card-border)] border-y border-[var(--card-border)]">
               {[
-                { icon: "📝", title: t("assistant.onboardingEnterTopic"), desc: t("assistant.onboardingEnterTopicDesc") },
-                { icon: "⚡", title: t("assistant.onboardingAiAnalysis"), desc: t("assistant.onboardingAiAnalysisDesc") },
-                { icon: "🤖", title: t("assistant.onboardingDebate"), desc: t("assistant.onboardingDebateDesc") },
-                { icon: "📊", title: t("assistant.onboardingInsights"), desc: t("assistant.onboardingInsightsDesc") },
+                { title: t("assistant.onboardingEnterTopic"), desc: t("assistant.onboardingEnterTopicDesc") },
+                { title: t("assistant.onboardingAiAnalysis"), desc: t("assistant.onboardingAiAnalysisDesc") },
+                { title: t("assistant.onboardingDebate"), desc: t("assistant.onboardingDebateDesc") },
+                { title: t("assistant.onboardingInsights"), desc: t("assistant.onboardingInsightsDesc") },
               ].map((step, i) => (
-                <div
-                  key={i}
-                  className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
-                    i === guideStep ? "bg-[var(--accent)]/10 border border-[var(--accent)]/30" : "opacity-50"
-                  }`}
-                >
-                  <span className="text-2xl">{step.icon}</span>
+                <div key={i} className={`grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-4 motion-safe:transition-opacity ${i === guideStep ? "opacity-100" : "opacity-45"}`}>
+                  <span className="font-mono text-xs text-[var(--accent)]">{String(i + 1).padStart(2, "0")}</span>
                   <div>
                     <div className="text-sm font-medium">{step.title}</div>
-                    <div className="text-xs text-[var(--muted)]">{step.desc}</div>
+                    <div className="mt-1 text-xs leading-5 text-[var(--muted)]">{step.desc}</div>
                   </div>
                 </div>
               ))}
@@ -703,7 +780,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             <div className="flex gap-3">
               <button
                 onClick={() => setShowGuide(false)}
-                className="btn btn-ghost flex-1"
+                className="flex-1 border border-[var(--card-border)] px-4 py-2.5 text-sm text-[var(--muted-foreground)] outline-none motion-safe:transition-colors hover:bg-[var(--card-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
               >
                 {t("common.skip")}
               </button>
@@ -715,7 +792,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     setShowGuide(false);
                   }
                 }}
-                className="btn btn-primary flex-1"
+                className="flex-1 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#0f0e0c] outline-none motion-safe:transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
               >
                 {guideStep < 3 ? t("common.next") : t("common.getStarted")}
               </button>

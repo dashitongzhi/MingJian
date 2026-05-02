@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-hover: #1f1f23;
-  --card-border: #27272a;
-  --muted: #71717a;
-  --muted-foreground: #a1a1aa;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
+  --background: #0a0a0a;
+  --foreground: #f4f4f5;
+  --card: #111111;
+  --card-hover: #181818;
+  --card-border: #2a2a2a;
+  --muted: #737373;
+  --muted-foreground: #a3a3a3;
+  --accent: #7f9f90;
+  --accent-hover: #6f8d7f;
   --accent-green: #22c55e;
   --accent-green-bg: rgba(34, 197, 94, 0.1);
   --accent-red: #ef4444;
   --accent-red-bg: rgba(239, 68, 68, 0.1);
   --accent-yellow: #eab308;
   --accent-yellow-bg: rgba(234, 179, 8, 0.1);
-  --accent-purple: #a855f7;
-  --accent-purple-bg: rgba(168, 85, 247, 0.1);
-  --gradient-start: #3b82f6;
-  --gradient-end: #8b5cf6;
+  --accent-purple: var(--accent);
+  --accent-purple-bg: rgba(127, 159, 144, 0.1);
+  --gradient-start: var(--accent);
+  --gradient-end: var(--accent);
   --sidebar-width: 260px;
   --header-height: 56px;
 }
@@ -33,7 +33,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: "Geist", "Outfit", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -103,10 +103,7 @@ body {
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--accent);
 }
 
 /* Card hover effect */
@@ -118,7 +115,6 @@ body {
   background: var(--card-hover);
   border-color: var(--muted);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Status indicator */
@@ -131,7 +127,6 @@ body {
 
 .status-dot.online {
   background: var(--accent-green);
-  box-shadow: 0 0 8px var(--accent-green);
 }
 
 .status-dot.offline {
@@ -249,7 +244,7 @@ body {
 
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(127, 159, 144, 0.1);
 }
 
 .input::placeholder {

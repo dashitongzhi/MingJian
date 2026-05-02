@@ -118,7 +118,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 border-t border-[var(--card-border)]">
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white text-xs font-medium">
+            <div className="w-8 h-8 rounded-full border border-[var(--card-border)] bg-[var(--accent)]/15 flex items-center justify-center text-[var(--accent)] text-xs font-medium">
               U
             </div>
             <div className="flex-1 min-w-0">
