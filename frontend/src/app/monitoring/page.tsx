@@ -31,6 +31,23 @@ interface StatusStats {
   verified?: number;
 }
 
+interface CalibrationDistribution {
+  high?: number;
+  medium?: number;
+  low?: number;
+}
+
+interface CalibrationStats {
+  high_accuracy_rules?: number;
+  medium_accuracy_rules?: number;
+  low_accuracy_rules?: number;
+  avg_accuracy?: number;
+  total_rules?: number;
+  source_trust_distribution?: CalibrationDistribution;
+  total_sources?: number;
+  avg_trust?: number;
+}
+
 interface MonitoringDashboard {
   watch_rules?: WatchRuleHealth[];
   watchRules?: WatchRuleHealth[];
@@ -39,6 +56,7 @@ interface MonitoringDashboard {
   revision_jobs?: StatusStats;
   revisionJobs?: StatusStats;
   predictions?: StatusStats;
+  calibration?: CalibrationStats;
 }
 
 interface MonitoringEvent {
@@ -85,6 +103,35 @@ function EventLabel({ event }: { event: MonitoringEvent }) {
   return <span className="text-xs font-mono text-[var(--accent)]">{event.event || event.topic || event.type || "event"}</span>;
 }
 
+function formatPercent(value?: number) {
+  return `${Math.round((value ?? 0) * 100)}%`;
+}
+
+function percentWidth(value: number, total: number) {
+  if (total <= 0) return "0%";
+  return `${Math.max(0, Math.min(100, (value / total) * 100))}%`;
+}
+
+function DistributionBar({
+  high,
+  medium,
+  low,
+}: {
+  high: number;
+  medium: number;
+  low: number;
+}) {
+  const total = high + medium + low;
+
+  return (
+    <div className="h-2 rounded-full bg-[var(--bg)] overflow-hidden flex">
+      <div className="bg-[var(--accent-green)]" style={{ width: percentWidth(high, total) }} />
+      <div className="bg-[var(--accent-yellow)]" style={{ width: percentWidth(medium, total) }} />
+      <div className="bg-[var(--accent-red)]" style={{ width: percentWidth(low, total) }} />
+    </div>
+  );
+}
+
 export default function MonitoringPage() {
   const { t } = useTranslation();
   const [dashboard, setDashboard] = useState<MonitoringDashboard | null>(null);
@@ -127,6 +174,16 @@ export default function MonitoringPage() {
   const recentChanges = dashboard?.recent_changes || dashboard?.recentChanges || [];
   const revisionJobs = dashboard?.revision_jobs || dashboard?.revisionJobs || {};
   const predictionStats = dashboard?.predictions || {};
+  const calibration = dashboard?.calibration || {};
+  const highAccuracyRules = calibration.high_accuracy_rules ?? 0;
+  const lowAccuracyRules = calibration.low_accuracy_rules ?? 0;
+  const mediumAccuracyRules =
+    calibration.medium_accuracy_rules ??
+    Math.max((calibration.total_rules ?? 0) - highAccuracyRules - lowAccuracyRules, 0);
+  const sourceTrust = calibration.source_trust_distribution || {};
+  const highTrustSources = sourceTrust.high ?? 0;
+  const mediumTrustSources = sourceTrust.medium ?? 0;
+  const lowTrustSources = sourceTrust.low ?? 0;
 
   return (
     <div className="space-y-6">
@@ -218,6 +275,60 @@ export default function MonitoringPage() {
               </div>
             </section>
           </div>
+
+          <section className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <h2 className="text-sm font-semibold">{t("monitoring.calibration")}</h2>
+              <div className="text-right">
+                <div className="text-xs text-[var(--muted)] uppercase">{t("monitoring.avgCalibrationScore")}</div>
+                <div className="text-2xl font-semibold font-mono text-[var(--accent)] mt-1">
+                  {formatPercent(calibration.avg_accuracy)}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium">{t("monitoring.ruleAccuracyDistribution")}</div>
+                  <div className="text-xs text-[var(--muted)] font-mono">{calibration.total_rules ?? highAccuracyRules + mediumAccuracyRules + lowAccuracyRules}</div>
+                </div>
+                <DistributionBar high={highAccuracyRules} medium={mediumAccuracyRules} low={lowAccuracyRules} />
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-[var(--accent-green)]">
+                    {t("monitoring.high")}: <span className="font-mono">{highAccuracyRules}</span>
+                  </div>
+                  <div className="text-[var(--accent-yellow)]">
+                    {t("monitoring.medium")}: <span className="font-mono">{mediumAccuracyRules}</span>
+                  </div>
+                  <div className="text-[var(--accent-red)]">
+                    {t("monitoring.low")}: <span className="font-mono">{lowAccuracyRules}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium">{t("monitoring.sourceTrustDistribution")}</div>
+                  <div className="text-xs text-[var(--muted)] font-mono">{calibration.total_sources ?? highTrustSources + mediumTrustSources + lowTrustSources}</div>
+                </div>
+                <DistributionBar high={highTrustSources} medium={mediumTrustSources} low={lowTrustSources} />
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="text-[var(--accent-green)]">
+                    {t("monitoring.high")}: <span className="font-mono">{highTrustSources}</span>
+                  </div>
+                  <div className="text-[var(--accent-yellow)]">
+                    {t("monitoring.medium")}: <span className="font-mono">{mediumTrustSources}</span>
+                  </div>
+                  <div className="text-[var(--accent-red)]">
+                    {t("monitoring.low")}: <span className="font-mono">{lowTrustSources}</span>
+                  </div>
+                </div>
+                <div className="text-xs text-[var(--muted)]">
+                  {t("monitoring.avgTrust")}: <span className="font-mono">{formatPercent(calibration.avg_trust)}</span>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
         <aside className="bg-[var(--card)] border border-[var(--card-border)] rounded-xl p-5">

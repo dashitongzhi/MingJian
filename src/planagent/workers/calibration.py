@@ -68,6 +68,10 @@ class CalibrationWorker(Worker):
         async with database.session() as session:
             verified, verify_errors = await self._verify_pending_hypotheses(session)
             verified_predictions, prediction_errors = await self._verify_pending_predictions(session)
+            rule_accuracy_count = await self._update_rule_accuracies(session)
+            source_trust_count = await self._update_source_trust_scores(session)
+            if rule_accuracy_count or source_trust_count:
+                await session.commit()
             calibration_records = await self._aggregate_calibration(session)
             rule_accuracies = await self._compute_rule_accuracies(session)
             if rule_accuracies:
@@ -78,6 +82,8 @@ class CalibrationWorker(Worker):
             "verified_predictions": verified_predictions,
             "calibration_records": calibration_records,
             "rules_adjusted": len(rule_accuracies),
+            "rule_accuracies_updated": rule_accuracy_count,
+            "source_trust_scores_updated": source_trust_count,
             "errors": errors,
         }
 
@@ -436,6 +442,177 @@ class CalibrationWorker(Worker):
             for rule_id, accuracy in (rec.rule_accuracy or {}).items():
                 merged[rule_id] = max(merged.get(rule_id, 0.0), accuracy)
         return merged
+
+    async def _update_rule_accuracies(self, session: AsyncSession) -> int:
+        """根据已验证的预测结果，更新每条规则的准确率"""
+        from planagent.domain.models import RuleAccuracy
+
+        verified = list(
+            (
+                await session.scalars(
+                    select(PredictionBacktestRecord)
+                    .where(
+                        PredictionBacktestRecord.verification_status.in_(
+                            ["CONFIRMED", "REFUTED", "PARTIAL"]
+                        )
+                    )
+                    .order_by(PredictionBacktestRecord.verified_at.desc())
+                    .limit(500)
+                )
+            ).all()
+        )
+
+        stats: dict[tuple[str, str], dict[str, int]] = {}
+        for record in verified:
+            version = await session.get(PredictionVersion, record.prediction_version_id)
+            if not version:
+                continue
+            series = await session.get(PredictionSeries, version.series_id)
+            if not series:
+                continue
+
+            if version.run_id:
+                decisions = list(
+                    (
+                        await session.scalars(
+                            select(DecisionRecordRecord).where(
+                                DecisionRecordRecord.run_id == version.run_id
+                            )
+                        )
+                    ).all()
+                )
+                for decision in decisions:
+                    for rule_id in decision.policy_rule_ids:
+                        key = (series.domain_id, rule_id)
+                        if key not in stats:
+                            stats[key] = {
+                                "confirmed": 0,
+                                "refuted": 0,
+                                "partial": 0,
+                                "total": 0,
+                            }
+                        stats[key]["total"] += 1
+                        if record.verification_status == "CONFIRMED":
+                            stats[key]["confirmed"] += 1
+                        elif record.verification_status == "REFUTED":
+                            stats[key]["refuted"] += 1
+                        else:
+                            stats[key]["partial"] += 1
+
+        updated = 0
+        for (domain_id, rule_id), s in stats.items():
+            existing = (
+                await session.scalars(
+                    select(RuleAccuracy)
+                    .where(
+                        RuleAccuracy.rule_id == rule_id,
+                        RuleAccuracy.domain_id == domain_id,
+                    )
+                    .limit(1)
+                )
+            ).first()
+
+            if existing:
+                existing.total_predictions = s["total"]
+                existing.confirmed = s["confirmed"]
+                existing.refuted = s["refuted"]
+                existing.partial = s["partial"]
+            else:
+                existing = RuleAccuracy(
+                    rule_id=rule_id,
+                    domain_id=domain_id,
+                    total_predictions=s["total"],
+                    confirmed=s["confirmed"],
+                    refuted=s["refuted"],
+                    partial=s["partial"],
+                )
+                session.add(existing)
+
+            if s["total"] > 0:
+                existing.accuracy_score = (s["confirmed"] + s["partial"] * 0.5) / s["total"]
+                existing.weight_multiplier = max(0.1, min(2.0, existing.accuracy_score * 2))
+            existing.last_calculated_at = utc_now()
+            updated += 1
+
+        await session.flush()
+        return updated
+
+    async def _update_source_trust_scores(self, session: AsyncSession) -> int:
+        """根据已验证的预测结果，更新数据来源的可信度"""
+        from urllib.parse import urlparse
+
+        from planagent.domain.models import (
+            EvidenceItem,
+            PredictionEvidenceLink,
+            SourceTrustScore,
+        )
+
+        verified = list(
+            (
+                await session.scalars(
+                    select(PredictionBacktestRecord)
+                    .where(PredictionBacktestRecord.verification_status.in_(["CONFIRMED", "REFUTED"]))
+                    .order_by(PredictionBacktestRecord.verified_at.desc())
+                    .limit(200)
+                )
+            ).all()
+        )
+
+        source_stats: dict[str, dict[str, int]] = {}
+        for record in verified:
+            links = list(
+                (
+                    await session.scalars(
+                        select(PredictionEvidenceLink).where(
+                            PredictionEvidenceLink.prediction_version_id
+                            == record.prediction_version_id
+                        )
+                    )
+                ).all()
+            )
+
+            for link in links:
+                evidence = await session.get(EvidenceItem, link.evidence_item_id)
+                if not evidence:
+                    continue
+                source_url = evidence.source_url
+                try:
+                    domain = urlparse(source_url).netloc
+                except Exception:
+                    domain = source_url[:100]
+
+                if domain not in source_stats:
+                    source_stats[domain] = {"confirmed": 0, "refuted": 0, "total": 0}
+                source_stats[domain]["total"] += 1
+                if record.verification_status == "CONFIRMED":
+                    source_stats[domain]["confirmed"] += 1
+                else:
+                    source_stats[domain]["refuted"] += 1
+
+        updated = 0
+        for pattern, s in source_stats.items():
+            existing = (
+                await session.scalars(
+                    select(SourceTrustScore)
+                    .where(SourceTrustScore.source_url_pattern == pattern)
+                    .limit(1)
+                )
+            ).first()
+
+            if not existing:
+                existing = SourceTrustScore(source_type="mixed", source_url_pattern=pattern)
+                session.add(existing)
+
+            existing.total_evidence = s["total"]
+            existing.evidence_confirmed = s["confirmed"]
+            existing.evidence_refuted = s["refuted"]
+            if s["total"] > 0:
+                existing.trust_score = max(0.1, min(1.0, s["confirmed"] / s["total"]))
+            existing.last_updated_at = utc_now()
+            updated += 1
+
+        await session.flush()
+        return updated
 
     def _text_tokens(self, value: str) -> set[str]:
         return {

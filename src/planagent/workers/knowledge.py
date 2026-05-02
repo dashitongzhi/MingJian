@@ -5,8 +5,9 @@ from sqlalchemy import select
 from planagent.config import Settings
 from planagent.db import get_database
 from planagent.domain.enums import ClaimStatus, EventTopic
-from planagent.domain.models import Claim, utc_now
+from planagent.domain.models import Claim, EvidenceItem, utc_now
 from planagent.events.bus import EventBus
+from planagent.services.evidence_weighting import EvidenceWeightingService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService, normalize_text
 from planagent.workers.base import Worker, WorkerDescription
@@ -51,6 +52,7 @@ class KnowledgeWorker(Worker):
         self.openai_service = openai_service
         self.worker_instance_id = self.description.worker_id
         self.service = PhaseOnePipelineService(settings, event_bus, openai_service)
+        self.weighting_service = EvidenceWeightingService(settings)
 
     async def run_once(self) -> dict[str, object]:
         database = get_database(self.settings.database_url)
@@ -143,6 +145,13 @@ class KnowledgeWorker(Worker):
                     old_confidence, supportive_count, conflicting_count,
                     max_support_confidence, max_conflict_confidence,
                 )
+                evidence = await session.get(EvidenceItem, claim.evidence_item_id)
+                if evidence is not None:
+                    new_confidence = await self.weighting_service.adjust_claim_confidence(
+                        session,
+                        new_confidence,
+                        evidence.source_url,
+                    )
                 new_confidence = round(max(0.1, min(0.98, new_confidence)), 4)
 
                 if abs(new_confidence - old_confidence) < 0.01:

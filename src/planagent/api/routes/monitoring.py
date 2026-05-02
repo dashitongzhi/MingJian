@@ -21,12 +21,15 @@ from planagent.domain.api import (
 )
 from planagent.domain.models import (
     PredictionBacktestRecord,
+    PredictionCalibrationContext,
     PredictionEvidenceLink,
     PredictionRevisionJob,
     PredictionSeries,
     PredictionVersion,
+    RuleAccuracy,
     SourceChangeRecord,
     SourceCursorState,
+    SourceTrustScore,
     WatchRule,
 )
 from planagent.events.bus import build_event_bus
@@ -122,12 +125,118 @@ async def get_monitoring_dashboard(
             or 0
         ),
     }
+    rule_accuracies = list((await session.scalars(select(RuleAccuracy))).all())
+    source_trusts = list((await session.scalars(select(SourceTrustScore))).all())
+    high_accuracy_count = sum(1 for r in rule_accuracies if r.accuracy_score >= 0.7)
+    low_accuracy_count = sum(1 for r in rule_accuracies if r.accuracy_score < 0.3)
+    medium_accuracy_count = len(rule_accuracies) - high_accuracy_count - low_accuracy_count
+    high_trust_count = sum(1 for s in source_trusts if s.trust_score >= 0.7)
+    low_trust_count = sum(1 for s in source_trusts if s.trust_score < 0.3)
+    medium_trust_count = len(source_trusts) - high_trust_count - low_trust_count
+    avg_accuracy = sum(r.accuracy_score for r in rule_accuracies) / max(len(rule_accuracies), 1)
+    avg_trust = sum(s.trust_score for s in source_trusts) / max(len(source_trusts), 1)
     return {
         "watch_rules": watch_rules,
         "recent_changes": [SourceChangeRecordRead.model_validate(item) for item in recent_changes],
         "revision_jobs": revision_jobs,
         "predictions": predictions,
+        "calibration": {
+            "high_accuracy_rules": high_accuracy_count,
+            "medium_accuracy_rules": medium_accuracy_count,
+            "low_accuracy_rules": low_accuracy_count,
+            "avg_accuracy": avg_accuracy,
+            "total_rules": len(rule_accuracies),
+            "source_trust_distribution": {
+                "high": high_trust_count,
+                "medium": medium_trust_count,
+                "low": low_trust_count,
+            },
+            "total_sources": len(source_trusts),
+            "avg_trust": avg_trust,
+        },
     }
+
+
+@router.get("/monitoring/calibration")
+async def get_calibration_overview(
+    domain_id: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """校准概览——规则准确率、来源可信度、校准趋势"""
+    query = select(RuleAccuracy).order_by(RuleAccuracy.accuracy_score.desc())
+    if domain_id:
+        query = query.where(RuleAccuracy.domain_id == domain_id)
+    rule_accuracies = list((await session.scalars(query.limit(50))).all())
+
+    trust_query = select(SourceTrustScore).order_by(SourceTrustScore.trust_score.desc())
+    source_trusts = list((await session.scalars(trust_query.limit(50))).all())
+
+    total_rules = len(rule_accuracies)
+    high_accuracy = sum(1 for r in rule_accuracies if r.accuracy_score >= 0.7)
+    low_accuracy = sum(1 for r in rule_accuracies if r.accuracy_score < 0.3)
+
+    return {
+        "rules": [
+            {
+                "rule_id": r.rule_id,
+                "domain_id": r.domain_id,
+                "accuracy_score": r.accuracy_score,
+                "weight_multiplier": r.weight_multiplier,
+                "total_predictions": r.total_predictions,
+                "confirmed": r.confirmed,
+                "refuted": r.refuted,
+                "partial": r.partial,
+            }
+            for r in rule_accuracies
+        ],
+        "sources": [
+            {
+                "source_url_pattern": s.source_url_pattern,
+                "trust_score": s.trust_score,
+                "total_evidence": s.total_evidence,
+                "confirmed": s.evidence_confirmed,
+                "refuted": s.evidence_refuted,
+            }
+            for s in source_trusts
+        ],
+        "summary": {
+            "total_rules": total_rules,
+            "high_accuracy_rules": high_accuracy,
+            "low_accuracy_rules": low_accuracy,
+            "avg_accuracy": sum(r.accuracy_score for r in rule_accuracies) / max(total_rules, 1),
+            "total_sources": len(source_trusts),
+            "avg_trust": sum(s.trust_score for s in source_trusts) / max(len(source_trusts), 1),
+        },
+    }
+
+
+@router.get("/monitoring/calibration/history")
+async def get_calibration_history(
+    run_id: str | None = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """校准历史——每次推演使用的校准上下文"""
+    query = select(PredictionCalibrationContext).order_by(
+        PredictionCalibrationContext.created_at.desc()
+    )
+    if run_id:
+        query = query.where(PredictionCalibrationContext.run_id == run_id)
+
+    contexts = list((await session.scalars(query.limit(20))).all())
+
+    return [
+        {
+            "id": ctx.id,
+            "run_id": ctx.run_id,
+            "prediction_version_id": ctx.prediction_version_id,
+            "historical_versions_injected": ctx.historical_versions_injected,
+            "rule_weights_applied": ctx.rule_weights_applied,
+            "source_trust_applied": ctx.source_trust_applied,
+            "confidence_adjustment": ctx.confidence_adjustment,
+            "created_at": ctx.created_at.isoformat() if ctx.created_at else None,
+        }
+        for ctx in contexts
+    ]
 
 
 @router.get("/monitoring/events/stream")

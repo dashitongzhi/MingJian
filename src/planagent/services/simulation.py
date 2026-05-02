@@ -29,6 +29,7 @@ from planagent.domain.models import (
     utc_now,
 )
 from planagent.events.bus import EventBus
+from planagent.services.evidence_weighting import EvidenceWeightingService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import normalize_text
 from planagent.services.reporting import ReportService
@@ -96,6 +97,7 @@ class SimulationService:
         self.openai_service = openai_service
         self.report_service = ReportService(openai_service)
         self._military = MilitaryCombatResolver()
+        self.evidence_weighting = EvidenceWeightingService(settings)
 
     async def create_simulation_run(
         self,
@@ -649,6 +651,7 @@ class SimulationService:
         recent_decision_records: list[DecisionRecordRecord] = []
         military_tick_summaries: list[dict[str, Any]] = []
         geo_assets = await self.list_geo_assets(session, run.id) if run.domain_id == "military" else []
+        calibration_ctx = await self._build_calibration_context(session, run.domain_id, run.id)
 
         session.add(StateSnapshotRecord(run_id=run.id, tick=0, actor_id=actor_id, state=deepcopy(current_state)))
 
@@ -667,6 +670,8 @@ class SimulationService:
                 recent_claims=recent_claims,
                 action_history=action_history,
                 recent_decisions=recent_decision_records,
+                calibration_context_text=calibration_ctx["context_text"],
+                session=session,
             )
             matched_rules.extend(selected.rule_ids)
             actual_effect = selected.actual_effect
@@ -796,7 +801,130 @@ class SimulationService:
         from planagent.services.prediction import PredictionService
 
         prediction_service = PredictionService(self.settings, self.event_bus)
-        await prediction_service.create_initial_versions_for_run(session, run_id=run.id)
+        versions = await prediction_service.create_initial_versions_for_run(session, run_id=run.id)
+        await self._apply_calibrated_confidence(session, versions, calibration_ctx)
+
+    async def _build_calibration_context(
+        self,
+        session: AsyncSession,
+        domain_id: str,
+        run_id: str,
+    ) -> dict[str, Any]:
+        """Build the calibration context injected into simulation prompts."""
+        from planagent.domain.models import (
+            PredictionCalibrationContext,
+            PredictionSeries,
+            PredictionVersion,
+            RuleAccuracy,
+        )
+
+        rule_accuracies = list(
+            (
+                await session.scalars(
+                    select(RuleAccuracy)
+                    .where(RuleAccuracy.domain_id == domain_id, RuleAccuracy.total_predictions >= 3)
+                    .order_by(RuleAccuracy.accuracy_score.desc())
+                )
+            ).all()
+        )
+
+        run = await session.get(SimulationRun, run_id)
+        subject_id = self._subject_id(run) if run is not None else None
+        historical_query = (
+            select(PredictionVersion)
+            .join(PredictionSeries, PredictionSeries.id == PredictionVersion.series_id)
+            .where(PredictionSeries.domain_id == domain_id)
+        )
+        if subject_id:
+            historical_query = historical_query.where(PredictionSeries.subject_id == subject_id)
+        historical_versions = list(
+            (
+                await session.scalars(
+                    historical_query
+                    .where(or_(PredictionVersion.run_id.is_(None), PredictionVersion.run_id != run_id))
+                    .order_by(PredictionVersion.created_at.desc())
+                    .limit(5)
+                )
+            ).all()
+        )
+
+        context_parts: list[str] = []
+        if rule_accuracies:
+            context_parts.append("## 历史规则准确率（基于过往验证）")
+            for ra in rule_accuracies[:10]:
+                context_parts.append(
+                    f"- 规则 {ra.rule_id}: 准确率 {ra.accuracy_score:.1%} "
+                    f"(验证{ra.total_predictions}次, 对{ra.confirmed}次, "
+                    f"错{ra.refuted}次, 部分对{ra.partial}次)"
+                )
+            context_parts.append("准确率高的规则应给予更高权重，准确率低的规则应谨慎使用或标记不确定性。")
+
+        if historical_versions:
+            context_parts.append("\n## 同主题历史预测（供参考）")
+            for hv in historical_versions:
+                status_label = (
+                    "[SUPERSEDED]"
+                    if hv.status == "SUPERSEDED"
+                    else "[ACTIVE]" if hv.status == "ACTIVE" else "[UNKNOWN]"
+                )
+                context_parts.append(
+                    f"- {status_label} v{hv.version_number}: {hv.prediction_text[:200]} "
+                    f"(概率:{hv.probability:.0%}, 置信度:{hv.confidence:.0%}, 触发:{hv.trigger_type})"
+                )
+            context_parts.append("请参考历史预测的验证结果，避免重复已知错误，强化已验证的正确判断。")
+
+        rule_weights = {
+            ra.rule_id: float(ra.weight_multiplier if ra.weight_multiplier is not None else 1.0)
+            for ra in rule_accuracies
+        }
+        cal_ctx = PredictionCalibrationContext(
+            run_id=run_id,
+            historical_versions_injected=len(historical_versions),
+            rule_weights_applied={ra.rule_id: rule_weights[ra.rule_id] for ra in rule_accuracies[:20]},
+            confidence_adjustment=0.0,
+        )
+        session.add(cal_ctx)
+        await session.flush()
+
+        return {
+            "context_text": "\n".join(context_parts),
+            "rule_weights": rule_weights,
+            "historical_count": len(historical_versions),
+            "context_record_id": cal_ctx.id,
+        }
+
+    async def _apply_calibrated_confidence(
+        self,
+        session: AsyncSession,
+        versions: list[Any],
+        calibration_ctx: dict[str, Any],
+    ) -> None:
+        rule_weights = calibration_ctx.get("rule_weights") or {}
+        if not versions or not rule_weights:
+            return
+
+        avg_weight = sum(float(weight) for weight in rule_weights.values()) / len(rule_weights)
+        adjusted_versions = []
+        for version in versions:
+            original_confidence = float(version.confidence)
+            adjusted_confidence = min(1.0, original_confidence * avg_weight)
+            version.confidence = adjusted_confidence
+            version.version_metadata = {
+                **(version.version_metadata or {}),
+                "calibration_avg_rule_weight": round(avg_weight, 4),
+                "calibration_original_confidence": round(original_confidence, 4),
+                "calibration_adjusted_confidence": round(adjusted_confidence, 4),
+            }
+            adjusted_versions.append(version)
+
+        from planagent.domain.models import PredictionCalibrationContext
+
+        context_record_id = calibration_ctx.get("context_record_id")
+        if context_record_id:
+            context_record = await session.get(PredictionCalibrationContext, context_record_id)
+            if context_record is not None:
+                context_record.prediction_version_id = adjusted_versions[0].id
+                context_record.confidence_adjustment = round(avg_weight - 1.0, 4)
 
     async def _generate_decision_options(
         self,
@@ -1623,6 +1751,8 @@ class SimulationService:
         recent_claims: list[Claim] | None = None,
         action_history: list[str] | None = None,
         recent_decisions: list[DecisionRecordRecord] | None = None,
+        calibration_context_text: str = "",
+        session: AsyncSession | None = None,
     ) -> SelectedAction:
         evidence_window = self._build_evidence_window(active_claim, recent_claims)
         candidate = self._rank_action_candidates(
@@ -1652,6 +1782,8 @@ class SimulationService:
             evidence_window,
             recent_decisions or [],
             action_history or [],
+            calibration_context_text,
+            session=session,
         )
         if llm_result is not None:
             return llm_result
@@ -1676,6 +1808,8 @@ class SimulationService:
         evidence_window: list[Claim],
         recent_decisions: list[DecisionRecordRecord],
         action_history: list[str],
+        calibration_context_text: str = "",
+        session: AsyncSession | None = None,
     ) -> SelectedAction | None:
         if self.openai_service is None or not self.openai_service.is_configured("report"):
             return None
@@ -1695,7 +1829,7 @@ class SimulationService:
             }
             for rec in recent_decisions[-3:]
         ]
-        evidence = [claim.statement for claim in evidence_window[-3:]]
+        evidence = await self._build_weighted_evidence_context(session, evidence_window[-3:])
 
         try:
             result = await asyncio.wait_for(
@@ -1705,6 +1839,7 @@ class SimulationService:
                     available_actions=available_actions,
                     recent_decisions=recent,
                     evidence=evidence,
+                    calibration_context=calibration_context_text,
                     target="report",
                 ),
                 timeout=10.0,
@@ -1735,6 +1870,19 @@ class SimulationService:
             actual_effect=expected,
             decision_method="llm_assisted",
         )
+
+    async def _build_weighted_evidence_context(
+        self,
+        session: AsyncSession | None,
+        evidence_window: list[Claim],
+    ) -> list[str]:
+        if session is None:
+            return [claim.statement for claim in evidence_window]
+        evidence_ids = [claim.evidence_item_id for claim in evidence_window if claim.evidence_item_id]
+        context = await self.evidence_weighting.get_evidence_context(session, evidence_ids)
+        if context:
+            return [line for line in context.splitlines() if line]
+        return [claim.statement for claim in evidence_window]
 
     def _build_evidence_window(
         self,

@@ -1070,3 +1070,77 @@ class SourceChangeRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+
+
+class RuleAccuracy(Base):
+    """规则准确率——记录每条规则在每个domain的历史预测准确率"""
+
+    __tablename__ = "rule_accuracies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    rule_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    domain_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+
+    total_predictions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    confirmed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    refuted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    partial: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    accuracy_score: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+
+    weight_multiplier: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+
+    last_calculated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class SourceTrustScore(Base):
+    """来源可信度——动态评分每个数据来源的历史可靠性"""
+
+    __tablename__ = "source_trust_scores"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_url_pattern: Mapped[str] = mapped_column(String(256), nullable=False)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+
+    total_evidence: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    evidence_confirmed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    evidence_refuted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    trust_score: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+
+    last_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class PredictionCalibrationContext(Base):
+    """预测校准上下文——记录每次推演时使用的校准数据快照"""
+
+    __tablename__ = "prediction_calibration_contexts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True
+    )
+    prediction_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id")
+    )
+
+    historical_versions_injected: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rule_weights_applied: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    source_trust_applied: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    confidence_adjustment: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )

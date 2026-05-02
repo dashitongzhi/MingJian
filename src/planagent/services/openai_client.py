@@ -639,6 +639,7 @@ class OpenAIService:
         available_actions: list[dict[str, str]],
         recent_decisions: list[dict[str, str]],
         evidence: list[str],
+        calibration_context: str = "",
         target: TargetRole = "report",
     ) -> ActionDecisionPayload | None:
         actions_text = "\n".join(
@@ -648,8 +649,14 @@ class OpenAIService:
             f"- tick {d.get('tick', '?')}: {d.get('action_id', '?')} — {d.get('why', '')[:120]}" for d in recent_decisions
         )
         evidence_text = "\n".join(f"- {e[:200]}" for e in evidence[:5])
+        calibration_text = (
+            f"Calibration context:\n{calibration_context[:2000]}\n\n"
+            if calibration_context
+            else ""
+        )
         prompt = (
             f"Domain: {domain_id}\n"
+            f"{calibration_text}"
             f"Current state:\n{state_summary[:1200]}\n\n"
             f"Available actions:\n{actions_text}\n\n"
             f"Recent decisions:\n{decisions_text or 'None'}\n\n"

@@ -30,6 +30,7 @@ from planagent.domain.models import (
     utc_now,
 )
 from planagent.events.bus import EventBus
+from planagent.services.evidence_weighting import EvidenceWeightingService
 from planagent.services.startup import normalize_tenant_id
 
 if TYPE_CHECKING:
@@ -132,6 +133,7 @@ class PhaseOnePipelineService:
         self.settings = settings
         self.event_bus = event_bus
         self.openai_service = openai_service
+        self.evidence_weighting = EvidenceWeightingService(settings)
 
     async def create_ingest_run(self, session: AsyncSession, payload: IngestRunCreate) -> IngestRun:
         tenant_id = normalize_tenant_id(payload.tenant_id)
@@ -687,6 +689,11 @@ class PhaseOnePipelineService:
             evidence_confidence=evidence.confidence,
             statement=candidate.statement,
             extracted_confidence=candidate.confidence,
+        )
+        confidence = await self.evidence_weighting.adjust_claim_confidence(
+            session,
+            confidence,
+            evidence.source_url,
         )
         if confidence >= self.settings.accepted_claim_confidence:
             status = ClaimStatus.ACCEPTED

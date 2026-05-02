@@ -53,6 +53,8 @@ class EventTopic(StrEnum):
     PREDICTION_REVISION_REQUESTED = "prediction.revision_requested"
     PREDICTION_REVISION_COMPLETED = "prediction.revision_completed"
     PREDICTION_REVISION_FAILED = "prediction.revision_failed"
+    RULE_ACCURACY_UPDATED = "rule_accuracy.updated"
+    SOURCE_TRUST_UPDATED = "source_trust.updated"
 
 
 class ChangeType(str, Enum):
