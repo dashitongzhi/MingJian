@@ -172,7 +172,7 @@ function ConfigPanel({
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
-  const [fetchedModels, setFetchedModels] = useState<string[]>(provider.models || []);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
 
   const handleTest = useCallback(async () => {
     if (!apiKey && !provider.api_key_set) return;
@@ -188,6 +188,10 @@ function ConfigPanel({
       setTestResult(result);
       if (result.models_available.length > 0) {
         setFetchedModels(result.models_available);
+        // Auto-select first model if none selected
+        if (!model) {
+          setModel(result.models_available[0]);
+        }
       }
     } catch (e: any) {
       setTestResult({ ok: false, latency_ms: 0, models_available: [], error: e.message });
@@ -323,7 +327,7 @@ function ConfigPanel({
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--card-border)] rounded-lg text-sm font-mono focus:outline-none focus:border-[var(--accent)] transition-colors"
-                placeholder={t("providers.chooseModelPlaceholder")}
+                placeholder={t("providers.modelInputPlaceholder")}
                 list={`models-${provider.id}`}
               />
               <datalist id={`models-${provider.id}`}>
@@ -344,6 +348,11 @@ function ConfigPanel({
                 </select>
               )}
             </div>
+            {fetchedModels.length === 0 && (
+              <p className="text-xs text-[var(--muted)] mt-1.5 opacity-70">
+                {t("providers.testToLoadModels")}
+              </p>
+            )}
           </div>
 
           {/* Test button */}
@@ -469,6 +478,10 @@ function CustomConfigPanel({
       setTestResult(result);
       if (result.models_available.length > 0) {
         setFetchedModels(result.models_available);
+        // Auto-select first model if none selected
+        if (!model) {
+          setModel(result.models_available[0]);
+        }
       }
     } catch (e: any) {
       setTestResult({ ok: false, latency_ms: 0, models_available: [], error: e.message });

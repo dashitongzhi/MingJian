@@ -261,6 +261,8 @@ const en = {
     apiKeyPlaceholder: "Enter API Key...",
     getApiKey: "Get API Key",
     chooseModelPlaceholder: "Choose or enter a model name",
+    modelInputPlaceholder: "Enter model name (e.g. gpt-4.1)",
+    testToLoadModels: "💡 Enter API Key and click \"Test connection\" to auto-load available models",
     testing: "Testing connection...",
     testConnection: "Test connection",
     connectionSuccess: "Connection succeeded",

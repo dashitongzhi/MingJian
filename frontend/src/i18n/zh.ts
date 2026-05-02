@@ -263,6 +263,8 @@ const zh: Translations = {
     apiKeyPlaceholder: "请输入 API Key...",
     getApiKey: "获取 API Key",
     chooseModelPlaceholder: "选择或输入模型名称",
+    modelInputPlaceholder: "输入模型名称（如 gpt-4.1）",
+    testToLoadModels: "💡 填写 API Key 后点击「验活测试」自动拉取可用模型列表",
     testing: "测试连接中...",
     testConnection: "验活测试",
     connectionSuccess: "连接成功",
