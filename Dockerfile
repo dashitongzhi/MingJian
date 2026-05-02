@@ -24,7 +24,8 @@ RUN pip install --no-cache-dir .
 RUN groupadd --system appuser \
     && useradd --system --gid appuser --home-dir /home/appuser --create-home --shell /usr/sbin/nologin appuser \
     && mkdir -p /app/source_snapshots \
-    && chown -R appuser:appuser /app/source_snapshots
+    && chown -R appuser:appuser /app/source_snapshots \
+    && chmod -R a+rX /app
 
 FROM base AS api
 
