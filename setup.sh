@@ -120,7 +120,7 @@ printf '\n'
 success "MingJian is starting up!"
 printf '\n'
 printf '%s\n' "${BOLD}Open these URLs in your browser:${RESET}"
-printf '%s\n' "🌐 Frontend: http://localhost:3000"
+printf '%s\n' "🌐 Frontend: http://localhost:3001"
 printf '%s\n' "🧠 API:      http://localhost:8000"
 printf '%s\n' "📦 MinIO:    http://localhost:9001"
 printf '\n'

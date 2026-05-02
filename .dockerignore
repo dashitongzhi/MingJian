@@ -7,12 +7,15 @@ __pycache__
 *.pyc
 *.pyo
 *.egg-info
+.venv
+.venv-mac
 .venv*
 venv/
 dist/
 build/
 
 # Node / Frontend
+node_modules
 frontend/node_modules
 frontend/.next
 frontend/out

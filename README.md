@@ -152,7 +152,7 @@ When the script finishes, open:
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:3000 |
+| Frontend | http://localhost:3001 |
 | API | http://localhost:8000 |
 | MinIO Console | http://localhost:9001 |
 
@@ -238,7 +238,7 @@ PLANAGENT_OPENAI_API_KEY=your_api_key_here
 # ═══════════════════════════════════════════════════════════════
 # Frontend
 # ═══════════════════════════════════════════════════════════════
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=/api
 ```
 
 > **💡 Key Point:** Even if you only have access to **one** model provider (e.g., OpenAI, or any OpenAI-compatible API), you can use it for all 7 model slots. Just set `PLANAGENT_OPENAI_API_KEY` — the system fills in the rest automatically. No need for 4 different API keys to get started.

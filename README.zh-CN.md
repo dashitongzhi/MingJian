@@ -152,7 +152,7 @@ chmod +x setup.sh
 
 | 服务 | URL |
 |------|-----|
-| 前端 | http://localhost:3000 |
+| 前端 | http://localhost:3001 |
 | API | http://localhost:8000 |
 | MinIO 控制台 | http://localhost:9001 |
 
@@ -236,7 +236,7 @@ PLANAGENT_OPENAI_API_KEY=你的API密钥
 # ═══════════════════════════════════════════════════════════════
 # 前端
 # ═══════════════════════════════════════════════════════════════
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=/api
 ```
 
 > **💡 关键提示：** 即使你只有**一个**模型供应商（比如 OpenAI，或任何兼容 OpenAI 接口的服务），也可以用它填满全部 7 个模型槽位。只需设置 `PLANAGENT_OPENAI_API_KEY`，系统自动完成剩余配置。无需 4 个不同的 API Key 才能启动。

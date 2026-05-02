@@ -12,6 +12,12 @@ x-env-common: &env-common
   PLANAGENT_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-planagent}
   PLANAGENT_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-planagent123}
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -20,10 +26,15 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planagent}
       POSTGRES_DB: ${POSTGRES_DB:-planagent}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planagent} -d ${POSTGRES_DB:-planagent}"]
       interval: 5s
@@ -33,9 +44,14 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -49,10 +65,15 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-planagent}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-planagent123}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - miniodata:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
       interval: 5s
@@ -68,6 +89,7 @@ services:
     env_file:
       - .env
     environment: *env-common
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,10 +101,15 @@ services:
       target: api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment: *env-common
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -92,15 +119,27 @@ services:
         condition: service_healthy
     volumes:
       - ./rules:/app/rules:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json, sys, urllib.request; data = json.load(urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5)); sys.exit(0 if data.get('status') == 'ok' else 1)\""]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
   worker:
     build:
       context: .
       target: worker
     restart: unless-stopped
+    stop_grace_period: 15s
     env_file:
       - .env
     environment: *env-common
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -110,17 +149,36 @@ services:
         condition: service_healthy
     volumes:
       - ./rules:/app/rules:ro
+    healthcheck:
+      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do tr '\\0' ' ' < \"$$p\" 2>/dev/null | grep -q '[p]lanagent-worker' && exit 0; done; exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   frontend:
     build:
       context: ./frontend
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      BACKEND_API_URL: http://api:8000
+      NEXT_PUBLIC_API_URL: /api
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging: *default-logging
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 volumes:
   pgdata:
