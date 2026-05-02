@@ -86,7 +86,7 @@ class KnowledgeWorker(Worker):
             ).all()
         )
         if not recent_claims:
-            return 0
+            return 0, []
 
         reevaluated = 0
         errors: list[str] = []
