@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -81,7 +82,7 @@ class SourceStateService:
             if last_modified is not None:
                 state.last_modified = last_modified
             if content_hash is not None:
-                state.last_seen_hash = content_hash
+                state.last_seen_hash = self._normalize_content_hash(content_hash)
             if raw_source_item_id is not None:
                 state.last_seen_raw_source_item_id = raw_source_item_id
             state.last_success_at = now
@@ -97,9 +98,9 @@ class SourceStateService:
         self,
         session: AsyncSession,
         state: SourceCursorState,
-        force_full_refresh_every: int = 24,
+        force_full_refresh_every_minutes: int = 24 * 60,
     ) -> bool:
-        """判断是否需要抓取（基于小时级强制刷新间隔和上次失败状态）。"""
+        """判断是否需要抓取（基于分钟级强制刷新间隔和上次失败状态）。"""
         _ = session
         last_success_at = self._normalize_datetime(state.last_success_at)
         last_failure_at = self._normalize_datetime(state.last_failure_at)
@@ -117,7 +118,7 @@ class SourceStateService:
         if last_success_at is None:
             return False
 
-        return utc_now() - last_success_at >= timedelta(hours=force_full_refresh_every)
+        return utc_now() - last_success_at >= timedelta(minutes=force_full_refresh_every_minutes)
 
     async def reset_cursor(
         self,
@@ -175,6 +176,14 @@ class SourceStateService:
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value
+
+    def _normalize_content_hash(self, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) == 64 and all(
+            char in "0123456789abcdefABCDEF" for char in normalized
+        ):
+            return normalized.lower()
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     def _source_cursor_state_model(self) -> type[SourceCursorState]:
         from planagent.domain.models import SourceCursorState

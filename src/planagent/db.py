@@ -41,6 +41,8 @@ class Database:
                 rows = (await connection.execute(text("PRAGMA table_info(decision_records)"))).all()
                 column_names = {row[1] for row in rows}
                 if rows and "decision_method" not in column_names:
+                    # NOTE: 以下 ALTER TABLE 语句为向后兼容补丁，仅在旧数据库缺少列时执行。
+                    # 正式环境请使用 Alembic migration 管理表结构变更。
                     await connection.execute(
                         text(
                             "ALTER TABLE decision_records "
@@ -50,6 +52,8 @@ class Database:
                 run_rows = (await connection.execute(text("PRAGMA table_info(simulation_runs)"))).all()
                 run_column_names = {row[1] for row in run_rows}
                 if run_rows and "military_use_mode" not in run_column_names:
+                    # NOTE: 以下 ALTER TABLE 语句为向后兼容补丁，仅在旧数据库缺少列时执行。
+                    # 正式环境请使用 Alembic migration 管理表结构变更。
                     await connection.execute(
                         text("ALTER TABLE simulation_runs ADD COLUMN military_use_mode VARCHAR(32)")
                     )
@@ -63,28 +67,36 @@ class Database:
                     "min_new_evidence_count": "INTEGER NOT NULL DEFAULT 1",
                     "importance_threshold": "FLOAT NOT NULL DEFAULT 0.0",
                     "incremental_enabled": "BOOLEAN NOT NULL DEFAULT 1",
-                    "force_full_refresh_every": "INTEGER NOT NULL DEFAULT 24",
+                    "force_full_refresh_every_minutes": "INTEGER NOT NULL DEFAULT 1440",
                     "last_cursor_reset_at": "DATETIME",
                     "change_significance_threshold": "VARCHAR(32) NOT NULL DEFAULT 'medium'",
                 }
                 for column_name, ddl_type in watch_columns.items():
                     if watch_rows and column_name not in watch_column_names:
+                        # NOTE: 以下 ALTER TABLE 语句为向后兼容补丁，仅在旧数据库缺少列时执行。
+                        # 正式环境请使用 Alembic migration 管理表结构变更。
                         await connection.execute(
                             text(f"ALTER TABLE watch_rules ADD COLUMN {column_name} {ddl_type}")
                         )
                 graph_rows = (await connection.execute(text("PRAGMA table_info(knowledge_graph_nodes)"))).all()
                 graph_column_names = {row[1] for row in graph_rows}
                 if graph_rows and "embedding" not in graph_column_names:
+                    # NOTE: 以下 ALTER TABLE 语句为向后兼容补丁，仅在旧数据库缺少列时执行。
+                    # 正式环境请使用 Alembic migration 管理表结构变更。
                     await connection.execute(
                         text("ALTER TABLE knowledge_graph_nodes ADD COLUMN embedding JSON NOT NULL DEFAULT '[]'")
                     )
                 if graph_rows and "embedding_model" not in graph_column_names:
+                    # NOTE: 以下 ALTER TABLE 语句为向后兼容补丁，仅在旧数据库缺少列时执行。
+                    # 正式环境请使用 Alembic migration 管理表结构变更。
                     await connection.execute(
                         text("ALTER TABLE knowledge_graph_nodes ADD COLUMN embedding_model VARCHAR(120)")
                     )
                 hypothesis_rows = (await connection.execute(text("PRAGMA table_info(hypotheses)"))).all()
                 hypothesis_column_names = {row[1] for row in hypothesis_rows}
                 if hypothesis_rows and "prediction_version_id" not in hypothesis_column_names:
+                    # NOTE: 以下 ALTER TABLE 语句为向后兼容补丁，仅在旧数据库缺少列时执行。
+                    # 正式环境请使用 Alembic migration 管理表结构变更。
                     await connection.execute(
                         text("ALTER TABLE hypotheses ADD COLUMN prediction_version_id VARCHAR(36)")
                     )

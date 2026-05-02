@@ -4,7 +4,18 @@ from datetime import datetime, timezone
 from typing import Optional
 import uuid
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from planagent.domain.enums import (
@@ -769,7 +780,11 @@ class WatchRule(Base):
         DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
     )
     incremental_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    force_full_refresh_every: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
+    force_full_refresh_every_minutes: Mapped[int] = mapped_column(
+        Integer,
+        default=24 * 60,
+        nullable=False,
+    )
     last_cursor_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     change_significance_threshold: Mapped[str] = mapped_column(
         String(16), default="medium", nullable=False
@@ -885,7 +900,12 @@ class PredictionSeries(Base):
 
 class PredictionVersion(Base):
     __tablename__ = "prediction_versions"
-    __table_args__ = (UniqueConstraint("series_id", "version_number"),)
+    __table_args__ = (
+        UniqueConstraint("series_id", "version_number"),
+        CheckConstraint("probability >= 0 AND probability <= 1", name="ck_pv_probability"),
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="ck_pv_confidence"),
+        CheckConstraint("version_number >= 1", name="ck_pv_version_number"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
@@ -941,7 +961,10 @@ class PredictionBacktestRecord(Base):
 
 class PredictionEvidenceLink(Base):
     __tablename__ = "prediction_evidence_links"
-    __table_args__ = (UniqueConstraint("version_id", "evidence_item_id", "claim_id"),)
+    __table_args__ = (
+        UniqueConstraint("version_id", "evidence_item_id", "claim_id"),
+        CheckConstraint("impact_score >= 0 AND impact_score <= 1", name="ck_pel_impact_score"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
@@ -962,6 +985,9 @@ class PredictionEvidenceLink(Base):
 
 class PredictionRevisionJob(Base):
     __tablename__ = "prediction_revision_jobs"
+    __table_args__ = (
+        CheckConstraint("attempts >= 0", name="ck_prj_attempts"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)

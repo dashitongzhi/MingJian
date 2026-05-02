@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import hashlib
+import json
+from typing import Any, TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,12 +30,13 @@ class ChangeDetectionService:
         """检测数据源内容变化，创建变更记录。"""
         SourceChangeRecordModel = self._source_change_record_model()
         old_hash = state.last_seen_hash
+        stable_new_hash = new_hash or self.compute_content_hash(new_content_text)
 
         if old_hash is None:
             change_type = "new"
             significance = "high"
             diff_summary = "首次抓取"
-        elif new_hash == old_hash:
+        elif stable_new_hash == old_hash:
             change_type = "unchanged"
             significance = "none"
             diff_summary = None
@@ -41,7 +44,7 @@ class ChangeDetectionService:
             change_type = "updated"
             significance = self._compute_significance(
                 old_hash=old_hash,
-                new_hash=new_hash,
+                new_hash=stable_new_hash,
                 new_content_text=new_content_text,
                 new_title=new_title,
             )
@@ -56,15 +59,54 @@ class ChangeDetectionService:
             old_raw_source_item_id=state.last_seen_raw_source_item_id,
             new_raw_source_item_id=new_raw_source_item_id,
             old_hash=old_hash,
-            new_hash=new_hash,
+            new_hash=stable_new_hash,
             change_type=change_type,
             significance=significance,
             diff_summary=diff_summary,
-            changed_fields=self._detect_changed_fields(old_hash, new_hash),
+            changed_fields=self._detect_changed_fields(old_hash, stable_new_hash),
         )
         session.add(record)
         await session.flush()
         return record
+
+    def compute_content_hash(
+        self,
+        content_text: str,
+        sources: list[Any] | None = None,
+    ) -> str:
+        """计算稳定内容 hash。"""
+        normalized = content_text.strip()
+        if sources:
+            sorted_sources = sorted(
+                (self._source_as_dict(source) for source in sources),
+                key=lambda source: (
+                    str(source.get("source_type", "")),
+                    str(source.get("url", "")),
+                    str(source.get("title", "")),
+                ),
+            )
+            normalized = json.dumps(
+                sorted_sources,
+                ensure_ascii=True,
+                sort_keys=True,
+                default=str,
+            )
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _source_as_dict(self, source: Any) -> dict[str, Any]:
+        if isinstance(source, dict):
+            return source
+        if hasattr(source, "model_dump"):
+            value = source.model_dump(mode="json")
+            return value if isinstance(value, dict) else {}
+        return {
+            "source_type": getattr(source, "source_type", ""),
+            "url": getattr(source, "url", ""),
+            "title": getattr(source, "title", ""),
+            "summary": getattr(source, "summary", ""),
+            "published_at": getattr(source, "published_at", None),
+            "metadata": getattr(source, "metadata", {}),
+        }
 
     def _compute_significance(
         self,

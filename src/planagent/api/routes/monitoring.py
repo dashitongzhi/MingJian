@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -144,29 +146,52 @@ async def monitoring_events_stream(request: Request) -> StreamingResponse:
         ]
         group = "monitoring-sse"
         consumer = f"sse-{id(request)}"
+        last_keepalive = time.monotonic()
+        max_lifetime = 3600
+        start_time = time.monotonic()
 
         try:
             while True:
+                if time.monotonic() - start_time > max_lifetime:
+                    data = json.dumps({"reason": "max_lifetime_reached"})
+                    yield f"event: timeout\ndata: {data}\n\n"
+                    break
+
                 if await request.is_disconnected():
                     break
 
-                events = await bus.consume(
-                    topics=topics,
-                    group=group,
-                    consumer=consumer,
-                    count=10,
-                    block_ms=5000,
-                )
+                try:
+                    events = await bus.consume(
+                        topics=topics,
+                        group=group,
+                        consumer=consumer,
+                        count=10,
+                        block_ms=5000,
+                    )
+                except Exception as exc:
+                    data = json.dumps({"error": str(exc)[:100]}, ensure_ascii=False)
+                    yield f"event: error\ndata: {data}\n\n"
+                    await asyncio.sleep(5)
+                    continue
 
                 for event in events:
                     data = json.dumps(event.payload, ensure_ascii=False)
                     yield f"event: {event.topic}\ndata: {data}\n\n"
                     await bus.ack(event.topic, group, event.message_id)
 
-                if not events:
+                now = time.monotonic()
+                if now - last_keepalive >= 30:
                     yield ": keepalive\n\n"
+                    last_keepalive = now
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            pass
         finally:
-            await bus.close()
+            try:
+                await bus.close()
+            except Exception:
+                pass
 
     return StreamingResponse(
         event_generator(),

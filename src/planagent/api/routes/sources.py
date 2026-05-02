@@ -20,6 +20,7 @@ from planagent.domain.models import (
     RawSourceItem,
     SourceChangeRecord,
     SourceCursorState,
+    WatchRule,
 )
 from planagent.services.source_state import SourceStateService
 
@@ -65,6 +66,9 @@ async def reset_cursor(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     """重置数据源游标（强制全量重抓）"""
+    rule = await session.get(WatchRule, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"Watch rule {rule_id} not found")
     service = SourceStateService(get_settings())
     reset_count = await service.reset_cursor(session, rule_id)
     return {"status": "ok", "rule_id": rule_id, "reset_count": reset_count}

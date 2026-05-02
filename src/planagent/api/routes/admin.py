@@ -311,7 +311,7 @@ async def create_watch_rule(
         auto_trigger_debate=payload.auto_trigger_debate,
         tick_count=payload.tick_count,
         incremental_enabled=payload.incremental_enabled,
-        force_full_refresh_every=payload.force_full_refresh_every,
+        force_full_refresh_every_minutes=payload.force_full_refresh_every_minutes,
         change_significance_threshold=payload.change_significance_threshold,
         tenant_id=payload.tenant_id,
         preset_id=payload.preset_id,
@@ -370,6 +370,16 @@ async def get_watch_rule(
     if rule is None:
         raise HTTPException(status_code=404, detail="Watch rule not found.")
     return WatchRuleRead.model_validate(rule)
+
+
+@router.get("/admin/watch-rules/{rule_id}", response_model=WatchRuleRead, include_in_schema=False)
+@router.get("/watch-rules/{rule_id}", response_model=WatchRuleRead, include_in_schema=False)
+async def get_watch_rule_alias(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> WatchRuleRead:
+    """Compatibility alias for the legacy /admin/watch-rules/{id} frontend path."""
+    return await get_watch_rule(rule_id=rule_id, session=session)
 
 
 @router.patch("/watch/rules/{rule_id}", response_model=WatchRuleRead)

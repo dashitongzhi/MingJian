@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from datetime import timedelta
 
 from sqlalchemy import or_, select, update
@@ -107,7 +106,7 @@ class WatchIngestWorker(Worker):
             should_fetch = await source_state_service.should_fetch(
                 session,
                 state,
-                force_full_refresh_every=rule.force_full_refresh_every,
+                force_full_refresh_every_minutes=rule.force_full_refresh_every_minutes,
             )
             if not should_fetch:
                 await self._mark_poll_success(session, rule)
@@ -165,7 +164,10 @@ class WatchIngestWorker(Worker):
             )
 
         content_text = self._change_detection_text(rule, analysis.sources)
-        content_hash = hashlib.sha256(content_text.encode()).hexdigest()
+        content_hash = change_service.compute_content_hash(
+            content_text,
+            sources=analysis.sources,
+        )
         change_record = await change_service.detect_change(
             session,
             state,

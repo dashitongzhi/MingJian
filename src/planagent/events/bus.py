@@ -183,19 +183,28 @@ class RedisStreamEventBus:
                     events.extend(self._decode_messages(stream_key, response[1]))
             except redis.ResponseError:
                 try:
-                    pending = await self.client.xpending_range(
-                        name=stream_key,
-                        groupname=group,
-                        min="-",
-                        max="+",
-                        count=count,
-                    )
-                    idle_ids = [
-                        self._pending_message_id(item)
-                        for item in (pending or [])
-                        if self._pending_idle_ms(item) >= min_idle_ms
-                    ]
-                    idle_ids = [message_id for message_id in idle_ids if message_id is not None]
+                    start_id = "-"
+                    idle_ids: list[str] = []
+                    while len(idle_ids) < count:
+                        pending = await self.client.xpending_range(
+                            name=stream_key,
+                            groupname=group,
+                            min=start_id,
+                            max="+",
+                            count=count,
+                        )
+                        if not pending:
+                            break
+                        idle_ids.extend(
+                            message_id
+                            for item in pending
+                            if self._pending_idle_ms(item) >= min_idle_ms
+                            if (message_id := self._pending_message_id(item)) is not None
+                        )
+                        last_seen_id = self._pending_message_id(pending[-1])
+                        if last_seen_id is None:
+                            break
+                        start_id = f"({last_seen_id}"
                     if not idle_ids:
                         continue
                     claimed = await self.client.xclaim(
@@ -203,7 +212,7 @@ class RedisStreamEventBus:
                         groupname=group,
                         consumername=consumer,
                         min_idle_time=min_idle_ms,
-                        message_ids=idle_ids,
+                        message_ids=idle_ids[:count],
                     )
                     events.extend(self._decode_messages(stream_key, claimed))
                 except Exception:

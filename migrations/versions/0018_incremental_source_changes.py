@@ -24,7 +24,12 @@ def upgrade() -> None:
     )
     op.add_column(
         "watch_rules",
-        sa.Column("force_full_refresh_every", sa.Integer(), nullable=False, server_default="24"),
+        sa.Column(
+            "force_full_refresh_every_minutes",
+            sa.Integer(),
+            nullable=False,
+            server_default="1440",
+        ),
     )
     op.add_column(
         "watch_rules",
@@ -219,5 +224,5 @@ def downgrade() -> None:
 
     op.drop_column("watch_rules", "change_significance_threshold")
     op.drop_column("watch_rules", "last_cursor_reset_at")
-    op.drop_column("watch_rules", "force_full_refresh_every")
+    op.drop_column("watch_rules", "force_full_refresh_every_minutes")
     op.drop_column("watch_rules", "incremental_enabled")
