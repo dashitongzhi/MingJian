@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback, type ReactNode } from "react";
+import { Check, X, Loader2, Eye, EyeOff, FlaskConical, ExternalLink, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   useConfiguredProviders,
   saveProvider,
@@ -10,79 +12,6 @@ import {
   type ProviderTestResult,
 } from "@/lib/providers";
 import { useTranslation } from "@/contexts/LanguageContext";
-
-function CheckIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
-function LoaderIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}>
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}
-
-function EyeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function EyeOffIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-      <line x1="1" y1="1" x2="23" y2="23" />
-    </svg>
-  );
-}
-
-function TestTubeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.5 2v17.5c0 1.4-1.1 2.5-2.5 2.5s-2.5-1.1-2.5-2.5V2" />
-      <path d="M8.5 2h7" />
-      <path d="M14.5 16h-5" />
-    </svg>
-  );
-}
-
-function ExternalLinkIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  );
-}
 
 function ProviderStatus({ configured }: { configured: boolean }) {
   const { t } = useTranslation();
@@ -209,7 +138,7 @@ function InlineTestResult({ result }: { result: ProviderTestResult | null }) {
 
   return (
     <div className={`mt-3 flex items-start gap-2 text-sm ${result.ok ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
-      <span className="mt-0.5">{result.ok ? <CheckIcon /> : <XIcon />}</span>
+      <span className="mt-0.5">{result.ok ? <Check className="size-4" /> : <X className="size-4" />}</span>
       <span>
         {result.ok ? (
           <>
@@ -331,9 +260,9 @@ function ConfigPanel({
             <h3 className="truncate text-base font-semibold">{provider.name || provider.id}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
-            <XIcon />
-          </button>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
         </div>
 
         <div className="max-h-[68vh] space-y-5 overflow-y-auto p-5">
@@ -356,7 +285,7 @@ function ConfigPanel({
             hint={
               provider.website ? (
                 <a href={provider.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--accent)] hover:opacity-80">
-                  {t("providers.getApiKey")} <ExternalLinkIcon />
+                  {t("providers.getApiKey")} <ExternalLink className="size-3" />
                 </a>
               ) : null
             }
@@ -375,7 +304,7 @@ function ConfigPanel({
                 onClick={() => setShowKey(!showKey)}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--muted)] hover:text-[var(--foreground)]"
               >
-                {showKey ? <EyeOffIcon /> : <EyeIcon />}
+                {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </FieldBlock>
@@ -414,43 +343,37 @@ function ConfigPanel({
           </FieldBlock>
 
           <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
-            <button
+            <Button
+              variant="outline"
               onClick={handleTest}
               disabled={testing || (!apiKey && !provider.api_key_set)}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-4 py-2.5 text-sm font-medium transition-[border-color,opacity,background-color] hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full"
             >
               {testing ? (
                 <>
-                  <LoaderIcon className="animate-spin" /> {t("providers.testing")}
+                  <Loader2 className="size-4 animate-spin" /> {t("providers.testing")}
                 </>
               ) : (
                 <>
-                  <TestTubeIcon /> {t("providers.testConnection")}
+                  <FlaskConical className="size-4" /> {t("providers.testConnection")}
                 </>
               )}
-            </button>
+            </Button>
             <InlineTestResult result={testResult} />
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-[var(--card-border)] p-5">
-          <button
-            onClick={handleDelete}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red-bg)]"
-          >
-            <TrashIcon /> {t("common.delete")}
-          </button>
+          <Button variant="destructive" size="sm" onClick={handleDelete}>
+            <Trash2 className="size-4" /> {t("common.delete")}
+          </Button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
+            <Button variant="ghost" onClick={onClose}>
               {t("common.cancel")}
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? t("common.saving") : t("common.save")}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -556,9 +479,9 @@ function CustomConfigPanel({
             <h3 className="text-base font-semibold">{t("providers.customProvider")}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{t("providers.customProviderSubtitle")}</p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
-            <XIcon />
-          </button>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
         </div>
 
         <div className="max-h-[68vh] space-y-5 overflow-y-auto p-5">
@@ -601,7 +524,7 @@ function CustomConfigPanel({
                 onClick={() => setShowKey(!showKey)}
                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--muted)] hover:text-[var(--foreground)]"
               >
-                {showKey ? <EyeOffIcon /> : <EyeIcon />}
+                {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </FieldBlock>
@@ -637,36 +560,36 @@ function CustomConfigPanel({
           </FieldBlock>
 
           <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
-            <button
+            <Button
+              variant="outline"
               onClick={handleTest}
               disabled={testing || !apiKey || !baseUrl}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-4 py-2.5 text-sm font-medium transition-[border-color,opacity,background-color] hover:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full"
             >
               {testing ? (
                 <>
-                  <LoaderIcon className="animate-spin" /> {t("providers.testing")}
+                  <Loader2 className="size-4 animate-spin" /> {t("providers.testing")}
                 </>
               ) : (
                 <>
-                  <TestTubeIcon /> {t("providers.testConnection")}
+                  <FlaskConical className="size-4" /> {t("providers.testConnection")}
                 </>
               )}
-            </button>
+            </Button>
             <InlineTestResult result={testResult} />
           </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--card-border)] p-5">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">
+          <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             disabled={saving || !name || !baseUrl || !apiKey}
-            className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {saving ? t("common.saving") : t("common.save")}
-          </button>
+          </Button>
         </div>
       </div>
     </PanelShell>

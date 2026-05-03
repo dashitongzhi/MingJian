@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import useSWR from "swr";
 import { fetchEvidence, fetchClaims, fetchKnowledgeGraph, searchKnowledge, fetchSourceReputations, fetchScoreboard } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
@@ -159,7 +160,7 @@ export default function EvidencePage() {
   const sortedReputation = useMemo(() => [...(rep || [])].sort((a, b) => b.reputation_score - a.reputation_score), [rep]);
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-8">
+    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="mx-auto max-w-[1500px] space-y-8">
       {/* ── Header with Tabs ──────────────────────────────────────────────────── */}
       <div className="grid gap-6 border-b border-[var(--card-border)] pb-8 lg:grid-cols-[minmax(0,1fr)_520px]">
         <div>
@@ -168,26 +169,22 @@ export default function EvidencePage() {
             {t("evidence.subtitle")}
           </h1>
         </div>
-        <div className="grid content-end gap-1.5 sm:grid-cols-5">
+        <TabsList variant="line" className="grid w-full grid-cols-5 gap-1.5 bg-transparent p-0 h-auto">
           {TAB_CONFIG.map((tabItem) => (
-            <button
+            <TabsTrigger
               key={tabItem.key}
-              onClick={() => setTab(tabItem.key)}
-              className={`flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium rounded-lg transition-all duration-200 magnetic-hover ${
-                tab === tabItem.key
-                  ? "bg-[var(--accent)]/8 text-[var(--foreground)] border border-[var(--accent)]/20"
-                  : "text-[var(--muted)] hover:text-[var(--muted-foreground)] hover:bg-[var(--card-hover)] border border-transparent"
-              }`}
+              value={tabItem.key}
+              className="flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium rounded-lg transition-all duration-200 magnetic-hover data-active:bg-[var(--accent)]/8 data-active:text-[var(--foreground)] data-active:border data-active:border-[var(--accent)]/20 text-[var(--muted)] hover:text-[var(--muted-foreground)] hover:bg-[var(--card-hover)] border border-transparent"
             >
               {tabItem.icon}
               <span className="truncate">{t(tabItem.labelKey)}</span>
-            </button>
+            </TabsTrigger>
           ))}
-        </div>
+        </TabsList>
       </div>
 
       {/* ── Evidence Tab ──────────────────────────────────────────────────────── */}
-      {tab === "evidence" && (
+      <TabsContent value="evidence" className="mt-0">
         <div className="grid gap-8 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.25fr)] animate-fadeIn">
           <section>
             <div className="mb-5 grid gap-3 border-b border-[var(--card-border)] pb-5 md:grid-cols-[1fr_180px]">
@@ -300,10 +297,10 @@ export default function EvidencePage() {
             </EditorShell>
           </section>
         </div>
-      )}
+      </TabsContent>
 
       {/* ── Claims Tab ────────────────────────────────────────────────────────── */}
-      {tab === "claims" && (
+      <TabsContent value="claims" className="mt-0">
         <section className="max-w-5xl animate-fadeIn">
           {clLoading && <SkeletonRows />}
           {clError && <StateBlock title={t("common.failed")} description={String(clError.message || clError)} />}
@@ -338,10 +335,10 @@ export default function EvidencePage() {
             </div>
           )}
         </section>
-      )}
+      </TabsContent>
 
       {/* ── Graph Tab ─────────────────────────────────────────────────────────── */}
-      {tab === "graph" && (
+      <TabsContent value="graph" className="mt-0">
         <section className="grid gap-8 lg:grid-cols-[420px_1fr] animate-fadeIn">
           <div className="space-y-6">
             <div className="border-b border-[var(--card-border)] pb-5">
@@ -399,10 +396,10 @@ export default function EvidencePage() {
             )}
           </div>
         </section>
-      )}
+      </TabsContent>
 
       {/* ── Reputation Tab ────────────────────────────────────────────────────── */}
-      {tab === "reputation" && (
+      <TabsContent value="reputation" className="mt-0">
         <section className="max-w-6xl animate-fadeIn">
           {repLoading && <SkeletonRows count={8} />}
           {repError && <StateBlock title={t("common.failed")} description={String(repError.message || repError)} />}
@@ -440,10 +437,10 @@ export default function EvidencePage() {
             </div>
           )}
         </section>
-      )}
+      </TabsContent>
 
       {/* ── Calibration Tab ───────────────────────────────────────────────────── */}
-      {tab === "calibration" && (
+      <TabsContent value="calibration" className="mt-0">
         <section className="animate-fadeIn">
           {sbLoading && (
             <div className="py-12">
@@ -491,7 +488,7 @@ export default function EvidencePage() {
             </div>
           )}
         </section>
-      )}
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }
