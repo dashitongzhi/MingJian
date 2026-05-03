@@ -157,7 +157,7 @@ export default function DebatePage() {
               onChange={(event) => setInputId(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && handleLoad()}
             />
-            <button onClick={handleLoad} className="border border-[var(--accent)] px-4 py-2 text-sm text-[var(--accent)] transition-[background-color,color,transform] duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:text-black">
+            <button onClick={handleLoad} className="border border-[var(--accent)] px-4 py-2 text-sm text-[var(--accent)] transition-[background-color,color,transform] duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]">
               {t("common.load")}
             </button>
           </div>
@@ -223,11 +223,11 @@ export default function DebatePage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-px bg-[var(--card-border)]">
-                    <div className="bg-[#0d0d0d] p-4">
+                    <div className="bg-[var(--code-bg)] p-4">
                       <div className="text-xs text-[var(--muted)]">{t("debate.confidence")}</div>
                       <div className="mt-2 font-mono text-2xl">{(debate.verdict.confidence * 100).toFixed(0)}%</div>
                     </div>
-                    <div className="bg-[#0d0d0d] p-4">
+                    <div className="bg-[var(--code-bg)] p-4">
                       <div className="text-xs text-[var(--muted)]">{t("debate.winningArgs")}</div>
                       <div className="mt-2 font-mono text-2xl">{debate.verdict.winning_arguments.length}</div>
                     </div>

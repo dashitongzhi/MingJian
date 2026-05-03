@@ -50,7 +50,7 @@
   --gradient-end: #3d6b5e;
 
   /* Layout */
-  --sidebar-width: 260px;
+  --sidebar-width: 240px;
   --header-height: 56px;
   --radius: 0.625rem;
 
@@ -60,6 +60,11 @@
   --chart-3: #ca8a04;
   --chart-4: #dc2626;
   --chart-5: #7c3aed;
+
+  /* Code / terminal areas */
+  --code-bg: #f4f5f7;
+  --code-border: #e2e4e8;
+  --overlay: rgba(0, 0, 0, 0.5);
 
   /* Sidebar */
   --sidebar: #f8f9fa;
@@ -117,6 +122,11 @@
   --chart-3: #fbbf24;
   --chart-4: #f87171;
   --chart-5: #a78bfa;
+
+  /* Code / terminal areas */
+  --code-bg: #0f0e0c;
+  --code-border: #1e1e24;
+  --overlay: rgba(0, 0, 0, 0.7);
 
   --sidebar: #0c0c0e;
   --sidebar-foreground: #ececef;

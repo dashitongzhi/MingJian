@@ -121,7 +121,7 @@ function FormatToggle({ value, onChange }: { value: string; onChange: (value: st
           onClick={() => onChange(fmt)}
           className={`px-3 py-2 text-sm transition-[background-color,color,opacity] duration-200 ${
             value === fmt
-              ? "bg-[var(--accent)] text-black"
+              ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
               : "bg-[var(--background)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           }`}
         >
@@ -165,7 +165,7 @@ function PanelShell({
   rail: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         className="grid w-full max-w-4xl overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] animate-fadeIn md:grid-cols-[220px_1fr]"
         onClick={(e) => e.stopPropagation()}

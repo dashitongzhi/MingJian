@@ -60,7 +60,7 @@ function RichText({ text }: { text: string }) {
       {segments.map((segment, index) => {
         if (segment.type === "code") {
           return (
-            <pre key={index} className="overflow-x-auto border-l border-[var(--accent)] bg-[#0f0e0c] px-4 py-3 font-mono text-xs leading-6 text-[var(--foreground)]">
+            <pre key={index} className="overflow-x-auto border-l border-[var(--accent)] bg-[var(--code-bg)] px-4 py-3 font-mono text-xs leading-6 text-[var(--foreground)]">
               <code>{segment.content}</code>
             </pre>
           );
@@ -178,7 +178,7 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
             <span className="text-xs text-[var(--muted)]">{t("assistant.round")} {round.round_number}</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="h-1 w-24 overflow-hidden bg-[#0f0e0c]">
+            <div className="h-1 w-24 overflow-hidden bg-[var(--code-bg)]">
               <div className="h-full origin-left bg-[var(--accent)] motion-safe:transition-transform" style={{ transform: `scaleX(${confidence})` }} />
             </div>
             <span className="font-mono text-xs text-[var(--muted)]">{(confidence * 100).toFixed(0)}%</span>
@@ -459,7 +459,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             </div>
 
             <div className="p-5">
-              <div className="overflow-hidden border border-[var(--card-border)] bg-[#0f0e0c] focus-within:ring-2 focus-within:ring-[var(--accent)]">
+              <div className="overflow-hidden border border-[var(--card-border)] bg-[var(--code-bg)] focus-within:ring-2 focus-within:ring-[var(--accent)]">
                 <div className="border-b border-[var(--card-border)] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
                   {t("assistant.topicPlaceholder")}
                 </div>
@@ -486,7 +486,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                         setTopic(example.topic);
                         setDomainId(example.domain);
                       }}
-                      className="grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3 py-3 text-left text-xs outline-none motion-safe:transition-colors hover:bg-[#0f0e0c] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                      className="grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3 py-3 text-left text-xs outline-none motion-safe:transition-colors hover:bg-[var(--code-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                     >
                       <span className="font-mono text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
                       <span className="truncate text-[var(--muted-foreground)]">{example.topic}</span>
@@ -499,7 +499,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <label className="block">
                   <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.domain")}</span>
                   <select
-                    className="w-full border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    className="w-full border border-[var(--card-border)] bg-[var(--code-bg)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     value={domainId}
                     onChange={(e) => setDomainId(e.target.value)}
                   >
@@ -510,7 +510,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.ticks")}</span>
-                  <div className="flex h-[38px] items-center gap-3 border border-[var(--card-border)] bg-[#0f0e0c] px-3">
+                  <div className="flex h-[38px] items-center gap-3 border border-[var(--card-border)] bg-[var(--code-bg)] px-3">
                     <input
                       type="range"
                       min={2}
@@ -527,7 +527,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               <label className="mt-5 block">
                 <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.subjectName")}</span>
                 <input
-                  className="w-full border border-[var(--card-border)] bg-[#0f0e0c] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
+                  className="w-full border border-[var(--card-border)] bg-[var(--code-bg)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
                   placeholder={t("assistant.subjectPlaceholder")}
                   value={subjectName}
                   onChange={(e) => setSubjectName(e.target.value)}
@@ -538,11 +538,11 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <button
                   onClick={handleRun}
                   disabled={streaming || !topic.trim()}
-                  className="flex flex-1 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#0f0e0c] outline-none motion-safe:transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="flex flex-1 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] outline-none motion-safe:transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                 >
                   {streaming ? (
                     <>
-                      <span className="h-2 w-2 rounded-full bg-[#0f0e0c] motion-safe:animate-pulse" />
+                      <span className="h-2 w-2 rounded-full bg-[var(--accent-foreground)] motion-safe:animate-pulse" />
                       {t("common.running")}
                     </>
                   ) : (
@@ -616,7 +616,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   onClick={() => setActiveTab(tab.id)}
                   className={`min-w-28 flex-1 px-4 py-3 text-sm outline-none motion-safe:transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
                     activeTab === tab.id
-                      ? "bg-[var(--accent)] text-[#0f0e0c]"
+                      ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
                       : "bg-[var(--card)] text-[var(--muted-foreground)] hover:bg-[var(--card-hover)]"
                   }`}
                 >
@@ -766,7 +766,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
       </div>
 
       {showGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/70 px-4 backdrop-blur">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4 backdrop-blur">
           <div className="w-full max-w-md border border-[var(--card-border)] bg-[var(--card)] p-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
             <div className="mb-6">
               <SectionLabel>{t("assistant.onboardingTitle")}</SectionLabel>
@@ -805,7 +805,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     setShowGuide(false);
                   }
                 }}
-                className="flex-1 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[#0f0e0c] outline-none motion-safe:transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                className="flex-1 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] outline-none motion-safe:transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
               >
                 {guideStep < 3 ? t("common.next") : t("common.getStarted")}
               </button>

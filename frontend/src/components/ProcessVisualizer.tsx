@@ -129,7 +129,7 @@ export function ProcessVisualizer({
             onClick={() => setShowModelOutput(!showModelOutput)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               showModelOutput
-                ? "bg-[var(--accent)] text-white"
+                ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
                 : "bg-[var(--background)] text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
@@ -154,7 +154,7 @@ export function ProcessVisualizer({
                     isActive
                       ? "bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse"
                       : isCompleted
-                        ? "bg-green-500"
+                        ? "bg-[var(--accent-green)]"
                         : "bg-[var(--background)]"
                   }`}
                 />
@@ -182,9 +182,9 @@ export function ProcessVisualizer({
                   step.status === "running"
                     ? "border-[var(--accent)] bg-[var(--accent)]/5"
                     : step.status === "completed"
-                      ? "border-green-500/30 bg-green-500/5"
+                      ? "border-[var(--accent-green)]/30 bg-[var(--accent-green)]/5"
                       : step.status === "error"
-                        ? "border-red-500/30 bg-red-500/5"
+                        ? "border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5"
                         : "border-[var(--card-border)]"
                 }`}
               >
@@ -199,11 +199,11 @@ export function ProcessVisualizer({
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
                           step.status === "running"
-                            ? "bg-[var(--accent)] text-white animate-pulse"
+                            ? "bg-[var(--accent)] text-[var(--accent-foreground)] animate-pulse"
                             : step.status === "completed"
-                              ? "bg-green-500 text-white"
+                              ? "bg-[var(--accent-green)] text-[var(--accent-foreground)]"
                               : step.status === "error"
-                                ? "bg-red-500 text-white"
+                                ? "bg-[var(--accent-red)] text-[var(--accent-foreground)]"
                                 : "bg-[var(--background)] text-[var(--muted)]"
                         }`}
                       >
@@ -211,7 +211,7 @@ export function ProcessVisualizer({
                       </div>
                       {index < steps.length - 1 && (
                         <div className={`w-0.5 h-full mt-1 ${
-                          step.status === "completed" ? "bg-green-500" : "bg-[var(--card-border)]"
+                          step.status === "completed" ? "bg-[var(--accent-green)]" : "bg-[var(--card-border)]"
                         }`} />
                       )}
                     </div>
@@ -372,10 +372,10 @@ export function ProcessVisualizer({
                           <div
                             className={`h-full rounded-full ${
                               msg.confidence > 0.7
-                                ? "bg-green-500"
+                                ? "bg-[var(--accent-green)]"
                                 : msg.confidence > 0.4
-                                  ? "bg-yellow-500"
-                                  : "bg-red-500"
+                                  ? "bg-[var(--accent-yellow)]"
+                                  : "bg-[var(--accent-red)]"
                             }`}
                             style={{ width: `${msg.confidence * 100}%` }}
                           />

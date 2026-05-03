@@ -173,7 +173,7 @@ export default function SimulationPage() {
         <div className="flex items-end">
           <button
             onClick={() => setShowCreate(!showCreate)}
-            className="inline-flex items-center gap-2 border border-[var(--accent)] px-4 py-3 text-sm text-[var(--accent)] transition-[background-color,color,transform] duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:text-black"
+            className="inline-flex items-center gap-2 border border-[var(--accent)] px-4 py-3 text-sm text-[var(--accent)] transition-[background-color,color,transform] duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -213,7 +213,7 @@ export default function SimulationPage() {
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="inline-flex w-full items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-medium text-black transition-[opacity,transform] duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[var(--accent-foreground)] transition-[opacity,transform] duration-200 hover:-translate-y-0.5 disabled:opacity-50"
               >
                 {creating ? (
                   <>

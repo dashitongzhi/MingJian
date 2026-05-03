@@ -118,7 +118,7 @@ function StateBlock({ title, description, icon }: { title: string; description?:
 
 function EditorShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden border border-[var(--card-border)] bg-[#0a0a0c] rounded-lg">
+    <div className="overflow-hidden border border-[var(--card-border)] bg-[var(--code-bg)] rounded-lg">
       <div className="flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]/60" />

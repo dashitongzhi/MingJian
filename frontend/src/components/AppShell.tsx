@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -26,42 +27,42 @@ const NAV_ITEMS = [
   {
     labelKey: "nav.dashboard",
     href: "/",
-    icon: <LayoutDashboard size={18} />,
+    icon: <LayoutDashboard size={16} />,
   },
   {
     labelKey: "nav.assistant",
     href: "/assistant",
-    icon: <Brain size={18} />,
+    icon: <Brain size={16} />,
   },
   {
     labelKey: "nav.simulation",
     href: "/simulation",
-    icon: <Clock size={18} />,
+    icon: <Clock size={16} />,
   },
   {
     labelKey: "nav.debate",
     href: "/debate",
-    icon: <MessageSquare size={18} />,
+    icon: <MessageSquare size={16} />,
   },
   {
     labelKey: "nav.evidence",
     href: "/evidence",
-    icon: <Search size={18} />,
+    icon: <Search size={16} />,
   },
   {
     labelKey: "nav.predictions",
     href: "/predictions",
-    icon: <TrendingUp size={18} />,
+    icon: <TrendingUp size={16} />,
   },
   {
     labelKey: "nav.monitoring",
     href: "/monitoring",
-    icon: <Shield size={18} />,
+    icon: <Shield size={16} />,
   },
   {
     labelKey: "nav.providers",
     href: "/providers",
-    icon: <Building2 size={18} />,
+    icon: <Building2 size={16} />,
   },
 ];
 
@@ -75,29 +76,25 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
   return (
     <>
-      {/* Brand */}
-      <div className="h-[var(--header-height)] flex items-center px-5 border-b border-[var(--card-border)]">
-        <Link href="/" className="flex items-center gap-3 group" onClick={onNavClick}>
-          <div className="relative">
-            <Image
-              src="/mingjian-icon.jpg"
-              alt="明鉴"
-              width={32}
-              height={32}
-              className="rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
-              priority
-            />
-            <div className="absolute inset-0 rounded-lg bg-[var(--accent)]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </div>
-          <div>
-            <span className="font-semibold text-sm tracking-wide gradient-text">明鉴</span>
-            <div className="text-[10px] text-[var(--muted)] tracking-wider">MINGJIAN</div>
-          </div>
+      {/* Brand — minimal */}
+      <div className="h-[var(--header-height)] flex items-center px-5">
+        <Link href="/" className="flex items-center gap-2.5 group" onClick={onNavClick}>
+          <Image
+            src="/mingjian-icon.jpg"
+            alt="明鉴"
+            width={24}
+            height={24}
+            className="rounded-md object-cover"
+            priority
+          />
+          <span className="text-[13px] font-semibold tracking-wide text-[var(--foreground)]">
+            明鉴
+          </span>
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-3 py-2 space-y-0.5">
         {NAV_ITEMS.map((item) => {
           const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
@@ -106,29 +103,38 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               href={item.href}
               onClick={onNavClick}
               className={`
-                relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium
-                transition-all duration-200 magnetic-hover min-h-[44px]
+                relative flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium
+                transition-colors duration-150 min-h-[36px] group
                 ${isActive
-                  ? "text-[var(--foreground)] bg-[var(--accent)]/8"
+                  ? "text-[var(--foreground)]"
                   : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]"
                 }
               `}
             >
-              {/* Active indicator bar */}
+              {/* Animated active indicator via Framer Motion layoutId */}
               {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-full bg-[var(--accent)]" />
+                <motion.div
+                  layoutId="nav-active-indicator"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-full bg-[var(--accent)]"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
               )}
-              <span className={isActive ? "text-[var(--accent)]" : ""}>{item.icon}</span>
+              <span className={isActive ? "text-[var(--accent)]" : "opacity-70 group-hover:opacity-100 transition-opacity"}>
+                {item.icon}
+              </span>
               <span>{t(item.labelKey)}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* User */}
-      <div className="p-4 border-t border-[var(--card-border)]">
+      {/* Gradient divider */}
+      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-[var(--card-border)] to-transparent" />
+
+      {/* User section */}
+      <div className="p-4">
         <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full border border-[var(--card-border)] bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] text-xs font-semibold">
+          <div className="w-7 h-7 rounded-full border border-[var(--card-border)] bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] text-[11px] font-semibold">
             U
           </div>
           <div className="flex-1 min-w-0">
@@ -165,14 +171,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* ── Desktop Sidebar ───────────────────────────────────────────────── */}
-      <aside className="hidden md:flex w-[var(--sidebar-width)] border-r border-[var(--card-border)] bg-[var(--card)] flex-col">
+      <aside className="hidden md:flex w-[var(--sidebar-width)] backdrop-blur-md bg-[var(--sidebar)]/80 flex-col border-r border-[var(--card-border)]/50">
         <SidebarContent />
       </aside>
 
       {/* ── Mobile Drawer Overlay ─────────────────────────────────────────── */}
       {drawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden animate-fadeIn"
+          className="fixed inset-0 z-40 bg-[var(--overlay)] backdrop-blur-sm md:hidden animate-fadeIn"
           onClick={closeDrawer}
           aria-hidden="true"
         />
@@ -181,8 +187,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Mobile Drawer ─────────────────────────────────────────────────── */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-[280px] bg-[var(--card)] border-r border-[var(--card-border)]
-          flex flex-col transition-transform duration-300 ease-out md:hidden
+          fixed inset-y-0 left-0 z-50 w-[280px] backdrop-blur-xl bg-[var(--sidebar)]/90
+          border-r border-[var(--card-border)]/50 flex flex-col
+          transition-transform duration-300 ease-out md:hidden
           ${drawerOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >

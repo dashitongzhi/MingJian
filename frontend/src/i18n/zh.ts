@@ -52,6 +52,7 @@ const zh: Translations = {
   dashboard: {
     welcome: "欢迎使用明鉴",
     tagline: "证据驱动的智能平台——洞察明鉴，决策千里",
+    taglineSubtitle: "实时监控预测、追踪准确率，一览战略情报全局。",
     activeSessions: "活跃会话",
     strategicAnalyses: "战略分析",
     predictionAccuracy: "预测准确率",

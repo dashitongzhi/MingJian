@@ -50,6 +50,7 @@ const en = {
   dashboard: {
     welcome: "Welcome to 明鉴",
     tagline: "Evidence-driven intelligence platform — see clearly, judge wisely",
+    taglineSubtitle: "Monitor predictions, track accuracy, and manage strategic intelligence at a glance.",
     activeSessions: "Active Sessions",
     strategicAnalyses: "strategic analyses",
     predictionAccuracy: "Prediction Accuracy",

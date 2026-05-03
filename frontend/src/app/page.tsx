@@ -4,6 +4,17 @@ import type { ReactNode } from "react";
 import { useMemo } from "react";
 import Image from "next/image";
 import useSWR from "swr";
+import {
+  TrendingUp,
+  Target,
+  Activity,
+  Brain,
+  Shield,
+  Zap,
+  Search,
+  Play,
+  MessageSquare,
+} from "lucide-react";
 import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules, type StrategicSession } from "@/lib/api";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
@@ -16,7 +27,7 @@ function SkeletonLine({ className = "" }: { className?: string }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-12">
       <div className="flex items-end justify-between gap-6">
         <div className="space-y-3">
           <SkeletonLine className="h-5 w-28" />
@@ -25,8 +36,8 @@ function DashboardSkeleton() {
         </div>
         <SkeletonLine className="hidden h-16 w-16 rounded md:block" />
       </div>
-      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-[var(--card-border)] lg:grid-cols-12">
-        <div className="bg-[var(--card)] p-6 lg:col-span-7 lg:row-span-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="rounded-2xl bg-[var(--card)] p-8 lg:col-span-8 lg:row-span-2">
           <SkeletonLine className="h-4 w-36" />
           <SkeletonLine className="mt-6 h-16 w-40" />
           <div className="mt-8 grid grid-cols-4 gap-3">
@@ -35,8 +46,8 @@ function DashboardSkeleton() {
             ))}
           </div>
         </div>
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-[var(--card)] p-6 lg:col-span-5">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="rounded-2xl bg-[var(--card)] p-8 lg:col-span-4">
             <SkeletonLine className="h-4 w-28" />
             <SkeletonLine className="mt-5 h-10 w-24" />
             <SkeletonLine className="mt-4 h-2 w-full" />
@@ -63,25 +74,50 @@ function MetricPanel({
   label,
   value,
   sub,
+  icon,
   large = false,
   children,
 }: {
   label: string;
   value: string | number;
   sub?: string;
+  icon?: ReactNode;
   large?: boolean;
   children?: ReactNode;
 }) {
   return (
-    <section className={`bg-[var(--card)] p-6 ${large ? "lg:col-span-7 lg:row-span-2" : "lg:col-span-5"}`}>
-      <SectionLabel>{label}</SectionLabel>
-      <div className={large ? "mt-6 flex items-end gap-5" : "mt-5 flex items-end gap-3"}>
-        <div className={`${large ? "text-6xl" : "text-4xl"} font-semibold leading-none tracking-tight text-balance`}>
-          {value}
+    <section
+      className={`group relative overflow-hidden p-7 transition-all duration-300 ease-out
+        hover:-translate-y-0.5 hover:bg-[var(--card)]
+        ${large
+          ? "rounded-2xl bg-[var(--card)] lg:col-span-8 lg:row-span-2 p-8"
+          : "rounded-2xl bg-[var(--card)] lg:col-span-4 p-7"
+        }`}
+    >
+      {/* Subtle accent glow on hover */}
+      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          background: "radial-gradient(ellipse at 30% 20%, var(--accent) 0%, transparent 70%)",
+          opacity: 0,
+        }}
+      />
+      <div className="relative z-10">
+        <div className="flex items-center gap-2.5">
+          {icon && (
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">
+              {icon}
+            </span>
+          )}
+          <SectionLabel>{label}</SectionLabel>
         </div>
-        {sub && <div className="pb-1 text-sm text-[var(--muted-foreground)]">{sub}</div>}
+        <div className={large ? "mt-6 flex items-end gap-5" : "mt-5 flex items-end gap-3"}>
+          <div className={`${large ? "text-6xl" : "text-4xl"} font-semibold leading-none tracking-tight text-balance`}>
+            {value}
+          </div>
+          {sub && <div className="pb-1 text-sm text-[var(--muted-foreground)]">{sub}</div>}
+        </div>
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -96,13 +132,13 @@ function AccuracyMatrix({ accuracy, pending }: { accuracy: number | null; pendin
           <div
             key={i}
             className={`aspect-[1.7] transition-all duration-500 ${
-              i < filled ? "bg-[var(--accent)]/70" : "bg-[#0d0d10]"
+              i < filled ? "bg-[var(--accent)]/70" : "bg-[var(--code-bg)]"
             }`}
             style={{ opacity: i < filled ? 0.5 + i * 0.035 : 1, transitionDelay: `${i * 40}ms` }}
           />
         ))}
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-[var(--card-border)] pt-4 text-xs text-[var(--muted)]">
+      <div className="mt-4 flex items-center justify-between pt-4 text-xs text-[var(--muted)]">
         <span>{pending} pending</span>
         <span>{filled}/12 signal cells</span>
       </div>
@@ -114,7 +150,7 @@ function QueueBars({ queues }: { queues: Array<{ queue: string; pending: number;
   const max = Math.max(1, ...queues.map((q) => q.pending + q.processing + q.completed + q.failed));
 
   if (queues.length === 0) {
-    return <div className="mt-5 border-t border-[var(--card-border)] pt-4 text-sm text-[var(--muted)]">—</div>;
+    return <div className="mt-5 pt-4 text-sm text-[var(--muted)]">—</div>;
   }
 
   return (
@@ -128,7 +164,7 @@ function QueueBars({ queues }: { queues: Array<{ queue: string; pending: number;
                 <span className="truncate font-mono text-[var(--muted-foreground)]">{q.queue}</span>
                 <span className="text-[var(--muted)]">{total}</span>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden bg-[#0d0d10] rounded-full">
+              <div className="mt-2 h-1.5 overflow-hidden bg-[var(--code-bg)] rounded-full">
                 <div
                   className="h-full origin-left bg-[var(--accent)]/70 transition-transform duration-700 ease-out rounded-full"
                   style={{ transform: `scaleX(${total / max})` }}
@@ -149,7 +185,7 @@ function QuickAction({ label, description, icon, href }: { label: string; descri
   return (
     <a
       href={href}
-      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 border-t border-[var(--card-border)] py-5 outline-none transition-all duration-200 hover:bg-[var(--card)]/50 hover:pl-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 py-5 outline-none transition-all duration-200 hover:bg-[var(--card)]/50 hover:pl-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
     >
       <div className="flex h-8 w-8 items-center justify-center text-[var(--accent)] transition-transform duration-300 group-hover:scale-110">
         {icon}
@@ -165,7 +201,7 @@ function QuickAction({ label, description, icon, href }: { label: string; descri
 
 function EmptySessions({ title, description }: { title: string; description: string }) {
   return (
-    <div className="border-t border-[var(--card-border)] py-14">
+    <div className="py-14">
       <div className="max-w-sm">
         <div className="text-sm font-medium text-[var(--foreground)]">{title}</div>
         <div className="mt-2 text-[13px] leading-relaxed text-[var(--muted)]">{description}</div>
@@ -219,27 +255,24 @@ export default function DashboardPage() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       {/* ── Hero Header ──────────────────────────────────────────────────────── */}
-      <header className="relative overflow-hidden border-b border-[var(--card-border)] pb-8">
+      <header className="relative pb-6">
         <div className="absolute right-0 top-0 h-32 w-80 bg-[var(--accent)]/5 blur-3xl rounded-full" />
         <div className="absolute left-1/2 -top-16 h-48 w-96 bg-[var(--accent)]/3 blur-3xl rounded-full" />
         <TextReveal>
-        <div className="relative flex items-end justify-between gap-6">
-          <div className="max-w-3xl">
-            <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-4">
               <Image src="/mingjian-icon.jpg" alt="明鉴" width={40} height={40} className="rounded-lg object-cover" />
               <SectionLabel>{t("dashboard.welcome")}</SectionLabel>
             </div>
-            <AnimatedGradientText className="mt-5 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-balance">
+            <AnimatedGradientText className="block max-w-2xl text-4xl font-bold leading-tight tracking-tight text-balance">
               {t("dashboard.tagline")}
             </AnimatedGradientText>
+            <p className="mt-4 max-w-xl text-base text-[var(--muted)] leading-relaxed">
+              {t("dashboard.taglineSubtitle")}
+            </p>
           </div>
-          <div className="hidden min-w-44 border-l border-[var(--card-border)] pl-6 md:block">
-            <div className="text-xs text-[var(--muted)]">{t("dashboard.queueHealth")}</div>
-            <div className="mt-2 font-mono text-2xl text-[var(--accent)]">{pendingItems + processingItems}</div>
-          </div>
-        </div>
         </TextReveal>
       </header>
 
@@ -250,121 +283,129 @@ export default function DashboardPage() {
       )}
 
       {/* ── Bento Grid ───────────────────────────────────────────────────────── */}
-      <StaggerContainer className="grid grid-cols-1 gap-px overflow-hidden rounded-xl bg-[var(--card-border)]/50 lg:grid-cols-12">
+      <StaggerContainer className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <StaggerItem>
-        <MetricPanel
-          large
-          label={t("dashboard.predictionAccuracy")}
-          value={accuracy == null ? "—" : `${(accuracy * 100).toFixed(0)}%`}
-          sub={sb?.brier_score != null ? `${t("dashboard.brier")}: ${sb.brier_score.toFixed(3)}` : t("dashboard.predictionScoreboard")}
-        >
-          <AccuracyMatrix accuracy={accuracy} pending={sb?.pending ?? 0} />
-        </MetricPanel>
+          <MetricPanel
+            large
+            label={t("dashboard.predictionAccuracy")}
+            value={accuracy == null ? "—" : `${(accuracy * 100).toFixed(0)}%`}
+            sub={sb?.brier_score != null ? `${t("dashboard.brier")}: ${sb.brier_score.toFixed(3)}` : t("dashboard.predictionScoreboard")}
+            icon={<Target size={16} />}
+          >
+            <AccuracyMatrix accuracy={accuracy} pending={sb?.pending ?? 0} />
+          </MetricPanel>
         </StaggerItem>
 
         <StaggerItem>
-        <MetricPanel label={t("dashboard.activeSessions")} value={sessions ? activeSessions : "—"} sub={t("dashboard.strategicAnalyses")}>
-          <div className="mt-6 h-px bg-[var(--card-border)]" />
-          <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-[var(--muted)]">
-            <span>{t("dashboard.activeMonitors")}</span>
-            <span className="text-right font-mono text-[var(--muted-foreground)]">{activeRules}</span>
-          </div>
-        </MetricPanel>
+          <MetricPanel
+            label={t("dashboard.activeSessions")}
+            value={sessions ? activeSessions : "—"}
+            sub={t("dashboard.strategicAnalyses")}
+            icon={<Brain size={16} />}
+          >
+            <div className="mt-6 h-px bg-[var(--foreground)]/5" />
+            <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-[var(--muted)]">
+              <span>{t("dashboard.activeMonitors")}</span>
+              <span className="text-right font-mono text-[var(--muted-foreground)]">{activeRules}</span>
+            </div>
+          </MetricPanel>
         </StaggerItem>
 
         <StaggerItem>
-        <MetricPanel label={t("dashboard.queueHealth")} value={health ? pendingItems : "—"} sub={t("dashboard.pendingItems")}>
-          <QueueBars queues={health?.queues ?? []} />
-        </MetricPanel>
+          <MetricPanel
+            label={t("dashboard.queueHealth")}
+            value={health ? pendingItems : "—"}
+            sub={t("dashboard.pendingItems")}
+            icon={<Activity size={16} />}
+          >
+            <QueueBars queues={health?.queues ?? []} />
+          </MetricPanel>
         </StaggerItem>
 
         <StaggerItem>
-        <MetricPanel label={t("dashboard.watchRules")} value={rules ? activeRules : "—"} sub={t("dashboard.activeMonitors")}>
-          <div className="mt-6 grid grid-cols-8 gap-px bg-[var(--card-border)]/50">
-            {Array.from({ length: Math.max(8, rules?.length || 8) }).slice(0, 24).map((_, i) => (
-              <div
-                key={i}
-                className={`aspect-square transition-all duration-300 ${
-                  rules && i < rules.length && rules[i].enabled ? "bg-[var(--accent)]/60" : "bg-[#0d0d10]"
-                }`}
-                style={{ transitionDelay: `${i * 30}ms` }}
-              />
-            ))}
-          </div>
-        </MetricPanel>
+          <MetricPanel
+            label={t("dashboard.watchRules")}
+            value={rules ? activeRules : "—"}
+            sub={t("dashboard.activeMonitors")}
+            icon={<Shield size={16} />}
+          >
+            <div className="mt-6 grid grid-cols-8 gap-px bg-[var(--card-border)]/50">
+              {Array.from({ length: Math.max(8, rules?.length || 8) }).slice(0, 24).map((_, i) => (
+                <div
+                  key={i}
+                  className={`aspect-square transition-all duration-300 ${
+                    rules && i < rules.length && rules[i].enabled ? "bg-[var(--accent)]/60" : "bg-[var(--code-bg)]"
+                  }`}
+                  style={{ transitionDelay: `${i * 30}ms` }}
+                />
+              ))}
+            </div>
+          </MetricPanel>
         </StaggerItem>
 
         <StaggerItem>
-        <MetricPanel label={t("dashboard.vsHuman")} value={lift} sub={t("dashboard.totalHypotheses")}>
-          <div className="mt-5 flex items-end gap-2">
-            {[sb?.confirmed ?? 0, sb?.refuted ?? 0, sb?.pending ?? 0].map((value, i) => {
-              const max = Math.max(1, sb?.confirmed ?? 0, sb?.refuted ?? 0, sb?.pending ?? 0);
-              return (
-                <div key={i} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex h-20 w-full items-end bg-[#0d0d10] rounded-sm overflow-hidden">
-                    <div
-                      className="w-full origin-bottom transition-transform duration-700 ease-out"
-                      style={{
-                        height: "100%",
-                        transform: `scaleY(${value / max})`,
-                        background: `linear-gradient(to top, var(--accent), rgba(127, 159, 144, ${0.3 + i * 0.2}))`,
-                      }}
-                    />
+          <MetricPanel
+            label={t("dashboard.vsHuman")}
+            value={lift}
+            sub={t("dashboard.totalHypotheses")}
+            icon={<TrendingUp size={16} />}
+          >
+            <div className="mt-5 flex items-end gap-2">
+              {[sb?.confirmed ?? 0, sb?.refuted ?? 0, sb?.pending ?? 0].map((value, i) => {
+                const max = Math.max(1, sb?.confirmed ?? 0, sb?.refuted ?? 0, sb?.pending ?? 0);
+                return (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-2">
+                    <div className="flex h-20 w-full items-end bg-[var(--code-bg)] rounded-sm overflow-hidden">
+                      <div
+                        className="w-full origin-bottom transition-transform duration-700 ease-out"
+                        style={{
+                          height: "100%",
+                          transform: `scaleY(${value / max})`,
+                          background: `linear-gradient(to top, var(--accent), rgba(127, 159, 144, ${0.3 + i * 0.2}))`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
+                      {[t("dashboard.confirmed"), t("dashboard.refuted"), t("dashboard.pending")][i]}
+                    </span>
                   </div>
-                  <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
-                    {[t("dashboard.confirmed"), t("dashboard.refuted"), t("dashboard.pending")][i]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </MetricPanel>
+                );
+              })}
+            </div>
+          </MetricPanel>
         </StaggerItem>
       </StaggerContainer>
 
       {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(460px,1.2fr)]">
+      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,0.7fr)_minmax(460px,1.3fr)]">
         <section>
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-balance">{t("dashboard.quickActions")}</h2>
+          <h2 className="text-lg font-semibold text-balance mb-1">{t("dashboard.quickActions")}</h2>
+          <div className="mt-4 space-y-0 divide-y divide-[var(--foreground)]/5">
+            <QuickAction
+              label={t("dashboard.newAnalysis")}
+              description={t("dashboard.newAnalysisDescription")}
+              href="/assistant"
+              icon={<Search size={18} />}
+            />
+            <QuickAction
+              label={t("dashboard.runSimulation")}
+              description={t("dashboard.runSimulationDescription")}
+              href="/simulation"
+              icon={<Play size={18} />}
+            />
+            <QuickAction
+              label={t("dashboard.startDebate")}
+              description={t("dashboard.startDebateDescription")}
+              href="/debate"
+              icon={<MessageSquare size={18} />}
+            />
           </div>
-          <QuickAction
-            label={t("dashboard.newAnalysis")}
-            description={t("dashboard.newAnalysisDescription")}
-            href="/assistant"
-            icon={
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-              </svg>
-            }
-          />
-          <QuickAction
-            label={t("dashboard.runSimulation")}
-            description={t("dashboard.runSimulationDescription")}
-            href="/simulation"
-            icon={
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 6v6l4 2" />
-              </svg>
-            }
-          />
-          <QuickAction
-            label={t("dashboard.startDebate")}
-            description={t("dashboard.startDebateDescription")}
-            href="/debate"
-            icon={
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-            }
-          />
         </section>
 
-        <section className="min-w-0">
+        <section className="min-w-0 rounded-2xl bg-[var(--background)] p-7">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h2 className="text-lg font-semibold text-balance">{t("dashboard.recentSessions")}</h2>
+            <Zap size={16} className="text-[var(--accent)]/60" />
           </div>
 
           {sessions && sessions.length > 0 ? (

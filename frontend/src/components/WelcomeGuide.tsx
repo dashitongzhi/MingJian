@@ -47,7 +47,7 @@ export default function WelcomeGuide() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4 animate-fadeIn">
           <div className="w-full max-w-2xl rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-6 shadow-2xl">
             <div className="mb-6">
               <h2 className="text-2xl font-bold">{t("welcome.title")}</h2>
