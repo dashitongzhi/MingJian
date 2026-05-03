@@ -1,9 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import Image from "next/image";
 import useSWR from "swr";
-import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules } from "@/lib/api";
+import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules, type StrategicSession } from "@/lib/api";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/ui/data-table";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 function SkeletonLine({ className = "" }: { className?: string }) {
@@ -187,6 +190,31 @@ export default function DashboardPage() {
   const accuracy = sb?.accuracy ?? null;
   const lift = sb?.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "—";
 
+  const sessionColumns = useMemo<ColumnDef<StrategicSession>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: t("dashboard.sessionName"),
+        cell: ({ row }) => row.original.name || row.original.topic,
+      },
+      {
+        accessorKey: "auto_refresh_enabled",
+        header: t("common.status"),
+        cell: ({ row }) => (
+          <span className="border border-[var(--card-border)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-[var(--muted-foreground)]">
+            {row.original.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "created_at",
+        header: t("dashboard.createdAt"),
+        cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
+      },
+    ],
+    [t],
+  );
+
   if (isLoading) return <DashboardSkeleton />;
 
   return (
@@ -324,36 +352,17 @@ export default function DashboardPage() {
         <section className="min-w-0">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h2 className="text-lg font-semibold text-balance">{t("dashboard.recentSessions")}</h2>
-            <a
-              href="/assistant"
-              className="text-sm text-[var(--accent)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-            >
-              {t("dashboard.viewAll")} →
-            </a>
           </div>
 
           {sessions && sessions.length > 0 ? (
-            <div className="divide-y divide-[var(--card-border)] border-y border-[var(--card-border)]">
-              {sessions.slice(0, 5).map((s, i) => (
-                <a
-                  key={s.id}
-                  href={`/assistant?session=${s.id}`}
-                  className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-4 py-4 outline-none transition-all duration-200 hover:bg-[var(--card)]/70 hover:pl-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                >
-                  <div className="font-mono text-xs text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{s.name || s.topic}</div>
-                    <div className="mt-1 truncate text-xs text-[var(--muted)]">
-                      {s.domain_id} · {s.subject_name || t("common.auto").toLowerCase()}
-                    </div>
-                  </div>
-                  <span className="border-l border-[var(--card-border)] pl-4 text-xs text-[var(--muted-foreground)]">
-                    {s.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
-                  </span>
-                </a>
-              ))}
-            </div>
+            <DataTable
+              columns={sessionColumns}
+              data={sessions.slice(0, 10)}
+              searchColumn="name"
+              searchPlaceholder={t("dashboard.sessionName") + "..."}
+              pageSize={5}
+              onRowClick={(s) => window.location.assign(`/assistant?session=${s.id}`)}
+            />
           ) : (
             <EmptySessions title={t("dashboard.noSessions")} description={t("dashboard.noSessionsDescription")} />
           )}

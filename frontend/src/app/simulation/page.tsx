@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { fetchSimulationRuns, fetchWorkbench, createSimulationRun } from "@/lib/api";
+import { fetchSimulationRuns, fetchWorkbench, createSimulationRun, type SimulationRun } from "@/lib/api";
+import type { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/ui/data-table";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 function MiniSkeleton({ rows = 5 }: { rows?: number }) {
@@ -90,6 +92,13 @@ function GeoAssetRow({ asset }: { asset: { name: string; asset_type: string; lat
   );
 }
 
+const statusColors: Record<string, { badge: string }> = {
+  COMPLETED: { badge: "border-[var(--accent-green)] text-[var(--accent-green)]" },
+  FAILED: { badge: "border-[var(--accent-red)] text-[var(--accent-red)]" },
+  RUNNING: { badge: "border-[var(--accent-yellow)] text-[var(--accent-yellow)]" },
+  PENDING: { badge: "border-[var(--accent-yellow)] text-[var(--accent-yellow)]" },
+};
+
 export default function SimulationPage() {
   const { t } = useTranslation();
   const { data: runs, error: runsError, isLoading: runsLoading, mutate } = useSWR("sim-runs", () => fetchSimulationRuns(30));
@@ -119,14 +128,40 @@ export default function SimulationPage() {
     }
   };
 
-  const statusColors: Record<string, { badge: string }> = {
-    COMPLETED: { badge: "border-[var(--accent-green)] text-[var(--accent-green)]" },
-    FAILED: { badge: "border-[var(--accent-red)] text-[var(--accent-red)]" },
-    RUNNING: { badge: "border-[var(--accent-yellow)] text-[var(--accent-yellow)]" },
-    PENDING: { badge: "border-[var(--accent-yellow)] text-[var(--accent-yellow)]" },
-  };
   const metrics = wb?.kpi_comparator?.metrics || [];
   const maxAbsDelta = useMemo(() => Math.max(0.001, ...metrics.map((m) => Math.abs(m.delta ?? 0))), [metrics]);
+
+  const runColumns = useMemo<ColumnDef<SimulationRun>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        header: "ID",
+        cell: ({ row }) => <span className="font-mono text-xs">{row.original.id.slice(0, 8)}</span>,
+      },
+      {
+        accessorKey: "status",
+        header: t("common.status"),
+        cell: ({ row }) => {
+          const s = statusColors[row.original.status] || statusColors.PENDING;
+          return <span className={`border px-2 py-0.5 font-mono text-[10px] ${s.badge}`}>{row.original.status}</span>;
+        },
+      },
+      {
+        accessorKey: "domain_id",
+        header: t("simulation.domain"),
+        cell: ({ row }) => <span className="capitalize">{row.original.domain_id}</span>,
+      },
+      {
+        accessorKey: "tick_count",
+        header: t("simulation.ticks"),
+      },
+      {
+        accessorKey: "actor_template",
+        header: t("simulation.actorTemplate"),
+      },
+    ],
+    [t],
+  );
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-8">
@@ -209,30 +244,14 @@ export default function SimulationPage() {
           )}
 
           {!runsLoading && !runsError && runs && runs.length > 0 && (
-            <div className="max-h-[calc(100vh-300px)] divide-y divide-[var(--card-border)] overflow-y-auto">
-              {runs.map((r) => {
-                const status = statusColors[r.status] || statusColors.PENDING;
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => setSel(r.id)}
-                    className={`w-full py-4 pl-4 pr-3 text-left transition-[background-color,transform,opacity] duration-200 hover:translate-x-1 ${
-                      sel === r.id ? "border-l border-[var(--accent)] bg-[var(--card)]" : "border-l border-transparent opacity-75 hover:opacity-100"
-                    }`}
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <span className="font-mono text-xs text-[var(--muted)]">{r.id.slice(0, 8)}</span>
-                      <span className={`border px-2 py-0.5 font-mono text-[10px] ${status.badge}`}>{r.status}</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted-foreground)]">
-                      <span className="capitalize">{r.domain_id}</span>
-                      <span>{r.tick_count} {t("simulation.ticks")}</span>
-                      <span>{r.actor_template}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <DataTable
+              columns={runColumns}
+              data={runs}
+              searchColumn="id"
+              searchPlaceholder="ID..."
+              pageSize={10}
+              onRowClick={(r) => setSel(r.id)}
+            />
           )}
         </aside>
 

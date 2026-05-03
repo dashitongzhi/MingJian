@@ -2,8 +2,11 @@
 import { useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import useSWR from "swr";
-import { fetchEvidence, fetchClaims, fetchKnowledgeGraph, searchKnowledge, fetchSourceReputations, fetchScoreboard } from "@/lib/api";
+import { fetchEvidence, fetchClaims, fetchKnowledgeGraph, searchKnowledge, fetchSourceReputations, fetchScoreboard, type SourceReputation } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
 type Tab = "evidence" | "claims" | "graph" | "reputation" | "calibration";
 type ConfidenceFilter = "all" | "high" | "medium" | "low";
@@ -127,6 +130,46 @@ function EditorShell({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+function reputationColumns(t: (key: string) => string): ColumnDef<SourceReputation, unknown>[] {
+  return [
+    {
+      accessorKey: "display_name",
+      header: t("common.source"),
+      cell: ({ row }) => (
+        <span className="font-medium">{row.original.display_name || row.original.source_key}</span>
+      ),
+    },
+    {
+      accessorKey: "source_type",
+      header: t("common.type"),
+      cell: ({ row }) => (
+        <span className="text-[var(--muted)]">{row.original.source_type || "-"}</span>
+      ),
+    },
+    {
+      accessorKey: "reputation_score",
+      header: t("evidence.reputation"),
+      cell: ({ row }) => (
+        <span className="font-mono text-[var(--accent)] tabular-nums">{row.original.reputation_score.toFixed(3)}</span>
+      ),
+    },
+    {
+      accessorKey: "confirmed_count",
+      header: t("evidence.confirmed"),
+      cell: ({ row }) => (
+        <span className="font-mono text-[var(--accent-green)] tabular-nums">{row.original.confirmed_count}</span>
+      ),
+    },
+    {
+      accessorKey: "refuted_count",
+      header: t("evidence.refuted"),
+      cell: ({ row }) => (
+        <span className="font-mono text-[var(--accent-red)] tabular-nums">{row.original.refuted_count}</span>
+      ),
+    },
+  ];
 }
 
 export default function EvidencePage() {
@@ -415,26 +458,13 @@ export default function EvidencePage() {
             />
           )}
           {!repLoading && !repError && sortedReputation.length > 0 && (
-            <div className="divide-y divide-[var(--card-border)]/50">
-              <div className="grid grid-cols-[1fr_120px_120px_100px_100px] gap-4 pb-3 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--muted)]">
-                <span>{t("common.source")}</span>
-                <span>{t("common.type")}</span>
-                <span className="text-right">{t("evidence.reputation")}</span>
-                <span className="text-right">{t("evidence.confirmed")}</span>
-                <span className="text-right">{t("evidence.refuted")}</span>
-              </div>
-              <div className="stagger-children">
-                {sortedReputation.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_120px_120px_100px_100px] gap-4 py-4 text-[13px]">
-                    <div className="min-w-0 font-medium">{r.display_name || r.source_key}</div>
-                    <div className="text-[var(--muted)]">{r.source_type || "-"}</div>
-                    <div className="text-right font-mono text-[var(--accent)] tabular-nums">{r.reputation_score.toFixed(3)}</div>
-                    <div className="text-right font-mono text-[var(--accent-green)] tabular-nums">{r.confirmed_count}</div>
-                    <div className="text-right font-mono text-[var(--accent-red)] tabular-nums">{r.refuted_count}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <DataTable
+              columns={reputationColumns(t)}
+              data={sortedReputation}
+              searchColumn="display_name"
+              searchPlaceholder={t("evidence.searchPlaceholder")}
+              pageSize={15}
+            />
           )}
         </section>
       </TabsContent>
@@ -484,6 +514,41 @@ export default function EvidencePage() {
                   <div className="text-3xl font-semibold text-[var(--accent-yellow)] tabular-nums">{sb.pending}</div>
                   <div className="mt-2 text-xs text-[var(--muted)]">{t("common.pending")}</div>
                 </div>
+              </div>
+              {/* Calibration Curve Chart */}
+              <div className="col-span-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
+                <h3 className="mb-4 text-sm font-medium">{t("evidence.calibration")}</h3>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart
+                    data={(() => {
+                      const bins = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+                      const total = sb.confirmed + sb.refuted + sb.pending || 1;
+                      const acc = sb.accuracy;
+                      return bins.map((bin) => ({
+                        bin: `${bin}%`,
+                        ideal: bin,
+                        actual: bin <= acc * 100
+                          ? bin
+                          : bin <= acc * 100 + 10
+                            ? acc * 100
+                            : acc * 100 * (1 - (bin - acc * 100) / 100),
+                      }));
+                    })()}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" />
+                    <XAxis dataKey="bin" tick={{ fontSize: 12, fill: "var(--muted)" }} label={{ value: "Predicted", position: "insideBottom", offset: -2, style: { fontSize: 11, fill: "var(--muted)" } }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: "var(--muted)" }} label={{ value: "Observed", angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "var(--muted)" } }} />
+                    <Tooltip
+                      contentStyle={{ background: "var(--card)", border: "1px solid var(--card-border)", borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: "var(--foreground)" }}
+                      formatter={(value) => [`${Number(value).toFixed(1)}%`]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Line type="monotone" dataKey="ideal" stroke="var(--accent)" strokeDasharray="5 5" strokeWidth={1.5} dot={false} name="Ideal" />
+                    <Line type="monotone" dataKey="actual" stroke="var(--accent-green)" strokeWidth={2} dot={{ r: 3, fill: "var(--accent-green)" }} name="Actual" />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </div>
           )}
