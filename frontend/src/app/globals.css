@@ -497,7 +497,31 @@ a {
   text-decoration: none;
 }
 
-/* ── Transition Utilities ─────────────────────────────────────────────────── */
+/* ── Transition Utilities ──────────────────────────────────────────────────── */
 .transition-smooth {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Mobile Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 0px;
+    --header-height: 52px;
+  }
+
+  body {
+    font-size: 15px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Ensure minimum touch target size */
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --sidebar-width: 220px;
+  }
 }
