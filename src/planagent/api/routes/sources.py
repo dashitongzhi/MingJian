@@ -10,6 +10,7 @@ from planagent.db import get_session
 from planagent.domain.api import SourceChangeRecordRead, SourceCursorStateRead
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import (
+    Claim,
     EventArchive,
     EvidenceItem,
     NormalizedItem,
@@ -226,3 +227,58 @@ async def _evidence_item_id_for_change(
         )
     ).first()
     return evidence.id if evidence is not None else None
+
+
+@router.get("/sources/reputation")
+async def list_source_reputations(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, object]]:
+    """列出数据源信誉评分"""
+    from sqlalchemy import case as sa_case
+    from sqlalchemy import func as sa_func
+
+    # Aggregate confirmed/refuted counts per source_type from evidence → claims
+    rows = list(
+        (
+            await session.execute(
+                select(
+                    RawSourceItem.source_type.label("source_type"),
+                    RawSourceItem.source_url.label("source_url"),
+                    sa_func.count(Claim.id).label("total"),
+                    sa_func.sum(
+                        sa_case((Claim.status == "ACCEPTED", 1), else_=0)
+                    ).label("confirmed"),
+                    sa_func.sum(
+                        sa_case((Claim.status == "REJECTED", 1), else_=0)
+                    ).label("refuted"),
+                )
+                .join(NormalizedItem, RawSourceItem.id == NormalizedItem.raw_source_item_id)
+                .join(EvidenceItem, NormalizedItem.id == EvidenceItem.normalized_item_id)
+                .join(Claim, Claim.evidence_item_id == EvidenceItem.id)
+                .group_by(RawSourceItem.source_type, RawSourceItem.source_url)
+                .order_by(sa_func.count(Claim.id).desc())
+            )
+        ).all()
+    )
+
+    results: list[dict[str, object]] = []
+    for row in rows:
+        total = int(row.total or 0)
+        confirmed = int(row.confirmed or 0)
+        refuted = int(row.refuted or 0)
+        verified = confirmed + refuted
+        reputation = round(confirmed / verified, 4) if verified > 0 else 0.5
+        noise = round(refuted / total, 4) if total > 0 else 0.0
+        results.append(
+            {
+                "source_key": row.source_url or row.source_type or "unknown",
+                "source_type": row.source_type,
+                "display_name": row.source_url or row.source_type,
+                "domain_id": "default",
+                "confirmed_count": confirmed,
+                "refuted_count": refuted,
+                "reputation_score": reputation,
+                "noise_rate": noise,
+            }
+        )
+    return results

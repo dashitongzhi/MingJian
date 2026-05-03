@@ -120,7 +120,7 @@ const zh: Translations = {
     roleAdvocate: "支持方",
     roleChallenger: "质询方",
     roleArbitrator: "裁决方",
-    onboardingTitle: "欢迎使用 PlanAgent",
+    onboardingTitle: "欢迎使用 明鉴",
     onboardingSubtitle: "您的 AI 决策智能平台",
     onboardingEnterTopic: "输入主题",
     onboardingEnterTopicDesc: "描述需要分析的战略问题",
@@ -241,7 +241,7 @@ const zh: Translations = {
   },
   welcome: {
     open: "打开欢迎指南",
-    title: "欢迎使用 PlanAgent",
+    title: "欢迎使用 明鉴",
     subtitle: "您的 AI 决策智能平台",
     strategicAssistant: "战略助手",
     strategicAssistantDescription: "输入任意主题，获取带多智能体辩论的实时 AI 分析",

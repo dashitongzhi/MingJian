@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 revision = "0019_prediction_backtest_records"
-down_revision = "0018_incremental_source_changes"
+down_revision = "0018a_prediction_core_tables"
 branch_labels = None
 depends_on = None
 

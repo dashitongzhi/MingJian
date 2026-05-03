@@ -753,6 +753,52 @@ async def search_knowledge_graph(
     return [KnowledgeSearchResultRead.model_validate(row) for row in rows]
 
 
+# ── Hypotheses Scoreboard ────────────────────────────────────────────────────
+
+
+@router.get("/hypotheses/scoreboard")
+async def hypotheses_scoreboard(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """预测校准总览（scoreboard）"""
+    from sqlalchemy import func as sa_func
+
+    total = await session.scalar(select(sa_func.count(Hypothesis.id)))
+    total = total or 0
+
+    confirmed = await session.scalar(
+        select(sa_func.count(Hypothesis.id)).where(
+            Hypothesis.verification_status == "CONFIRMED"
+        )
+    )
+    refuted = await session.scalar(
+        select(sa_func.count(Hypothesis.id)).where(
+            Hypothesis.verification_status == "REFUTED"
+        )
+    )
+    pending = await session.scalar(
+        select(sa_func.count(Hypothesis.id)).where(
+            Hypothesis.verification_status == "PENDING"
+        )
+    )
+    confirmed = confirmed or 0
+    refuted = refuted or 0
+    pending = pending or 0
+    verified = confirmed + refuted
+    accuracy = round(confirmed / verified, 4) if verified > 0 else 0.0
+
+    return {
+        "total_hypotheses": total,
+        "confirmed": confirmed,
+        "refuted": refuted,
+        "pending": pending,
+        "accuracy": accuracy,
+        "brier_score": None,
+        "human_baseline_accuracy": None,
+        "lift_over_human_baseline": None,
+    }
+
+
 # ── Calibration ──────────────────────────────────────────────────────────────
 
 

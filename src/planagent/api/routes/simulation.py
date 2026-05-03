@@ -82,6 +82,20 @@ async def create_simulation_run(
     return SimulationRunRead.model_validate(run)
 
 
+@router.get("/simulation/runs", response_model=list[SimulationRunRead])
+async def list_simulation_runs(
+    limit: int = 20,
+    domain_id: str | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> list[SimulationRunRead]:
+    """列出推演记录"""
+    query = select(SimulationRun).order_by(SimulationRun.created_at.desc())
+    if domain_id is not None:
+        query = query.where(SimulationRun.domain_id == domain_id)
+    runs = list((await session.scalars(query.limit(min(limit, 100)))).all())
+    return [SimulationRunRead.model_validate(r) for r in runs]
+
+
 @router.post("/scenario/runs/{simulation_run_id}", response_model=ScenarioRunRead, status_code=201)
 async def create_scenario_run(
     simulation_run_id: str,

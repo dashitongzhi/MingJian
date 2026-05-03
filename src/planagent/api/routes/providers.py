@@ -156,7 +156,7 @@ async def list_configured() -> list[dict[str, Any]]:
         if pid not in {p["id"] for p in PROVIDER_PRESETS}:
             result.append({
                 "id": pid,
-                "name": config.get("name", pid),
+                "name": config.get("name") or pid,
                 "base_url": config.get("base_url", ""),
                 "api_format": config.get("api_format", "openai"),
                 "models": [],

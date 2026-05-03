@@ -112,10 +112,10 @@ function ProviderCard({
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[var(--card-border)] bg-[var(--background)] text-sm font-semibold text-[var(--accent)]">
-            {provider.name.charAt(0)}
+            {(provider.name || "?").charAt(0)}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{provider.name}</div>
+            <div className="truncate text-sm font-medium">{provider.name || provider.id}</div>
             <div className="mt-1 truncate text-xs text-[var(--muted)]">{provider.base_url}</div>
           </div>
         </div>
@@ -314,7 +314,7 @@ function ConfigPanel({
   }, [provider.id, apiKey, baseUrl, model, apiFormat, onSaved, onClose, t]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm(`${t("providers.deleteConfirmPrefix")} ${provider.name}?`)) return;
+    if (!confirm(`${t("providers.deleteConfirmPrefix")} ${provider.name || provider.id}?`)) return;
     await deleteProvider(provider.id);
     onSaved();
     onClose();
@@ -328,7 +328,7 @@ function ConfigPanel({
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
           <div className="min-w-0">
-            <h3 className="truncate text-base font-semibold">{provider.name}</h3>
+            <h3 className="truncate text-base font-semibold">{provider.name || provider.id}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--background)] hover:text-[var(--foreground)]">

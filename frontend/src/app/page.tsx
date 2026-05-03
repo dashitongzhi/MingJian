@@ -6,7 +6,7 @@ import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules } fro
 import { useTranslation } from "@/contexts/LanguageContext";
 
 function SkeletonLine({ className = "" }: { className?: string }) {
-  return <div className={`motion-safe:animate-pulse rounded bg-[var(--card-border)]/50 ${className}`} />;
+  return <div className={`skeleton ${className}`} />;
 }
 
 function DashboardSkeleton() {
@@ -43,12 +43,12 @@ function DashboardSkeleton() {
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
-  return <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">{children}</div>;
+  return <div className="section-label">{children}</div>;
 }
 
 function ErrorNotice({ children }: { children: ReactNode }) {
   return (
-    <div className="border-l border-[var(--accent-red)] bg-[var(--accent-red-bg)] px-4 py-3 text-sm text-[var(--accent-red)]">
+    <div className="border-l-2 border-[var(--accent-red)] bg-[var(--accent-red-bg)] px-4 py-3 text-sm text-[var(--accent-red)] rounded-r-lg">
       {children}
     </div>
   );
@@ -86,19 +86,19 @@ function AccuracyMatrix({ accuracy, pending }: { accuracy: number | null; pendin
 
   return (
     <div className="mt-10">
-      <div className="grid grid-cols-6 gap-px bg-[var(--card-border)]/70">
+      <div className="grid grid-cols-6 gap-px bg-[var(--card-border)]/50">
         {Array.from({ length: 12 }).map((_, i) => (
           <div
             key={i}
-            className={`aspect-[1.7] motion-safe:transition-opacity ${
-              i < filled ? "bg-[var(--accent)]/80" : "bg-[#0f0e0c]"
+            className={`aspect-[1.7] transition-all duration-500 ${
+              i < filled ? "bg-[var(--accent)]/70" : "bg-[#0d0d10]"
             }`}
-            style={{ opacity: i < filled ? 0.45 + i * 0.035 : 1 }}
+            style={{ opacity: i < filled ? 0.5 + i * 0.035 : 1, transitionDelay: `${i * 40}ms` }}
           />
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-[var(--card-border)] pt-4 text-xs text-[var(--muted)]">
-        <span>{pending} {pending === 1 ? "pending" : "pending"}</span>
+        <span>{pending} pending</span>
         <span>{filled}/12 signal cells</span>
       </div>
     </div>
@@ -123,9 +123,9 @@ function QueueBars({ queues }: { queues: Array<{ queue: string; pending: number;
                 <span className="truncate font-mono text-[var(--muted-foreground)]">{q.queue}</span>
                 <span className="text-[var(--muted)]">{total}</span>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden bg-[#0f0e0c]">
+              <div className="mt-2 h-1.5 overflow-hidden bg-[#0d0d10] rounded-full">
                 <div
-                  className="h-full origin-left bg-[var(--accent)]/75 motion-safe:transition-transform"
+                  className="h-full origin-left bg-[var(--accent)]/70 transition-transform duration-700 ease-out rounded-full"
                   style={{ transform: `scaleX(${total / max})` }}
                 />
               </div>
@@ -144,24 +144,26 @@ function QuickAction({ label, description, icon, href }: { label: string; descri
   return (
     <a
       href={href}
-      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 border-t border-[var(--card-border)] py-5 outline-none motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 border-t border-[var(--card-border)] py-5 outline-none transition-all duration-200 hover:bg-[var(--card)]/50 hover:pl-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
     >
-      <div className="flex h-8 w-8 items-center justify-center text-[var(--accent)]">{icon}</div>
+      <div className="flex h-8 w-8 items-center justify-center text-[var(--accent)] transition-transform duration-300 group-hover:scale-110">
+        {icon}
+      </div>
       <div className="min-w-0">
         <div className="text-sm font-medium text-[var(--foreground)]">{label}</div>
-        <div className="mt-1 text-sm text-[var(--muted)]">{description}</div>
+        <div className="mt-1 text-[13px] text-[var(--muted)] leading-relaxed">{description}</div>
       </div>
-      <div className="pt-1 text-[var(--muted)] motion-safe:transition-transform group-hover:translate-x-1">→</div>
+      <div className="pt-1 text-[var(--muted)] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-[var(--accent)]">→</div>
     </a>
   );
 }
 
 function EmptySessions({ title, description }: { title: string; description: string }) {
   return (
-    <div className="border-t border-[var(--card-border)] py-12">
+    <div className="border-t border-[var(--card-border)] py-14">
       <div className="max-w-sm">
         <div className="text-sm font-medium text-[var(--foreground)]">{title}</div>
-        <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</div>
+        <div className="mt-2 text-[13px] leading-relaxed text-[var(--muted)]">{description}</div>
       </div>
     </div>
   );
@@ -188,12 +190,14 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-10">
+      {/* ── Hero Header ──────────────────────────────────────────────────────── */}
       <header className="relative overflow-hidden border-b border-[var(--card-border)] pb-8">
-        <div className="absolute right-0 top-0 h-24 w-64 bg-[var(--accent)]/10 blur-3xl" />
+        <div className="absolute right-0 top-0 h-32 w-80 bg-[var(--accent)]/5 blur-3xl rounded-full" />
+        <div className="absolute left-1/2 -top-16 h-48 w-96 bg-[var(--accent)]/3 blur-3xl rounded-full" />
         <div className="relative flex items-end justify-between gap-6">
           <div className="max-w-3xl">
             <div className="flex items-center gap-3">
-              <img src="/mingjian-icon.jpg" alt="明鉴" className="h-10 w-10 rounded object-cover" />
+              <img src="/mingjian-icon.jpg" alt="明鉴" className="h-10 w-10 rounded-lg object-cover" />
               <SectionLabel>{t("dashboard.welcome")}</SectionLabel>
             </div>
             <h1 className="mt-5 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-balance">
@@ -213,7 +217,8 @@ export default function DashboardPage() {
         </ErrorNotice>
       )}
 
-      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg bg-[var(--card-border)] lg:grid-cols-12">
+      {/* ── Bento Grid ───────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl bg-[var(--card-border)]/50 lg:grid-cols-12 stagger-children">
         <MetricPanel
           large
           label={t("dashboard.predictionAccuracy")}
@@ -236,11 +241,14 @@ export default function DashboardPage() {
         </MetricPanel>
 
         <MetricPanel label={t("dashboard.watchRules")} value={rules ? activeRules : "—"} sub={t("dashboard.activeMonitors")}>
-          <div className="mt-6 grid grid-cols-8 gap-px bg-[var(--card-border)]/70">
+          <div className="mt-6 grid grid-cols-8 gap-px bg-[var(--card-border)]/50">
             {Array.from({ length: Math.max(8, rules?.length || 8) }).slice(0, 24).map((_, i) => (
               <div
                 key={i}
-                className={`aspect-square ${rules && i < rules.length && rules[i].enabled ? "bg-[var(--accent)]/70" : "bg-[#0f0e0c]"}`}
+                className={`aspect-square transition-all duration-300 ${
+                  rules && i < rules.length && rules[i].enabled ? "bg-[var(--accent)]/60" : "bg-[#0d0d10]"
+                }`}
+                style={{ transitionDelay: `${i * 30}ms` }}
               />
             ))}
           </div>
@@ -252,10 +260,14 @@ export default function DashboardPage() {
               const max = Math.max(1, sb?.confirmed ?? 0, sb?.refuted ?? 0, sb?.pending ?? 0);
               return (
                 <div key={i} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex h-20 w-full items-end bg-[#0f0e0c]">
+                  <div className="flex h-20 w-full items-end bg-[#0d0d10] rounded-sm overflow-hidden">
                     <div
-                      className="w-full origin-bottom bg-[var(--accent)]/70 motion-safe:transition-transform"
-                      style={{ height: "100%", transform: `scaleY(${value / max})`, opacity: 0.45 + i * 0.18 }}
+                      className="w-full origin-bottom transition-transform duration-700 ease-out"
+                      style={{
+                        height: "100%",
+                        transform: `scaleY(${value / max})`,
+                        background: `linear-gradient(to top, var(--accent), rgba(127, 159, 144, ${0.3 + i * 0.2}))`,
+                      }}
                     />
                   </div>
                   <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">
@@ -268,6 +280,7 @@ export default function DashboardPage() {
         </MetricPanel>
       </div>
 
+      {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(460px,1.2fr)]">
         <section>
           <div className="mb-2 flex items-center justify-between">
@@ -278,7 +291,7 @@ export default function DashboardPage() {
             description={t("dashboard.newAnalysisDescription")}
             href="/assistant"
             icon={
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.35-4.35" />
               </svg>
@@ -289,7 +302,7 @@ export default function DashboardPage() {
             description={t("dashboard.runSimulationDescription")}
             href="/simulation"
             icon={
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <path d="M12 6v6l4 2" />
               </svg>
@@ -300,7 +313,7 @@ export default function DashboardPage() {
             description={t("dashboard.startDebateDescription")}
             href="/debate"
             icon={
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             }
@@ -324,7 +337,8 @@ export default function DashboardPage() {
                 <a
                   key={s.id}
                   href={`/assistant?session=${s.id}`}
-                  className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-4 py-4 outline-none motion-safe:transition-colors hover:bg-[var(--card)]/70 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                  className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-4 py-4 outline-none transition-all duration-200 hover:bg-[var(--card)]/70 hover:pl-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                  style={{ animationDelay: `${i * 60}ms` }}
                 >
                   <div className="font-mono text-xs text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</div>
                   <div className="min-w-0">

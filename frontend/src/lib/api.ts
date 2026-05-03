@@ -35,8 +35,14 @@ export const fetchSimulationRuns = (limit = 20) => fetch_<SimulationRun[]>(`/sim
 export const fetchWorkbench = (runId: string) => fetch_<WorkbenchData>(`/runs/${runId}/workbench`);
 export const createSimulationRun = (data: Record<string, unknown>) => fetch_<SimulationRun>("/simulation/runs", { method: "POST", body: JSON.stringify(data) });
 export const fetchDebateDetail = (id: string) => fetch_<DebateDetail>(`/debates/${id}`);
-export const fetchEvidence = (limit = 50) => fetch_<Array<{ id: string; title: string; summary: string; confidence: number; created_at: string }>>(`/evidence?limit=${limit}`);
-export const fetchClaims = (limit = 50) => fetch_<Array<{ id: string; statement: string; confidence: number; status: string }>>(`/claims?limit=${limit}`);
+export const fetchEvidence = async (limit = 50) => {
+  const res = await fetch_<{ items: Array<{ id: string; title: string; summary: string; confidence: number; created_at: string }>; total: number }>(`/evidence?limit=${limit}`);
+  return res.items;
+};
+export const fetchClaims = async (limit = 50) => {
+  const res = await fetch_<{ items: Array<{ id: string; statement: string; confidence: number; status: string }>; total: number }>(`/claims?limit=${limit}`);
+  return res.items;
+};
 export const fetchKnowledgeGraph = (limit = 100) => fetch_<{ nodes: Array<{ node_id: string; label: string; node_type: string }>; edges: Array<{ source_id: string; target_id: string; relation_type: string }> }>(`/knowledge/graph?limit=${limit}`);
 export const searchKnowledge = (q: string) => fetch_<Array<{ node_id: string; label: string; score: number }>>(`/knowledge/search?q=${encodeURIComponent(q)}`);
 export const fetchScoreboard = () => fetch_<PredictionScoreboard>("/hypotheses/scoreboard");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import { fetchSessions, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
@@ -357,6 +357,12 @@ export default function AssistantPage() {
         ctrl.signal
       );
       refreshSessions();
+      // Plan A: refresh all cross-page SWR caches
+      globalMutate("sim-runs");
+      globalMutate("ev");
+      globalMutate("cl");
+      globalMutate("scoreboard");
+      globalMutate("health");
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== "AbortError") setError(err.message);
     } finally {
