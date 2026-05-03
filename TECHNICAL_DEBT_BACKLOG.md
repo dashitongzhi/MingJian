@@ -1,16 +1,15 @@
 # Technical Debt Backlog
 
-## 1. 向量搜索的性能瓶颈 (API 层)
-- **位置**: `src/planagent/api/routes.py` 中的 `search_knowledge_graph` 路由。
-- **现状**: 目前实现相似度搜索的方式是从数据库中取出最多 1000 个节点，然后在 Python 内存中循环计算 `cosine_similarity` 并排序。
-- **建议**: 项目依赖中已经引入了 `pgvector`。建议将这部分逻辑下推到数据库层，利用 PostgreSQL 的 `pgvector` 扩展直接进行向量相似度查询（例如 `ORDER BY embedding <=> :query_vector`）。这能极大提升查询性能，并在知识图谱节点数量增多时保证系统的可扩展性。
+## ~~1. 向量搜索的性能瓶颈 (API 层)~~ ✅ 已解决
+- **解决方案**: 使用 pgvector 原生向量类型替代 JSON 存储
+- **提交**: `2af52b7`, `edd289a`
+- **实现**: 新增 `embedding_vector` 列 (vector(64)) + HNSW 索引，使用 `<=>` 余弦距离运算符
+- **迁移**: `0021_pgvector_embedding.py`
 
-## 2. 路由模块过于庞大 (API 层)
-- **位置**: `src/planagent/api/routes.py`。
-- **现状**: 该文件目前充当了一个“上帝对象”（God file），包含了所有域（分析、模拟、知识图谱、Watch Rules、系统监控等）的路由和大量辅助逻辑。同时，使用 `request.app.state` 来挂载并获取 Service（如 `ensure_app_services`）的方式略显原始。
-- **建议**: 
-  1. 将 `routes.py` 拆分为多个具体的领域路由模块（例如 `routes/analysis.py`, `routes/simulation.py`, `routes/ingest.py`），然后在 `main.py` 中集中 `include_router`。
-  2. 更多地利用 FastAPI 原生的依赖注入（`Depends`）系统来注入各个 Service，而不是依赖在 `request.app.state` 上手动挂载，提升类型安全并降低路由与应用状态的耦合。
+## ~~2. 路由模块过于庞大 (API 层)~~ ✅ 已解决
+- **解决方案**: 已拆分为独立路由模块
+- **位置**: `src/planagent/api/routes/` 目录下
+- **文件**: admin.py, analysis.py, evidence.py, monitoring.py, prediction.py, providers.py, simulation.py, sources.py
 
 ## 3. 数据库初始化逻辑包含硬编码迁移 (数据库层)
 - **位置**: `src/planagent/db.py` 中的 `init_models` 方法。
