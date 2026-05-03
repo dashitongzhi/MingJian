@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -115,8 +115,13 @@ async def analyze_content_stream(
 
 
 @router.get("/console")
-async def strategic_console() -> FileResponse:
-    return FileResponse(_CONSOLE_HTML, media_type="text/html")
+async def strategic_console():
+    if _CONSOLE_HTML.exists():
+        return FileResponse(str(_CONSOLE_HTML), media_type="text/html")
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Strategic console UI not yet available. Use the frontend at :3001 instead."},
+    )
 
 
 @router.post("/assistant/runs", response_model=StrategicAssistantResponse, status_code=201)
