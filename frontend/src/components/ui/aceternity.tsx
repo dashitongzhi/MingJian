@@ -164,13 +164,16 @@ export function StaggerContainer({
 export function StaggerItem({
   children,
   className = "",
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <motion.div
       className={className}
+      style={style}
       variants={{
         hidden: { opacity: 0, y: 20, filter: "blur(5px)" },
         visible: {
@@ -183,5 +186,65 @@ export function StaggerItem({
     >
       {children}
     </motion.div>
+  );
+}
+
+export function LiquidGlassCard({
+  children,
+  className = "",
+  hover = true,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  hover?: boolean;
+}) {
+  return (
+    <motion.div
+      className={`liquid-glass iridescent noise-texture relative overflow-hidden rounded-2xl ${className}`}
+      whileHover={hover ? { y: -2, scale: 1.005 } : undefined}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+    >
+      {/* Top refraction edge */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      {children}
+    </motion.div>
+  );
+}
+
+export function PremiumGradientText({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`bg-gradient-to-b from-[var(--foreground)] to-[var(--muted-foreground)] bg-clip-text text-transparent ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function GradientProgressBar({
+  value,
+  max = 100,
+  className = "",
+}: {
+  value: number;
+  max?: number;
+  className?: string;
+}) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  return (
+    <div className={`gradient-progress ${className}`}>
+      <motion.div
+        className="gradient-progress-fill"
+        initial={{ width: 0 }}
+        animate={{ width: `${pct}%` }}
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+      />
+    </div>
   );
 }

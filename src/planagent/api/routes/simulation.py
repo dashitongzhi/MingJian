@@ -399,6 +399,17 @@ async def get_scenario_report(
     return GeneratedReportModel.model_validate(report)
 
 
+@router.get("/debates", response_model=list[DebateSummaryRead])
+async def list_debates(
+    request: Request,
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session),
+) -> list[DebateSummaryRead]:
+    """List all debates, newest first."""
+    service = get_debate_service(request)
+    return await service.list_all_debates(session, limit=limit)
+
+
 @router.get("/debates/{debate_id}", response_model=DebateDetailRead)
 async def get_debate(
     debate_id: str,

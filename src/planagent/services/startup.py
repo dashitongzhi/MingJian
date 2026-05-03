@@ -10,7 +10,9 @@ from planagent.domain.api import StartupKPICardRead, StartupKPIPackRead
 from planagent.domain.models import SimulationRun
 
 AGENT_STARTUP_PRESET_ID = "agent_startup"
-_EXAMPLE_ROOT = Path(__file__).resolve().parents[3] / "examples" / "agent_startup"
+_DEV_EXAMPLE_ROOT = Path(__file__).resolve().parents[3] / "examples" / "agent_startup"
+_CONTAINER_EXAMPLE_ROOT = Path("/app/examples/agent_startup")
+_EXAMPLE_ROOT = _DEV_EXAMPLE_ROOT if _DEV_EXAMPLE_ROOT.exists() else _CONTAINER_EXAMPLE_ROOT
 _SCENARIO_FILES = {
     "baseline": "baseline_simulation.json",
     "upside": "upside_simulation.json",

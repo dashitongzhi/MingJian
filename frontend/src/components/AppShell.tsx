@@ -106,11 +106,11 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               href={item.href}
               onClick={onNavClick}
               className={`
-                relative flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium
-                transition-colors duration-150 min-h-[36px] group
+                relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium
+                transition-all duration-200 min-h-[36px] group
                 ${isActive
-                  ? "text-[var(--foreground)]"
-                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]"
+                  ? "text-[var(--foreground)] bg-[var(--card)]"
+                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]/60"
                 }
               `}
             >
@@ -118,7 +118,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               {isActive && (
                 <motion.div
                   layoutId="nav-active-indicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-full bg-[var(--accent)]"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-[var(--accent)] shadow-sm shadow-[var(--accent)]/30"
                   transition={{ type: "spring", stiffness: 380, damping: 30 }}
                 />
               )}
@@ -175,7 +175,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* ── Desktop Sidebar ───────────────────────────────────────────────── */}
-      <aside className="hidden md:flex w-[var(--sidebar-width)] backdrop-blur-md bg-[var(--sidebar)]/80 flex-col border-r border-[var(--card-border)]/50">
+      <aside className="hidden md:flex w-[var(--sidebar-width)] glass flex-col">
         <SidebarContent />
       </aside>
 
@@ -202,7 +202,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Main Content ───────────────────────────────────────────────────── */}
       <main className="flex-1 overflow-auto min-w-0">
-        <header className="h-[var(--header-height)] border-b border-[var(--card-border)] glass sticky top-0 z-10 flex items-center justify-between px-4 md:px-6">
+        <header className="h-[var(--header-height)] glass sticky top-0 z-10 flex items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-3">
             {/* Mobile hamburger */}
             <button

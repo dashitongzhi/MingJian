@@ -380,6 +380,30 @@ class DebateService:
             updated_at=debate.updated_at,
         )
 
+    async def list_all_debates(self, session: AsyncSession, limit: int = 50) -> list[DebateSummaryRead]:
+        """List all debates across all runs, newest first."""
+        sessions = list(
+            (
+                await session.scalars(
+                    select(DebateSessionRecord)
+                    .order_by(DebateSessionRecord.created_at.desc())
+                    .limit(limit)
+                )
+            ).all()
+        )
+        verdicts = await self._load_verdicts(session, [item.id for item in sessions])
+        return [
+            DebateSummaryRead(
+                debate_id=item.id,
+                topic=item.topic,
+                trigger_type=item.trigger_type,
+                verdict=verdicts.get(item.id).verdict if item.id in verdicts else None,
+                confidence=verdicts.get(item.id).confidence if item.id in verdicts else None,
+                created_at=item.created_at,
+            )
+            for item in sessions
+        ]
+
     async def list_run_debates(self, session: AsyncSession, run_id: str) -> list[DebateSummaryRead]:
         sessions = list(
             (

@@ -34,7 +34,9 @@ export const fetchSessionDetail = (id: string) => fetch_<StrategicSessionDetail>
 export const fetchSimulationRuns = (limit = 20) => fetch_<SimulationRun[]>(`/simulation/runs?limit=${limit}`);
 export const fetchWorkbench = (runId: string) => fetch_<WorkbenchData>(`/runs/${runId}/workbench`);
 export const createSimulationRun = (data: Record<string, unknown>) => fetch_<SimulationRun>("/simulation/runs", { method: "POST", body: JSON.stringify(data) });
+export interface DebateSummary { debate_id: string; topic: string; trigger_type: string; verdict: string | null; confidence: number | null; created_at: string }
 export const fetchDebateDetail = (id: string) => fetch_<DebateDetail>(`/debates/${id}`);
+export const fetchDebates = (limit = 50) => fetch_<DebateSummary[]>(`/debates?limit=${limit}`);
 export const fetchEvidence = async (limit = 50) => {
   const res = await fetch_<{ items: Array<{ id: string; title: string; summary: string; confidence: number; created_at: string }>; total: number }>(`/evidence?limit=${limit}`);
   return res.items;

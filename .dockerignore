@@ -43,5 +43,4 @@ Thumbs.db
 *.md
 !README.md
 docs/
-examples/
 tests/

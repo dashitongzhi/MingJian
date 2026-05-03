@@ -17,6 +17,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY rules ./rules
 COPY migrations ./migrations
+COPY examples ./examples
 COPY alembic.ini ./
 
 RUN pip install --no-cache-dir .

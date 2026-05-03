@@ -27,7 +27,7 @@ function SkeletonLine({ className = "" }: { className?: string }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       <div className="flex items-end justify-between gap-6">
         <div className="space-y-3">
           <SkeletonLine className="h-5 w-28" />
@@ -87,18 +87,21 @@ function MetricPanel({
 }) {
   return (
     <section
-      className={`group relative overflow-hidden p-7 transition-all duration-300 ease-out
-        hover:-translate-y-0.5 hover:bg-[var(--card)]
+      className={`group relative overflow-hidden liquid-glass iridescent
+        hover:-translate-y-0.5
         ${large
-          ? "rounded-2xl bg-[var(--card)] lg:col-span-8 lg:row-span-2 p-8"
-          : "rounded-2xl bg-[var(--card)] lg:col-span-4 p-7"
+          ? "rounded-2xl p-8"
+          : "rounded-2xl p-7"
         }`}
     >
-      {/* Subtle accent glow on hover */}
+      {/* Top edge light refraction */}
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      {/* Bottom edge shadow */}
+      <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-black/5 to-transparent" />
+      {/* Accent glow on hover */}
       <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
         style={{
-          background: "radial-gradient(ellipse at 30% 20%, var(--accent) 0%, transparent 70%)",
-          opacity: 0,
+          background: "radial-gradient(ellipse at 30% 20%, rgba(127,159,144,0.06) 0%, transparent 60%)",
         }}
       />
       <div className="relative z-10">
@@ -255,11 +258,10 @@ export default function DashboardPage() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
       {/* ── Hero Header ──────────────────────────────────────────────────────── */}
-      <header className="relative pb-6">
-        <div className="absolute right-0 top-0 h-32 w-80 bg-[var(--accent)]/5 blur-3xl rounded-full" />
-        <div className="absolute left-1/2 -top-16 h-48 w-96 bg-[var(--accent)]/3 blur-3xl rounded-full" />
+      <header className="relative pb-4">
+        <div className="absolute right-0 top-0 h-24 w-64 bg-[var(--accent)]/4 blur-3xl rounded-full" />
         <TextReveal>
           <div className="relative">
             <div className="flex items-center gap-3 mb-4">
@@ -283,8 +285,9 @@ export default function DashboardPage() {
       )}
 
       {/* ── Bento Grid ───────────────────────────────────────────────────────── */}
-      <StaggerContainer className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <StaggerItem>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:grid-rows-[auto_auto_auto]"
+        style={{gridTemplateAreas: `'a b c' 'a d e' 'f f f'`}}>
+        <StaggerItem className="min-w-0 lg:col-span-8 lg:row-span-2" style={{gridArea: 'a'}}>
           <MetricPanel
             large
             label={t("dashboard.predictionAccuracy")}
@@ -296,7 +299,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem>
+        <StaggerItem className="min-w-0" style={{gridArea: 'b'}}>
           <MetricPanel
             label={t("dashboard.activeSessions")}
             value={sessions ? activeSessions : "—"}
@@ -311,7 +314,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem>
+        <StaggerItem className="min-w-0" style={{gridArea: 'd'}}>
           <MetricPanel
             label={t("dashboard.queueHealth")}
             value={health ? pendingItems : "—"}
@@ -322,7 +325,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem>
+        <StaggerItem className="min-w-0" style={{gridArea: 'e'}}>
           <MetricPanel
             label={t("dashboard.watchRules")}
             value={rules ? activeRules : "—"}
@@ -343,7 +346,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem>
+        <StaggerItem className="min-w-0" style={{gridArea: 'f'}}>
           <MetricPanel
             label={t("dashboard.vsHuman")}
             value={lift}
@@ -374,10 +377,10 @@ export default function DashboardPage() {
             </div>
           </MetricPanel>
         </StaggerItem>
-      </StaggerContainer>
+      </div>
 
       {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,0.7fr)_minmax(460px,1.3fr)]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,0.7fr)_minmax(460px,1.3fr)]">
         <section>
           <h2 className="text-lg font-semibold text-balance mb-1">{t("dashboard.quickActions")}</h2>
           <div className="mt-4 space-y-0 divide-y divide-[var(--foreground)]/5">
@@ -402,7 +405,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="min-w-0 rounded-2xl bg-[var(--background)] p-7">
+        <section className="min-w-0 rounded-2xl liquid-glass p-7">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h2 className="text-lg font-semibold text-balance">{t("dashboard.recentSessions")}</h2>
             <Zap size={16} className="text-[var(--accent)]/60" />

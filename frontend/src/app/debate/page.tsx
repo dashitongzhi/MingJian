@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import useSWR from "swr";
-import { fetchDebateDetail, type DebateRound } from "@/lib/api";
+import { fetchDebateDetail, fetchDebates, type DebateRound, type DebateSummary } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
 
@@ -124,6 +124,7 @@ export default function DebatePage() {
   const [inputId, setInputId] = useState("");
   const [qId, setQId] = useState<string | null>(null);
   const { data: debate, error, isLoading } = useSWR(qId ? `debate-${qId}` : null, () => fetchDebateDetail(qId!));
+  const { data: debateList } = useSWR("debates-list", () => fetchDebates(20), { refreshInterval: 30000 });
 
   const grouped = (debate?.rounds || []).reduce<Record<number, DebateRound[]>>((a, r) => {
     (a[r.round_number] ??= []).push(r);
@@ -264,7 +265,49 @@ export default function DebatePage() {
         </div>
       ) : (
         !error && !isLoading && (
-          <StateBlock title={t("debate.enterDebateId")} description={t("debate.enterDebateIdDescription")} />
+          <section>
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">{t("debate.recentDebates") || "最近辩论"}</h2>
+              <span className="text-xs text-[var(--muted)] font-mono">{debateList?.length || 0} {t("debate.total") || "场辩论"}</span>
+            </div>
+            {debateList && debateList.length > 0 ? (
+              <div className="space-y-3">
+                {debateList.map((d) => (
+                  <button
+                    key={d.debate_id}
+                    onClick={() => { setQId(d.debate_id); setInputId(d.debate_id); }}
+                    className="w-full text-left group liquid-glass rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
+                          {d.trigger_type} · {new Date(d.created_at).toLocaleDateString("zh-CN")}
+                        </div>
+                        <h3 className="text-sm font-medium leading-relaxed text-[var(--foreground)] group-hover:text-[var(--accent)] transition-colors">
+                          {d.topic}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {d.verdict && (
+                          <span className={`badge ${d.verdict === "support" ? "badge-success" : d.verdict === "reject" ? "badge-error" : ""}`}>
+                            {d.verdict}
+                          </span>
+                        )}
+                        {d.confidence != null && (
+                          <span className="font-mono text-xs text-[var(--muted)]">
+                            {(d.confidence * 100).toFixed(0)}%
+                          </span>
+                        )}
+                        <span className="text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors">→</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <StateBlock title={t("debate.enterDebateId")} description={t("debate.enterDebateIdDescription") || "输入辩论ID或通过战略助手发起辩论"} />
+            )}
+          </section>
         )
       )}
     </div>
