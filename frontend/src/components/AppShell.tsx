@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
+import CommandPalette from "@/components/CommandPalette";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   LayoutDashboard,
@@ -228,6 +229,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="p-4 md:p-6 animate-fadeIn">{children}</div>
       </main>
+
+      {/* ── Global Command Palette (⌘K) ──────────────────────────────── */}
+      <CommandPalette />
     </div>
   );
 }

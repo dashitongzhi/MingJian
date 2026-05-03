@@ -18,6 +18,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:  # pragma: no cover – SQLite / no-pgvector envs
+    Vector = None  # type: ignore[assignment,misc]
+
 from planagent.domain.enums import (
     ClaimStatus,
     ExecutionMode,
@@ -313,6 +318,12 @@ class KnowledgeGraphNode(Base):
     source_table: Mapped[str] = mapped_column(String(64), nullable=False)
     source_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     embedding: Mapped[list[float]] = mapped_column(JSON, default=list, nullable=False)
+    # Native pgvector column for fast similarity search (PostgreSQL only).
+    # Kept nullable so SQLite backends and existing rows are unaffected.
+    embedding_vector = mapped_column(
+        Vector(64) if Vector is not None else Text(),  # type: ignore[arg-type]
+        nullable=True,
+    )
     embedding_model: Mapped[str | None] = mapped_column(String(120))
     node_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

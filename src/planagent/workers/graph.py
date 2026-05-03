@@ -245,12 +245,14 @@ class GraphWorker(Worker):
     ) -> KnowledgeGraphNode:
         node = cache.get(node_key)
         normalized_label = normalize_text(label)[:500]
+        vec = self._embed_text(f"{node_type} {label}", self.settings.graph_embedding_dimensions)
         if node is None:
             node = KnowledgeGraphNode(
                 node_key=node_key, label=normalized_label, node_type=node_type,
                 tenant_id=tenant_id, preset_id=preset_id,
                 source_table=source_table, source_id=source_id,
-                embedding=self._embed_text(f"{node_type} {label}", self.settings.graph_embedding_dimensions),
+                embedding=vec,
+                embedding_vector=vec,
                 embedding_model="hashing-v1", node_metadata=metadata,
             )
             session.add(node)
@@ -263,7 +265,8 @@ class GraphWorker(Worker):
         node.preset_id = preset_id
         node.source_table = source_table
         node.source_id = source_id
-        node.embedding = self._embed_text(f"{node_type} {label}", self.settings.graph_embedding_dimensions)
+        node.embedding = vec
+        node.embedding_vector = vec
         node.embedding_model = "hashing-v1"
         node.node_metadata = metadata
         node.updated_at = utc_now()
@@ -345,6 +348,16 @@ ORDER BY score DESC
 LIMIT :limit
 """
 
+# Native pgvector query — uses the <=> cosine-distance operator for index-backed search.
+_PGVECTOR_SIMILARITY_SQL = """
+SELECT node_key, label, node_type, node_metadata,
+       1 - (embedding_vector <=> :query_vector::vector) AS score
+FROM knowledge_graph_nodes
+WHERE embedding_vector IS NOT NULL
+ORDER BY embedding_vector <=> :query_vector::vector
+LIMIT :limit
+"""
+
 
 async def search_nodes_sql(
     session, query_vector: list[float], tenant_id: str | None, limit: int
@@ -355,6 +368,34 @@ async def search_nodes_sql(
 
     engine = session.get_bind()
     if engine.dialect.name == "postgresql":
+        # Format the vector as a pgvector literal: '[0.1,0.2,...]'
+        vec_literal = "[" + ",".join(str(v) for v in query_vector) + "]"
+
+        # Try native pgvector first (fast, index-backed).
+        try:
+            node_query = text(_PGVECTOR_SIMILARITY_SQL).bindparams(
+                query_vector=vec_literal,
+                limit=limit,
+            )
+            result = await session.execute(node_query)
+            rows = list(result.mappings().all())
+            if rows:
+                return [
+                    {
+                        "node_id": row["node_key"],
+                        "label": row["label"],
+                        "node_type": row["node_type"],
+                        "score": round(float(row["score"]), 4),
+                        "metadata": row["node_metadata"] or {},
+                    }
+                    for row in rows
+                ]
+        except Exception:
+            # embedding_vector column may not exist yet (pre-migration) —
+            # fall through to the legacy JSON-based query.
+            pass
+
+        # Legacy JSON-based fallback (pre-pgvector data)
         import json
 
         norm = math.sqrt(sum(v * v for v in query_vector)) or 1.0

@@ -92,6 +92,11 @@ class Database:
                     await connection.execute(
                         text("ALTER TABLE knowledge_graph_nodes ADD COLUMN embedding_model VARCHAR(120)")
                     )
+                # pgvector column — store as TEXT on SQLite (not used for search there)
+                if graph_rows and "embedding_vector" not in graph_column_names:
+                    await connection.execute(
+                        text("ALTER TABLE knowledge_graph_nodes ADD COLUMN embedding_vector TEXT")
+                    )
                 hypothesis_rows = (await connection.execute(text("PRAGMA table_info(hypotheses)"))).all()
                 hypothesis_column_names = {row[1] for row in hypothesis_rows}
                 if hypothesis_rows and "prediction_version_id" not in hypothesis_column_names:
