@@ -1,8 +1,9 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_PUBLIC_API_URL=/api
+ENV npm_config_fetch_retries=5
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 COPY . .
 RUN npm run build
 
