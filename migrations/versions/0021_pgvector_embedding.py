@@ -44,7 +44,7 @@ def upgrade() -> None:
             ) || ']'
         )::vector(64)
         WHERE embedding IS NOT NULL
-          AND embedding != '[]'::jsonb
+          AND embedding::jsonb != '[]'::jsonb
           AND embedding_vector IS NULL
         """
     )
