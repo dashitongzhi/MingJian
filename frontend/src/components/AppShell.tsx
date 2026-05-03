@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 const NAV_ITEMS = [
@@ -254,6 +255,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="text-[11px] text-[var(--muted)] font-medium">{t("layout.systemOnline")}</span>
             </div>
             <LanguageSwitcher />
+            <ThemeToggle />
             <WelcomeGuide />
             <button className="btn btn-ghost btn-sm magnetic-hover hidden sm:flex" aria-label="Notifications">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

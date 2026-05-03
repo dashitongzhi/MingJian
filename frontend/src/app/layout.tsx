@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "明鉴 (MingJian) — Decision Intelligence",
@@ -28,13 +34,17 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh">
+    <html lang="zh" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
       <body className="min-h-screen">
-        <LanguageProvider>
-          <ErrorBoundary>
-            <AppShell>{children}</AppShell>
-          </ErrorBoundary>
-        </LanguageProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <TooltipProvider>
+              <ErrorBoundary>
+                <AppShell>{children}</AppShell>
+              </ErrorBoundary>
+            </TooltipProvider>
+          </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
