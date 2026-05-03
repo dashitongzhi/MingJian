@@ -36,21 +36,22 @@ function DashboardSkeleton() {
         </div>
         <SkeletonLine className="hidden h-16 w-16 rounded md:block" />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="rounded-2xl bg-[var(--card)] p-8 lg:col-span-8 lg:row-span-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="min-h-[270px] rounded-2xl bg-[var(--card)] p-7">
           <SkeletonLine className="h-4 w-36" />
-          <SkeletonLine className="mt-6 h-16 w-40" />
-          <div className="mt-8 grid grid-cols-4 gap-3">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <SkeletonLine key={i} className="h-20" />
+          <SkeletonLine className="mt-5 h-12 w-32" />
+          <div className="mt-8 grid grid-cols-6 gap-1">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <SkeletonLine key={i} className="aspect-[1.7]" />
             ))}
           </div>
         </div>
-        {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="rounded-2xl bg-[var(--card)] p-8 lg:col-span-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="min-h-[270px] rounded-2xl bg-[var(--card)] p-7">
             <SkeletonLine className="h-4 w-28" />
             <SkeletonLine className="mt-5 h-10 w-24" />
-            <SkeletonLine className="mt-4 h-2 w-full" />
+            <SkeletonLine className="mt-8 h-2 w-full" />
+            <SkeletonLine className="mt-4 h-2 w-3/4" />
           </div>
         ))}
       </div>
@@ -88,11 +89,7 @@ function MetricPanel({
   return (
     <section
       className={`group relative overflow-hidden liquid-glass iridescent
-        hover:-translate-y-0.5
-        ${large
-          ? "rounded-2xl p-8"
-          : "rounded-2xl p-7"
-        }`}
+        h-full min-h-[270px] rounded-2xl p-7 hover:-translate-y-0.5`}
     >
       {/* Top edge light refraction */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
@@ -104,7 +101,7 @@ function MetricPanel({
           background: "radial-gradient(ellipse at 30% 20%, rgba(127,159,144,0.06) 0%, transparent 60%)",
         }}
       />
-      <div className="relative z-10">
+      <div className="relative z-10 flex h-full flex-col">
         <div className="flex items-center gap-2.5">
           {icon && (
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">
@@ -113,8 +110,8 @@ function MetricPanel({
           )}
           <SectionLabel>{label}</SectionLabel>
         </div>
-        <div className={large ? "mt-6 flex items-end gap-5" : "mt-5 flex items-end gap-3"}>
-          <div className={`${large ? "text-6xl" : "text-4xl"} font-semibold leading-none tracking-tight text-balance`}>
+        <div className="mt-5 flex min-h-14 items-end gap-3">
+          <div className={`${large ? "text-5xl" : "text-4xl"} font-semibold leading-none tracking-normal text-balance`}>
             {value}
           </div>
           {sub && <div className="pb-1 text-sm text-[var(--muted-foreground)]">{sub}</div>}
@@ -129,7 +126,7 @@ function AccuracyMatrix({ accuracy, pending }: { accuracy: number | null; pendin
   const filled = accuracy == null ? 0 : Math.max(0, Math.min(12, Math.round(accuracy * 12)));
 
   return (
-    <div className="mt-10">
+    <div className="mt-8">
       <div className="grid grid-cols-6 gap-px bg-[var(--card-border)]/50">
         {Array.from({ length: 12 }).map((_, i) => (
           <div
@@ -141,7 +138,7 @@ function AccuracyMatrix({ accuracy, pending }: { accuracy: number | null; pendin
           />
         ))}
       </div>
-      <div className="mt-4 flex items-center justify-between pt-4 text-xs text-[var(--muted)]">
+      <div className="mt-4 flex items-center justify-between border-t border-[var(--foreground)]/5 pt-4 text-xs text-[var(--muted)]">
         <span>{pending} pending</span>
         <span>{filled}/12 signal cells</span>
       </div>
@@ -157,7 +154,7 @@ function QueueBars({ queues }: { queues: Array<{ queue: string; pending: number;
   }
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="mt-6 space-y-3.5">
       {queues.slice(0, 4).map((q) => {
         const total = q.pending + q.processing + q.completed + q.failed;
         return (
@@ -284,10 +281,9 @@ export default function DashboardPage() {
         </ErrorNotice>
       )}
 
-      {/* ── Bento Grid ───────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:grid-rows-[auto_auto_auto]"
-        style={{gridTemplateAreas: `'a b c' 'a d e' 'f f f'`}}>
-        <StaggerItem className="min-w-0 lg:col-span-8 lg:row-span-2" style={{gridArea: 'a'}}>
+      {/* ── Overview Metrics ─────────────────────────────────────────────────── */}
+      <StaggerContainer className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4" staggerDelay={0.06}>
+        <StaggerItem className="min-w-0">
           <MetricPanel
             large
             label={t("dashboard.predictionAccuracy")}
@@ -299,7 +295,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem className="min-w-0" style={{gridArea: 'b'}}>
+        <StaggerItem className="min-w-0">
           <MetricPanel
             label={t("dashboard.activeSessions")}
             value={sessions ? activeSessions : "—"}
@@ -314,7 +310,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem className="min-w-0" style={{gridArea: 'd'}}>
+        <StaggerItem className="min-w-0">
           <MetricPanel
             label={t("dashboard.queueHealth")}
             value={health ? pendingItems : "—"}
@@ -325,7 +321,7 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem className="min-w-0" style={{gridArea: 'e'}}>
+        <StaggerItem className="min-w-0">
           <MetricPanel
             label={t("dashboard.watchRules")}
             value={rules ? activeRules : "—"}
@@ -345,8 +341,37 @@ export default function DashboardPage() {
             </div>
           </MetricPanel>
         </StaggerItem>
+      </StaggerContainer>
 
-        <StaggerItem className="min-w-0" style={{gridArea: 'f'}}>
+      {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
+      <StaggerContainer className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(280px,0.85fr)_minmax(280px,0.85fr)_minmax(520px,1.3fr)]" staggerDelay={0.06}>
+        <StaggerItem className="min-w-0">
+          <section className="h-full min-h-[270px] rounded-2xl liquid-glass p-7">
+            <h2 className="mb-1 text-lg font-semibold text-balance">{t("dashboard.quickActions")}</h2>
+            <div className="mt-4 space-y-0 divide-y divide-[var(--foreground)]/5">
+              <QuickAction
+                label={t("dashboard.newAnalysis")}
+                description={t("dashboard.newAnalysisDescription")}
+                href="/assistant"
+                icon={<Search size={18} />}
+              />
+              <QuickAction
+                label={t("dashboard.runSimulation")}
+                description={t("dashboard.runSimulationDescription")}
+                href="/simulation"
+                icon={<Play size={18} />}
+              />
+              <QuickAction
+                label={t("dashboard.startDebate")}
+                description={t("dashboard.startDebateDescription")}
+                href="/debate"
+                icon={<MessageSquare size={18} />}
+              />
+            </div>
+          </section>
+        </StaggerItem>
+
+        <StaggerItem className="min-w-0">
           <MetricPanel
             label={t("dashboard.vsHuman")}
             value={lift}
@@ -377,54 +402,29 @@ export default function DashboardPage() {
             </div>
           </MetricPanel>
         </StaggerItem>
-      </div>
 
-      {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,0.7fr)_minmax(460px,1.3fr)]">
-        <section>
-          <h2 className="text-lg font-semibold text-balance mb-1">{t("dashboard.quickActions")}</h2>
-          <div className="mt-4 space-y-0 divide-y divide-[var(--foreground)]/5">
-            <QuickAction
-              label={t("dashboard.newAnalysis")}
-              description={t("dashboard.newAnalysisDescription")}
-              href="/assistant"
-              icon={<Search size={18} />}
-            />
-            <QuickAction
-              label={t("dashboard.runSimulation")}
-              description={t("dashboard.runSimulationDescription")}
-              href="/simulation"
-              icon={<Play size={18} />}
-            />
-            <QuickAction
-              label={t("dashboard.startDebate")}
-              description={t("dashboard.startDebateDescription")}
-              href="/debate"
-              icon={<MessageSquare size={18} />}
-            />
-          </div>
-        </section>
+        <StaggerItem className="min-w-0 lg:col-span-2 xl:col-span-1">
+          <section className="h-full min-h-[270px] rounded-2xl liquid-glass p-7">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold text-balance">{t("dashboard.recentSessions")}</h2>
+              <Zap size={16} className="text-[var(--accent)]/60" />
+            </div>
 
-        <section className="min-w-0 rounded-2xl liquid-glass p-7">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold text-balance">{t("dashboard.recentSessions")}</h2>
-            <Zap size={16} className="text-[var(--accent)]/60" />
-          </div>
-
-          {sessions && sessions.length > 0 ? (
-            <DataTable
-              columns={sessionColumns}
-              data={sessions.slice(0, 10)}
-              searchColumn="name"
-              searchPlaceholder={t("dashboard.sessionName") + "..."}
-              pageSize={5}
-              onRowClick={(s) => window.location.assign(`/assistant?session=${s.id}`)}
-            />
-          ) : (
-            <EmptySessions title={t("dashboard.noSessions")} description={t("dashboard.noSessionsDescription")} />
-          )}
-        </section>
-      </div>
+            {sessions && sessions.length > 0 ? (
+              <DataTable
+                columns={sessionColumns}
+                data={sessions.slice(0, 10)}
+                searchColumn="name"
+                searchPlaceholder={t("dashboard.sessionName") + "..."}
+                pageSize={5}
+                onRowClick={(s) => window.location.assign(`/assistant?session=${s.id}`)}
+              />
+            ) : (
+              <EmptySessions title={t("dashboard.noSessions")} description={t("dashboard.noSessionsDescription")} />
+            )}
+          </section>
+        </StaggerItem>
+      </StaggerContainer>
     </div>
   );
 }
