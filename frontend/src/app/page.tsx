@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Image from "next/image";
 import useSWR from "swr";
 import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
@@ -197,7 +198,7 @@ export default function DashboardPage() {
         <div className="relative flex items-end justify-between gap-6">
           <div className="max-w-3xl">
             <div className="flex items-center gap-3">
-              <img src="/mingjian-icon.jpg" alt="明鉴" className="h-10 w-10 rounded-lg object-cover" />
+              <Image src="/mingjian-icon.jpg" alt="明鉴" width={40} height={40} className="rounded-lg object-cover" />
               <SectionLabel>{t("dashboard.welcome")}</SectionLabel>
             </div>
             <h1 className="mt-5 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-balance">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -103,10 +104,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="h-[var(--header-height)] flex items-center px-5 border-b border-[var(--card-border)]">
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative">
-              <img
+              <Image
                 src="/mingjian-icon.jpg"
                 alt="明鉴"
-                className="w-8 h-8 rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
+                width={32}
+                height={32}
+                className="rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
+                priority
               />
               <div className="absolute inset-0 rounded-lg bg-[var(--accent)]/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
