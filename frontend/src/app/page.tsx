@@ -8,6 +8,7 @@ import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules, type
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { TextReveal, StaggerContainer, StaggerItem, AnimatedGradientText } from "@/components/ui/aceternity";
 
 function SkeletonLine({ className = "" }: { className?: string }) {
   return <div className={`skeleton ${className}`} />;
@@ -223,21 +224,23 @@ export default function DashboardPage() {
       <header className="relative overflow-hidden border-b border-[var(--card-border)] pb-8">
         <div className="absolute right-0 top-0 h-32 w-80 bg-[var(--accent)]/5 blur-3xl rounded-full" />
         <div className="absolute left-1/2 -top-16 h-48 w-96 bg-[var(--accent)]/3 blur-3xl rounded-full" />
+        <TextReveal>
         <div className="relative flex items-end justify-between gap-6">
           <div className="max-w-3xl">
             <div className="flex items-center gap-3">
               <Image src="/mingjian-icon.jpg" alt="明鉴" width={40} height={40} className="rounded-lg object-cover" />
               <SectionLabel>{t("dashboard.welcome")}</SectionLabel>
             </div>
-            <h1 className="mt-5 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-balance">
+            <AnimatedGradientText className="mt-5 max-w-2xl text-4xl font-semibold leading-tight tracking-tight text-balance">
               {t("dashboard.tagline")}
-            </h1>
+            </AnimatedGradientText>
           </div>
           <div className="hidden min-w-44 border-l border-[var(--card-border)] pl-6 md:block">
             <div className="text-xs text-[var(--muted)]">{t("dashboard.queueHealth")}</div>
             <div className="mt-2 font-mono text-2xl text-[var(--accent)]">{pendingItems + processingItems}</div>
           </div>
         </div>
+        </TextReveal>
       </header>
 
       {hasError && (
@@ -247,7 +250,8 @@ export default function DashboardPage() {
       )}
 
       {/* ── Bento Grid ───────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl bg-[var(--card-border)]/50 lg:grid-cols-12 stagger-children">
+      <StaggerContainer className="grid grid-cols-1 gap-px overflow-hidden rounded-xl bg-[var(--card-border)]/50 lg:grid-cols-12">
+        <StaggerItem>
         <MetricPanel
           large
           label={t("dashboard.predictionAccuracy")}
@@ -256,7 +260,9 @@ export default function DashboardPage() {
         >
           <AccuracyMatrix accuracy={accuracy} pending={sb?.pending ?? 0} />
         </MetricPanel>
+        </StaggerItem>
 
+        <StaggerItem>
         <MetricPanel label={t("dashboard.activeSessions")} value={sessions ? activeSessions : "—"} sub={t("dashboard.strategicAnalyses")}>
           <div className="mt-6 h-px bg-[var(--card-border)]" />
           <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-[var(--muted)]">
@@ -264,11 +270,15 @@ export default function DashboardPage() {
             <span className="text-right font-mono text-[var(--muted-foreground)]">{activeRules}</span>
           </div>
         </MetricPanel>
+        </StaggerItem>
 
+        <StaggerItem>
         <MetricPanel label={t("dashboard.queueHealth")} value={health ? pendingItems : "—"} sub={t("dashboard.pendingItems")}>
           <QueueBars queues={health?.queues ?? []} />
         </MetricPanel>
+        </StaggerItem>
 
+        <StaggerItem>
         <MetricPanel label={t("dashboard.watchRules")} value={rules ? activeRules : "—"} sub={t("dashboard.activeMonitors")}>
           <div className="mt-6 grid grid-cols-8 gap-px bg-[var(--card-border)]/50">
             {Array.from({ length: Math.max(8, rules?.length || 8) }).slice(0, 24).map((_, i) => (
@@ -282,7 +292,9 @@ export default function DashboardPage() {
             ))}
           </div>
         </MetricPanel>
+        </StaggerItem>
 
+        <StaggerItem>
         <MetricPanel label={t("dashboard.vsHuman")} value={lift} sub={t("dashboard.totalHypotheses")}>
           <div className="mt-5 flex items-end gap-2">
             {[sb?.confirmed ?? 0, sb?.refuted ?? 0, sb?.pending ?? 0].map((value, i) => {
@@ -307,7 +319,8 @@ export default function DashboardPage() {
             })}
           </div>
         </MetricPanel>
-      </div>
+        </StaggerItem>
+      </StaggerContainer>
 
       {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(460px,1.2fr)]">

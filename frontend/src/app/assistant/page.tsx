@@ -5,6 +5,7 @@ import useSWR, { mutate as globalMutate } from "swr";
 import { fetchSessions, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { TextReveal, StaggerContainer, StaggerItem, AnimatedGradientText } from "@/components/ui/aceternity";
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">{children}</div>;
@@ -439,8 +440,14 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
   return (
     <div className="space-y-8">
       <header className="border-b border-[var(--card-border)] pb-7">
-        <SectionLabel>{t("assistant.title")}</SectionLabel>
-        <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-balance">{t("assistant.subtitle")}</h1>
+        <TextReveal>
+          <SectionLabel>{t("assistant.title")}</SectionLabel>
+        </TextReveal>
+        <TextReveal delay={0.1}>
+          <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-balance">
+            <AnimatedGradientText>{t("assistant.subtitle")}</AnimatedGradientText>
+          </h1>
+        </TextReveal>
       </header>
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-[390px_minmax(0,1fr)]">
@@ -573,7 +580,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               <h2 className="text-sm font-semibold">{t("assistant.recentSessions")}</h2>
               <span className="font-mono text-[11px] text-[var(--muted)]">{sessions?.length ?? 0}</span>
             </div>
-            <div className="max-h-[310px] overflow-y-auto border-y border-[var(--card-border)]">
+            <StaggerContainer className="max-h-[310px] overflow-y-auto border-y border-[var(--card-border)]">
               {!sessions && !sessionsError && (
                 <div className="space-y-3 py-4">
                   <SkeletonLine className="h-4 w-10/12" />
@@ -583,7 +590,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               )}
               {sessionsError && <div className="py-4 text-sm text-[var(--accent-red)]">{sessionsError.message}</div>}
               {sessions?.map((s) => (
-                <div key={s.id} className="border-b border-[var(--card-border)] py-3 last:border-0">
+                <StaggerItem key={s.id} className="border-b border-[var(--card-border)] py-3 last:border-0">
                   <div className="flex items-center justify-between gap-3">
                     <div className="truncate text-sm font-medium">{s.name || s.topic.slice(0, 40)}</div>
                     <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">
@@ -591,12 +598,12 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-[var(--muted)]">{s.domain_id}</div>
-                </div>
+                </StaggerItem>
               ))}
               {sessions && sessions.length === 0 && (
                 <div className="py-6 text-sm text-[var(--muted)]">{t("assistant.noSessions")}</div>
               )}
-            </div>
+            </StaggerContainer>
           </section>
         </aside>
 
