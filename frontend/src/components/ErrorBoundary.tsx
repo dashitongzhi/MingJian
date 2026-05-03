@@ -1,6 +1,7 @@
 "use client";
 
 import { Component, type ReactNode, type ErrorInfo } from "react";
+import { toast } from "@/lib/toast";
 
 interface Props {
   children: ReactNode;
@@ -25,6 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", error, info);
+    toast.error('发生错误');
     this.props.onError?.(error, info);
   }
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { fetchDebateDetail, type DebateRound } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { toast } from "@/lib/toast";
 
 function toText(value: unknown) {
   return typeof value === "string" ? value : JSON.stringify(value);
@@ -130,7 +131,10 @@ export default function DebatePage() {
   }, {});
 
   const handleLoad = () => {
-    if (inputId.trim()) setQId(inputId.trim());
+    if (inputId.trim()) {
+      setQId(inputId.trim());
+      toast.info('辩论已启动');
+    }
   };
 
   return (

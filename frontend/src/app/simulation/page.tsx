@@ -5,6 +5,7 @@ import { fetchSimulationRuns, fetchWorkbench, createSimulationRun, type Simulati
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { toast } from "@/lib/toast";
 
 function MiniSkeleton({ rows = 5 }: { rows?: number }) {
   return (
@@ -120,6 +121,7 @@ export default function SimulationPage() {
         actor_template: domain === "military" ? "brigade" : "ai_model_provider",
       });
       setShowCreate(false);
+      toast.success('推演已启动');
       mutate();
     } catch (error) {
       setCreateError(String(error instanceof Error ? error.message : error));

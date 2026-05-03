@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useCallback, type ReactNode } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
 import { Check, X, Loader2, Eye, EyeOff, FlaskConical, ExternalLink, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +16,36 @@ import {
   type ProviderTestResult,
 } from "@/lib/providers";
 import { useTranslation } from "@/contexts/LanguageContext";
+
+// ── Zod schemas ─────────────────────────────────────────────────────────────
+
+const providerEditSchema = z.object({
+  api_key: z.string(),
+  base_url: z.union([z.string().url("请输入有效的URL"), z.literal("")]),
+  model: z.string().min(1, "请输入模型名称"),
+  api_format: z.enum(["openai", "anthropic"]),
+});
+
+const customProviderSchema = z.object({
+  name: z.string().min(1, "请输入供应商名称"),
+  api_key: z.string().min(1, "请输入API Key"),
+  base_url: z.string().min(1, "请输入Base URL").url("请输入有效的URL"),
+  model: z.string(),
+  api_format: z.enum(["openai", "anthropic"]),
+});
+
+type ProviderEditValues = z.infer<typeof providerEditSchema>;
+type CustomProviderValues = z.infer<typeof customProviderSchema>;
+
+// ── Shared helpers ──────────────────────────────────────────────────────────
+
+function inputClass(hasError?: boolean) {
+  return `w-full rounded-lg border ${
+    hasError ? "border-[var(--accent-red)]" : "border-[var(--card-border)]"
+  } bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none`;
+}
+
+// ── Small presentational components ─────────────────────────────────────────
 
 function ProviderStatus({ configured }: { configured: boolean }) {
   const { t } = useTranslation();
@@ -93,16 +127,19 @@ function FieldBlock({
   label,
   children,
   hint,
+  error,
 }: {
   label: string;
   children: ReactNode;
   hint?: ReactNode;
+  error?: string;
 }) {
   return (
     <div className="grid gap-2 md:grid-cols-[140px_1fr] md:items-start">
       <label className="pt-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">{label}</label>
       <div>
         {children}
+        {error && <div className="mt-1 text-xs text-[var(--accent-red)]">{error}</div>}
         {hint && <div className="mt-2 text-xs text-[var(--muted)]">{hint}</div>}
       </div>
     </div>
@@ -177,6 +214,8 @@ function PanelShell({
   );
 }
 
+// ── ConfigPanel (edit existing provider) ────────────────────────────────────
+
 function ConfigPanel({
   provider,
   onClose,
@@ -187,60 +226,89 @@ function ConfigPanel({
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState(provider.base_url);
-  const [model, setModel] = useState(provider.active_model || "");
-  const [apiFormat, setApiFormat] = useState(provider.api_format || "openai");
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
 
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useForm<ProviderEditValues>({
+    resolver: zodResolver(providerEditSchema),
+    defaultValues: {
+      api_key: "",
+      base_url: provider.base_url,
+      model: provider.active_model || "",
+      api_format: (provider.api_format as "openai" | "anthropic") || "openai",
+    },
+    mode: "onTouched",
+  });
+
+  const watchedModel = watch("model");
+  const watchedApiKey = watch("api_key");
+
   const handleTest = useCallback(async () => {
-    if (!apiKey && !provider.api_key_set) return;
+    const values = getValues();
+    if (!values.api_key && !provider.api_key_set) return;
     setTesting(true);
     setTestResult(null);
     try {
       const result = await testProvider({
-        base_url: baseUrl,
-        api_key: apiKey || "(saved)",
-        api_format: apiFormat,
-        model: model || undefined,
+        base_url: values.base_url,
+        api_key: values.api_key || "(saved)",
+        api_format: values.api_format,
+        model: values.model || undefined,
       });
       setTestResult(result);
+      if (result.ok) {
+        toast.success("连接测试成功");
+      } else {
+        toast.error("连接测试失败");
+      }
       if (result.models_available.length > 0) {
         setFetchedModels(result.models_available);
-        if (!model) {
-          setModel(result.models_available[0]);
+        if (!values.model) {
+          setValue("model", result.models_available[0], { shouldValidate: true, shouldTouch: true });
         }
       }
     } catch (e: any) {
       setTestResult({ ok: false, latency_ms: 0, models_available: [], error: e.message });
+      toast.error("连接测试失败");
     } finally {
       setTesting(false);
     }
-  }, [apiKey, baseUrl, apiFormat, model, provider.api_key_set]);
+  }, [getValues, provider.api_key_set, setValue]);
 
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      await saveProvider({
-        provider_id: provider.id,
-        api_key: apiKey || "(unchanged)",
-        base_url: baseUrl,
-        model: model || undefined,
-        api_format: apiFormat,
-        enabled: true,
-      });
-      onSaved();
-      onClose();
-    } catch (e: any) {
-      alert(`${t("providers.saveFailed")}: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  }, [provider.id, apiKey, baseUrl, model, apiFormat, onSaved, onClose, t]);
+  const onSubmit = useCallback(
+    async (data: ProviderEditValues) => {
+      setSaving(true);
+      try {
+        await saveProvider({
+          provider_id: provider.id,
+          api_key: data.api_key || "(unchanged)",
+          base_url: data.base_url,
+          model: data.model || undefined,
+          api_format: data.api_format,
+          enabled: true,
+        });
+        toast.success("供应商已保存");
+        onSaved();
+        onClose();
+      } catch (e: any) {
+        toast.error(`${t("providers.saveFailed")}: ${e.message}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [provider.id, onSaved, onClose, t],
+  );
 
   const handleDelete = useCallback(async () => {
     if (!confirm(`${t("providers.deleteConfirmPrefix")} ${provider.name || provider.id}?`)) return;
@@ -254,34 +322,38 @@ function ConfigPanel({
       onClose={onClose}
       rail={<WizardRail active={testResult?.ok ? 3 : 2} steps={[t("providers.apiFormat"), "Base URL", "API Key", t("providers.model")]} />}
     >
-      <div className="min-w-0">
+      <form onSubmit={handleSubmit(onSubmit, () => toast.error("请检查表单信息"))} className="min-w-0">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
           <div className="min-w-0">
             <h3 className="truncate text-base font-semibold">{provider.name || provider.id}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X className="size-4" />
           </Button>
         </div>
 
         <div className="max-h-[68vh] space-y-5 overflow-y-auto p-5">
-          <FieldBlock label={t("providers.apiFormat")}>
-            <FormatToggle value={apiFormat} onChange={setApiFormat} />
+          <FieldBlock label={t("providers.apiFormat")} error={errors.api_format?.message}>
+            <Controller
+              name="api_format"
+              control={control}
+              render={({ field }) => <FormatToggle value={field.value} onChange={field.onChange} />}
+            />
           </FieldBlock>
 
-          <FieldBlock label="Base URL">
+          <FieldBlock label="Base URL" error={errors.base_url?.message}>
             <input
               type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+              {...register("base_url")}
+              className={inputClass(!!errors.base_url)}
               placeholder="https://api.openai.com/v1"
             />
           </FieldBlock>
 
           <FieldBlock
             label="API Key"
+            error={errors.api_key?.message}
             hint={
               provider.website ? (
                 <a href={provider.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--accent)] hover:opacity-80">
@@ -293,9 +365,8 @@ function ConfigPanel({
             <div className="relative">
               <input
                 type={showKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 pr-10 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+                {...register("api_key")}
+                className={inputClass(!!errors.api_key).replace("w-full", "w-full pr-10")}
                 placeholder={provider.placeholder || t("providers.apiKeyPlaceholder")}
                 autoComplete="off"
               />
@@ -311,14 +382,14 @@ function ConfigPanel({
 
           <FieldBlock
             label={t("providers.model")}
+            error={errors.model?.message}
             hint={fetchedModels.length === 0 ? t("providers.testToLoadModels") : undefined}
           >
             <div className="flex gap-2">
               <input
                 type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+                {...register("model")}
+                className={inputClass(!!errors.model).replace("w-full", "min-w-0 flex-1")}
                 placeholder={t("providers.modelInputPlaceholder")}
                 list={`models-${provider.id}`}
               />
@@ -329,8 +400,8 @@ function ConfigPanel({
               </datalist>
               {fetchedModels.length > 0 && (
                 <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
+                  value={watchedModel}
+                  onChange={(e) => setValue("model", e.target.value, { shouldValidate: true, shouldTouch: true })}
                   className="w-24 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
                 >
                   <option value="">▼</option>
@@ -344,9 +415,10 @@ function ConfigPanel({
 
           <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
             <Button
+              type="button"
               variant="outline"
               onClick={handleTest}
-              disabled={testing || (!apiKey && !provider.api_key_set)}
+              disabled={testing || (!watchedApiKey && !provider.api_key_set)}
               className="w-full"
             >
               {testing ? (
@@ -364,22 +436,24 @@ function ConfigPanel({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-[var(--card-border)] p-5">
-          <Button variant="destructive" size="sm" onClick={handleDelete}>
+          <Button type="button" variant="destructive" size="sm" onClick={handleDelete}>
             <Trash2 className="size-4" /> {t("common.delete")}
           </Button>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" onClick={onClose}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button type="submit" disabled={saving || !watchedModel}>
               {saving ? t("common.saving") : t("common.save")}
             </Button>
           </div>
         </div>
-      </div>
+      </form>
     </PanelShell>
   );
 }
+
+// ── AddCustomCard ───────────────────────────────────────────────────────────
 
 function AddCustomCard({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation();
@@ -398,6 +472,8 @@ function AddCustomCard({ onClick }: { onClick: () => void }) {
   );
 }
 
+// ── CustomConfigPanel (add new custom provider) ─────────────────────────────
+
 function CustomConfigPanel({
   onClose,
   onSaved,
@@ -406,116 +482,145 @@ function CustomConfigPanel({
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
-  const [apiFormat, setApiFormat] = useState("openai");
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<ProviderTestResult | null>(null);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
 
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useForm<CustomProviderValues>({
+    resolver: zodResolver(customProviderSchema),
+    defaultValues: {
+      name: "",
+      api_key: "",
+      base_url: "",
+      model: "",
+      api_format: "openai",
+    },
+    mode: "onTouched",
+  });
+
+  const watchedName = watch("name");
+  const watchedApiKey = watch("api_key");
+  const watchedBaseUrl = watch("base_url");
+  const watchedApiFormat = watch("api_format");
+  const watchedModel = watch("model");
+
   const handleTest = useCallback(async () => {
-    if (!apiKey || !baseUrl) return;
+    const values = getValues();
+    if (!values.api_key || !values.base_url) return;
     setTesting(true);
     setTestResult(null);
     try {
       const result = await testProvider({
-        base_url: baseUrl,
-        api_key: apiKey,
-        api_format: apiFormat,
-        model: model || undefined,
+        base_url: values.base_url,
+        api_key: values.api_key,
+        api_format: values.api_format,
+        model: values.model || undefined,
       });
       setTestResult(result);
+      if (result.ok) {
+        toast.success("连接测试成功");
+      } else {
+        toast.error("连接测试失败");
+      }
       if (result.models_available.length > 0) {
         setFetchedModels(result.models_available);
-        if (!model) {
-          setModel(result.models_available[0]);
+        if (!values.model) {
+          setValue("model", result.models_available[0], { shouldValidate: true, shouldTouch: true });
         }
       }
     } catch (e: any) {
       setTestResult({ ok: false, latency_ms: 0, models_available: [], error: e.message });
+      toast.error("连接测试失败");
     } finally {
       setTesting(false);
     }
-  }, [apiKey, baseUrl, apiFormat, model]);
+  }, [getValues, setValue]);
 
-  const handleSave = useCallback(async () => {
-    if (!name.trim() || !baseUrl.trim() || !apiKey.trim()) {
-      alert(t("providers.requiredFields"));
-      return;
-    }
-    setSaving(true);
-    try {
-      const providerId = `custom-${name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-")}`;
-      await saveProvider({
-        provider_id: providerId,
-        name: name,
-        api_key: apiKey,
-        base_url: baseUrl,
-        model: model || undefined,
-        api_format: apiFormat,
-        enabled: true,
-      });
-      onSaved();
-      onClose();
-    } catch (e: any) {
-      alert(`${t("providers.saveFailed")}: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  }, [name, baseUrl, apiKey, model, apiFormat, onSaved, onClose, t]);
+  const onSubmit = useCallback(
+    async (data: CustomProviderValues) => {
+      setSaving(true);
+      try {
+        const providerId = `custom-${data.name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-")}`;
+        await saveProvider({
+          provider_id: providerId,
+          name: data.name,
+          api_key: data.api_key,
+          base_url: data.base_url,
+          model: data.model || undefined,
+          api_format: data.api_format,
+          enabled: true,
+        });
+        toast.success("供应商已保存");
+        onSaved();
+        onClose();
+      } catch (e: any) {
+        toast.error(`${t("providers.saveFailed")}: ${e.message}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [onSaved, onClose, t],
+  );
 
   return (
     <PanelShell
       onClose={onClose}
       rail={<WizardRail active={testResult?.ok ? 4 : 3} steps={[t("providers.providerName"), t("providers.apiFormat"), "Base URL", "API Key", t("providers.model")]} />}
     >
-      <div className="min-w-0">
+      <form onSubmit={handleSubmit(onSubmit, () => toast.error("请检查表单信息"))} className="min-w-0">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
           <div>
             <h3 className="text-base font-semibold">{t("providers.customProvider")}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{t("providers.customProviderSubtitle")}</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
             <X className="size-4" />
           </Button>
         </div>
 
         <div className="max-h-[68vh] space-y-5 overflow-y-auto p-5">
-          <FieldBlock label={t("providers.providerName")}>
+          <FieldBlock label={t("providers.providerName")} error={errors.name?.message}>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+              {...register("name")}
+              className={inputClass(!!errors.name)}
               placeholder={t("providers.providerNamePlaceholder")}
             />
           </FieldBlock>
 
-          <FieldBlock label={t("providers.apiFormat")}>
-            <FormatToggle value={apiFormat} onChange={setApiFormat} />
-          </FieldBlock>
-
-          <FieldBlock label="Base URL">
-            <input
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
-              placeholder={apiFormat === "anthropic" ? "https://api.anthropic.com/v1/openai" : "https://your-api.com/v1"}
+          <FieldBlock label={t("providers.apiFormat")} error={errors.api_format?.message}>
+            <Controller
+              name="api_format"
+              control={control}
+              render={({ field }) => <FormatToggle value={field.value} onChange={field.onChange} />}
             />
           </FieldBlock>
 
-          <FieldBlock label="API Key">
+          <FieldBlock label="Base URL" error={errors.base_url?.message}>
+            <input
+              type="text"
+              {...register("base_url")}
+              className={inputClass(!!errors.base_url)}
+              placeholder={watchedApiFormat === "anthropic" ? "https://api.anthropic.com/v1/openai" : "https://your-api.com/v1"}
+            />
+          </FieldBlock>
+
+          <FieldBlock label="API Key" error={errors.api_key?.message}>
             <div className="relative">
               <input
                 type={showKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 pr-10 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+                {...register("api_key")}
+                className={inputClass(!!errors.api_key).replace("w-full", "w-full pr-10")}
                 placeholder="sk-... / your-api-key"
                 autoComplete="off"
               />
@@ -529,13 +634,12 @@ function CustomConfigPanel({
             </div>
           </FieldBlock>
 
-          <FieldBlock label={t("providers.model")}>
+          <FieldBlock label={t("providers.model")} error={errors.model?.message}>
             <div className="flex gap-2">
               <input
                 type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="min-w-0 flex-1 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none"
+                {...register("model")}
+                className={inputClass(!!errors.model).replace("w-full", "min-w-0 flex-1")}
                 placeholder={t("providers.chooseModelPlaceholder")}
                 list="custom-models"
               />
@@ -546,8 +650,8 @@ function CustomConfigPanel({
               </datalist>
               {fetchedModels.length > 0 && (
                 <select
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
+                  value={watchedModel}
+                  onChange={(e) => setValue("model", e.target.value, { shouldValidate: true, shouldTouch: true })}
                   className="w-24 rounded-lg border border-[var(--card-border)] bg-[var(--background)] px-2 py-2 text-sm focus:border-[var(--accent)] focus:outline-none"
                 >
                   <option value="">▼</option>
@@ -561,9 +665,10 @@ function CustomConfigPanel({
 
           <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
             <Button
+              type="button"
               variant="outline"
               onClick={handleTest}
-              disabled={testing || !apiKey || !baseUrl}
+              disabled={testing || !watchedApiKey || !watchedBaseUrl}
               className="w-full"
             >
               {testing ? (
@@ -581,20 +686,19 @@ function CustomConfigPanel({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--card-border)] p-5">
-          <Button variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !name || !baseUrl || !apiKey}
-          >
+          <Button type="submit" disabled={saving || !watchedName || !watchedApiKey || !watchedBaseUrl}>
             {saving ? t("common.saving") : t("common.save")}
           </Button>
         </div>
-      </div>
+      </form>
     </PanelShell>
   );
 }
+
+// ── Skeleton & Page ─────────────────────────────────────────────────────────
 
 function ProvidersSkeleton() {
   return (

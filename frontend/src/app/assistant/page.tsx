@@ -5,6 +5,7 @@ import useSWR, { mutate as globalMutate } from "swr";
 import { fetchSessions, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { toast } from "@/lib/toast";
 import { TextReveal, StaggerContainer, StaggerItem, AnimatedGradientText } from "@/components/ui/aceternity";
 
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -301,6 +302,7 @@ export default function AssistantPage() {
     setProcessSteps([]);
     setDebateMessages([]);
     setCurrentStage("ingest");
+    toast.info('分析已启动');
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
@@ -358,6 +360,7 @@ export default function AssistantPage() {
         ctrl.signal
       );
       refreshSessions();
+      toast.success('分析完成');
       // Plan A: refresh all cross-page SWR caches
       globalMutate("sim-runs");
       globalMutate("ev");

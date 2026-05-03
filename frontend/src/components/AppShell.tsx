@@ -5,6 +5,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { useTheme } from "next-themes";
+import { Toaster } from "sonner";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -150,6 +152,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname() || "/";
 
@@ -232,6 +235,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Global Command Palette (⌘K) ──────────────────────────────── */}
       <CommandPalette />
+      <Toaster position="top-right" richColors closeButton theme={resolvedTheme as "light" | "dark" | undefined} />
     </div>
   );
 }
