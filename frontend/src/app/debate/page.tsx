@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { createDebateVote, fetchDebateDetail, fetchDebates, fetchDebateVotes, type DebateRound, type DebateSummary, type DebateVote } from "@/lib/api";
+import { Play, Radio, RefreshCw } from "lucide-react";
+import { createDebateVote, fetchDebateDetail, fetchDebates, fetchDebateVotes, fetchSimulationRuns, streamDebate, type DebateRound, type DebateSummary, type DebateVote, type DebateVerdict } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
 
@@ -66,6 +67,48 @@ function canonicalVoteRole(role: string): VoteRole {
 
 function voteKey(round: DebateRound) {
   return `${round.round_number}:${canonicalVoteRole(round.role)}`;
+}
+
+function roleLabel(role: string) {
+  const labels: Record<string, string> = {
+    advocate: "支持方",
+    challenger: "反对方",
+    arbitrator: "裁决方",
+    strategist: "战略顾问",
+    risk_analyst: "风险分析",
+    opportunist: "机会评估",
+  };
+  return labels[role] || role;
+}
+
+function LiveProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-1.5 overflow-hidden rounded-full bg-[var(--card-border)]">
+      <div className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </div>
+  );
+}
+
+function LiveVerdictCard({ verdict }: { verdict: Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> }) {
+  return (
+    <section className="rounded-lg border border-[var(--accent)]/40 bg-[var(--card)] p-5 animate-scaleIn">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="section-label !text-[var(--accent)]">实时裁决</div>
+          <h3 className="mt-2 text-lg font-semibold uppercase">{verdict.verdict}</h3>
+        </div>
+        <span className="badge badge-success">{(Math.max(0, Math.min(1, verdict.confidence)) * 100).toFixed(0)}%</span>
+      </div>
+      <div className="space-y-2">
+        {verdict.winning_arguments.map((argument, index) => (
+          <div key={`${argument}-${index}`} className="grid grid-cols-[28px_1fr] text-sm leading-6 text-[var(--muted-foreground)]">
+            <span className="font-mono text-xs text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
+            <span>{argument}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function VoteControls({
@@ -303,6 +346,15 @@ function DebatePageInner() {
   const [qId, setQId] = useState<string | null>(null);
   const [voteComments, setVoteComments] = useState<Record<string, string>>({});
   const [submittingVoteKey, setSubmittingVoteKey] = useState<string | null>(null);
+  const [liveTopic, setLiveTopic] = useState("");
+  const [liveTargetId, setLiveTargetId] = useState("");
+  const [liveTargetType, setLiveTargetType] = useState<"run" | "claim">("run");
+  const [liveStatus, setLiveStatus] = useState<"idle" | "in_progress" | "complete">("idle");
+  const [liveCurrentRound, setLiveCurrentRound] = useState<{ round_number: number; role: string } | null>(null);
+  const [liveRounds, setLiveRounds] = useState<DebateRound[]>([]);
+  const [liveVerdict, setLiveVerdict] = useState<Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> | null>(null);
+  const [liveDebateId, setLiveDebateId] = useState<string | null>(null);
+  const liveAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const urlId = searchParams.get("id");
@@ -318,8 +370,9 @@ function DebatePageInner() {
   }, [qId]);
 
   const { data: debate, error, isLoading } = useSWR(qId ? `debate-${qId}` : null, () => fetchDebateDetail(qId!));
-  const { data: debateList } = useSWR("debates-list", () => fetchDebates(20), { refreshInterval: 30000 });
+  const { data: debateList, mutate: refreshDebateList } = useSWR("debates-list", () => fetchDebates(20), { refreshInterval: 30000 });
   const { data: votes = [], mutate: refreshVotes } = useSWR(qId ? `debate-votes-${qId}` : null, () => fetchDebateVotes(qId!));
+  const { data: simulationRuns } = useSWR("debate-sim-runs", () => fetchSimulationRuns(10));
 
   const grouped = (debate?.rounds || []).reduce<Record<number, DebateRound[]>>((a, r) => {
     (a[r.round_number] ??= []).push(r);
@@ -336,6 +389,85 @@ function DebatePageInner() {
     if (inputId.trim()) {
       setQId(inputId.trim());
       toast.info('分析报告已加载');
+    }
+  };
+
+  const handleStartLiveDebate = async () => {
+    const targetId = liveTargetId.trim() || simulationRuns?.[0]?.id || "";
+    const topic = liveTopic.trim() || debateList?.[0]?.topic || "实时辩论";
+    if (!targetId) {
+      toast.error("请先输入 Run ID / Claim ID，或创建一次推演");
+      return;
+    }
+
+    liveAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    liveAbortRef.current = ctrl;
+    setQId(null);
+    setLiveStatus("in_progress");
+    setLiveCurrentRound(null);
+    setLiveRounds([]);
+    setLiveVerdict(null);
+    setLiveDebateId(null);
+    toast.info("实时辩论已启动");
+    let completedDebateId: string | null = null;
+
+    try {
+      await streamDebate(
+        {
+          topic,
+          trigger_type: "manual",
+          target_type: liveTargetType,
+          run_id: liveTargetType === "run" ? targetId : undefined,
+          claim_id: liveTargetType === "claim" ? targetId : undefined,
+          target_id: targetId,
+          context_lines: [],
+        },
+        (evt) => {
+          if (evt.payload.debate_id) {
+            completedDebateId = evt.payload.debate_id;
+            setLiveDebateId(evt.payload.debate_id);
+          }
+
+          if (evt.event === "debate_round_start") {
+            setLiveCurrentRound({ round_number: evt.payload.round_number, role: evt.payload.role });
+          } else if (evt.event === "debate_round_complete") {
+            const round: DebateRound = {
+              round_number: evt.payload.round_number,
+              role: evt.payload.role,
+              position: evt.payload.position,
+              confidence: evt.payload.confidence,
+              arguments: evt.payload.key_arguments.map((argument) => ({ content: argument })),
+              rebuttals: [],
+              concessions: [],
+            };
+            setLiveRounds((prev) => [...prev, round]);
+            setLiveCurrentRound({ round_number: evt.payload.round_number, role: evt.payload.role });
+          } else if (evt.event === "debate_verdict") {
+            setLiveVerdict({
+              verdict: evt.payload.verdict,
+              confidence: evt.payload.confidence,
+              winning_arguments: evt.payload.winning_arguments,
+            });
+            setLiveCurrentRound(null);
+          }
+        },
+        ctrl.signal,
+      );
+
+      setLiveStatus("complete");
+      setLiveCurrentRound(null);
+      const refreshed = await refreshDebateList();
+      const nextId = completedDebateId || refreshed?.[0]?.debate_id;
+      if (nextId) {
+        setQId(nextId);
+        setInputId(nextId);
+      }
+      toast.success("辩论完成，完整数据已刷新");
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setLiveStatus("idle");
+      toast.error(err instanceof Error ? err.message : "实时辩论失败");
     }
   };
 
@@ -375,36 +507,125 @@ function DebatePageInner() {
           <h1 className="heading-display mt-3">{t("debate.subtitle")}</h1>
         </div>
 
-        <section className="content-end self-end rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
-          <h2 className="mb-3 flex items-center gap-2 heading-section">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-            {t("debate.loadDebate")}
-          </h2>
-          <div className="flex gap-3">
-            <input
-              className="min-w-0 flex-1 rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
-              placeholder={t("debate.debateIdPlaceholder")}
-              value={inputId}
-              onChange={(event) => setInputId(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && handleLoad()}
-            />
-            <button onClick={handleLoad} className="btn btn-primary">
-              {t("common.load")}
-            </button>
-          </div>
-          {error && (
-            <div className="mt-3 border-l border-[var(--accent-red)] pl-3 text-sm text-[var(--accent-red)]">
-              {t("debate.debateNotFound")}
+        <div className="space-y-3 self-end">
+          <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 heading-section">
+                <Radio size={16} className="text-[var(--accent)]" />
+                实时辩论
+              </h2>
+              {liveStatus === "in_progress" && <span className="badge badge-warning">LIVE</span>}
             </div>
-          )}
-        </section>
+            <div className="grid gap-3 sm:grid-cols-[96px_1fr]">
+              <select
+                value={liveTargetType}
+                onChange={(event) => setLiveTargetType(event.target.value as "run" | "claim")}
+                disabled={liveStatus === "in_progress"}
+                className="rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
+              >
+                <option value="run">Run</option>
+                <option value="claim">Claim</option>
+              </select>
+              <input
+                className="min-w-0 rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
+                placeholder={simulationRuns?.[0]?.id ? `默认最新 Run: ${simulationRuns[0].id.slice(0, 8)}` : "Run ID / Claim ID"}
+                value={liveTargetId}
+                disabled={liveStatus === "in_progress"}
+                onChange={(event) => setLiveTargetId(event.target.value)}
+              />
+            </div>
+            <input
+              className="mt-3 w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)]"
+              placeholder="辩论主题"
+              value={liveTopic}
+              disabled={liveStatus === "in_progress"}
+              onChange={(event) => setLiveTopic(event.target.value)}
+            />
+            <button
+              type="button"
+              onClick={handleStartLiveDebate}
+              disabled={liveStatus === "in_progress"}
+              className="btn btn-primary mt-3 w-full justify-center py-3 text-base"
+            >
+              {liveStatus === "in_progress" ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} />}
+              {liveStatus === "in_progress" ? "辩论进行中" : "发起实时辩论"}
+            </button>
+            {liveStatus === "in_progress" && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
+                  <span>{liveCurrentRound ? `第${liveCurrentRound.round_number}/4轮 · ${roleLabel(liveCurrentRound.role)}正在陈述...` : "正在建立实时连接..."}</span>
+                  <span className="font-mono">{Math.min(95, Math.max(8, liveRounds.length * 25)).toFixed(0)}%</span>
+                </div>
+                <LiveProgressBar value={Math.min(95, Math.max(8, liveRounds.length * 25))} />
+              </div>
+            )}
+          </section>
+
+          <section className="content-end rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
+            <h2 className="mb-3 flex items-center gap-2 heading-section">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              {t("debate.loadDebate")}
+            </h2>
+            <div className="flex gap-3">
+              <input
+                className="min-w-0 flex-1 rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
+                placeholder={t("debate.debateIdPlaceholder")}
+                value={inputId}
+                onChange={(event) => setInputId(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && handleLoad()}
+              />
+              <button onClick={handleLoad} className="btn btn-primary">
+                {t("common.load")}
+              </button>
+            </div>
+            {error && (
+              <div className="mt-3 border-l border-[var(--accent-red)] pl-3 text-sm text-[var(--accent-red)]">
+                {t("debate.debateNotFound")}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
       <div className="divider-line" />
 
       {isLoading && <DebateSkeleton />}
+
+      {(liveStatus === "in_progress" || liveStatus === "complete") && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="heading-section">实时辩论进度</h2>
+            <span className={liveStatus === "complete" ? "badge badge-success" : "badge badge-warning"}>
+              {liveStatus === "complete" ? "COMPLETE" : "IN PROGRESS"}
+            </span>
+          </div>
+          {liveStatus === "in_progress" && (
+            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
+              <div className="mb-3 flex items-center justify-between gap-3 text-sm">
+                <span>{liveCurrentRound ? `第${liveCurrentRound.round_number}/4轮 · ${roleLabel(liveCurrentRound.role)}正在陈述...` : "等待首轮陈述..."}</span>
+                <span className="font-mono text-xs text-[var(--muted)]">{liveRounds.length}/4</span>
+              </div>
+              <LiveProgressBar value={Math.min(95, Math.max(8, liveRounds.length * 25))} />
+            </div>
+          )}
+          <div className="space-y-4">
+            {liveRounds.map((round, index) => (
+              <DebateRoundBlock
+                key={`${round.round_number}-${round.role}-${index}`}
+                round={round}
+                votes={[]}
+                comment=""
+                submitting={false}
+                onCommentChange={() => undefined}
+                onVote={() => undefined}
+              />
+            ))}
+          </div>
+          {liveVerdict && <LiveVerdictCard verdict={liveVerdict} />}
+        </section>
+      )}
 
       {debate ? (
         <div className="space-y-8">
@@ -543,6 +764,18 @@ function DebatePageInner() {
             </div>
             {debateList && debateList.length > 0 ? (
               <div className="space-y-3">
+                {liveStatus === "in_progress" && (
+                  <div className="rounded-lg border border-[var(--accent)]/40 bg-[var(--card)] p-5 text-left animate-fadeIn">
+                    <div className="mb-3 flex items-center justify-between gap-4">
+                      <div>
+                        <div className="section-label !text-[var(--accent)]">LIVE · {liveTargetType}</div>
+                        <h3 className="mt-2 text-sm font-medium leading-relaxed">{liveTopic || debateList[0]?.topic || "实时辩论"}</h3>
+                      </div>
+                      <span className="badge badge-warning">{liveRounds.length}/4</span>
+                    </div>
+                    <LiveProgressBar value={Math.min(95, Math.max(8, liveRounds.length * 25))} />
+                  </div>
+                )}
                 {debateList.map((d) => (
                   <button
                     key={d.debate_id}
@@ -557,6 +790,11 @@ function DebatePageInner() {
                         <h3 className="text-sm font-medium leading-relaxed text-[var(--foreground)] group-hover:text-[var(--accent)] transition-colors">
                           {d.topic}
                         </h3>
+                        {!d.verdict && (
+                          <div className="mt-3">
+                            <LiveProgressBar value={35} />
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         {d.confidence != null && (

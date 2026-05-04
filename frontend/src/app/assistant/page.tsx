@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
-import { fetchSessions, fetchSessionDetail, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound, type StrategicSessionDetail } from "@/lib/api";
+import { RefreshCw } from "lucide-react";
+import { fetchSessions, fetchSessionDetail, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound, type DebateVerdict, type StrategicSessionDetail } from "@/lib/api";
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
@@ -224,10 +225,46 @@ function PanelMessageCard({ msg }: { msg: PanelMessage }) {
   );
 }
 
+type AssistantRunParams = {
+  topic: string;
+  domain_id: string;
+  subject_name: string;
+  tick_count: number;
+};
+
+type CurrentDebateRound = {
+  round_number: number;
+  role: string;
+} | null;
+
+function debateRoleLabel(role: string) {
+  const labels: Record<string, string> = {
+    advocate: "支持方",
+    challenger: "反对方",
+    arbitrator: "裁决方",
+    strategist: "支持方",
+    risk_analyst: "反对方",
+    opportunist: "裁决方",
+  };
+  return labels[role] || role;
+}
+
+function debateArgumentText(value: unknown) {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of ["content", "text", "argument", "summary", "title"]) {
+      if (typeof record[key] === "string" && record[key]) return record[key] as string;
+    }
+  }
+  return String(value ?? "");
+}
+
 function DebateRoundCard({ round }: { round: DebateRound }) {
   const { t } = useTranslation();
   const confidence = Math.max(0, Math.min(1, round.confidence));
   const confidenceBadge = confidence >= 0.7 ? "badge-success" : confidence >= 0.4 ? "badge badge-warning" : "badge-error";
+  const keyArguments = (round.arguments || []).map(debateArgumentText).filter(Boolean).slice(0, 4);
 
   return (
     <div className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
@@ -248,7 +285,54 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
         <div className="mt-3">
           <RichText text={round.position} />
         </div>
+        {keyArguments.length > 0 && (
+          <div className="mt-4 border-l border-[var(--card-border)] pl-4">
+            <div className="mb-2 section-label !text-[var(--muted)]">关键论据</div>
+            <div className="space-y-1.5">
+              {keyArguments.map((argument, index) => (
+                <div key={`${argument}-${index}`} className="grid grid-cols-[22px_1fr] text-xs leading-5 text-[var(--muted-foreground)]">
+                  <span className="font-mono text-[var(--accent)]">+</span>
+                  <span>{argument}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function DebateStatusBar({ status, currentRound }: { status: "idle" | "in_progress" | "complete"; currentRound: CurrentDebateRound }) {
+  if (status !== "in_progress" || !currentRound) return null;
+  return (
+    <div className="mt-5 flex items-center gap-3 rounded-md border border-[var(--card-border)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--foreground)] motion-safe:animate-[fadeIn_0.25s_ease-out]">
+      <span className="h-2 w-2 rounded-full bg-[var(--accent)] motion-safe:animate-pulse" />
+      <span>第{currentRound.round_number}/4轮 · {debateRoleLabel(currentRound.role)}正在陈述...</span>
+    </div>
+  );
+}
+
+function DebateVerdictCard({ verdict }: { verdict: Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> }) {
+  return (
+    <div className="my-5 rounded-lg border border-[var(--accent)]/40 bg-[var(--background)] p-5 motion-safe:animate-[scaleIn_0.25s_ease-out]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="section-label !text-[var(--accent)]">最终裁决</div>
+          <div className="mt-2 text-lg font-semibold uppercase">{verdict.verdict}</div>
+        </div>
+        <span className="badge badge-success">{(Math.max(0, Math.min(1, verdict.confidence)) * 100).toFixed(0)}%</span>
+      </div>
+      {verdict.winning_arguments.length > 0 && (
+        <div className="space-y-2">
+          {verdict.winning_arguments.map((argument, index) => (
+            <div key={`${argument}-${index}`} className="grid grid-cols-[28px_1fr] text-sm leading-6 text-[var(--muted-foreground)]">
+              <span className="font-mono text-xs text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
+              <span>{argument}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -506,10 +590,14 @@ export default function AssistantPage() {
   const [sources, setSources] = useState<{ title: string; url: string }[]>([]);
   const [discussions, setDiscussions] = useState<PanelMessage[]>([]);
   const [debateRounds, setDebateRounds] = useState<DebateRound[]>([]);
+  const [debateStatus, setDebateStatus] = useState<"idle" | "in_progress" | "complete">("idle");
+  const [currentDebateRound, setCurrentDebateRound] = useState<CurrentDebateRound>(null);
+  const [debateVerdict, setDebateVerdict] = useState<Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> | null>(null);
   const [result, setResult] = useState<AssistantResult | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastRunParamsRef = useRef<AssistantRunParams | null>(null);
   const [topic, setTopic] = useState("");
   const [domainId, setDomainId] = useState("auto");
   const [subjectName, setSubjectName] = useState("");
@@ -568,8 +656,15 @@ export default function AssistantPage() {
     }
   }, []);
 
-  const handleRun = useCallback(async () => {
-    if (!topic.trim()) return;
+  const handleRun = useCallback(async (overrideParams?: AssistantRunParams) => {
+    const runParams = overrideParams || {
+      topic,
+      domain_id: domainId,
+      subject_name: subjectName || topic.slice(0, 50),
+      tick_count: tickCount,
+    };
+    if (!runParams.topic.trim()) return;
+    lastRunParamsRef.current = runParams;
     setSelectedSessionId(null);
     setStreaming(true);
     setError(null);
@@ -577,6 +672,9 @@ export default function AssistantPage() {
     setSources([]);
     setDiscussions([]);
     setDebateRounds([]);
+    setDebateStatus("idle");
+    setCurrentDebateRound(null);
+    setDebateVerdict(null);
     setResult(null);
     setActiveTab("process");
     setEvents([]);
@@ -589,7 +687,7 @@ export default function AssistantPage() {
     abortRef.current = ctrl;
     try {
       await streamAssistant(
-        { topic, domain_id: domainId, subject_name: subjectName || topic.slice(0, 50), tick_count: tickCount },
+        runParams,
         (evt) => {
           setEvents(prev => [...prev, evt]);
 
@@ -667,8 +765,46 @@ export default function AssistantPage() {
             });
           } else if (evt.event === "discussion") {
             setDiscussions(p => [...p, evt.payload as PanelMessage]);
+          } else if (evt.event === "debate_round_start") {
+            const payload = evt.payload as { round_number: number; role: string };
+            setDebateStatus("in_progress");
+            setCurrentDebateRound(payload);
+            setCurrentStage("debate");
+          } else if (evt.event === "debate_round_complete") {
+            const payload = evt.payload as { round_number: number; role: string; position: string; confidence: number; key_arguments?: string[] };
+            const round: DebateRound = {
+              round_number: payload.round_number,
+              role: payload.role,
+              position: payload.position,
+              confidence: payload.confidence,
+              arguments: (payload.key_arguments || []).map((argument) => ({ content: argument })),
+              rebuttals: [],
+              concessions: [],
+            };
+            setDebateStatus("in_progress");
+            setDebateRounds(p => [...p, round]);
+            setDebateMessages(prev => [...prev, {
+              role: round.role as "advocate" | "challenger" | "arbitrator",
+              round: round.round_number,
+              content: round.position,
+              confidence: round.confidence,
+              arguments: payload.key_arguments || [],
+              rebuttals: []
+            }]);
+            setCurrentStage("debate");
+          } else if (evt.event === "debate_verdict") {
+            const payload = evt.payload as Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments">;
+            setDebateVerdict({
+              verdict: payload.verdict,
+              confidence: payload.confidence,
+              winning_arguments: payload.winning_arguments || [],
+            });
+            setDebateStatus("complete");
+            setCurrentDebateRound(null);
+            setCurrentStage("debate");
           } else if (evt.event === "debate_round") {
             const round = evt.payload as DebateRound;
+            setDebateStatus("in_progress");
             setDebateRounds(p => [...p, round]);
             setDebateMessages(prev => [...prev, {
               role: round.role as "advocate" | "challenger" | "arbitrator",
@@ -680,7 +816,13 @@ export default function AssistantPage() {
             }]);
             setCurrentStage("debate");
           } else if (evt.event === "assistant_result") {
-            setResult(evt.payload as AssistantResult);
+            const nextResult = evt.payload as AssistantResult;
+            setResult(nextResult);
+            if (nextResult.debate?.verdict) {
+              setDebateVerdict(nextResult.debate.verdict);
+              setDebateStatus("complete");
+              setCurrentDebateRound(null);
+            }
           }
         },
         ctrl.signal
@@ -697,6 +839,7 @@ export default function AssistantPage() {
       if (err instanceof Error && err.name !== "AbortError") setError(err.message);
     } finally {
       setStreaming(false);
+      setCurrentDebateRound(null);
     }
   }, [topic, domainId, subjectName, tickCount, refreshSessions, t]);
 
@@ -865,7 +1008,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
 
               <div className="mt-5 flex gap-3">
                 <button
-                  onClick={handleRun}
+                  onClick={() => handleRun()}
                   disabled={streaming || !topic.trim()}
                   className="btn btn-primary flex-1 gap-2"
                 >
@@ -896,7 +1039,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               {error && (
                 <div className="mt-5 border-l border-[var(--accent-red)] bg-[var(--accent-red-bg)] px-4 py-3 text-sm text-[var(--accent-red)]">
                   <div>{error}</div>
-                  <button onClick={handleRun} className="mt-3 text-xs underline underline-offset-4">
+                  <button onClick={() => handleRun()} className="mt-3 text-xs underline underline-offset-4">
                     {t("common.retry")}
                   </button>
                 </div>
@@ -1069,15 +1212,24 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <>
                   {debateRounds.length > 0 ? (
                     <div>
+                      <DebateStatusBar status={debateStatus} currentRound={currentDebateRound} />
                       {debateRounds.map((r, i) => (
                         <DebateRoundCard key={i} round={r} />
                       ))}
+                      {debateVerdict && <DebateVerdictCard verdict={debateVerdict} />}
                       {streaming && <StreamingSkeleton label={t("assistant.debateTrace")} />}
                     </div>
                   ) : streaming ? (
-                    <StreamingSkeleton label={t("assistant.debateTrace")} />
+                    <div>
+                      <DebateStatusBar status={debateStatus} currentRound={currentDebateRound} />
+                      <StreamingSkeleton label={t("assistant.debateTrace")} />
+                    </div>
                   ) : (
-                    <EmptyState title={t("assistant.noDebate")} description={t("assistant.noDebateDescription")} />
+                    debateVerdict ? (
+                      <DebateVerdictCard verdict={debateVerdict} />
+                    ) : (
+                      <EmptyState title={t("assistant.noDebate")} description={t("assistant.noDebateDescription")} />
+                    )
                   )}
                 </>
               )}
@@ -1088,12 +1240,25 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             <section className="mt-6 rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <h3 className="heading-section">{t("assistant.analysisComplete")}</h3>
-                <button
-                  onClick={handleExport}
-                  className="btn btn-ghost"
-                >
-                  {t("common.exportMd")}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const params = lastRunParamsRef.current;
+                      if (params) handleRun(params);
+                    }}
+                    disabled={streaming || !lastRunParamsRef.current}
+                    className="btn btn-primary"
+                  >
+                    <RefreshCw size={16} />
+                    重新分析
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    className="btn btn-ghost"
+                  >
+                    {t("common.exportMd")}
+                  </button>
+                </div>
               </div>
 
               <RichText text={result.analysis.summary} />

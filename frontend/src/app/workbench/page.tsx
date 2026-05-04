@@ -10,8 +10,11 @@ import {
   FileSearch,
   Layers3,
   PauseCircle,
+  RefreshCw,
   ShieldCheck,
   TrendingUp,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   createUserDecision,
@@ -109,6 +112,66 @@ function ConfidenceBar({ value }: { value?: number | null }) {
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--card-border)]">
         <div className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function RecommendationVersionTimeline({ versions }: { versions: WorkbenchPredictionVersion[] }) {
+  const ordered = [...versions].sort((a, b) => a.version_number - b.version_number);
+  if (ordered.length === 0) {
+    return (
+      <div className="mt-5 border-t border-[var(--card-border)] pt-5 text-sm text-[var(--muted)]">
+        暂无建议版本
+      </div>
+    );
+  }
+
+  const latestVersion = ordered[ordered.length - 1]?.version_number;
+
+  return (
+    <div className="mt-5 border-t border-[var(--card-border)] pt-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="section-label !text-[var(--muted)]">建议版本时间线</div>
+        <span className="badge">{ordered.length}</span>
+      </div>
+      <div className="space-y-0">
+        {ordered.map((version, index) => {
+          const previous = ordered[index - 1];
+          const currentPct = percentValue(version.probability);
+          const previousPct = percentValue(previous?.probability);
+          const delta = currentPct != null && previousPct != null ? currentPct - previousPct : null;
+          const isLatest = version.version_number === latestVersion;
+
+          return (
+            <div key={`${version.id}-${index}`} className="grid grid-cols-[26px_1fr] gap-3">
+              <div className="relative flex justify-center">
+                <span className={`mt-1.5 h-2.5 w-2.5 rounded-full border ${isLatest ? "border-[var(--accent)] bg-[var(--accent)]" : "border-[var(--card-border)] bg-[var(--card)]"}`} />
+                {index < ordered.length - 1 && <span className="absolute top-5 h-[calc(100%-8px)] w-px bg-[var(--card-border)]" />}
+              </div>
+              <div className={`mb-4 rounded-md border p-3 ${isLatest ? "border-[var(--accent)]/50 bg-[var(--background)]" : "border-[var(--card-border)] bg-[var(--background)]/70"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-mono text-[11px] text-[var(--muted)]">v{version.version_number} · {formatDate(version.created_at)}</div>
+                    <div className="mt-1 text-xs text-[var(--muted-foreground)]">{version.trigger_type || "-"}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">{formatPercent(version.probability)}</span>
+                    {delta != null ? (
+                      <span className={`inline-flex items-center gap-1 font-mono text-xs ${delta >= 0 ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
+                        {delta >= 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                        {Math.abs(delta).toFixed(0)}pt
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[11px] text-[var(--muted)]">基线</span>
+                    )}
+                  </div>
+                </div>
+                {isLatest && <div className="mt-2 section-label !text-[var(--accent)]">最新版本</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -302,7 +365,7 @@ export default function WorkbenchPage() {
     }
   }, [selectedSessionId, sessions]);
 
-  const { data: workbench, error: workbenchError, isLoading: workbenchLoading } = useSWR(
+  const { data: workbench, error: workbenchError, isLoading: workbenchLoading, mutate, isValidating } = useSWR(
     selectedSessionId ? `decision-workbench-${selectedSessionId}` : null,
     () => fetchWorkbenchData(selectedSessionId),
   );
@@ -328,6 +391,16 @@ export default function WorkbenchPage() {
       toast.error(`${t("workbench.decisionSaveFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setSavingDecision(false);
+    }
+  };
+
+  const handleRefreshRecommendations = async () => {
+    if (!selectedSessionId || isValidating) return;
+    try {
+      await mutate();
+      toast.success("建议已更新");
+    } catch (error) {
+      toast.error(`${t("workbench.loadFailed")}: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -363,6 +436,15 @@ export default function WorkbenchPage() {
               {selectedSession.domain_id} / {formatDate(selectedSession.created_at)}
             </div>
           )}
+          <button
+            type="button"
+            onClick={handleRefreshRecommendations}
+            disabled={!selectedSessionId || isValidating}
+            className="btn btn-primary mt-4 w-full justify-center py-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw size={18} className={isValidating ? "animate-spin" : ""} />
+            {isValidating ? "正在刷新..." : "刷新建议"}
+          </button>
         </section>
       </div>
 
@@ -408,6 +490,7 @@ export default function WorkbenchPage() {
                 <Clock3 size={14} />
                 <span>{formatDate(workbench.generated_at)}</span>
               </div>
+              <RecommendationVersionTimeline versions={workbench.prediction_versions} />
             </section>
 
             <NumberedList title={t("workbench.keyFindings")} items={workbench.findings} empty={t("workbench.noFindings")} />

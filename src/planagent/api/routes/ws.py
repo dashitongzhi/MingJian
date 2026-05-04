@@ -19,6 +19,8 @@ NOTIFICATION_TOPICS = [
     EventTopic.SOURCE_CHANGED.value,
     EventTopic.DEBATE_COMPLETED.value,
     EventTopic.PREDICTION_VERSION_CREATED.value,
+    EventTopic.SIMULATION_COMPLETED.value,
+    "session.updated",
 ]
 
 
@@ -70,11 +72,16 @@ async def _notification_for_event(event: ConsumedEvent) -> dict[str, str] | None
     payload = event.payload
     session_id = await _session_id_from_payload(payload)
 
+    action_url = ""
+
     if event.topic == EventTopic.SOURCE_CHANGED.value:
         source_type = _string_value(payload.get("source_type")) or "source"
         title = "High-significance source change"
         body = f"{source_type} source changed and may require review."
+        if session_id:
+            action_url = f"/assistant?session={session_id}"
     elif event.topic == EventTopic.DEBATE_COMPLETED.value:
+        debate_id = _string_value(payload.get("debate_id"))
         verdict = _string_value(payload.get("verdict")) or "completed"
         confidence = payload.get("confidence")
         confidence_text = (
@@ -84,6 +91,10 @@ async def _notification_for_event(event: ConsumedEvent) -> dict[str, str] | None
         )
         title = "Debate completed"
         body = f"Debate verdict: {verdict}{confidence_text}."
+        if debate_id:
+            action_url = f"/debate?id={debate_id}"
+        elif session_id:
+            action_url = f"/assistant?session={session_id}"
     elif event.topic == EventTopic.PREDICTION_VERSION_CREATED.value:
         version_number = _string_value(payload.get("version_number"))
         title = "Prediction updated"
@@ -92,6 +103,20 @@ async def _notification_for_event(event: ConsumedEvent) -> dict[str, str] | None
             if version_number
             else "A new prediction version was created."
         )
+        if session_id:
+            action_url = f"/assistant?session={session_id}"
+    elif event.topic == EventTopic.SIMULATION_COMPLETED.value:
+        run_id = _string_value(payload.get("simulation_run_id"))
+        scenario = _string_value(payload.get("scenario_name"))
+        title = "Simulation completed"
+        body = f"Simulation {scenario + ' ' if scenario else ''}has completed." if run_id else "A simulation has completed."
+        if session_id:
+            action_url = f"/assistant?session={session_id}"
+    elif event.topic == "session.updated":
+        title = "Session updated"
+        body = _string_value(payload.get("message")) or "Your session has been updated."
+        if session_id:
+            action_url = f"/assistant?session={session_id}"
     else:
         return None
 
@@ -101,6 +126,7 @@ async def _notification_for_event(event: ConsumedEvent) -> dict[str, str] | None
         "body": body,
         "severity": severity,
         "session_id": session_id,
+        "action_url": action_url,
     }
 
 

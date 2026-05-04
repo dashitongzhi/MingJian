@@ -10,6 +10,8 @@ export interface ProcessStep {
   details?: string[];
   status: "pending" | "running" | "completed" | "error";
   timestamp?: string;
+  startTime?: string;
+  endTime?: string;
   modelOutput?: string;
   sources?: Array<{ title: string; url: string; snippet?: string }>;
 }
@@ -23,11 +25,23 @@ export interface DebateMessage {
   rebuttals?: string[];
 }
 
+export interface AgentState {
+  provider: string;
+  agent_name: string;
+  agent_icon: string;
+  task_desc: string;
+  status: "searching" | "completed" | "failed";
+  count?: number;
+  error?: string;
+  items_preview?: string[];
+}
+
 interface ProcessVisualizerProps {
   steps: ProcessStep[];
   debateMessages: DebateMessage[];
   currentStage: string;
   isStreaming: boolean;
+  agents?: AgentState[];
 }
 
 const stageConfig = {
@@ -63,11 +77,158 @@ const stageConfig = {
   }
 };
 
+function formatDuration(start?: string, end?: string): string | null {
+  if (!start) return null;
+  const startTime = new Date(start).getTime();
+  const endTime = end ? new Date(end).getTime() : Date.now();
+  const seconds = Math.round((endTime - startTime) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}m${remaining}s`;
+}
+
+function AgentWorkPanel({ agents, t }: { agents: AgentState[]; t: (key: string) => string }) {
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+
+  if (agents.length === 0) return null;
+
+  const completed = agents.filter((a) => a.status === "completed").length;
+  const failed = agents.filter((a) => a.status === "failed").length;
+  const total = agents.length;
+  const totalItems = agents.reduce((sum, a) => sum + (a.count || 0), 0);
+
+  return (
+    <div className="mb-6 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+      {/* Header with overall progress */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+              <path d="M16 3h-8l-2 4h12l-2-4z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">{t("agent.title")}</h3>
+            <p className="text-xs text-[var(--muted)]">
+              {completed + failed}/{t("common.completed")}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 font-mono text-xs text-[var(--muted)]">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent-green)]" />
+            {completed}/{total}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)]" />
+            {totalItems} {t("agent.collectedItems")}
+          </span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mb-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--background)]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
+          style={{ width: `${total > 0 ? ((completed + failed) / total) * 100 : 0}%` }}
+        />
+      </div>
+
+      {/* Agent cards */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {agents.map((agent) => {
+          const isExpanded = expandedAgent === agent.provider;
+          return (
+            <div key={agent.provider} className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--background)]/50">
+              <button
+                type="button"
+                onClick={() => setExpandedAgent(isExpanded ? null : agent.provider)}
+                className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-[var(--sidebar-accent)]/30"
+              >
+                {/* Agent icon */}
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base ${
+                    agent.status === "searching"
+                      ? "bg-blue-500/10 motion-safe:animate-pulse"
+                      : agent.status === "completed"
+                        ? "bg-green-500/10"
+                        : "bg-red-500/10"
+                  }`}
+                >
+                  {agent.agent_icon || "🔍"}
+                </div>
+
+                {/* Agent info */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium">{agent.agent_name}</span>
+                    {agent.status === "searching" && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-xs text-[var(--muted)]">{agent.task_desc}</p>
+                </div>
+
+                {/* Status & count */}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {agent.status === "searching" && (
+                    <span className="flex items-center gap-1 text-xs text-blue-500">
+                      <span className="h-1.5 w-8 overflow-hidden rounded-full bg-blue-500/20">
+                        <span className="block h-full w-1/2 animate-[slideRight_1.2s_ease-in-out_infinite] rounded-full bg-blue-500" />
+                      </span>
+                    </span>
+                  )}
+                  {agent.status === "completed" && (
+                    <span className="text-xs text-green-500">✅ {agent.count || 0} {t("agent.collectedItems")}</span>
+                  )}
+                  {agent.status === "failed" && (
+                    <span className="text-xs text-red-500">❌ {t("agent.failed")}</span>
+                  )}
+                  {agent.items_preview && agent.items_preview.length > 0 && (
+                    <span className="text-[10px] text-[var(--muted)]">{t("agent.clickToExpand")}</span>
+                  )}
+                </div>
+              </button>
+
+              {/* Expanded items preview */}
+              {isExpanded && agent.items_preview && agent.items_preview.length > 0 && (
+                <div className="border-t border-[var(--card-border)] bg-[var(--background)]/80 px-3 py-2 animate-fadeIn">
+                  <ul className="space-y-1">
+                    {agent.items_preview.slice(0, 3).map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs">
+                        <span className="mt-0.5 text-[var(--accent)]">•</span>
+                        <span className="line-clamp-2 text-[var(--muted-foreground)]">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Expanded error */}
+              {isExpanded && agent.status === "failed" && agent.error && (
+                <div className="border-t border-red-500/20 bg-red-500/5 px-3 py-2 animate-fadeIn">
+                  <p className="text-xs text-red-500">{agent.error}</p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ProcessVisualizer({
   steps,
   debateMessages,
   currentStage,
-  isStreaming
+  isStreaming,
+  agents = [],
 }: ProcessVisualizerProps) {
   const { t } = useTranslation();
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
@@ -78,7 +239,7 @@ export function ProcessVisualizer({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [steps, debateMessages]);
+  }, [steps, debateMessages, agents]);
 
   const getStatusIcon = (status: ProcessStep["status"]) => {
     switch (status) {
@@ -141,16 +302,22 @@ export function ProcessVisualizer({
       {/* Process Timeline */}
       <div ref={scrollRef} className="max-h-[600px] overflow-y-auto p-4 space-y-4">
         {/* Stage Progress Bar */}
-        <div className="flex items-center gap-2 mb-6">
-          {Object.entries(stageConfig).map(([stage, config], index) => {
+        <div className="flex items-stretch gap-2 mb-6">
+          {Object.entries(stageConfig).map(([stage, config]) => {
             const isActive = currentStage === stage;
-            const isCompleted = steps.some(s => s.stage === stage && s.status === "completed");
+            const stepForStage = steps.find((s) => s.stage === stage && s.status === "completed");
+            const isCompleted = !!stepForStage;
             const isPending = !isActive && !isCompleted;
+            const duration = stepForStage
+              ? formatDuration(stepForStage.startTime, stepForStage.endTime)
+              : isActive
+                ? formatDuration(steps.find((s) => s.stage === stage)?.startTime)
+                : null;
 
             return (
-              <div key={stage} className="flex-1">
+              <div key={stage} className="flex flex-1 flex-col items-center">
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ${
+                  className={`h-2 w-full rounded-full transition-all duration-500 ${
                     isActive
                       ? "bg-gradient-to-r from-blue-500 to-purple-500 animate-pulse"
                       : isCompleted
@@ -158,16 +325,39 @@ export function ProcessVisualizer({
                         : "bg-[var(--background)]"
                   }`}
                 />
-                <div className="mt-2 text-center">
+                <div className="mt-2 flex flex-col items-center">
                   <span className="text-lg">{config.icon}</span>
-                  <p className={`text-xs mt-1 ${isActive ? "text-[var(--accent)] font-medium" : "text-[var(--muted)]"}`}>
+                  <p
+                    className={`mt-1 text-xs ${
+                      isActive
+                        ? "font-semibold text-[var(--accent)]"
+                        : isCompleted
+                          ? "text-[var(--accent-green)]"
+                          : "text-[var(--muted)]"
+                    }`}
+                  >
                     {t(config.labelKey)}
                   </p>
+                  {isCompleted && duration && (
+                    <span className="mt-0.5 text-[10px] text-[var(--muted)]">
+                      ✅ {duration}
+                    </span>
+                  )}
+                  {isActive && (
+                    <span className="mt-0.5 text-[10px] text-[var(--accent)] animate-pulse">
+                      ● {duration || "..."}
+                    </span>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
+
+        {/* Agent Work Panel */}
+        {agents.length > 0 && (
+          <AgentWorkPanel agents={agents} t={t} />
+        )}
 
         {/* Steps Timeline */}
         <div className="space-y-3">
@@ -227,6 +417,14 @@ export function ProcessVisualizer({
                           <>
                             <span className="text-xs text-[var(--muted)]">•</span>
                             <span className="text-xs text-[var(--muted)]">{step.timestamp}</span>
+                          </>
+                        )}
+                        {step.status === "completed" && step.startTime && step.endTime && (
+                          <>
+                            <span className="text-xs text-[var(--muted)]">•</span>
+                            <span className="text-xs text-[var(--accent-green)]">
+                              ✅ {formatDuration(step.startTime, step.endTime)}
+                            </span>
                           </>
                         )}
                       </div>
@@ -447,7 +645,9 @@ export function eventsToProcessSteps(events: Array<{ event: string; payload: any
         description: step.detail || "",
         details: step.detail ? [step.detail] : undefined,
         status: "completed",
-        timestamp: new Date().toLocaleTimeString()
+        timestamp: new Date().toLocaleTimeString(),
+        startTime: step.startTime,
+        endTime: step.endTime,
       });
     } else if (event.event === "source") {
       const source = event.payload as any;

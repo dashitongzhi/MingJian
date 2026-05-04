@@ -45,6 +45,9 @@ class SourceAdapter:
     default_enabled: bool
     default_limit: int
     fetcher: Any
+    agent_name: str = ""
+    agent_icon: str = ""
+    task_desc: str = ""
 
 
 class AutomatedAnalysisService:
@@ -309,6 +312,9 @@ class AutomatedAnalysisService:
                 {
                     "provider": provider_key,
                     "label": provider_label,
+                    "agent_name": adapter.agent_name,
+                    "agent_icon": adapter.agent_icon,
+                    "task_desc": adapter.task_desc,
                 },
             )
             tasks.append(fetch_with_timeout(adapter, limit))
@@ -343,6 +349,7 @@ class AutomatedAnalysisService:
                 continue
 
             added = 0
+            items_preview: list[str] = []
             for source in provider_results:
                 dedupe_key = (source.title.lower(), source.url)
                 if dedupe_key in seen:
@@ -350,6 +357,8 @@ class AutomatedAnalysisService:
                 seen.add(dedupe_key)
                 results.append(source)
                 added += 1
+                if len(items_preview) < 3:
+                    items_preview.append(source.title)
 
             steps_by_adapter[index] = (
                 self._step(
@@ -364,6 +373,7 @@ class AutomatedAnalysisService:
                     "provider": adapter.key,
                     "label": provider_label,
                     "count": added,
+                    "items_preview": items_preview,
                 },
             )
 
@@ -385,6 +395,9 @@ class AutomatedAnalysisService:
                 payload.include_google_news,
                 payload.max_news_items,
                 lambda limit: self._fetch_google_news(query, limit),
+                agent_name="新闻探员",
+                agent_icon="📰",
+                task_desc="正在搜索 Google News 获取最新新闻报道",
             ),
             SourceAdapter(
                 "reddit",
@@ -392,6 +405,9 @@ class AutomatedAnalysisService:
                 payload.include_reddit,
                 payload.max_reddit_items,
                 lambda limit: self._fetch_reddit(query, limit, domain_id),
+                agent_name="社区探员",
+                agent_icon="💬",
+                task_desc="正在搜索 Reddit 社区讨论",
             ),
             SourceAdapter(
                 "hacker_news",
@@ -399,6 +415,9 @@ class AutomatedAnalysisService:
                 payload.include_hacker_news,
                 payload.max_tech_items,
                 lambda limit: self._fetch_hacker_news(query, limit, domain_id),
+                agent_name="技术探员",
+                agent_icon="🔧",
+                task_desc="正在搜索 Hacker News 技术动态",
             ),
             SourceAdapter(
                 "github",
@@ -406,6 +425,9 @@ class AutomatedAnalysisService:
                 payload.include_github,
                 payload.max_github_items,
                 lambda limit: self._fetch_github_repositories(query, limit, domain_id),
+                agent_name="代码探员",
+                agent_icon="🐙",
+                task_desc="正在搜索 GitHub 开源项目",
             ),
             SourceAdapter(
                 "rss",
@@ -413,6 +435,9 @@ class AutomatedAnalysisService:
                 payload.include_rss_feeds,
                 payload.max_rss_items,
                 lambda limit: self._fetch_configured_rss(query, limit, domain_id),
+                agent_name="订阅探员",
+                agent_icon="📡",
+                task_desc="正在扫描 RSS 订阅源",
             ),
             SourceAdapter(
                 "gdelt",
@@ -420,6 +445,9 @@ class AutomatedAnalysisService:
                 payload.include_gdelt,
                 payload.max_gdelt_items,
                 lambda limit: self._fetch_gdelt_documents(query, limit, domain_id),
+                agent_name="全球探员",
+                agent_icon="🌍",
+                task_desc="正在搜索 GDELT 全球事件数据库",
             ),
             SourceAdapter(
                 "weather",
@@ -427,6 +455,9 @@ class AutomatedAnalysisService:
                 payload.include_weather,
                 payload.max_weather_items,
                 lambda limit: self._fetch_weather_context(query, limit, domain_id),
+                agent_name="气象探员",
+                agent_icon="🌤️",
+                task_desc="正在获取气象数据",
             ),
             SourceAdapter(
                 "aviation",
@@ -434,6 +465,9 @@ class AutomatedAnalysisService:
                 payload.include_aviation,
                 payload.max_aviation_items,
                 lambda limit: self._fetch_aviation_context(query, limit, domain_id),
+                agent_name="航空探员",
+                agent_icon="✈️",
+                task_desc="正在获取航空数据",
             ),
             SourceAdapter(
                 "x",
@@ -441,6 +475,9 @@ class AutomatedAnalysisService:
                 payload.include_x,
                 payload.max_x_items,
                 lambda limit: self._fetch_x_sources(query, limit, domain_id),
+                agent_name="社媒探员",
+                agent_icon="🐦",
+                task_desc="正在搜索 X/Twitter 社交媒体",
             ),
             SourceAdapter(
                 "linux_do",
@@ -448,6 +485,9 @@ class AutomatedAnalysisService:
                 False,
                 3,
                 lambda limit: self._fetch_linux_do(query, limit, domain_id),
+                agent_name="论坛探员",
+                agent_icon="🐧",
+                task_desc="正在搜索 Linux.do 社区",
             ),
             SourceAdapter(
                 "xiaohongshu",
@@ -455,6 +495,9 @@ class AutomatedAnalysisService:
                 False,
                 3,
                 lambda limit: self._fetch_provider_sources("xiaohongshu", query, limit, domain_id),
+                agent_name="小红书探员",
+                agent_icon="📕",
+                task_desc="正在搜索小红书内容",
             ),
             SourceAdapter(
                 "douyin",
@@ -462,6 +505,9 @@ class AutomatedAnalysisService:
                 False,
                 3,
                 lambda limit: self._fetch_provider_sources("douyin", query, limit, domain_id),
+                agent_name="抖音探员",
+                agent_icon="🎵",
+                task_desc="正在搜索抖音内容",
             ),
         ]
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 import re
 from typing import Any
@@ -129,6 +130,20 @@ class DebateAssessment:
 
 
 @dataclass(frozen=True)
+class DebateStreamEvent:
+    event: str
+    payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class DebateStreamPreparation:
+    context: str
+    llm_evidence_ids: list[str]
+    assessment_evidence_ids: list[str]
+    assessment_kwargs: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class ClaimRelationContext:
     supportive_claims: list[Claim]
     conflicting_claims: list[Claim]
@@ -246,6 +261,161 @@ class DebateService:
         await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
         await self.event_bus.publish(EventTopic.DEBATE_COMPLETED.value, completed_payload)
         return await self.get_debate(session, debate_session.id)
+
+    async def stream_debate(
+        self,
+        session: AsyncSession,
+        payload: DebateTriggerRequest,
+    ) -> AsyncIterator[DebateStreamEvent]:
+        payload = await self._resolve_trigger_payload(session, payload)
+        if payload.run_id is None and payload.claim_id is None:
+            raise ValueError("Debate trigger requires run_id or claim_id.")
+
+        run = await session.get(SimulationRun, payload.run_id) if payload.run_id is not None else None
+        claim = await session.get(Claim, payload.claim_id) if payload.claim_id is not None else None
+        debate_session = DebateSessionRecord(
+            run_id=payload.run_id,
+            claim_id=payload.claim_id,
+            tenant_id=(claim.tenant_id if claim is not None else None) or (run.tenant_id if run is not None else None),
+            preset_id=(claim.preset_id if claim is not None else None) or (run.preset_id if run is not None else None),
+            topic=payload.topic,
+            trigger_type=payload.trigger_type,
+            status="RUNNING",
+            target_type=payload.target_type,
+            target_id=payload.target_id or payload.claim_id or payload.run_id,
+            context_payload={"user_context": payload.context_lines},
+        )
+        trigger_payload: dict[str, Any]
+        debate_id: str
+
+        try:
+            async with session.begin_nested():
+                session.add(debate_session)
+                await session.flush()
+                debate_id = debate_session.id
+                trigger_payload = {
+                    "debate_id": debate_id,
+                    "run_id": payload.run_id,
+                    "claim_id": payload.claim_id,
+                    "topic": payload.topic,
+                    "trigger_type": payload.trigger_type,
+                }
+                session.add(EventArchive(topic=EventTopic.DEBATE_TRIGGERED.value, payload=trigger_payload))
+                await session.flush()
+
+            preparation = await self._prepare_stream_llm_debate(session, payload)
+            if preparation is not None and self._has_available_debate_provider():
+                rounds = []
+                async for stream_event in self._stream_llm_rounds(
+                    topic=payload.topic,
+                    trigger_type=payload.trigger_type,
+                    context=preparation.context,
+                    evidence_ids=preparation.llm_evidence_ids,
+                ):
+                    if stream_event.event == "debate_round_start":
+                        yield self._stream_event(stream_event.event, debate_id, stream_event.payload)
+                        continue
+                    round_payload = stream_event.payload["round"]
+                    rounds.append(round_payload)
+                    await self._persist_stream_round(session, debate_id, round_payload)
+                    yield self._stream_event(
+                        "debate_round_complete",
+                        debate_id,
+                        self._round_complete_payload(round_payload),
+                    )
+                assessment = self._build_assessment_from_llm_rounds(
+                    rounds,
+                    preparation.assessment_evidence_ids,
+                    payload,
+                    **preparation.assessment_kwargs,
+                )
+            else:
+                assessment = await self._assess_debate(session, payload)
+                rounds = []
+                for round_payload in assessment.rounds:
+                    rounds.append(round_payload)
+                    yield self._stream_event(
+                        "debate_round_start",
+                        debate_id,
+                        {
+                            "round_number": round_payload["round_number"],
+                            "role": round_payload["role"],
+                        },
+                    )
+                    await self._persist_stream_round(session, debate_id, round_payload)
+                    yield self._stream_event(
+                        "debate_round_complete",
+                        debate_id,
+                        self._round_complete_payload(round_payload),
+                    )
+
+            verdict = DebateVerdictRecord(
+                debate_id=debate_id,
+                topic=payload.topic,
+                trigger_type=payload.trigger_type,
+                rounds_completed=max(round_data["round_number"] for round_data in assessment.rounds),
+                verdict=assessment.verdict,
+                confidence=max(assessment.support_confidence, assessment.challenge_confidence),
+                winning_arguments=assessment.winning_arguments,
+                decisive_evidence=assessment.decisive_evidence,
+                conditions=assessment.conditions,
+                minority_opinion=assessment.minority_opinion,
+                recommendations=assessment.recommendations,
+                risk_factors=assessment.risk_factors,
+                alternative_scenarios=assessment.alternative_scenarios,
+                conclusion_summary=assessment.conclusion_summary,
+            )
+            async with session.begin_nested():
+                debate_session.status = "COMPLETED"
+                debate_session.context_payload = assessment.context_payload
+                session.add(verdict)
+
+                if payload.trigger_type == "pivot_decision" and payload.run_id is not None:
+                    latest_decision = (
+                        await session.scalars(
+                            select(DecisionRecordRecord)
+                            .where(DecisionRecordRecord.run_id == payload.run_id)
+                            .order_by(DecisionRecordRecord.tick.desc(), DecisionRecordRecord.sequence.desc())
+                            .limit(1)
+                        )
+                    ).first()
+                    if latest_decision is not None:
+                        latest_decision.debate_verdict_id = debate_id
+                    if run is not None:
+                        run.summary = {
+                            **(run.summary or {}),
+                            "latest_debate_id": debate_id,
+                            "latest_debate_verdict": assessment.verdict,
+                            "debate_disagreements": [assessment.minority_opinion] if assessment.minority_opinion else [],
+                        }
+                        await self._ensure_debate_prediction(session, run, verdict, latest_decision)
+
+                completed_payload = {
+                    "debate_id": debate_id,
+                    "run_id": payload.run_id,
+                    "claim_id": payload.claim_id,
+                    "verdict": assessment.verdict,
+                    "confidence": verdict.confidence,
+                }
+                session.add(EventArchive(topic=EventTopic.DEBATE_COMPLETED.value, payload=completed_payload))
+                await session.flush()
+
+            await session.commit()
+            await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
+            await self.event_bus.publish(EventTopic.DEBATE_COMPLETED.value, completed_payload)
+            yield self._stream_event(
+                "debate_verdict",
+                debate_id,
+                {
+                    "verdict": assessment.verdict,
+                    "confidence": completed_payload["confidence"],
+                    "winning_arguments": assessment.winning_arguments,
+                    "decisive_evidence": assessment.decisive_evidence,
+                },
+            )
+        except Exception:
+            await session.rollback()
+            raise
 
     async def _ensure_debate_prediction(
         self,
@@ -457,6 +627,277 @@ class DebateService:
                 )
             ).all()
         }
+
+    async def _prepare_stream_llm_debate(
+        self,
+        session: AsyncSession,
+        payload: DebateTriggerRequest,
+    ) -> DebateStreamPreparation | None:
+        if payload.claim_id is not None:
+            claim = await session.get(Claim, payload.claim_id)
+            if claim is None:
+                raise LookupError(f"Claim {payload.claim_id} was not found.")
+            evidence = await session.get(EvidenceItem, claim.evidence_item_id)
+            relations = await self.find_claim_relations(session, claim)
+            decisive_evidence = list(dict.fromkeys([
+                claim.evidence_item_id,
+                *[item.evidence_item_id for item in relations.supportive_claims[:2]],
+                *[item.evidence_item_id for item in relations.conflicting_claims[:2]],
+            ]))
+            context_parts = [
+                f"Claim: {claim.statement}",
+                f"Claim confidence: {claim.confidence}",
+                f"Evidence title: {evidence.title if evidence is not None else 'unknown'}",
+                f"Supporting claims: {len(relations.supportive_claims)}",
+                f"Conflicting claims: {len(relations.conflicting_claims)}",
+            ]
+            if payload.context_lines:
+                context_parts.append("Trigger context:\n" + "\n".join(payload.context_lines))
+            if relations.supportive_claims:
+                context_parts.append(f"Strongest support: {relations.supportive_claims[0].statement[:200]}")
+            if relations.conflicting_claims:
+                context_parts.append(f"Strongest conflict: {relations.conflicting_claims[0].statement[:200]}")
+            return DebateStreamPreparation(
+                context="\n".join(context_parts),
+                llm_evidence_ids=decisive_evidence,
+                assessment_evidence_ids=decisive_evidence,
+                assessment_kwargs={
+                    "claim_id": claim.id,
+                    "claim_statement": claim.statement,
+                    "claim_confidence": float(claim.confidence),
+                },
+            )
+
+        if payload.target_type == "branch":
+            return None
+
+        assert payload.run_id is not None
+        run = await session.get(SimulationRun, payload.run_id)
+        if run is None:
+            raise LookupError(f"Simulation run {payload.run_id} was not found.")
+        report = (
+            await session.scalars(
+                select(GeneratedReport)
+                .where(GeneratedReport.run_id == run.id)
+                .order_by(GeneratedReport.created_at.desc())
+                .limit(1)
+            )
+        ).first()
+        latest_decision = (
+            await session.scalars(
+                select(DecisionRecordRecord)
+                .where(DecisionRecordRecord.run_id == run.id)
+                .order_by(DecisionRecordRecord.tick.desc(), DecisionRecordRecord.sequence.desc())
+                .limit(1)
+            )
+        ).first()
+        shocks = list(
+            (
+                await session.scalars(
+                    select(ExternalShockRecord)
+                    .where(ExternalShockRecord.run_id == run.id)
+                    .order_by(ExternalShockRecord.tick.asc())
+                )
+            ).all()
+        )
+        final_state = {key: float(value) for key, value in run.summary.get("final_state", {}).items()}
+        evidence_ids = [str(value) for value in run.summary.get("evidence_ids", [])]
+        evidence_statements = [str(value) for value in run.summary.get("evidence_statements", [])]
+        matched_rules = [str(value) for value in run.summary.get("matched_rules", [])]
+        subject_name = await self._run_subject_name(session, run)
+        context_parts = [
+            f"Domain: {run.domain_id}",
+            f"Subject: {subject_name}",
+            f"Final state: {final_state}",
+            f"Matched rules: {matched_rules[:5]}",
+            f"Shocks: {[shock.shock_type for shock in shocks[:5]]}",
+        ] + [f"Evidence: {statement}" for statement in evidence_statements[:3]]
+        if payload.context_lines:
+            context_parts.append("Trigger context:\n" + "\n".join(payload.context_lines))
+        if report is not None:
+            context_parts.append(f"Report summary: {report.summary[:500]}")
+        return DebateStreamPreparation(
+            context="\n".join(context_parts),
+            llm_evidence_ids=evidence_ids[:5],
+            assessment_evidence_ids=evidence_ids,
+            assessment_kwargs={
+                "run_id": run.id,
+                "report_id": report.id if report is not None else None,
+                "latest_decision_id": latest_decision.id if latest_decision is not None else None,
+                "final_state": final_state,
+                "evidence_statements": evidence_statements[:3],
+            },
+        )
+
+    async def _stream_llm_rounds(
+        self,
+        *,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        evidence_ids: list[str],
+    ) -> AsyncIterator[DebateStreamEvent]:
+        completed_rounds: list[dict[str, Any]] = []
+
+        def argument_refs(rounds: list[dict[str, Any]]) -> list[dict[str, str]]:
+            return [
+                {"claim": str(argument.get("claim", "")), "reasoning": str(argument.get("reasoning", ""))}
+                for round_payload in rounds
+                for argument in round_payload.get("arguments", [])
+            ]
+
+        def own_refs(role: str) -> list[dict[str, str]]:
+            return [
+                {"claim": str(argument.get("claim", ""))}
+                for round_payload in completed_rounds
+                if round_payload["role"] == role
+                for argument in round_payload.get("arguments", [])
+            ]
+
+        def debate_history() -> str:
+            lines: list[str] = []
+            for item in completed_rounds:
+                lines.append(
+                    f"Round {item['round_number']} {item['role']} "
+                    f"({item['position']}, confidence {item['confidence']:.2f}):"
+                )
+                for argument in item.get("arguments", [])[:3]:
+                    claim = str(argument.get("claim", ""))[:90]
+                    reasoning = str(argument.get("reasoning", ""))[:70]
+                    lines.append(f"- {claim} | {reasoning}")
+            return "\n".join(lines)
+
+        def context_with_history(instruction: str) -> str:
+            return (
+                f"{instruction}\n\n"
+                f"Debate history so far:\n{debate_history() or 'No prior debate rounds.'}\n\n"
+                f"Original context:\n{context}"
+            )
+
+        round_plan = [
+            (1, "advocate", "Round 1 advocate立论：请提出支持该命题的核心证据链。"),
+            (2, "challenger", "Round 2 challenger质询：请针对advocate立论提出具体质疑和反驳。"),
+            (3, "advocate", "Round 3 advocate修订：请根据challenger质询修订和完善你的立场。"),
+            (4, "arbitrator", "Round 4 arbitrator仲裁：请基于全部历史做出最终裁决。"),
+        ]
+
+        for round_number, role, instruction in round_plan:
+            yield DebateStreamEvent(
+                event="debate_round_start",
+                payload={"round_number": round_number, "role": role},
+            )
+            opponent_rounds = [
+                item for item in completed_rounds
+                if (role == "challenger" and item["role"] == "advocate")
+                or (role == "advocate" and round_number == 3 and item["role"] == "challenger")
+                or (role == "arbitrator")
+            ]
+            position = await self._call_llm(
+                role=role,
+                topic=topic,
+                trigger_type=trigger_type,
+                context=context_with_history(instruction),
+                opponent_arguments=argument_refs(opponent_rounds) if opponent_rounds else None,
+                own_previous=own_refs(role) if role != "arbitrator" else None,
+            )
+            round_payload = (
+                self._position_to_round_payload(round_number, role, position, evidence_ids)
+                if position is not None
+                else self._fallback_stream_round(round_number, role, evidence_ids)
+            )
+            completed_rounds.append(round_payload)
+            yield DebateStreamEvent(event="debate_round_complete", payload={"round": round_payload})
+
+    def _position_to_round_payload(
+        self,
+        round_number: int,
+        role: str,
+        position: DebatePositionPayload,
+        evidence_ids: list[str],
+    ) -> dict[str, Any]:
+        return {
+            "round_number": round_number,
+            "role": role,
+            "position": position.position,
+            "confidence": position.confidence,
+            "arguments": [
+                {
+                    "claim": argument.claim,
+                    "evidence_ids": argument.evidence_ids or evidence_ids[:3],
+                    "reasoning": argument.reasoning,
+                    "strength": argument.strength,
+                }
+                for argument in position.arguments
+            ],
+            "rebuttals": position.rebuttals or [],
+            "concessions": position.concessions or [],
+        }
+
+    def _fallback_stream_round(
+        self,
+        round_number: int,
+        role: str,
+        evidence_ids: list[str],
+    ) -> dict[str, Any]:
+        position = "OPPOSE" if role == "challenger" else "CONDITIONAL"
+        if role == "advocate" and round_number == 1:
+            position = "SUPPORT"
+        return {
+            "round_number": round_number,
+            "role": role,
+            "position": position,
+            "confidence": 0.5,
+            "arguments": [
+                {
+                    "claim": f"{role} did not return a structured debate payload.",
+                    "evidence_ids": evidence_ids[:3],
+                    "reasoning": "The stream preserved the debate sequence with a neutral fallback round.",
+                    "strength": "WEAK",
+                }
+            ],
+            "rebuttals": [],
+            "concessions": [],
+        }
+
+    async def _persist_stream_round(
+        self,
+        session: AsyncSession,
+        debate_id: str,
+        round_payload: dict[str, Any],
+    ) -> None:
+        async with session.begin_nested():
+            session.add(
+                DebateRoundRecord(
+                    debate_id=debate_id,
+                    round_number=round_payload["round_number"],
+                    role=round_payload["role"],
+                    position=round_payload["position"],
+                    confidence=round_payload["confidence"],
+                    arguments=round_payload["arguments"],
+                    rebuttals=round_payload["rebuttals"],
+                    concessions=round_payload["concessions"],
+                )
+            )
+            await session.flush()
+
+    def _round_complete_payload(self, round_payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "round_number": round_payload["round_number"],
+            "role": round_payload["role"],
+            "position": round_payload["position"],
+            "confidence": round_payload["confidence"],
+            "key_arguments": self._round_key_arguments(round_payload),
+        }
+
+    def _round_key_arguments(self, round_payload: dict[str, Any]) -> list[str]:
+        return [
+            str(argument.get("claim", ""))
+            for argument in round_payload.get("arguments", [])[:3]
+            if argument.get("claim")
+        ]
+
+    def _stream_event(self, event: str, debate_id: str, payload: dict[str, Any]) -> DebateStreamEvent:
+        return DebateStreamEvent(event=event, payload={"debate_id": debate_id, **payload})
 
     async def _llm_debate_rounds(
         self,

@@ -13,6 +13,7 @@ from planagent.db import get_session
 from planagent.domain.api import (
     AnalysisRequest,
     AnalysisResponse,
+    DebateTriggerRequest,
     StrategicAssistantRequest,
     StrategicAssistantResponse,
     StrategicSessionDetailRead,
@@ -24,6 +25,7 @@ from planagent.api.routes._deps import (
     ensure_app_services,
     get_analysis_service,
     get_assistant_service,
+    get_debate_service,
 )
 
 router = APIRouter()
@@ -108,6 +110,22 @@ async def analyze_content_stream(
 
     async def event_stream():
         async for event in service.stream_analysis(payload):
+            yield f"event: {event.event}\n"
+            yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/debate/stream")
+async def debate_stream(
+    payload: DebateTriggerRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    service = get_debate_service(request)
+
+    async def event_stream():
+        async for event in service.stream_debate(session, payload):
             yield f"event: {event.event}\n"
             yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
 

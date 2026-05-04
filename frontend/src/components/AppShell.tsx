@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Toaster, toast } from "sonner";
+import UpdateBanner, { type UpdateBannerProps } from "@/components/UpdateBanner";
 import WelcomeGuide from "@/components/WelcomeGuide";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -229,6 +230,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [currentBanner, setCurrentBanner] = useState<Omit<UpdateBannerProps, "onDismiss"> | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationPanelRef = useRef<HTMLDivElement | null>(null);
@@ -297,6 +299,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           }
         : undefined,
     });
+
+    // Show UpdateBanner for high-severity notifications
+    if (message.severity === "high") {
+      setCurrentBanner({
+        type: "notification",
+        title: message.title,
+        body: message.body || "",
+        sessionId: item.session_id,
+        severity: message.severity === "high" ? "high" : message.severity === "medium" ? "medium" : "low",
+        actionUrl: item.session_id
+          ? `/workbench?session=${item.session_id}`
+          : undefined,
+        onAction: item.session_id
+          ? () => openNotificationSession(item.session_id)
+          : undefined,
+      });
+    }
   }, [openNotificationSession, t]);
 
   useEffect(() => {
@@ -500,6 +519,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Global Command Palette (⌘K) ──────────────────────────────── */}
       <CommandPalette />
+      {currentBanner && (
+        <UpdateBanner
+          {...currentBanner}
+          onDismiss={() => setCurrentBanner(null)}
+        />
+      )}
       <Toaster position="top-right" richColors closeButton theme={resolvedTheme as "light" | "dark" | undefined} />
     </div>
   );

@@ -20,6 +20,10 @@ export interface WorkbenchAlternativeScenario { name: string; description?: stri
 export interface WorkbenchPredictionVersion { id: string; series_id?: string | null; run_id?: string | null; version_number: number; probability?: number | null; confidence?: number | null; trigger_type?: string | null; prediction_text?: string | null; summary_delta?: string | null; status?: string | null; created_at?: string | null; updated_at?: string | null }
 export interface DebateVerdict { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; minority_opinion: string | null; recommendations?: WorkbenchRecommendation[]; risk_factors?: string[]; alternative_scenarios?: WorkbenchAlternativeScenario[]; conclusion_summary?: string | null }
 export interface DebateDetail { id: string; topic: string; trigger_type: string; status: string; rounds: DebateRound[]; verdict: DebateVerdict | null; created_at: string }
+export interface DebateRoundStartEvent { event: "debate_round_start"; payload: { round_number: number; role: string; debate_id?: string } }
+export interface DebateRoundCompleteEvent { event: "debate_round_complete"; payload: { round_number: number; role: string; position: string; confidence: number; key_arguments: string[]; debate_id?: string } }
+export interface DebateVerdictEvent { event: "debate_verdict"; payload: { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; debate_id?: string } }
+export type DebateStreamEvent = DebateRoundStartEvent | DebateRoundCompleteEvent | DebateVerdictEvent;
 export interface PanelMessage { participant_id: string; label: string; model_target: string; stance: "support" | "challenge" | "monitor"; summary: string; key_points: string[]; recommendation: string; confidence: number }
 export interface StrategicSession { id: string; name: string; topic: string; domain_id: string; subject_name: string | null; auto_refresh_enabled: boolean; latest_brief_summary: string | null; latest_run_summary: string | null; created_at: string }
 export interface StrategicRunSnapshot { id: string; session_id?: string; ingest_run_id?: string | null; simulation_run_id?: string | null; debate_id?: string | null; generated_report_id?: string | null; latest_prediction_version?: WorkbenchPredictionVersion | null; result: AssistantResult; generated_at: string }
@@ -190,8 +194,13 @@ function buildWorkbenchDataFromSessionDetail(detail: StrategicSessionDetail): Wo
 
 export type AssistantEvent = { event: string; payload: unknown };
 
-export async function streamAssistant(body: Record<string, unknown>, onEvent: (evt: AssistantEvent) => void, signal?: AbortSignal): Promise<void> {
-  const res = await fetch(`${API}/assistant/stream`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+async function streamEvents<TEvent extends { event: string; payload: unknown }>(
+  path: string,
+  body: Record<string, unknown>,
+  onEvent: (evt: TEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
   if (!res.ok || !res.body) throw new Error(`Stream failed: ${res.status}`);
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -209,7 +218,15 @@ export async function streamAssistant(body: Record<string, unknown>, onEvent: (e
         if (line.startsWith("event: ")) ev = line.slice(7);
         if (line.startsWith("data: ")) data.push(line.slice(6));
       }
-      if (ev && data.length) try { onEvent({ event: ev, payload: JSON.parse(data.join("\n")) }); } catch {}
+      if (ev && data.length) try { onEvent({ event: ev, payload: JSON.parse(data.join("\n")) } as TEvent); } catch {}
     }
   }
+}
+
+export async function streamAssistant(body: Record<string, unknown>, onEvent: (evt: AssistantEvent) => void, signal?: AbortSignal): Promise<void> {
+  return streamEvents<AssistantEvent>("/assistant/stream", body, onEvent, signal);
+}
+
+export async function streamDebate(body: Record<string, unknown>, onEvent: (evt: DebateStreamEvent) => void, signal?: AbortSignal): Promise<void> {
+  return streamEvents<DebateStreamEvent>("/debates/trigger/stream", body, onEvent, signal);
 }

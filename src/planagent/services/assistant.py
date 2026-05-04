@@ -134,7 +134,8 @@ class StrategicAssistantService:
             analysis_result=analysis_result,
             ingest_run_id=ingest_run.id,
         )
-        debate = await self.debate_service.trigger_debate(
+        debate_id: str | None = None
+        async for debate_event in self.debate_service.stream_debate(
             session,
             DebateTriggerRequest(
                 run_id=simulation_run.id,
@@ -143,20 +144,11 @@ class StrategicAssistantService:
                 target_type="run",
                 context_lines=debate_context_lines,
             ),
-        )
-        for round_payload in debate.rounds:
-            yield self._event(
-                "debate_round",
-                {
-                    "debate_id": debate.id,
-                    "round_number": round_payload.round_number,
-                    "role": round_payload.role,
-                    "position": round_payload.position,
-                    "arguments": round_payload.arguments,
-                    "rebuttals": round_payload.rebuttals,
-                    "concessions": round_payload.concessions,
-                },
-            )
+        ):
+            yield self._event(debate_event.event, debate_event.payload)
+            if debate_event.event == "debate_verdict":
+                debate_id = debate_event.payload.get("debate_id")
+        debate = await self.debate_service.get_debate(session, debate_id) if debate_id is not None else None
 
         workbench = await self.workbench_service.build_run_workbench(session, simulation_run.id)
         latest_report = await self._latest_report(session, domain_id, subject_id, simulation_run.id, payload.tenant_id)
