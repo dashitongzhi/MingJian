@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 
 from sqlalchemy import or_, select, update
 
@@ -13,7 +14,7 @@ from planagent.domain.api import (
     SimulationRunCreate,
 )
 from planagent.domain.enums import EventTopic
-from planagent.domain.models import WatchRule, utc_now
+from planagent.domain.models import StrategicRunSnapshot, StrategicSession, WatchRule, utc_now
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.change_detection import ChangeDetectionService
@@ -24,6 +25,9 @@ from planagent.services.simulation import SimulationService
 from planagent.services.source_state import SourceStateService
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
+
+
+logger = logging.getLogger(__name__)
 
 
 class WatchIngestWorker(Worker):
@@ -217,7 +221,12 @@ class WatchIngestWorker(Worker):
         )
 
         simulation_run_id = None
-        debate_id = None
+        debate_id = await self._maybe_trigger_re_debate(
+            rule,
+            session,
+            change_record.diff_summary,
+            change_record.significance,
+        )
 
         threshold_met = self._threshold_met(rule, qualified_sources)
         if rule.auto_trigger_simulation and threshold_met:
@@ -270,6 +279,73 @@ class WatchIngestWorker(Worker):
             "simulation_run_id": simulation_run_id,
             "debate_id": debate_id,
         }
+
+    async def _maybe_trigger_re_debate(
+        self,
+        rule: WatchRule,
+        session,
+        change_summary: str | None,
+        significance: str,
+    ) -> str | None:
+        if significance != "high" or not rule.auto_trigger_debate:
+            return None
+
+        try:
+            strategic_session = (
+                await session.scalars(
+                    select(StrategicSession)
+                    .where(
+                        StrategicSession.topic == rule.query,
+                        StrategicSession.domain_id == rule.domain_id,
+                        StrategicSession.tenant_id == rule.tenant_id,
+                        StrategicSession.preset_id == rule.preset_id,
+                    )
+                    .order_by(StrategicSession.updated_at.desc(), StrategicSession.created_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            if strategic_session is None:
+                return None
+
+            latest_snapshot = (
+                await session.scalars(
+                    select(StrategicRunSnapshot)
+                    .where(
+                        StrategicRunSnapshot.session_id == strategic_session.id,
+                        StrategicRunSnapshot.simulation_run_id.is_not(None),
+                    )
+                    .order_by(StrategicRunSnapshot.generated_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            if latest_snapshot is None or latest_snapshot.simulation_run_id is None:
+                return None
+
+            summary = change_summary or "High-significance source change detected."
+            debate = await self.debate_service.trigger_debate(
+                session,
+                DebateTriggerRequest(
+                    run_id=latest_snapshot.simulation_run_id,
+                    topic=f"Should the strategy for {strategic_session.topic} be revised?",
+                    trigger_type="pivot_decision",
+                    target_type="run",
+                    context_lines=[
+                        "Auto-triggered by watch-ingest-worker after a high-significance source change.",
+                        f"Strategic session id: {strategic_session.id}",
+                        f"Domain id: {strategic_session.domain_id or rule.domain_id}",
+                        f"Change summary: {summary}",
+                    ],
+                ),
+            )
+            return debate.id
+        except Exception as exc:
+            await session.rollback()
+            logger.warning(
+                "Failed to auto-trigger re-debate for watch rule %s: %s",
+                rule.id,
+                f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+            )
+            return None
 
     def _source_type_from_step(self, message: str) -> str:
         lowered = message.lower()

@@ -33,6 +33,8 @@ from planagent.domain.models import (
     StrategicBriefRecord,
     StrategicRunSnapshot,
     StrategicSession,
+    WatchRule,
+    utc_now,
 )
 from planagent.domain.types import GeneratedReportModel
 from planagent.services.analysis import AutomatedAnalysisService
@@ -77,6 +79,15 @@ class StrategicAssistantService:
                 final_result = StrategicAssistantResponse.model_validate(event.payload)
         if final_result is None:
             raise RuntimeError("Strategic assistant finished without a result payload.")
+        try:
+            await self._auto_create_watch_rule(
+                session,
+                payload.topic,
+                final_result.domain_id,
+                payload.tick_count,
+            )
+        except Exception:
+            await session.rollback()
         return final_result
 
     async def stream(
@@ -170,6 +181,10 @@ class StrategicAssistantService:
         if session_record is not None:
             result.session_id = session_record.id
             await self._store_run_snapshot(session, session_record, result)
+        try:
+            await self._auto_create_watch_rule(session, payload.topic, domain_id, payload.tick_count)
+        except Exception:
+            await session.rollback()
         yield self._event("assistant_result", result.model_dump(mode="json"))
 
     async def daily_brief(
@@ -190,6 +205,44 @@ class StrategicAssistantService:
         if session_record is not None:
             await self._store_daily_brief(session, session_record, analysis)
         return analysis
+
+    async def _auto_create_watch_rule(
+        self,
+        session: AsyncSession,
+        topic: str,
+        domain_id: str,
+        tick_count: int | None,
+    ) -> None:
+        existing = await session.scalar(
+            select(WatchRule.id).where(WatchRule.query == topic).limit(1)
+        )
+        if existing is not None:
+            return
+
+        now = utc_now()
+        rule = WatchRule(
+            name=topic[:255],
+            domain_id=domain_id,
+            query=topic,
+            source_types=[
+                "google_news",
+                "reddit",
+                "hacker_news",
+                "github",
+                "rss",
+                "gdelt",
+                "aviation",
+            ],
+            poll_interval_minutes=60,
+            auto_trigger_simulation=True,
+            auto_trigger_debate=True,
+            change_significance_threshold="medium",
+            enabled=True,
+            tick_count=tick_count or 0,
+            next_poll_at=now,
+        )
+        session.add(rule)
+        await session.commit()
 
     async def create_session(
         self,

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import html
+import logging
 import re
 from typing import Any
 from urllib.parse import quote_plus
@@ -20,6 +22,7 @@ from planagent.services.openai_client import OpenAIService
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -212,17 +215,23 @@ class AutomatedAnalysisService:
         domain_id: str,
     ) -> SourceFetchBundle:
         results: list[AnalysisSourceRead] = []
-        steps: list[AnalysisStepRead] = []
+        steps_by_adapter: list[AnalysisStepRead | None] = []
         seen: set[tuple[str, str]] = set()
         adapters = self._source_adapters(payload, query, domain_id)
+        fetch_requests: list[tuple[int, SourceAdapter, int]] = []
+        tasks: list[Any] = []
 
-        for adapter in adapters:
+        async def fetch_with_timeout(adapter: SourceAdapter, limit: int) -> list[AnalysisSourceRead]:
+            async with asyncio.timeout(30):
+                return await adapter.fetcher(limit)
+
+        for index, adapter in enumerate(adapters):
             provider_key = adapter.key
             provider_label = adapter.label
             enabled = self._adapter_enabled(payload, adapter)
             limit = self._adapter_limit(payload, adapter)
             if not enabled:
-                steps.append(
+                steps_by_adapter.append(
                     self._step(
                         "source_skip",
                         f"Skipped {provider_label}.",
@@ -231,7 +240,7 @@ class AutomatedAnalysisService:
                 )
                 continue
             if limit <= 0:
-                steps.append(
+                steps_by_adapter.append(
                     self._step(
                         "source_skip",
                         f"Skipped {provider_label}.",
@@ -241,7 +250,7 @@ class AutomatedAnalysisService:
                 continue
             unavailable_reason = self._source_unavailable_reason(provider_key)
             if unavailable_reason is not None:
-                steps.append(
+                steps_by_adapter.append(
                     self._step(
                         "source_skip",
                         f"Skipped {provider_label}.",
@@ -249,15 +258,29 @@ class AutomatedAnalysisService:
                     )
                 )
                 continue
-            try:
-                provider_results = await adapter.fetcher(limit)
-            except Exception as exc:
-                steps.append(
-                    self._step(
-                        "source_error",
-                        f"{provider_label} fetch failed.",
-                        self._clean_text(str(exc))[:240],
-                    )
+
+            steps_by_adapter.append(None)
+            fetch_requests.append((index, adapter, limit))
+            tasks.append(fetch_with_timeout(adapter, limit))
+
+        fetch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for (index, adapter, limit), provider_results in zip(fetch_requests, fetch_results, strict=True):
+            provider_label = adapter.label
+            if isinstance(provider_results, Exception):
+                error_detail = (
+                    self._clean_text(str(provider_results))[:240]
+                    or provider_results.__class__.__name__
+                )
+                logger.warning(
+                    "%s fetch failed: %s",
+                    provider_label,
+                    error_detail,
+                )
+                steps_by_adapter[index] = self._step(
+                    "source_error",
+                    f"{provider_label} fetch failed.",
+                    error_detail,
                 )
                 continue
 
@@ -270,7 +293,7 @@ class AutomatedAnalysisService:
                 results.append(source)
                 added += 1
 
-            steps.append(
+            steps_by_adapter[index] = (
                 self._step(
                     "source_complete",
                     f"Collected {added} item(s) from {provider_label}.",
@@ -278,7 +301,10 @@ class AutomatedAnalysisService:
                 )
             )
 
-        return SourceFetchBundle(sources=results, steps=steps)
+        return SourceFetchBundle(
+            sources=results,
+            steps=[step for step in steps_by_adapter if step is not None],
+        )
 
     def _source_adapters(
         self,

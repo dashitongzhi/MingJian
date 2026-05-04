@@ -479,19 +479,72 @@ class DebateService:
         ):
             return None
 
+        def argument_dicts(arguments: list[Any]) -> list[dict[str, Any]]:
+            return [
+                {
+                    "claim": argument.claim,
+                    "evidence_ids": argument.evidence_ids or evidence_ids[:3],
+                    "reasoning": argument.reasoning,
+                    "strength": argument.strength,
+                }
+                for argument in arguments
+            ]
+
+        def argument_refs(arguments: list[Any]) -> list[dict[str, str]]:
+            return [
+                {"claim": argument.claim, "reasoning": argument.reasoning}
+                for argument in arguments
+            ]
+
+        def round_payload(round_number: int, role: str, position: Any) -> dict[str, Any]:
+            return {
+                "round_number": round_number,
+                "role": role,
+                "position": position.position,
+                "confidence": position.confidence,
+                "arguments": argument_dicts(position.arguments),
+                "rebuttals": position.rebuttals or [],
+                "concessions": position.concessions or [],
+            }
+
+        def debate_history(completed_rounds: list[dict[str, Any]]) -> str:
+            lines: list[str] = []
+            for item in completed_rounds:
+                lines.append(
+                    f"Round {item['round_number']} {item['role']} "
+                    f"({item['position']}, confidence {item['confidence']:.2f}):"
+                )
+                for argument in item.get("arguments", [])[:3]:
+                    claim = str(argument.get("claim", ""))[:90]
+                    reasoning = str(argument.get("reasoning", ""))[:70]
+                    lines.append(f"- {claim} | {reasoning}")
+                for rebuttal in item.get("rebuttals", [])[:2]:
+                    lines.append(f"- rebuttal: {str(rebuttal)[:90]}")
+                for concession in item.get("concessions", [])[:2]:
+                    lines.append(f"- concession: {str(concession)[:90]}")
+            return "\n".join(lines)
+
+        def context_with_history(instruction: str, completed_rounds: list[dict[str, Any]]) -> str:
+            history = debate_history(completed_rounds)
+            return (
+                f"{instruction}\n\n"
+                f"Debate history so far:\n{history or 'No prior debate rounds.'}\n\n"
+                f"Original context:\n{context}"
+            )
+
         advocate_r1 = await self.openai_service.generate_debate_position(
-            role="strategist",
+            role="advocate",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
-            target=self._debate_target_for_role("strategist"),
+            target=self._debate_target_for_role("advocate"),
         )
         challenger_r1 = await self.openai_service.generate_debate_position(
-            role="risk_analyst",
+            role="challenger",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
-            target=self._debate_target_for_role("risk_analyst"),
+            target=self._debate_target_for_role("challenger"),
         )
         if advocate_r1 is None and challenger_r1 is None:
             return None
@@ -501,106 +554,86 @@ class DebateService:
         rounds: list[dict[str, Any]] = []
 
         if advocate_r1 is not None:
-            rounds.append({
-                "round_number": 1,
-                "role": "strategist",
-                "position": advocate_r1.position,
-                "confidence": advocate_r1.confidence,
-                "arguments": [
-                    {"claim": a.claim, "evidence_ids": a.evidence_ids or evidence_ids[:3],
-                     "reasoning": a.reasoning, "strength": a.strength}
-                    for a in adv_args_r1
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            })
+            rounds.append(round_payload(1, "advocate", advocate_r1))
         if challenger_r1 is not None:
-            rounds.append({
-                "round_number": 1,
-                "role": "risk_analyst",
-                "position": challenger_r1.position,
-                "confidence": challenger_r1.confidence,
-                "arguments": [
-                    {"claim": a.claim, "evidence_ids": a.evidence_ids or evidence_ids[:3],
-                     "reasoning": a.reasoning, "strength": a.strength}
-                    for a in chal_args_r1
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            })
+            rounds.append(round_payload(1, "challenger", challenger_r1))
 
+        round_2_instruction = "请针对对方在Round 1的论点，提出具体的质疑和反驳"
         advocate_r2 = await self.openai_service.generate_debate_position(
-            role="strategist",
+            role="advocate",
             topic=topic,
             trigger_type=trigger_type,
-            context=context,
-            opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in chal_args_r1],
+            context=context_with_history(round_2_instruction, rounds),
+            opponent_arguments=argument_refs(chal_args_r1),
             own_previous=[{"claim": a.claim} for a in adv_args_r1],
-            target=self._debate_target_for_role("strategist"),
+            target=self._debate_target_for_role("advocate"),
         )
         challenger_r2 = await self.openai_service.generate_debate_position(
-            role="risk_analyst",
+            role="challenger",
             topic=topic,
             trigger_type=trigger_type,
-            context=context,
-            opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in adv_args_r1],
+            context=context_with_history(round_2_instruction, rounds),
+            opponent_arguments=argument_refs(adv_args_r1),
             own_previous=[{"claim": a.claim} for a in chal_args_r1],
-            target=self._debate_target_for_role("risk_analyst"),
+            target=self._debate_target_for_role("challenger"),
         )
 
         if advocate_r2 is not None:
-            rounds.append({
-                "round_number": 2,
-                "role": "strategist",
-                "position": advocate_r2.position,
-                "confidence": advocate_r2.confidence,
-                "arguments": [
-                    {"claim": a.claim, "evidence_ids": a.evidence_ids or evidence_ids[:3],
-                     "reasoning": a.reasoning, "strength": a.strength}
-                    for a in advocate_r2.arguments
-                ],
-                "rebuttals": advocate_r2.rebuttals or [],
-                "concessions": advocate_r2.concessions or [],
-            })
+            rounds.append(round_payload(2, "advocate", advocate_r2))
         if challenger_r2 is not None:
-            rounds.append({
-                "round_number": 2,
-                "role": "risk_analyst",
-                "position": challenger_r2.position,
-                "confidence": challenger_r2.confidence,
-                "arguments": [
-                    {"claim": a.claim, "evidence_ids": a.evidence_ids or evidence_ids[:3],
-                     "reasoning": a.reasoning, "strength": a.strength}
-                    for a in challenger_r2.arguments
-                ],
-                "rebuttals": challenger_r2.rebuttals or [],
-                "concessions": challenger_r2.concessions or [],
-            })
+            rounds.append(round_payload(2, "challenger", challenger_r2))
 
-        all_adv_args = adv_args_r1 + (advocate_r2.arguments if advocate_r2 else [])
-        all_chal_args = chal_args_r1 + (challenger_r2.arguments if challenger_r2 else [])
-        arbitrator = await self.openai_service.generate_debate_position(
-            role="opportunist",
+        adv_args_r2 = advocate_r2.arguments if advocate_r2 else []
+        chal_args_r2 = challenger_r2.arguments if challenger_r2 else []
+        round_3_instruction = "请根据Round 2对方的质询，修订和完善你的立场"
+        advocate_r3 = await self.openai_service.generate_debate_position(
+            role="advocate",
             topic=topic,
             trigger_type=trigger_type,
-            context=context,
-            opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in all_adv_args + all_chal_args],
-            target=self._debate_target_for_role("opportunist"),
+            context=context_with_history(round_3_instruction, rounds),
+            opponent_arguments=argument_refs(chal_args_r2),
+            own_previous=[{"claim": a.claim} for a in adv_args_r1 + adv_args_r2],
+            target=self._debate_target_for_role("advocate"),
+        )
+        challenger_r3 = await self.openai_service.generate_debate_position(
+            role="challenger",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(round_3_instruction, rounds),
+            opponent_arguments=argument_refs(adv_args_r2),
+            own_previous=[{"claim": a.claim} for a in chal_args_r1 + chal_args_r2],
+            target=self._debate_target_for_role("challenger"),
+        )
+
+        if advocate_r3 is not None:
+            rounds.append(round_payload(3, "advocate", advocate_r3))
+        if challenger_r3 is not None:
+            rounds.append(round_payload(3, "challenger", challenger_r3))
+
+        all_adv_args = (
+            adv_args_r1
+            + adv_args_r2
+            + (advocate_r3.arguments if advocate_r3 else [])
+        )
+        all_chal_args = (
+            chal_args_r1
+            + chal_args_r2
+            + (challenger_r3.arguments if challenger_r3 else [])
+        )
+        round_4_instruction = (
+            "Round 4 仲裁轮：请基于Round 1立论、Round 2交叉质询、"
+            "Round 3修订立场的全部历史做出最终裁决"
+        )
+        arbitrator = await self.openai_service.generate_debate_position(
+            role="arbitrator",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(round_4_instruction, rounds),
+            opponent_arguments=argument_refs(all_adv_args + all_chal_args),
+            target=self._debate_target_for_role("arbitrator"),
         )
         if arbitrator is not None:
-            rounds.append({
-                "round_number": 3,
-                "role": "opportunist",
-                "position": arbitrator.position,
-                "confidence": arbitrator.confidence,
-                "arguments": [
-                    {"claim": a.claim, "evidence_ids": a.evidence_ids or evidence_ids[:3],
-                     "reasoning": a.reasoning, "strength": a.strength}
-                    for a in arbitrator.arguments
-                ],
-                "rebuttals": arbitrator.rebuttals or [],
-                "concessions": arbitrator.concessions or [],
-            })
+            rounds.append(round_payload(4, "arbitrator", arbitrator))
 
         return rounds if rounds else None
 
@@ -608,6 +641,9 @@ class DebateService:
         if self.openai_service is None:
             return "primary"
         role_targets = {
+            "advocate": ("debate_advocate", "primary"),
+            "challenger": ("debate_challenger", "extraction", "primary"),
+            "arbitrator": ("debate_arbitrator", "report", "primary"),
             "strategist": ("debate_advocate", "primary"),
             "risk_analyst": ("debate_challenger", "extraction", "primary"),
             "opportunist": ("debate_arbitrator", "report", "primary"),
@@ -632,9 +668,9 @@ class DebateService:
         claim_statement: str | None = None,
         claim_confidence: float | None = None,
     ) -> DebateAssessment:
-        advocate_rounds = [r for r in rounds if r["role"] == "strategist"]
-        challenger_rounds = [r for r in rounds if r["role"] == "risk_analyst"]
-        arbitrator_rounds = [r for r in rounds if r["role"] == "opportunist"]
+        advocate_rounds = [r for r in rounds if r["role"] in {"advocate", "strategist"}]
+        challenger_rounds = [r for r in rounds if r["role"] in {"challenger", "risk_analyst"}]
+        arbitrator_rounds = [r for r in rounds if r["role"] in {"arbitrator", "opportunist"}]
 
         support_confidence = max(
             (r["confidence"] for r in advocate_rounds), default=0.5,
