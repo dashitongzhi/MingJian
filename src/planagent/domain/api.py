@@ -294,6 +294,7 @@ class DebateSummaryRead(APIModel):
     trigger_type: str
     verdict: str | None = None
     confidence: float | None = None
+    recommendation_count: int = 0
     created_at: datetime
 
 
@@ -369,6 +370,13 @@ class DebateRoundRead(APIModel):
     created_at: datetime
 
 
+class PlanningRecommendation(APIModel):
+    title: str
+    priority: str = Field(default="medium", pattern="^(high|medium|low)$")
+    rationale: str = ""
+    action_items: list[str] = Field(default_factory=list)
+
+
 class DebateVerdictRead(APIModel):
     debate_id: str
     topic: str
@@ -380,6 +388,10 @@ class DebateVerdictRead(APIModel):
     decisive_evidence: list[str] = Field(default_factory=list)
     conditions: list[str] | None = None
     minority_opinion: str | None = None
+    recommendations: list[PlanningRecommendation] = Field(default_factory=list)
+    risk_factors: list[str] = Field(default_factory=list)
+    alternative_scenarios: list[dict[str, Any]] = Field(default_factory=list)
+    conclusion_summary: str | None = None
     created_at: datetime
 
 

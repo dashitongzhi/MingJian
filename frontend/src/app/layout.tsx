@@ -36,7 +36,7 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
-      <body className="min-h-screen">
+      <body className="min-h-screen" suppressHydrationWarning>
         <ThemeProvider>
           <LanguageProvider>
             <TooltipProvider>

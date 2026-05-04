@@ -69,7 +69,7 @@ const TAB_CONFIG: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
 
 function toneForConfidence(value: number) {
   if (value >= 0.7) return "text-[var(--accent-green)]";
-  if (value >= 0.4) return "text-[var(--accent-yellow)]";
+  if (value >= 0.4) return "text-[var(--accent-amber)]";
   return "text-[var(--accent-red)]";
 }
 
@@ -107,10 +107,10 @@ function SkeletonRows({ count = 6 }: { count?: number }) {
 
 function StateBlock({ title, description, icon }: { title: string; description?: string; icon?: React.ReactNode }) {
   return (
-    <div className="min-h-[260px] border-y border-[var(--card-border)]/60 py-16 text-center">
+    <div className="min-h-[260px] py-16 text-center">
       {icon && <div className="mx-auto mb-4 text-[var(--muted)] opacity-50">{icon}</div>}
       {!icon && <div className="mx-auto mb-4 h-px w-16 bg-[var(--accent)]/40" />}
-      <div className="text-sm font-medium">{title}</div>
+      <div className="heading-section">{title}</div>
       {description && <div className="mx-auto mt-2 max-w-sm text-[13px] text-[var(--muted)] leading-relaxed">{description}</div>}
     </div>
   );
@@ -118,14 +118,14 @@ function StateBlock({ title, description, icon }: { title: string; description?:
 
 function EditorShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden border border-[var(--card-border)] bg-[var(--code-bg)] rounded-lg">
+    <div className="overflow-hidden liquid-glass rounded-xl">
       <div className="flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]/60" />
-          <span className="h-2 w-2 rounded-full bg-[var(--accent-yellow)]/60" />
+          <span className="h-2 w-2 rounded-full bg-[var(--accent-amber)]/60" />
           <span className="h-2 w-2 rounded-full bg-[var(--accent-green)]/60" />
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">evidence.md</div>
+        <div className="section-label">evidence.md</div>
       </div>
       {children}
     </div>
@@ -205,10 +205,10 @@ export default function EvidencePage() {
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="mx-auto max-w-[1500px] space-y-8">
       {/* ── Header with Tabs ──────────────────────────────────────────────────── */}
-      <div className="grid gap-6 border-b border-[var(--card-border)] pb-8 lg:grid-cols-[minmax(0,1fr)_520px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_520px]">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">{t("evidence.title")}</div>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight md:text-4xl text-balance">
+          <div className="section-label">{t("evidence.title")}</div>
+          <h1 className="heading-display mt-3">
             {t("evidence.subtitle")}
           </h1>
         </div>
@@ -225,26 +225,27 @@ export default function EvidencePage() {
           ))}
         </TabsList>
       </div>
+      <div className="divider-subtle" />
 
       {/* ── Evidence Tab ──────────────────────────────────────────────────────── */}
       <TabsContent value="evidence" className="mt-0">
         <div className="grid gap-8 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.25fr)] animate-fadeIn">
           <section>
-            <div className="mb-5 grid gap-3 border-b border-[var(--card-border)] pb-5 md:grid-cols-[1fr_180px]">
+            <div className="mb-5 grid gap-3 md:grid-cols-[1fr_180px]">
               <div className="relative">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="absolute left-0 top-1/2 -translate-y-1/2 text-[var(--muted)]">
                   <circle cx="11" cy="11" r="8" />
                   <path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
-                  className="w-full bg-transparent py-3 pl-7 text-[13px] outline-none placeholder:text-[var(--muted)] focus:text-[var(--foreground)]"
+                  className="glass w-full rounded-md py-3 pl-7 pr-3 text-[13px] outline-none placeholder:text-[var(--muted)] focus:text-[var(--foreground)]"
                   placeholder={t("evidence.searchPlaceholder")}
                   value={listQuery}
                   onChange={(event) => setListQuery(event.target.value)}
                 />
               </div>
               <select
-                className="bg-transparent py-3 text-[13px] text-[var(--muted-foreground)] outline-none"
+                className="glass rounded-md py-3 px-3 text-[13px] text-[var(--muted-foreground)] outline-none"
                 value={confidenceFilter}
                 onChange={(event) => setConfidenceFilter(event.target.value as ConfidenceFilter)}
               >
@@ -254,6 +255,7 @@ export default function EvidencePage() {
                 <option value="low">&lt;40%</option>
               </select>
             </div>
+            <div className="divider-subtle mb-5" />
 
             {evLoading && <SkeletonRows />}
             {evError && <StateBlock title={t("common.failed")} description={String(evError.message || evError)} />}
@@ -303,13 +305,13 @@ export default function EvidencePage() {
                     ))}
                   </div>
                   <div className="min-h-[520px] px-5 py-5">
-                    <div className="text-[var(--muted)] text-xs"># {t("common.title")}</div>
+                    <div className="section-label !text-[var(--muted)]"># {t("common.title")}</div>
                     <h2 className="mb-5 text-xl font-semibold font-sans leading-tight">{selectedEvidence.title}</h2>
-                    <div className="text-[var(--muted)] text-xs">## {t("common.summary")}</div>
+                    <div className="section-label !text-[var(--muted)]">## {t("common.summary")}</div>
                     <p className="mb-6 whitespace-pre-wrap font-sans text-[13px] leading-7 text-[var(--muted-foreground)]">
                       {selectedEvidence.summary}
                     </p>
-                    <div className="text-[var(--muted)] text-xs">## {t("evidence.confidence")}</div>
+                    <div className="section-label !text-[var(--muted)]">## {t("evidence.confidence")}</div>
                     <div className="mt-3 flex items-center gap-4">
                       <div className="h-1.5 flex-1 bg-[var(--card-border)] rounded-full overflow-hidden">
                         <div
@@ -319,7 +321,7 @@ export default function EvidencePage() {
                       </div>
                       <ConfidenceBadge value={selectedEvidence.confidence} />
                     </div>
-                    <div className="mt-8 border-t border-[var(--card-border)] pt-5 text-xs text-[var(--muted)]">
+                    <div className="mt-8 divider-subtle pt-5 text-xs text-[var(--muted)]">
                       <span className="mr-4">id: {selectedEvidence.id}</span>
                       <span>{selectedEvidence.created_at}</span>
                     </div>
@@ -360,13 +362,14 @@ export default function EvidencePage() {
             />
           )}
           {!clLoading && !clError && cl && cl.length > 0 && (
-            <div className="divide-y divide-[var(--card-border)]/50">
-              <div className="grid grid-cols-[1fr_100px_100px] gap-4 pb-3 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--muted)]">
+            <div className="liquid-glass rounded-xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_100px_100px] gap-4 p-4 pb-3 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--muted)]">
                 <span>{t("evidence.statement")}</span>
                 <span className="text-right">{t("evidence.confidence")}</span>
                 <span className="text-right">{t("evidence.status")}</span>
               </div>
-              <div className="stagger-children">
+              <div className="divider-subtle mx-4" />
+              <div className="stagger-children px-4">
                 {cl.map((c) => (
                   <div key={c.id} className="grid grid-cols-[1fr_100px_100px] gap-4 py-4 text-[13px]">
                     <div className="min-w-0 leading-6 text-[var(--muted-foreground)]">{c.statement}</div>
@@ -384,8 +387,8 @@ export default function EvidencePage() {
       <TabsContent value="graph" className="mt-0">
         <section className="grid gap-8 lg:grid-cols-[420px_1fr] animate-fadeIn">
           <div className="space-y-6">
-            <div className="border-b border-[var(--card-border)] pb-5">
-              <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] font-semibold text-[var(--muted)]">
+            <div className="liquid-glass rounded-xl p-5">
+              <label className="section-label mb-2 block">
                 {t("evidence.searchResults")}
               </label>
               <div className="relative">
@@ -394,7 +397,7 @@ export default function EvidencePage() {
                   <path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
-                  className="w-full bg-transparent py-4 pl-7 text-[13px] outline-none placeholder:text-[var(--muted)]"
+                  className="glass w-full rounded-md py-4 pl-7 pr-3 text-[13px] outline-none placeholder:text-[var(--muted)]"
                   placeholder={t("evidence.searchPlaceholder")}
                   value={graphQuery}
                   onChange={(event) => setGraphQuery(event.target.value)}
@@ -405,9 +408,9 @@ export default function EvidencePage() {
             {srLoading && <SkeletonRows count={3} />}
             {srError && <StateBlock title={t("common.failed")} description={String(srError.message || srError)} />}
             {sr && sr.length > 0 && (
-              <div className="divide-y divide-[var(--card-border)]/50 stagger-children">
+              <div className="liquid-glass rounded-xl divide-y divide-[var(--card-border)]/50 overflow-hidden stagger-children">
                 {sr.map((r) => (
-                  <div key={r.node_id} className="flex items-center justify-between gap-4 py-4">
+                  <div key={r.node_id} className="flex items-center justify-between gap-4 px-5 py-4">
                     <div className="text-[13px]">{r.label}</div>
                     <span className="font-mono text-xs text-[var(--accent)]">{(r.score * 100).toFixed(0)}%</span>
                   </div>
@@ -416,20 +419,21 @@ export default function EvidencePage() {
             )}
           </div>
 
-          <div className="min-h-[460px] border-l border-[var(--card-border)] pl-8">
+          <div className="min-h-[460px] liquid-glass rounded-xl p-6">
             {graphLoading && <SkeletonRows count={8} />}
             {graphError && <StateBlock title={t("common.failed")} description={String(graphError.message || graphError)} />}
             {graph && (
               <>
                 <div className="mb-6 flex items-end justify-between gap-6">
-                  <h2 className="text-xl font-semibold">{t("evidence.knowledgeGraph")}</h2>
+                  <h2 className="heading-section">{t("evidence.knowledgeGraph")}</h2>
                   <div className="font-mono text-xs text-[var(--muted)]">
                     {graph.nodes.length} {t("evidence.nodes")} / {graph.edges.length} {t("evidence.edges")}
                   </div>
                 </div>
+                <div className="divider-subtle mb-6" />
                 <div className="grid max-h-[520px] grid-cols-1 gap-x-8 overflow-y-auto md:grid-cols-2 xl:grid-cols-3 stagger-children">
                   {graph.nodes.slice(0, 80).map((n) => (
-                    <div key={n.node_id} className="border-t border-[var(--card-border)]/50 py-4">
+                    <div key={n.node_id} className="divider-subtle py-4">
                       <div className="truncate text-[13px] font-medium">{n.label}</div>
                       <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{n.node_type}</div>
                     </div>
@@ -481,43 +485,45 @@ export default function EvidencePage() {
           {sbError && <StateBlock title={t("common.failed")} description={String(sbError.message || sbError)} />}
           {sb && (
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] stagger-children">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-10 border-y border-[var(--card-border)] py-8 md:grid-cols-4">
-                <div>
-                  <div className="text-4xl font-semibold tabular-nums">{sb.total_hypotheses}</div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("evidence.totalHypotheses")}</div>
-                </div>
-                <div>
-                  <div className="text-4xl font-semibold text-[var(--accent-green)] tabular-nums">{(sb.accuracy * 100).toFixed(0)}%</div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("evidence.accuracy")}</div>
-                </div>
-                <div>
-                  <div className="text-4xl font-semibold tabular-nums">{sb.brier_score?.toFixed(3) ?? "-"}</div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("evidence.brierScore")}</div>
-                </div>
-                <div>
-                  <div className="text-4xl font-semibold text-[var(--accent)] tabular-nums">
-                    {sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "-"}
+              <div className="liquid-glass rounded-xl">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-10 p-8 md:grid-cols-4">
+                  <div>
+                    <div className="text-4xl font-semibold tabular-nums">{sb.total_hypotheses}</div>
+                    <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.totalHypotheses")}</div>
                   </div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("evidence.vsHuman")}</div>
+                  <div>
+                    <div className="text-4xl font-semibold text-[var(--accent-green)] tabular-nums">{(sb.accuracy * 100).toFixed(0)}%</div>
+                    <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.accuracy")}</div>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-semibold tabular-nums">{sb.brier_score?.toFixed(3) ?? "-"}</div>
+                    <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.brierScore")}</div>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-semibold text-[var(--accent)] tabular-nums">
+                      {sb.human_baseline_accuracy != null ? `${((sb.lift_over_human_baseline ?? 0) * 100).toFixed(1)}%` : "-"}
+                    </div>
+                    <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.vsHuman")}</div>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-px bg-[var(--card-border)]/50 rounded-lg overflow-hidden">
+              <div className="liquid-glass rounded-xl grid grid-cols-3 gap-px overflow-hidden">
                 <div className="bg-[var(--background)] p-6">
                   <div className="text-3xl font-semibold text-[var(--accent-green)] tabular-nums">{sb.confirmed}</div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("evidence.confirmed")}</div>
+                  <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.confirmed")}</div>
                 </div>
                 <div className="bg-[var(--background)] p-6">
                   <div className="text-3xl font-semibold text-[var(--accent-red)] tabular-nums">{sb.refuted}</div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("evidence.refuted")}</div>
+                  <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.refuted")}</div>
                 </div>
                 <div className="bg-[var(--background)] p-6">
-                  <div className="text-3xl font-semibold text-[var(--accent-yellow)] tabular-nums">{sb.pending}</div>
-                  <div className="mt-2 text-xs text-[var(--muted)]">{t("common.pending")}</div>
+                  <div className="text-3xl font-semibold text-[var(--accent-amber)] tabular-nums">{sb.pending}</div>
+                  <div className="mt-2 section-label !text-[var(--muted)]">{t("common.pending")}</div>
                 </div>
               </div>
               {/* Calibration Curve Chart */}
-              <div className="col-span-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
-                <h3 className="mb-4 text-sm font-medium">{t("evidence.calibration")}</h3>
+              <div className="col-span-full liquid-glass rounded-xl p-6">
+                <h3 className="heading-section mb-4">{t("evidence.calibration")}</h3>
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart
                     data={(() => {

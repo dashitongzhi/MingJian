@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { fetchDebateDetail, fetchDebates, type DebateRound, type DebateSummary } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
@@ -9,48 +10,112 @@ function toText(value: unknown) {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+function PriorityBadge({ priority }: { priority: string }) {
+  const colors: Record<string, string> = {
+    high: "badge badge-error",
+    medium: "badge badge-warning",
+    low: "badge badge-success",
+  };
+  return (
+    <span className={colors[priority] || "badge badge-warning"}>
+      {priority}
+    </span>
+  );
+}
+
+function RecommendationCard({ rec, index }: { rec: { title: string; priority: string; rationale: string; action_items: string[] }; index: number }) {
+  return (
+    <div className="liquid-glass rounded-xl p-5 animate-fadeIn" style={{ animationDelay: `${index * 80}ms` }}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-lg text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
+          <h4 className="heading-section !text-sm">{rec.title}</h4>
+        </div>
+        <PriorityBadge priority={rec.priority} />
+      </div>
+      {rec.rationale && (
+        <p className="text-xs leading-6 text-[var(--muted-foreground)] mb-3 pl-8">{rec.rationale}</p>
+      )}
+      {rec.action_items.length > 0 && (
+        <div className="divider-subtle pt-3 pl-8 mt-3">
+          <div className="section-label !text-[var(--muted)] mb-2">行动项</div>
+          <div className="space-y-1.5">
+            {rec.action_items.map((item, i) => (
+              <div key={i} className="grid grid-cols-[18px_1fr] text-xs leading-5">
+                <span className="text-[var(--accent)]">→</span>
+                <span className="text-[var(--muted-foreground)]">{toText(item)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DebateRoundBlock({ round }: { round: DebateRound }) {
   const { t } = useTranslation();
   const roleConfig: Record<string, { tone: string; rail: string; marker: string; label: string; align: string }> = {
+    strategist: {
+      tone: "text-[var(--accent-green)]",
+      rail: "border-[var(--accent-green)] bg-[var(--accent-green)]/8",
+      marker: "S",
+      label: "战略顾问",
+      align: "md:mr-16",
+    },
+    risk_analyst: {
+      tone: "text-[var(--accent-red)]",
+      rail: "border-[var(--accent-red)] bg-[var(--accent-red)]/8",
+      marker: "R",
+      label: "风险分析",
+      align: "md:ml-16",
+    },
+    opportunist: {
+      tone: "text-[var(--accent)]",
+      rail: "border-[var(--accent)] bg-[var(--accent)]/8",
+      marker: "O",
+      label: "机会评估",
+      align: "md:mx-8",
+    },
     advocate: {
       tone: "text-[var(--accent-green)]",
-      rail: "border-[var(--accent-green)] bg-[var(--accent-green-bg)]",
-      marker: "+",
-      label: t("debate.advocate"),
+      rail: "border-[var(--accent-green)] bg-[var(--accent-green)]/8",
+      marker: "S",
+      label: "战略顾问",
       align: "md:mr-16",
     },
     challenger: {
       tone: "text-[var(--accent-red)]",
-      rail: "border-[var(--accent-red)] bg-[var(--accent-red-bg)]",
-      marker: "-",
-      label: t("debate.challenger"),
+      rail: "border-[var(--accent-red)] bg-[var(--accent-red)]/8",
+      marker: "R",
+      label: "风险分析",
       align: "md:ml-16",
     },
     arbitrator: {
       tone: "text-[var(--accent)]",
-      rail: "border-[var(--accent)] bg-[var(--accent)]/10",
-      marker: "=",
-      label: t("debate.arbitrator"),
+      rail: "border-[var(--accent)] bg-[var(--accent)]/8",
+      marker: "O",
+      label: "机会评估",
       align: "md:mx-8",
     },
   };
 
-  const config = roleConfig[round.role] || roleConfig.arbitrator;
+  const config = roleConfig[round.role] || roleConfig.strategist;
 
   return (
-    <article className={`${config.align} animate-fadeIn border-l-2 ${config.rail}`}>
+    <article className={`${config.align} animate-fadeIn border-l-2 ${config.rail} rounded-r-lg`}>
       <div className="grid grid-cols-[44px_1fr]">
         <div className={`border-r border-[var(--card-border)] px-3 py-4 text-center font-mono text-lg ${config.tone}`}>{config.marker}</div>
         <div className="min-w-0 p-4">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
-              <div className={`font-mono text-[10px] uppercase tracking-[0.24em] ${config.tone}`}>{config.label}</div>
+              <div className={`section-label ${config.tone}`}>{config.label}</div>
               <div className="mt-1 text-xs text-[var(--muted)]">{t("debate.position")}</div>
             </div>
             <div className={`flex min-w-[122px] items-center gap-2 ${config.tone}`}>
-              <div className="h-1.5 flex-1 bg-[var(--card-border)]">
+              <div className="h-1.5 flex-1 bg-[var(--card-border)] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-current transition-[width,opacity] duration-500"
+                  className="h-full bg-current transition-[width,opacity] duration-500 rounded-full"
                   style={{ width: `${round.confidence * 100}%` }}
                 />
               </div>
@@ -61,8 +126,8 @@ function DebateRoundBlock({ round }: { round: DebateRound }) {
           <p className="mb-5 text-sm leading-7 text-[var(--muted-foreground)]">{round.position}</p>
 
           {round.arguments.length > 0 && (
-            <div className="border-t border-[var(--card-border)] pt-4">
-              <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">{t("debate.arguments")}</div>
+            <div className="divider-subtle pt-4">
+              <div className="mb-2 section-label !text-[var(--muted)]">{t("debate.arguments")}</div>
               <div className="space-y-2">
                 {round.arguments.map((argument, i) => (
                   <div key={i} className="grid grid-cols-[22px_1fr] text-xs leading-6">
@@ -75,8 +140,8 @@ function DebateRoundBlock({ round }: { round: DebateRound }) {
           )}
 
           {round.rebuttals.length > 0 && (
-            <div className="mt-4 border-t border-[var(--card-border)] pt-4">
-              <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--accent-red)]">{t("debate.rebuttals")}</div>
+            <div className="mt-4 divider-subtle pt-4">
+              <div className="mb-2 section-label !text-[var(--accent-red)]">{t("debate.rebuttals")}</div>
               <div className="space-y-2">
                 {round.rebuttals.map((rebuttal, i) => (
                   <div key={i} className="grid grid-cols-[22px_1fr] text-xs leading-6 text-[var(--muted-foreground)]">
@@ -95,10 +160,10 @@ function DebateRoundBlock({ round }: { round: DebateRound }) {
 
 function StateBlock({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="flex min-h-[420px] items-center justify-center border-y border-[var(--card-border)] text-center">
+    <div className="flex min-h-[420px] items-center justify-center text-center">
       <div>
         <div className="mx-auto mb-4 h-px w-16 bg-[var(--accent)]" />
-        <div className="text-sm font-medium">{title}</div>
+        <div className="heading-section">{title}</div>
         {description && <div className="mx-auto mt-2 max-w-md text-sm text-[var(--muted)]">{description}</div>}
       </div>
     </div>
@@ -109,7 +174,7 @@ function DebateSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="border-l-2 border-[var(--card-border)] bg-[var(--card)]/50 p-5 animate-pulse">
+        <div key={i} className="liquid-glass rounded-xl p-5 animate-pulse">
           <div className="h-3 w-32 bg-[var(--card-hover)]" />
           <div className="mt-4 h-3 w-full bg-[var(--card-hover)]" />
           <div className="mt-3 h-3 w-2/3 bg-[var(--card-hover)]" />
@@ -120,9 +185,26 @@ function DebateSkeleton() {
 }
 
 export default function DebatePage() {
+  return (
+    <Suspense fallback={<DebateSkeleton />}>
+      <DebatePageInner />
+    </Suspense>
+  );
+}
+
+function DebatePageInner() {
   const { t } = useTranslation();
+  const searchParams = useSearchParams();
   const [inputId, setInputId] = useState("");
   const [qId, setQId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const urlId = searchParams.get("id");
+    if (urlId && !qId) {
+      setQId(urlId);
+      setInputId(urlId);
+    }
+  }, [searchParams, qId]);
   const { data: debate, error, isLoading } = useSWR(qId ? `debate-${qId}` : null, () => fetchDebateDetail(qId!));
   const { data: debateList } = useSWR("debates-list", () => fetchDebates(20), { refreshInterval: 30000 });
 
@@ -131,38 +213,45 @@ export default function DebatePage() {
     return a;
   }, {});
 
+  const verdict = debate?.verdict;
+  const recommendations = (verdict as any)?.recommendations || [];
+  const riskFactors = (verdict as any)?.risk_factors || [];
+  const alternativeScenarios = (verdict as any)?.alternative_scenarios || [];
+  const conclusionSummary = (verdict as any)?.conclusion_summary;
+
   const handleLoad = () => {
     if (inputId.trim()) {
       setQId(inputId.trim());
-      toast.info('辩论已启动');
+      toast.info('分析报告已加载');
     }
   };
 
   return (
     <div className="mx-auto max-w-[1450px] space-y-8">
-      <div className="grid gap-6 border-b border-[var(--card-border)] pb-8 lg:grid-cols-[1fr_460px]">
+      {/* ── Page Header ── */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_460px]">
         <div>
-          <div className="font-mono text-xs uppercase tracking-[0.28em] text-[var(--accent)]">{t("debate.title")}</div>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">{t("debate.subtitle")}</h1>
+          <div className="section-label">{t("debate.title")}</div>
+          <h1 className="heading-display mt-3">{t("debate.subtitle")}</h1>
         </div>
 
-        <section className="content-end self-end border-l border-[var(--card-border)] pl-5">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <section className="content-end self-end liquid-glass rounded-xl p-5">
+          <h2 className="mb-3 flex items-center gap-2 heading-section">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
             {t("debate.loadDebate")}
           </h2>
-          <div className="flex gap-3 border-b border-[var(--card-border)] pb-3">
+          <div className="flex gap-3">
             <input
-              className="min-w-0 flex-1 bg-transparent py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
+              className="glass min-w-0 flex-1 rounded-md px-3 py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
               placeholder={t("debate.debateIdPlaceholder")}
               value={inputId}
               onChange={(event) => setInputId(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && handleLoad()}
             />
-            <button onClick={handleLoad} className="border border-[var(--accent)] px-4 py-2 text-sm text-[var(--accent)] transition-[background-color,color,transform] duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]">
+            <button onClick={handleLoad} className="btn btn-primary">
               {t("common.load")}
             </button>
           </div>
@@ -173,102 +262,136 @@ export default function DebatePage() {
           )}
         </section>
       </div>
+      <div className="divider-subtle" />
 
       {isLoading && <DebateSkeleton />}
 
       {debate ? (
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <main className="min-w-0 space-y-8">
-            <section className="border-y border-[var(--card-border)] py-6">
-              <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted)]">{t("debate.trigger")}: {debate.trigger_type}</div>
-                  <h2 className="mt-3 text-2xl font-semibold leading-tight">{debate.topic}</h2>
-                  <div className="mt-3 text-sm text-[var(--muted)]">{t("debate.rounds")}: {Object.keys(grouped).length}</div>
+        <div className="space-y-8">
+          {/* Header */}
+          <section className="liquid-glass rounded-xl p-6">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="section-label !text-[var(--muted)]">{t("debate.trigger")}: {debate.trigger_type}</div>
+                <h2 className="heading-display !text-2xl mt-3">{debate.topic}</h2>
+                <div className="mt-3 text-sm text-[var(--muted)]">{t("debate.rounds")}: {Object.keys(grouped).length}</div>
+              </div>
+              <span className={debate.status === "COMPLETED" ? "badge badge-success" : "badge badge-warning"}>
+                {debate.status}
+              </span>
+            </div>
+          </section>
+
+          {/* Conclusion Summary */}
+          {conclusionSummary && (
+            <section className="liquid-glass rounded-xl border border-[var(--accent)]/20 p-6">
+              <h3 className="flex items-center gap-2 heading-section mb-3">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                结论摘要
+              </h3>
+              <p className="text-sm leading-7 text-[var(--muted-foreground)]">{conclusionSummary}</p>
+              {verdict && (
+                <div className="mt-4 flex items-center gap-4 text-xs text-[var(--muted)]">
+                  <span>置信度: <span className="font-mono text-[var(--foreground)]">{((verdict.confidence || 0) * 100).toFixed(0)}%</span></span>
+                  <span>综合评估: <span className="font-mono text-[var(--foreground)] uppercase">{verdict.verdict}</span></span>
                 </div>
-                <span className={`w-fit border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] ${debate.status === "COMPLETED" ? "border-[var(--accent-green)] text-[var(--accent-green)]" : "border-[var(--accent-yellow)] text-[var(--accent-yellow)]"}`}>
-                  {debate.status}
-                </span>
+              )}
+            </section>
+          )}
+
+          {/* Recommendations */}
+          {recommendations.length > 0 && (
+            <section>
+              <h3 className="flex items-center gap-2 heading-section mb-4">
+                <span className="font-mono text-[var(--accent)]">📋</span>
+                行动建议
+                <span className="badge">{recommendations.length}</span>
+              </h3>
+              <div className="space-y-3">
+                {recommendations.map((rec: any, i: number) => (
+                  <RecommendationCard key={i} rec={rec} index={i} />
+                ))}
               </div>
             </section>
+          )}
 
-            <section className="space-y-7">
-              {Object.entries(grouped)
-                .sort(([a], [b]) => +a - +b)
-                .map(([rn, rounds]) => (
-                  <div key={rn} className="space-y-4">
-                    <div className="sticky top-14 z-10 flex items-center gap-4 bg-[var(--background)] py-2">
-                      <span className="font-mono text-xs text-[var(--accent)]">{t("debate.round")} {rn}</span>
-                      <span className="h-px flex-1 bg-[var(--card-border)]" />
-                    </div>
-                    {rounds.map((r, i) => (
-                      <DebateRoundBlock key={i} round={r} />
-                    ))}
+          {/* Risk Factors */}
+          {riskFactors.length > 0 && (
+            <section>
+              <h3 className="flex items-center gap-2 heading-section mb-4">
+                <span className="font-mono text-[var(--accent-red)]">⚠️</span>
+                风险提示
+                <span className="badge badge-error">{riskFactors.length}</span>
+              </h3>
+              <div className="liquid-glass rounded-xl divide-y divide-[var(--card-border)] overflow-hidden">
+                {riskFactors.map((risk: string, i: number) => (
+                  <div key={i} className="flex items-start gap-3 p-4">
+                    <span className="font-mono text-xs text-[var(--accent-red)] shrink-0">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="text-sm leading-6 text-[var(--muted-foreground)]">{toText(risk)}</span>
                   </div>
                 ))}
+              </div>
             </section>
-          </main>
+          )}
 
-          <aside className="xl:sticky xl:top-20 xl:self-start">
-            {debate.verdict && (
-              <section className="border border-[var(--accent)] bg-[var(--accent)]/10 p-5 shadow-[0_0_40px_rgba(194,161,90,0.08)]">
-                <h3 className="mb-5 flex items-center gap-2 text-sm font-semibold">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                    <polyline points="22 4 12 14.01 9 11.01" />
-                  </svg>
-                  {t("debate.finalVerdict")}
-                </h3>
-
-                <div className="space-y-5">
-                  <div className="border-b border-[var(--card-border)] pb-4">
-                    <div className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">{t("debate.outcome")}</div>
-                    <div className={`mt-2 text-4xl font-semibold capitalize ${debate.verdict.verdict === "support" ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}`}>
-                      {debate.verdict.verdict}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-px bg-[var(--card-border)]">
-                    <div className="bg-[var(--code-bg)] p-4">
-                      <div className="text-xs text-[var(--muted)]">{t("debate.confidence")}</div>
-                      <div className="mt-2 font-mono text-2xl">{(debate.verdict.confidence * 100).toFixed(0)}%</div>
-                    </div>
-                    <div className="bg-[var(--code-bg)] p-4">
-                      <div className="text-xs text-[var(--muted)]">{t("debate.winningArgs")}</div>
-                      <div className="mt-2 font-mono text-2xl">{debate.verdict.winning_arguments.length}</div>
-                    </div>
-                  </div>
-
-                  {debate.verdict.winning_arguments.length > 0 && (
-                    <div className="border-t border-[var(--card-border)] pt-4">
-                      <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">{t("debate.winningArguments")}</div>
-                      <div className="space-y-3">
-                        {debate.verdict.winning_arguments.map((argument, i) => (
-                          <div key={i} className="grid grid-cols-[20px_1fr] text-sm leading-6">
-                            <span className="font-mono text-[var(--accent)]">{i + 1}</span>
-                            <span>{argument}</span>
-                          </div>
-                        ))}
+          {/* Alternative Scenarios */}
+          {alternativeScenarios.length > 0 && (
+            <section>
+              <h3 className="flex items-center gap-2 heading-section mb-4">
+                <span className="font-mono text-[var(--accent)]">🔀</span>
+                参考方案
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                {alternativeScenarios.map((scenario: any, i: number) => (
+                  <div key={i} className="liquid-glass rounded-xl p-5">
+                    <h4 className="heading-section !text-sm mb-2">{scenario.name}</h4>
+                    <p className="text-xs leading-6 text-[var(--muted-foreground)] mb-3">{scenario.description}</p>
+                    {scenario.expected_outcome && (
+                      <div className="divider-subtle pt-3 mt-3">
+                        <div className="section-label !text-[var(--muted)] mb-1">预期结果</div>
+                        <p className="text-xs leading-5 text-[var(--muted-foreground)]">{scenario.expected_outcome}</p>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
-                  {debate.verdict.minority_opinion && (
-                    <div className="border-t border-[var(--card-border)] pt-4">
-                      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--accent-yellow)]">{t("debate.minorityOpinion")}</div>
-                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">{debate.verdict.minority_opinion}</p>
+          {/* Analysis Rounds (collapsed by default) */}
+          {Object.keys(grouped).length > 0 && (
+            <details className="liquid-glass rounded-xl overflow-hidden">
+              <summary className="cursor-pointer px-5 py-4 heading-section hover:bg-[var(--card-hover)] transition-colors">
+                分析过程详情
+                <span className="ml-2 font-mono text-[11px] text-[var(--muted)]">({Object.keys(grouped).length} 轮)</span>
+              </summary>
+              <div className="px-5 pb-6 space-y-7">
+                {Object.entries(grouped)
+                  .sort(([a], [b]) => +a - +b)
+                  .map(([rn, rounds]) => (
+                    <div key={rn} className="space-y-4">
+                      <div className="sticky top-14 z-10 flex items-center gap-4 bg-[var(--background)] py-2">
+                        <span className="section-label">{t("debate.round")} {rn}</span>
+                        <span className="divider-subtle flex-1" />
+                      </div>
+                      {rounds.map((r, i) => (
+                        <DebateRoundBlock key={i} round={r} />
+                      ))}
                     </div>
-                  )}
-                </div>
-              </section>
-            )}
-          </aside>
+                  ))}
+              </div>
+            </details>
+          )}
         </div>
       ) : (
         !error && !isLoading && (
           <section>
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{t("debate.recentDebates") || "最近辩论"}</h2>
-              <span className="text-xs text-[var(--muted)] font-mono">{debateList?.length || 0} {t("debate.total") || "场辩论"}</span>
+              <h2 className="heading-section">{t("debate.recentDebates") || "最近分析报告"}</h2>
+              <span className="font-mono text-xs text-[var(--muted)]">{debateList?.length || 0} {t("debate.total") || "份报告"}</span>
             </div>
             {debateList && debateList.length > 0 ? (
               <div className="space-y-3">
@@ -280,7 +403,7 @@ export default function DebatePage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
+                        <div className="section-label !text-[var(--muted)] mb-2">
                           {d.trigger_type} · {new Date(d.created_at).toLocaleDateString("zh-CN")}
                         </div>
                         <h3 className="text-sm font-medium leading-relaxed text-[var(--foreground)] group-hover:text-[var(--accent)] transition-colors">
@@ -288,11 +411,6 @@ export default function DebatePage() {
                         </h3>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        {d.verdict && (
-                          <span className={`badge ${d.verdict === "support" ? "badge-success" : d.verdict === "reject" ? "badge-error" : ""}`}>
-                            {d.verdict}
-                          </span>
-                        )}
                         {d.confidence != null && (
                           <span className="font-mono text-xs text-[var(--muted)]">
                             {(d.confidence * 100).toFixed(0)}%
@@ -305,7 +423,7 @@ export default function DebatePage() {
                 ))}
               </div>
             ) : (
-              <StateBlock title={t("debate.enterDebateId")} description={t("debate.enterDebateIdDescription") || "输入辩论ID或通过战略助手发起辩论"} />
+              <StateBlock title={t("debate.enterDebateId")} description={t("debate.enterDebateIdDescription") || "输入ID或通过战略助手发起分析"} />
             )}
           </section>
         )

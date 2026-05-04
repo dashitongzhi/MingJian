@@ -6,6 +6,7 @@ const backendApiUrl =
 
 const nextConfig: NextConfig = {
   output: process.env.NEXT_OUTPUT === "export" ? "export" : "standalone",
+  devIndicators: false,
   async rewrites() {
     return [
       {

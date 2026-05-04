@@ -22,10 +22,10 @@ function MiniSkeleton({ rows = 5 }: { rows?: number }) {
 
 function StateBlock({ title, description }: { title: string; description?: string }) {
   return (
-    <div className="flex min-h-[360px] items-center justify-center border-y border-[var(--card-border)] text-center">
+    <div className="flex min-h-[360px] items-center justify-center text-center">
       <div>
         <div className="mx-auto mb-4 h-px w-14 bg-[var(--accent)]" />
-        <div className="text-sm font-medium">{title}</div>
+        <div className="heading-section">{title}</div>
         {description && <div className="mx-auto mt-2 max-w-sm text-sm text-[var(--muted)]">{description}</div>}
       </div>
     </div>
@@ -60,7 +60,7 @@ function TimelineEvent({ event, isLast }: { event: { event_id: string; tick?: nu
     decision: "bg-[var(--accent)]",
     outcome: "bg-[var(--accent-green)]",
     risk: "bg-[var(--accent-red)]",
-    opportunity: "bg-[var(--accent-yellow)]",
+    opportunity: "bg-[var(--accent-amber)]",
     default: "bg-[var(--muted)]",
   };
 
@@ -74,7 +74,7 @@ function TimelineEvent({ event, isLast }: { event: { event_id: string; tick?: nu
         {!isLast && <span className="absolute top-5 h-[calc(100%-8px)] w-px bg-[var(--card-border)]" />}
       </div>
       <div className="pb-7">
-        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted)]">{event.event_type}</div>
+        <div className="section-label !text-[var(--muted)]">{event.event_type}</div>
         <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{event.title}</p>
       </div>
     </div>
@@ -83,7 +83,7 @@ function TimelineEvent({ event, isLast }: { event: { event_id: string; tick?: nu
 
 function GeoAssetRow({ asset }: { asset: { name: string; asset_type: string; latitude: number; longitude: number } }) {
   return (
-    <div className="grid grid-cols-[1fr_120px_170px] gap-4 border-t border-[var(--card-border)] py-3 text-sm">
+    <div className="grid grid-cols-[1fr_120px_170px] gap-4 divider-subtle py-3 text-sm">
       <div className="min-w-0 truncate font-medium">{asset.name}</div>
       <div className="text-[var(--muted)]">{asset.asset_type}</div>
       <div className="text-right font-mono text-xs text-[var(--muted-foreground)]">
@@ -93,12 +93,15 @@ function GeoAssetRow({ asset }: { asset: { name: string; asset_type: string; lat
   );
 }
 
-const statusColors: Record<string, { badge: string }> = {
-  COMPLETED: { badge: "border-[var(--accent-green)] text-[var(--accent-green)]" },
-  FAILED: { badge: "border-[var(--accent-red)] text-[var(--accent-red)]" },
-  RUNNING: { badge: "border-[var(--accent-yellow)] text-[var(--accent-yellow)]" },
-  PENDING: { badge: "border-[var(--accent-yellow)] text-[var(--accent-yellow)]" },
-};
+function StatusBadgeSim({ status }: { status: string }) {
+  const cls: Record<string, string> = {
+    COMPLETED: "badge badge-success",
+    FAILED: "badge badge-error",
+    RUNNING: "badge badge-warning",
+    PENDING: "badge badge-warning",
+  };
+  return <span className={cls[status] || "badge"}>{status}</span>;
+}
 
 export default function SimulationPage() {
   const { t } = useTranslation();
@@ -143,10 +146,7 @@ export default function SimulationPage() {
       {
         accessorKey: "status",
         header: t("common.status"),
-        cell: ({ row }) => {
-          const s = statusColors[row.original.status] || statusColors.PENDING;
-          return <span className={`border px-2 py-0.5 font-mono text-[10px] ${s.badge}`}>{row.original.status}</span>;
-        },
+        cell: ({ row }) => <StatusBadgeSim status={row.original.status} />,
       },
       {
         accessorKey: "domain_id",
@@ -167,15 +167,16 @@ export default function SimulationPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-8">
-      <div className="grid gap-6 border-b border-[var(--card-border)] pb-8 lg:grid-cols-[1fr_auto]">
+      {/* ── Page Header ── */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_auto]">
         <div>
-          <div className="font-mono text-xs uppercase tracking-[0.28em] text-[var(--accent)]">{t("simulation.title")}</div>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">{t("simulation.subtitle")}</h1>
+          <div className="section-label">{t("simulation.title")}</div>
+          <h1 className="heading-display mt-3">{t("simulation.subtitle")}</h1>
         </div>
         <div className="flex items-end">
           <button
             onClick={() => setShowCreate(!showCreate)}
-            className="inline-flex items-center gap-2 border border-[var(--accent)] px-4 py-3 text-sm text-[var(--accent)] transition-[background-color,color,transform] duration-200 hover:-translate-y-0.5 hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]"
+            className="btn btn-primary"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -185,27 +186,29 @@ export default function SimulationPage() {
           </button>
         </div>
       </div>
+      <div className="divider-subtle" />
 
+      {/* ── Create Form ── */}
       {showCreate && (
-        <section className="animate-fadeIn border-y border-[var(--card-border)] bg-[var(--card)]/45 p-6">
+        <section className="animate-fadeIn liquid-glass rounded-xl p-6">
           <div className="mb-6 flex items-center justify-between gap-6">
-            <h2 className="text-sm font-semibold">{t("simulation.createNewSimulation")}</h2>
-            <div className="hidden gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)] md:flex">
-              <span className="text-[var(--accent)]">01 {t("simulation.domain")}</span>
+            <h2 className="heading-section">{t("simulation.createNewSimulation")}</h2>
+            <div className="hidden gap-3 section-label !text-[var(--muted)] md:flex">
+              <span className="!text-[var(--accent)]">01 {t("simulation.domain")}</span>
               <span>02 {t("simulation.timeSteps")}</span>
               <span>03 {t("simulation.createAndRun")}</span>
             </div>
           </div>
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1fr_220px]">
             <div className="border-l border-[var(--accent)] pl-5">
-              <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{t("simulation.domain")}</label>
-              <select className="mt-3 w-full bg-transparent py-3 text-lg outline-none" value={domain} onChange={(event) => setDomain(event.target.value)}>
+              <label className="section-label">{t("simulation.domain")}</label>
+              <select className="glass mt-3 w-full rounded-md px-3 py-2 text-lg outline-none" value={domain} onChange={(event) => setDomain(event.target.value)}>
                 <option value="corporate">{t("simulation.corporate")}</option>
                 <option value="military">{t("simulation.military")}</option>
               </select>
             </div>
             <div className="border-l border-[var(--card-border)] pl-5">
-              <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{t("simulation.timeSteps")}: {ticks}</label>
+              <label className="section-label">{t("simulation.timeSteps")}: {ticks}</label>
               <div className="mt-5 flex items-center gap-4">
                 <input type="range" min={2} max={12} value={ticks} onChange={(event) => setTicks(Number(event.target.value))} className="flex-1 accent-[var(--accent)]" />
                 <span className="w-10 text-right font-mono text-2xl">{ticks}</span>
@@ -215,7 +218,7 @@ export default function SimulationPage() {
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="inline-flex w-full items-center justify-center gap-2 bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[var(--accent-foreground)] transition-[opacity,transform] duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+                className="btn btn-primary w-full"
               >
                 {creating ? (
                   <>
@@ -232,10 +235,12 @@ export default function SimulationPage() {
         </section>
       )}
 
+      {/* ── Main Content ── */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[390px_1fr]">
-        <aside className="border-r border-[var(--card-border)] pr-6">
+        {/* Sidebar — Runs List */}
+        <aside className="liquid-glass rounded-xl p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">{t("simulation.simulationRuns")}</h2>
+            <h2 className="heading-section">{t("simulation.simulationRuns")}</h2>
             <span className="font-mono text-xs text-[var(--muted)]">{runs?.length ?? 0}</span>
           </div>
 
@@ -257,6 +262,7 @@ export default function SimulationPage() {
           )}
         </aside>
 
+        {/* Main — Workbench */}
         <main className="min-w-0 space-y-8">
           {wbLoading && <MiniSkeleton rows={8} />}
           {wbError && <StateBlock title={t("common.failed")} description={String(wbError.message || wbError)} />}
@@ -264,9 +270,10 @@ export default function SimulationPage() {
           {sel && !wbLoading && !wbError && wb && (
             <>
               <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                <div className="border-y border-[var(--card-border)] py-5">
+                {/* KPI Comparator */}
+                <div className="liquid-glass rounded-xl p-5">
                   <div className="mb-5 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold">{t("simulation.kpiComparator")}</h2>
+                    <h2 className="heading-section">{t("simulation.kpiComparator")}</h2>
                     <span className="font-mono text-xs text-[var(--muted)]">{metrics.length}</span>
                   </div>
                   <div className="divide-y divide-[var(--card-border)]/70">
@@ -277,10 +284,11 @@ export default function SimulationPage() {
                   </div>
                 </div>
 
+                {/* Geo Assets */}
                 {wb.geo_map?.assets?.length > 0 && (
-                  <div className="border-y border-[var(--card-border)] py-5">
+                  <div className="liquid-glass rounded-xl p-5">
                     <div className="mb-5 flex items-center justify-between gap-4">
-                      <h2 className="text-sm font-semibold">{t("simulation.geoAssets")}</h2>
+                      <h2 className="heading-section">{t("simulation.geoAssets")}</h2>
                       {wb.geo_map.theater && <span className="font-mono text-xs text-[var(--muted)]">{wb.geo_map.theater}</span>}
                     </div>
                     <div className="max-h-[315px] overflow-y-auto">
@@ -292,12 +300,14 @@ export default function SimulationPage() {
                 )}
               </section>
 
+              {/* Timeline */}
               {wb.timeline.length > 0 && (
-                <section className="border-t border-[var(--card-border)] pt-6">
+                <section className="liquid-glass rounded-xl p-6">
                   <div className="mb-6 flex items-center justify-between">
-                    <h2 className="text-sm font-semibold">{t("simulation.timeline")}</h2>
+                    <h2 className="heading-section">{t("simulation.timeline")}</h2>
                     <span className="font-mono text-xs text-[var(--muted)]">{wb.timeline.length}</span>
                   </div>
+                  <div className="divider-subtle mb-6" />
                   <div className="max-h-[520px] overflow-y-auto pr-2">
                     {wb.timeline.map((event, index) => (
                       <TimelineEvent key={event.event_id} event={event} isLast={index === wb.timeline.length - 1} />

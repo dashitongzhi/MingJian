@@ -40,9 +40,9 @@ type CustomProviderValues = z.infer<typeof customProviderSchema>;
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 function inputClass(hasError?: boolean) {
-  return `w-full rounded-lg border ${
-    hasError ? "border-[var(--accent-red)]" : "border-[var(--card-border)]"
-  } bg-[var(--background)] px-3 py-2 font-mono text-sm transition-colors focus:border-[var(--accent)] focus:outline-none`;
+  return `input w-full ${
+    hasError ? "border-[var(--accent-red)]" : ""
+  }`;
 }
 
 // ── Small presentational components ─────────────────────────────────────────
@@ -50,11 +50,10 @@ function inputClass(hasError?: boolean) {
 function ProviderStatus({ configured }: { configured: boolean }) {
   const { t } = useTranslation();
 
-  return (
-    <span className={`inline-flex items-center gap-2 text-xs ${configured ? "text-[var(--accent-green)]" : "text-[var(--muted)]"}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${configured ? "bg-[var(--accent-green)]" : "bg-[var(--muted)]"}`} />
-      {configured ? t("providers.configuredBadge") : t("providers.notConfiguredBadge")}
-    </span>
+  return configured ? (
+    <span className="badge badge-success">{t("providers.configuredBadge")}</span>
+  ) : (
+    <span className="badge">{t("providers.notConfiguredBadge")}</span>
   );
 }
 
@@ -70,7 +69,7 @@ function ProviderCard({
   return (
     <button
       onClick={onConfigure}
-      className="group grid min-h-[150px] w-full grid-rows-[auto_1fr_auto] rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5 text-left transition-[border-color,transform,opacity,background-color] duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)] hover:bg-[var(--card-hover)]"
+      className="group grid min-h-[150px] w-full grid-rows-[auto_1fr_auto] card rounded-xl p-5 text-left magnetic-hover"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -85,14 +84,16 @@ function ProviderCard({
         <ProviderStatus configured={provider.api_key_set} />
       </div>
 
-      <div className="mt-5 border-t border-[var(--card-border)] pt-4">
-        <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{t("providers.model")}</div>
+      <div className="mt-5 pt-4">
+        <div className="section-label">{t("providers.model")}</div>
         <div className="mt-2 min-h-5 truncate font-mono text-xs text-[var(--muted-foreground)]">
           {provider.active_model || "-"}
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-xs text-[var(--muted)]">
+      <div className="divider-subtle mt-4 mb-3" />
+
+      <div className="flex items-center justify-between text-xs text-[var(--muted)]">
         <span>{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</span>
         <span className="opacity-0 transition-opacity duration-200 group-hover:opacity-100">{t("providers.editHint")}</span>
       </div>
@@ -136,7 +137,7 @@ function FieldBlock({
 }) {
   return (
     <div className="grid gap-2 md:grid-cols-[140px_1fr] md:items-start">
-      <label className="pt-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)]">{label}</label>
+      <label className="section-label pt-2">{label}</label>
       <div>
         {children}
         {error && <div className="mt-1 text-xs text-[var(--accent-red)]">{error}</div>}
@@ -204,7 +205,7 @@ function PanelShell({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="grid w-full max-w-4xl overflow-hidden rounded-xl border border-[var(--card-border)] bg-[var(--card)] animate-fadeIn md:grid-cols-[220px_1fr]"
+        className="grid w-full max-w-4xl overflow-hidden rounded-xl card animate-fadeIn md:grid-cols-[220px_1fr]"
         onClick={(e) => e.stopPropagation()}
       >
         {rail}
@@ -325,7 +326,7 @@ function ConfigPanel({
       <form onSubmit={handleSubmit(onSubmit, () => toast.error("请检查表单信息"))} className="min-w-0">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
           <div className="min-w-0">
-            <h3 className="truncate text-base font-semibold">{provider.name || provider.id}</h3>
+            <h3 className="heading-section truncate">{provider.name || provider.id}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{provider.api_format === "anthropic" ? "Anthropic Format" : "OpenAI Format"}</p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
@@ -413,13 +414,13 @@ function ConfigPanel({
             </div>
           </FieldBlock>
 
-          <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
+          <div className="divider-subtle pt-5 md:ml-[140px]">
             <Button
               type="button"
               variant="outline"
               onClick={handleTest}
               disabled={testing || (!watchedApiKey && !provider.api_key_set)}
-              className="w-full"
+              className="btn btn-primary w-full"
             >
               {testing ? (
                 <>
@@ -440,10 +441,10 @@ function ConfigPanel({
             <Trash2 className="size-4" /> {t("common.delete")}
           </Button>
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" onClick={onClose}>
+            <Button type="button" variant="ghost" className="btn btn-ghost" onClick={onClose}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={saving || !watchedModel}>
+            <Button type="submit" disabled={saving || !watchedModel} className="btn btn-primary">
               {saving ? t("common.saving") : t("common.save")}
             </Button>
           </div>
@@ -461,7 +462,7 @@ function AddCustomCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="grid min-h-[150px] w-full place-items-center rounded-xl border border-dashed border-[var(--card-border)] bg-transparent p-5 text-center transition-[border-color,background-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)] hover:bg-[var(--card)]"
+      className="grid min-h-[150px] w-full place-items-center rounded-xl border border-dashed border-[var(--card-border)] bg-transparent p-5 text-center magnetic-hover transition-[border-color,background-color] duration-200 hover:border-[var(--accent)] hover:bg-[var(--card)]"
     >
       <div>
         <div className="mx-auto grid h-9 w-9 place-items-center rounded-lg border border-[var(--card-border)] text-lg text-[var(--accent)]">+</div>
@@ -580,7 +581,7 @@ function CustomConfigPanel({
       <form onSubmit={handleSubmit(onSubmit, () => toast.error("请检查表单信息"))} className="min-w-0">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--card-border)] p-5">
           <div>
-            <h3 className="text-base font-semibold">{t("providers.customProvider")}</h3>
+            <h3 className="heading-section">{t("providers.customProvider")}</h3>
             <p className="mt-1 text-xs text-[var(--muted)]">{t("providers.customProviderSubtitle")}</p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
@@ -663,13 +664,13 @@ function CustomConfigPanel({
             </div>
           </FieldBlock>
 
-          <div className="border-t border-[var(--card-border)] pt-5 md:ml-[140px]">
+          <div className="divider-subtle pt-5 md:ml-[140px]">
             <Button
               type="button"
               variant="outline"
               onClick={handleTest}
               disabled={testing || !watchedApiKey || !watchedBaseUrl}
-              className="w-full"
+              className="btn btn-primary w-full"
             >
               {testing ? (
                 <>
@@ -686,10 +687,10 @@ function CustomConfigPanel({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--card-border)] p-5">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" className="btn btn-ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button type="submit" disabled={saving || !watchedName || !watchedApiKey || !watchedBaseUrl}>
+          <Button type="submit" disabled={saving || !watchedName || !watchedApiKey || !watchedBaseUrl} className="btn btn-primary">
             {saving ? t("common.saving") : t("common.save")}
           </Button>
         </div>
@@ -704,7 +705,7 @@ function ProvidersSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2, 3, 4, 5].map((item) => (
-        <div key={item} className="min-h-[150px] rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5">
+        <div key={item} className="min-h-[150px] card rounded-xl p-5">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-[var(--card-border)] animate-pulse" />
             <div className="flex-1 space-y-2">
@@ -731,25 +732,28 @@ export default function ProvidersPage() {
   return (
     <>
       <div className="space-y-8">
-        <div className="grid gap-6 border-b border-[var(--card-border)] pb-6 lg:grid-cols-[1fr_280px]">
+        {/* ── Header ────────────────────────────────────────────────────────── */}
+        <div className="grid gap-6 pb-6 lg:grid-cols-[1fr_280px]">
           <div>
-            <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--accent)]">{t("providers.configured")}</p>
-            <h1 className="text-3xl font-semibold tracking-normal">{t("providers.title")}</h1>
+            <p className="section-label mb-3">{t("providers.configured")}</p>
+            <h1 className="heading-display">{t("providers.title")}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("providers.subtitlePrefix")}</p>
           </div>
-          <div className="rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+          <div className="liquid-glass rounded-xl p-5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[var(--muted)]">{t("providers.providers")}</span>
+              <span className="section-label">{t("providers.providers")}</span>
               <span className="font-mono text-xs text-[var(--accent)]">{configuredCount}/{totalProviders}</span>
             </div>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--background)]">
+            <div className="mt-4 gradient-progress">
               <div
-                className="h-full rounded-full bg-[var(--accent)] transition-[width,opacity] duration-300"
+                className="gradient-progress-fill"
                 style={{ width: totalProviders ? `${(configuredCount / totalProviders) * 100}%` : "0%" }}
               />
             </div>
           </div>
         </div>
+
+        <div className="divider-subtle" />
 
         {isLoading && <ProvidersSkeleton />}
 
@@ -774,12 +778,12 @@ export default function ProvidersPage() {
             </div>
 
             {providers?.length === 0 && (
-              <div className="empty-state rounded-xl border border-[var(--card-border)] py-12">
+              <div className="empty-state card rounded-xl py-12">
                 <div className="empty-state-title">{t("providers.providers")}</div>
               </div>
             )}
 
-            <div className="border-l border-[var(--accent)]/40 bg-[var(--card)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
+            <div className="card rounded-lg border-l-2 border-l-[var(--accent)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
               <strong className="mr-2 text-[var(--foreground)]">{t("providers.hintTitle")}</strong>
               {t("providers.hint")}
             </div>

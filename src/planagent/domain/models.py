@@ -673,6 +673,10 @@ class DebateVerdictRecord(Base):
     decisive_evidence: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     conditions: Mapped[list[str] | None] = mapped_column(JSON)
     minority_opinion: Mapped[str | None] = mapped_column(Text)
+    recommendations: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    risk_factors: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    alternative_scenarios: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    conclusion_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

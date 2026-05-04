@@ -91,6 +91,8 @@ function MetricPanel({
       className={`group relative overflow-hidden liquid-glass iridescent
         h-full min-h-[270px] rounded-2xl p-7 hover:-translate-y-0.5`}
     >
+      {/* Top accent bar — subtle brand signal */}
+      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--accent)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       {/* Top edge light refraction */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       {/* Bottom edge shadow */}
@@ -98,7 +100,7 @@ function MetricPanel({
       {/* Accent glow on hover */}
       <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
         style={{
-          background: "radial-gradient(ellipse at 30% 20%, rgba(127,159,144,0.06) 0%, transparent 60%)",
+          background: "radial-gradient(ellipse at 30% 20%, rgba(127,159,144,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(167,139,250,0.03) 0%, transparent 50%)",
         }}
       />
       <div className="relative z-10 flex h-full flex-col">
@@ -185,16 +187,16 @@ function QuickAction({ label, description, icon, href }: { label: string; descri
   return (
     <a
       href={href}
-      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 py-5 outline-none transition-all duration-200 hover:bg-[var(--card)]/50 hover:pl-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 py-5 outline-none transition-all duration-300 hover:bg-[var(--card)]/40 hover:pl-3 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
     >
-      <div className="flex h-8 w-8 items-center justify-center text-[var(--accent)] transition-transform duration-300 group-hover:scale-110">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--accent)] transition-all duration-300 group-hover:scale-110 group-hover:bg-[var(--accent)]/10">
         {icon}
       </div>
       <div className="min-w-0">
         <div className="text-sm font-medium text-[var(--foreground)]">{label}</div>
         <div className="mt-1 text-[13px] text-[var(--muted)] leading-relaxed">{description}</div>
       </div>
-      <div className="pt-1 text-[var(--muted)] transition-transform duration-300 group-hover:translate-x-1 group-hover:text-[var(--accent)]">→</div>
+      <div className="pt-1 text-[var(--muted)]/50 transition-all duration-300 group-hover:translate-x-1.5 group-hover:text-[var(--accent)]">→</div>
     </a>
   );
 }
@@ -258,17 +260,19 @@ export default function DashboardPage() {
     <div className="space-y-8">
       {/* ── Hero Header ──────────────────────────────────────────────────────── */}
       <header className="relative pb-4">
-        <div className="absolute right-0 top-0 h-24 w-64 bg-[var(--accent)]/4 blur-3xl rounded-full" />
+        {/* Ambient glow orbs — sage green + subtle purple pulse */}
+        <div className="absolute right-0 top-0 h-32 w-80 bg-[var(--accent)]/5 blur-[80px] rounded-full" />
+        <div className="absolute left-1/3 -top-8 h-20 w-40 bg-[var(--accent-purple)]/3 blur-[60px] rounded-full ambient-pulse" />
         <TextReveal>
           <div className="relative">
             <div className="flex items-center gap-3 mb-4">
               <Image src="/mingjian-icon.jpg" alt="明鉴" width={40} height={40} className="rounded-lg object-cover" />
               <SectionLabel>{t("dashboard.welcome")}</SectionLabel>
             </div>
-            <AnimatedGradientText className="block max-w-2xl text-4xl font-bold leading-tight tracking-tight text-balance">
+            <AnimatedGradientText className="block max-w-2xl text-4xl font-bold leading-[1.1] tracking-[-0.035em] text-balance">
               {t("dashboard.tagline")}
             </AnimatedGradientText>
-            <p className="mt-4 max-w-xl text-base text-[var(--muted)] leading-relaxed">
+            <p className="mt-4 max-w-xl text-[15px] text-[var(--muted-foreground)] leading-relaxed tracking-[-0.01em]">
               {t("dashboard.taglineSubtitle")}
             </p>
           </div>
@@ -347,7 +351,7 @@ export default function DashboardPage() {
       <StaggerContainer className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(280px,0.85fr)_minmax(280px,0.85fr)_minmax(520px,1.3fr)]" staggerDelay={0.06}>
         <StaggerItem className="min-w-0">
           <section className="h-full min-h-[270px] rounded-2xl liquid-glass p-7">
-            <h2 className="mb-1 text-lg font-semibold text-balance">{t("dashboard.quickActions")}</h2>
+            <h2 className="mb-1 heading-section text-balance">{t("dashboard.quickActions")}</h2>
             <div className="mt-4 space-y-0 divide-y divide-[var(--foreground)]/5">
               <QuickAction
                 label={t("dashboard.newAnalysis")}
@@ -406,7 +410,7 @@ export default function DashboardPage() {
         <StaggerItem className="min-w-0 lg:col-span-2 xl:col-span-1">
           <section className="h-full min-h-[270px] rounded-2xl liquid-glass p-7">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold text-balance">{t("dashboard.recentSessions")}</h2>
+              <h2 className="heading-section text-balance">{t("dashboard.recentSessions")}</h2>
               <Zap size={16} className="text-[var(--accent)]/60" />
             </div>
 

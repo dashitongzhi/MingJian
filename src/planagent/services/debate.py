@@ -121,6 +121,10 @@ class DebateAssessment:
     minority_opinion: str | None
     context_payload: dict[str, Any]
     rounds: list[dict[str, Any]]
+    recommendations: list[dict[str, Any]]
+    risk_factors: list[str]
+    alternative_scenarios: list[dict[str, Any]]
+    conclusion_summary: str
 
 
 @dataclass(frozen=True)
@@ -201,6 +205,10 @@ class DebateService:
             decisive_evidence=assessment.decisive_evidence,
             conditions=assessment.conditions,
             minority_opinion=assessment.minority_opinion,
+            recommendations=assessment.recommendations,
+            risk_factors=assessment.risk_factors,
+            alternative_scenarios=assessment.alternative_scenarios,
+            conclusion_summary=assessment.conclusion_summary,
         )
         session.add(verdict)
 
@@ -371,6 +379,10 @@ class DebateService:
                     decisive_evidence=verdict.decisive_evidence,
                     conditions=verdict.conditions,
                     minority_opinion=verdict.minority_opinion,
+                    recommendations=verdict.recommendations or [],
+                    risk_factors=verdict.risk_factors or [],
+                    alternative_scenarios=verdict.alternative_scenarios or [],
+                    conclusion_summary=verdict.conclusion_summary,
                     created_at=verdict.created_at,
                 )
                 if verdict is not None
@@ -399,6 +411,7 @@ class DebateService:
                 trigger_type=item.trigger_type,
                 verdict=verdicts.get(item.id).verdict if item.id in verdicts else None,
                 confidence=verdicts.get(item.id).confidence if item.id in verdicts else None,
+                recommendation_count=len(verdicts.get(item.id).recommendations or []) if item.id in verdicts else 0,
                 created_at=item.created_at,
             )
             for item in sessions
@@ -422,6 +435,7 @@ class DebateService:
                 trigger_type=item.trigger_type,
                 verdict=verdicts.get(item.id).verdict if item.id in verdicts else None,
                 confidence=verdicts.get(item.id).confidence if item.id in verdicts else None,
+                recommendation_count=len(verdicts.get(item.id).recommendations or []) if item.id in verdicts else 0,
                 created_at=item.created_at,
             )
             for item in sessions
@@ -466,18 +480,18 @@ class DebateService:
             return None
 
         advocate_r1 = await self.openai_service.generate_debate_position(
-            role="advocate",
+            role="strategist",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
-            target=self._debate_target_for_role("advocate"),
+            target=self._debate_target_for_role("strategist"),
         )
         challenger_r1 = await self.openai_service.generate_debate_position(
-            role="challenger",
+            role="risk_analyst",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
-            target=self._debate_target_for_role("challenger"),
+            target=self._debate_target_for_role("risk_analyst"),
         )
         if advocate_r1 is None and challenger_r1 is None:
             return None
@@ -489,7 +503,7 @@ class DebateService:
         if advocate_r1 is not None:
             rounds.append({
                 "round_number": 1,
-                "role": "advocate",
+                "role": "strategist",
                 "position": advocate_r1.position,
                 "confidence": advocate_r1.confidence,
                 "arguments": [
@@ -503,7 +517,7 @@ class DebateService:
         if challenger_r1 is not None:
             rounds.append({
                 "round_number": 1,
-                "role": "challenger",
+                "role": "risk_analyst",
                 "position": challenger_r1.position,
                 "confidence": challenger_r1.confidence,
                 "arguments": [
@@ -516,28 +530,28 @@ class DebateService:
             })
 
         advocate_r2 = await self.openai_service.generate_debate_position(
-            role="advocate",
+            role="strategist",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
             opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in chal_args_r1],
             own_previous=[{"claim": a.claim} for a in adv_args_r1],
-            target=self._debate_target_for_role("advocate"),
+            target=self._debate_target_for_role("strategist"),
         )
         challenger_r2 = await self.openai_service.generate_debate_position(
-            role="challenger",
+            role="risk_analyst",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
             opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in adv_args_r1],
             own_previous=[{"claim": a.claim} for a in chal_args_r1],
-            target=self._debate_target_for_role("challenger"),
+            target=self._debate_target_for_role("risk_analyst"),
         )
 
         if advocate_r2 is not None:
             rounds.append({
                 "round_number": 2,
-                "role": "advocate",
+                "role": "strategist",
                 "position": advocate_r2.position,
                 "confidence": advocate_r2.confidence,
                 "arguments": [
@@ -551,7 +565,7 @@ class DebateService:
         if challenger_r2 is not None:
             rounds.append({
                 "round_number": 2,
-                "role": "challenger",
+                "role": "risk_analyst",
                 "position": challenger_r2.position,
                 "confidence": challenger_r2.confidence,
                 "arguments": [
@@ -566,17 +580,17 @@ class DebateService:
         all_adv_args = adv_args_r1 + (advocate_r2.arguments if advocate_r2 else [])
         all_chal_args = chal_args_r1 + (challenger_r2.arguments if challenger_r2 else [])
         arbitrator = await self.openai_service.generate_debate_position(
-            role="arbitrator",
+            role="opportunist",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
             opponent_arguments=[{"claim": a.claim, "reasoning": a.reasoning} for a in all_adv_args + all_chal_args],
-            target=self._debate_target_for_role("arbitrator"),
+            target=self._debate_target_for_role("opportunist"),
         )
         if arbitrator is not None:
             rounds.append({
                 "round_number": 3,
-                "role": "arbitrator",
+                "role": "opportunist",
                 "position": arbitrator.position,
                 "confidence": arbitrator.confidence,
                 "arguments": [
@@ -594,9 +608,9 @@ class DebateService:
         if self.openai_service is None:
             return "primary"
         role_targets = {
-            "advocate": ("debate_advocate", "primary"),
-            "challenger": ("debate_challenger", "extraction", "primary"),
-            "arbitrator": ("debate_arbitrator", "report", "primary"),
+            "strategist": ("debate_advocate", "primary"),
+            "risk_analyst": ("debate_challenger", "extraction", "primary"),
+            "opportunist": ("debate_arbitrator", "report", "primary"),
         }
         for target in role_targets.get(role, ("primary",)):
             if self.openai_service.is_configured(target):
@@ -618,9 +632,9 @@ class DebateService:
         claim_statement: str | None = None,
         claim_confidence: float | None = None,
     ) -> DebateAssessment:
-        advocate_rounds = [r for r in rounds if r["role"] == "advocate"]
-        challenger_rounds = [r for r in rounds if r["role"] == "challenger"]
-        arbitrator_rounds = [r for r in rounds if r["role"] == "arbitrator"]
+        advocate_rounds = [r for r in rounds if r["role"] == "strategist"]
+        challenger_rounds = [r for r in rounds if r["role"] == "risk_analyst"]
+        arbitrator_rounds = [r for r in rounds if r["role"] == "opportunist"]
 
         support_confidence = max(
             (r["confidence"] for r in advocate_rounds), default=0.5,
@@ -676,6 +690,32 @@ class DebateService:
                 "claim_confidence": claim_confidence,
             })
 
+        # Generate planning recommendations from debate outcomes
+        recommendations = self._generate_recommendations(
+            verdict=verdict,
+            winning_arguments=winning_arguments,
+            minority_opinion=minority_opinion,
+            conditions=conditions,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+        )
+        risk_factors = self._generate_risk_factors(
+            challenger_rounds=challenger_rounds,
+            verdict=verdict,
+            minority_opinion=minority_opinion,
+        )
+        alternative_scenarios = self._generate_alternative_scenarios(
+            advocate_rounds=advocate_rounds,
+            challenger_rounds=challenger_rounds,
+            verdict=verdict,
+        )
+        conclusion_summary = self._generate_conclusion_summary(
+            verdict=verdict,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+            recommendations=recommendations,
+        )
+
         return DebateAssessment(
             support_confidence=support_confidence,
             challenge_confidence=challenge_confidence,
@@ -686,6 +726,10 @@ class DebateService:
             minority_opinion=minority_opinion,
             context_payload=context_payload,
             rounds=rounds,
+            recommendations=recommendations,
+            risk_factors=risk_factors,
+            alternative_scenarios=alternative_scenarios,
+            conclusion_summary=conclusion_summary,
         )
 
     async def _assess_debate(
@@ -792,7 +836,7 @@ class DebateService:
         rounds = [
             {
                 "round_number": 1,
-                "role": "advocate",
+                "role": "strategist",
                 "position": "SUPPORT",
                 "confidence": support_confidence,
                 "arguments": [
@@ -809,7 +853,7 @@ class DebateService:
             },
             {
                 "round_number": 1,
-                "role": "challenger",
+                "role": "risk_analyst",
                 "position": "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
                 "confidence": challenge_confidence,
                 "arguments": [
@@ -826,14 +870,14 @@ class DebateService:
             },
             {
                 "round_number": 2,
-                "role": "arbitrator",
+                "role": "opportunist",
                 "position": self._verdict_position(verdict),
                 "confidence": max(support_confidence, challenge_confidence),
                 "arguments": [
                     {
                         "claim": f"Final verdict: {verdict}.",
                         "evidence_ids": evidence_ids[:3],
-                        "reasoning": "The arbitrator compared branch KPI deltas, recommendations, and unresolved downside tradeoffs.",
+                        "reasoning": "The opportunist compared branch KPI deltas, recommendations, and unresolved downside tradeoffs.",
                         "strength": "STRONG",
                     }
                 ],
@@ -841,6 +885,32 @@ class DebateService:
                 "concessions": ([{"argument_idx": 0, "reason": conditions[0]}] if conditions else []),
             },
         ]
+
+        # Generate planning recommendations
+        branch_recommendations = self._generate_recommendations(
+            verdict=verdict,
+            winning_arguments=winning_arguments,
+            minority_opinion=minority_opinion,
+            conditions=conditions,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+        )
+        branch_risk_factors = self._generate_risk_factors(
+            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            verdict=verdict,
+            minority_opinion=minority_opinion,
+        )
+        branch_alternative_scenarios = self._generate_alternative_scenarios(
+            advocate_rounds=[r for r in rounds if r["role"] == "strategist"],
+            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            verdict=verdict,
+        )
+        branch_conclusion = self._generate_conclusion_summary(
+            verdict=verdict,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+            recommendations=branch_recommendations,
+        )
 
         return DebateAssessment(
             support_confidence=support_confidence,
@@ -864,6 +934,10 @@ class DebateService:
                 "user_context": payload.context_lines,
             },
             rounds=rounds,
+            recommendations=branch_recommendations,
+            risk_factors=branch_risk_factors,
+            alternative_scenarios=branch_alternative_scenarios,
+            conclusion_summary=branch_conclusion,
         )
 
     def _branch_metric_score(
@@ -1030,7 +1104,7 @@ class DebateService:
         rounds = [
             {
                 "round_number": 1,
-                "role": "advocate",
+                "role": "strategist",
                 "position": "SUPPORT",
                 "confidence": support_confidence,
                 "arguments": self._claim_argument_block(
@@ -1044,7 +1118,7 @@ class DebateService:
             },
             {
                 "round_number": 1,
-                "role": "challenger",
+                "role": "risk_analyst",
                 "position": "OPPOSE" if verdict != "ACCEPTED" else "CONDITIONAL",
                 "confidence": challenge_confidence,
                 "arguments": self._claim_argument_block(
@@ -1059,7 +1133,7 @@ class DebateService:
             },
             {
                 "round_number": 2,
-                "role": "arbitrator",
+                "role": "opportunist",
                 "position": self._verdict_position(verdict),
                 "confidence": max(support_confidence, challenge_confidence),
                 "arguments": [
@@ -1074,6 +1148,33 @@ class DebateService:
                 "concessions": [],
             },
         ]
+
+        # Generate planning recommendations
+        claim_recommendations = self._generate_recommendations(
+            verdict=verdict,
+            winning_arguments=winning_arguments,
+            minority_opinion=minority_opinion,
+            conditions=conditions,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+        )
+        claim_risk_factors = self._generate_risk_factors(
+            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            verdict=verdict,
+            minority_opinion=minority_opinion,
+        )
+        claim_alternative_scenarios = self._generate_alternative_scenarios(
+            advocate_rounds=[r for r in rounds if r["role"] == "strategist"],
+            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            verdict=verdict,
+        )
+        claim_conclusion = self._generate_conclusion_summary(
+            verdict=verdict,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+            recommendations=claim_recommendations,
+        )
+
         return DebateAssessment(
             support_confidence=support_confidence,
             challenge_confidence=challenge_confidence,
@@ -1091,6 +1192,10 @@ class DebateService:
                 "user_context": payload.context_lines,
             },
             rounds=rounds,
+            recommendations=claim_recommendations,
+            risk_factors=claim_risk_factors,
+            alternative_scenarios=claim_alternative_scenarios,
+            conclusion_summary=claim_conclusion,
         )
 
     async def _assess_run_debate(
@@ -1230,7 +1335,7 @@ class DebateService:
         rounds = [
             {
                 "round_number": 1,
-                "role": "advocate",
+                "role": "strategist",
                 "position": "SUPPORT",
                 "confidence": support_confidence,
                 "arguments": [
@@ -1247,7 +1352,7 @@ class DebateService:
             },
             {
                 "round_number": 1,
-                "role": "challenger",
+                "role": "risk_analyst",
                 "position": "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
                 "confidence": challenge_confidence,
                 "arguments": [
@@ -1264,7 +1369,7 @@ class DebateService:
             },
             {
                 "round_number": 2,
-                "role": "advocate",
+                "role": "strategist",
                 "position": "SUPPORT",
                 "confidence": self._clamp(support_confidence - 0.03, minimum=0.2, maximum=0.92),
                 "arguments": [
@@ -1280,7 +1385,7 @@ class DebateService:
             },
             {
                 "round_number": 2,
-                "role": "challenger",
+                "role": "risk_analyst",
                 "position": "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
                 "confidence": self._clamp(challenge_confidence - 0.03, minimum=0.15, maximum=0.9),
                 "arguments": [
@@ -1296,14 +1401,14 @@ class DebateService:
             },
             {
                 "round_number": 3,
-                "role": "arbitrator",
+                "role": "opportunist",
                 "position": self._verdict_position(verdict),
                 "confidence": max(support_confidence, challenge_confidence),
                 "arguments": [
                     {
                         "claim": f"Final verdict: {verdict}.",
                         "evidence_ids": decisive_evidence,
-                        "reasoning": "The arbitrator weighted final-state metrics, matched rules, and unresolved shocks.",
+                        "reasoning": "The opportunist weighted final-state metrics, matched rules, and unresolved shocks.",
                         "strength": "STRONG",
                     }
                 ],
@@ -1313,6 +1418,32 @@ class DebateService:
                 ),
             },
         ]
+
+        # Generate planning recommendations
+        run_recommendations = self._generate_recommendations(
+            verdict=verdict,
+            winning_arguments=winning_arguments,
+            minority_opinion=minority_opinion,
+            conditions=conditions,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+        )
+        run_risk_factors = self._generate_risk_factors(
+            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            verdict=verdict,
+            minority_opinion=minority_opinion,
+        )
+        run_alternative_scenarios = self._generate_alternative_scenarios(
+            advocate_rounds=[r for r in rounds if r["role"] == "strategist"],
+            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            verdict=verdict,
+        )
+        run_conclusion = self._generate_conclusion_summary(
+            verdict=verdict,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+            recommendations=run_recommendations,
+        )
 
         return DebateAssessment(
             support_confidence=support_confidence,
@@ -1332,6 +1463,10 @@ class DebateService:
                 "user_context": payload.context_lines,
             },
             rounds=rounds,
+            recommendations=run_recommendations,
+            risk_factors=run_risk_factors,
+            alternative_scenarios=run_alternative_scenarios,
+            conclusion_summary=run_conclusion,
         )
 
     async def _run_subject_name(self, session: AsyncSession, run: SimulationRun) -> str:
@@ -1344,6 +1479,126 @@ class DebateService:
             if force is not None:
                 return force.name
         return run.id
+
+    def _generate_recommendations(
+        self,
+        verdict: str,
+        winning_arguments: list[str],
+        minority_opinion: str | None,
+        conditions: list[str] | None,
+        support_confidence: float,
+        challenge_confidence: float,
+    ) -> list[dict[str, Any]]:
+        """Generate actionable planning recommendations from debate outcomes."""
+        recommendations: list[dict[str, Any]] = []
+
+        if verdict == "ACCEPTED":
+            recommendations.append({
+                "title": "Proceed with current strategy",
+                "priority": "high",
+                "rationale": f"Strong support confidence ({support_confidence:.0%}) indicates favorable conditions.",
+                "action_items": [arg for arg in winning_arguments[:2]],
+            })
+            if minority_opinion:
+                recommendations.append({
+                    "title": "Monitor identified risks",
+                    "priority": "medium",
+                    "rationale": f"While accepted, the risk analyst noted: {minority_opinion[:200]}",
+                    "action_items": ["Set up monitoring for risk factors", "Schedule periodic reassessment"],
+                })
+        elif verdict == "REJECTED":
+            recommendations.append({
+                "title": "Revise strategy before proceeding",
+                "priority": "high",
+                "rationale": f"Challenge confidence ({challenge_confidence:.0%}) indicates significant concerns.",
+                "action_items": [arg for arg in winning_arguments[:2]],
+            })
+            recommendations.append({
+                "title": "Explore alternative approaches",
+                "priority": "high",
+                "rationale": "Current approach carries too much risk. Consider pivoting strategy.",
+                "action_items": ["Conduct scenario analysis for alternatives", "Gather additional evidence"],
+            })
+        else:
+            recommendations.append({
+                "title": "Proceed with conditions",
+                "priority": "medium",
+                "rationale": "Mixed signals suggest proceeding cautiously with monitoring.",
+                "action_items": (conditions or ["Continue monitoring key indicators"])[:2],
+            })
+
+        if conditions:
+            recommendations.append({
+                "title": "Address conditional requirements",
+                "priority": "medium",
+                "rationale": "Conditions must be met before full commitment.",
+                "action_items": conditions[:3],
+            })
+
+        return recommendations
+
+    def _generate_risk_factors(
+        self,
+        challenger_rounds: list[dict[str, Any]],
+        verdict: str,
+        minority_opinion: str | None,
+    ) -> list[str]:
+        """Extract risk factors from challenger arguments."""
+        risks: list[str] = []
+        for r in challenger_rounds:
+            for arg in r.get("arguments", []):
+                claim = arg.get("claim", "")
+                if claim and claim not in risks:
+                    risks.append(claim)
+        if minority_opinion and minority_opinion not in risks:
+            risks.append(minority_opinion)
+        if verdict == "REJECTED":
+            risks.insert(0, "Current strategy was rejected — high risk of failure if pursued unchanged.")
+        return risks[:5]
+
+    def _generate_alternative_scenarios(
+        self,
+        advocate_rounds: list[dict[str, Any]],
+        challenger_rounds: list[dict[str, Any]],
+        verdict: str,
+    ) -> list[dict[str, Any]]:
+        """Generate alternative scenario suggestions."""
+        scenarios: list[dict[str, Any]] = []
+        if verdict == "REJECTED":
+            scenarios.append({
+                "name": "Pivot Strategy",
+                "description": "Abandon current approach and adopt the challenger's recommended path.",
+                "expected_outcome": "Reduced risk exposure, potentially slower progress.",
+            })
+        elif verdict == "CONDITIONAL":
+            scenarios.append({
+                "name": "Incremental Approach",
+                "description": "Implement recommendations in phases with checkpoints.",
+                "expected_outcome": "Balanced risk-reward with built-in course correction.",
+            })
+        else:
+            scenarios.append({
+                "name": "Accelerated Execution",
+                "description": "Fast-track implementation given strong support signals.",
+                "expected_outcome": "Faster results but requires active monitoring for emergent risks.",
+            })
+        return scenarios
+
+    def _generate_conclusion_summary(
+        self,
+        verdict: str,
+        support_confidence: float,
+        challenge_confidence: float,
+        recommendations: list[dict[str, Any]],
+    ) -> str:
+        """Generate a concise conclusion summary."""
+        top_recs = [r["title"] for r in recommendations[:2]]
+        rec_text = "; ".join(top_recs) if top_recs else "continue monitoring"
+        return (
+            f"Assessment result: {verdict}. "
+            f"Support confidence: {support_confidence:.0%}, Challenge confidence: {challenge_confidence:.0%}. "
+            f"Key recommendations: {rec_text}."
+        )
 
     def _verdict_position(self, verdict: str) -> str:
         if verdict == "ACCEPTED":

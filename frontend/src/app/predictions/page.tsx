@@ -63,17 +63,17 @@ function clampPercent(value?: number | null) {
 
 function StatusBadge({ status }: { status?: string | null }) {
   const normalized = (status || "UNKNOWN").toUpperCase();
-  const className =
+  const badgeClass =
     normalized === "ACTIVE" || normalized === "CURRENT"
-      ? "border-[var(--accent-green)]/30 bg-[var(--accent-green-bg)] text-[var(--accent-green)]"
+      ? "badge-success"
       : normalized === "SUPERSEDED"
-        ? "border-[var(--accent-yellow)]/30 bg-[var(--accent-yellow-bg)] text-[var(--accent-yellow)]"
+        ? "badge-warning"
         : normalized === "VERIFIED"
-          ? "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--accent)]"
-          : "border-[var(--accent-red)]/30 bg-[var(--accent-red-bg)] text-[var(--accent-red)]";
+          ? ""
+          : "badge-error";
 
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] leading-4 ${className}`}>
+    <span className={`badge ${badgeClass}`}>
       {normalized}
     </span>
   );
@@ -160,9 +160,9 @@ function DiffBlock({
 
 function TimelineSkeleton() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {[0, 1, 2].map((item) => (
-        <div key={item} className="grid grid-cols-[72px_1fr] gap-5">
+        <div key={item} className="grid grid-cols-[72px_1fr] gap-6">
           <div className="h-4 rounded bg-[var(--card-border)]/60 animate-pulse" />
           <div className="space-y-3 border-l border-[var(--card-border)] pl-6">
             <div className="h-4 w-1/3 rounded bg-[var(--card-border)]/70 animate-pulse" />
@@ -228,32 +228,38 @@ export default function PredictionsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 border-b border-[var(--card-border)] pb-6 lg:grid-cols-[1fr_320px]">
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div className="grid gap-6 pb-6 lg:grid-cols-[1fr_320px]">
         <div>
-          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--accent)]">{t("predictions.series")}</p>
-          <h1 className="text-3xl font-semibold tracking-normal">{t("predictions.title")}</h1>
+          <p className="section-label mb-3">{t("predictions.series")}</p>
+          <h1 className="heading-display">{t("predictions.title")}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("predictions.subtitle")}</p>
         </div>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-border)]">
-          <div className="bg-[var(--card)] p-4">
-            <div className="text-xs text-[var(--muted)]">{t("predictions.series")}</div>
-            <div className="mt-2 font-mono text-2xl">{predictions.length}</div>
-          </div>
-          <div className="bg-[var(--card)] p-4">
-            <div className="text-xs text-[var(--muted)]">{t("predictions.versions")}</div>
-            <div className="mt-2 font-mono text-2xl">{timeline.length}</div>
+        <div className="liquid-glass rounded-xl p-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="section-label mb-2">{t("predictions.series")}</div>
+              <div className="font-mono text-2xl">{predictions.length}</div>
+            </div>
+            <div>
+              <div className="section-label mb-2">{t("predictions.versions")}</div>
+              <div className="font-mono text-2xl">{timeline.length}</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[390px_1fr]">
+      <div className="divider-subtle" />
+
+      {/* ── Body ──────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_1fr]">
         <aside className="min-w-0">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium">{t("predictions.series")}</h2>
+            <h2 className="heading-section">{t("predictions.series")}</h2>
             <span className="font-mono text-xs text-[var(--muted)]">{predictions.length}</span>
           </div>
 
-          <div className="max-h-[calc(100vh-250px)] overflow-y-auto border-y border-[var(--card-border)]">
+          <div className="max-h-[calc(100vh-250px)] overflow-y-auto">
             {predictions.map((prediction) => {
               const subject =
                 prediction.subject ||
@@ -269,7 +275,7 @@ export default function PredictionsPage() {
                 <button
                   key={prediction.id}
                   onClick={() => loadTimeline(prediction.id)}
-                  className={`group grid w-full grid-cols-[56px_1fr] gap-4 border-b border-[var(--card-border)] px-0 py-4 text-left transition-[background-color,opacity] duration-200 last:border-b-0 ${
+                  className={`group grid w-full grid-cols-[56px_1fr] gap-4 px-0 py-4 text-left transition-[background-color,opacity] duration-200 border-b border-[var(--card-border)] last:border-b-0 ${
                     selected ? "bg-[var(--accent)]/8" : "hover:bg-[var(--card)]"
                   }`}
                 >
@@ -323,10 +329,10 @@ export default function PredictionsPage() {
           </div>
         </aside>
 
-        <main className="min-w-0 rounded-xl border border-[var(--card-border)] bg-[var(--card)]/55 p-5 md:p-6">
-          <div className="mb-8 flex flex-col justify-between gap-4 border-b border-[var(--card-border)] pb-5 md:flex-row md:items-start">
+        <main className="min-w-0 card rounded-xl p-5 md:p-6">
+          <div className="mb-8 flex flex-col justify-between gap-4 pb-5 md:flex-row md:items-start">
             <div>
-              <h2 className="text-sm font-medium">{t("predictions.versionHistory")}</h2>
+              <h2 className="heading-section">{t("predictions.versionHistory")}</h2>
               {selectedPrediction && (
                 <p className="mt-2 text-xs text-[var(--muted)]">
                   {selectedPrediction.domain || selectedPrediction.domain_id || "-"} / {selectedPrediction.status}
@@ -342,6 +348,8 @@ export default function PredictionsPage() {
               </div>
             )}
           </div>
+
+          <div className="divider-subtle mb-8" />
 
           {timelineLoading && <TimelineSkeleton />}
 
@@ -359,7 +367,7 @@ export default function PredictionsPage() {
                 const evidence = version.trigger_evidence || version.evidence_title || version.summary_delta;
 
                 return (
-                  <article key={version.id} className="grid grid-cols-[72px_1fr] gap-5 md:grid-cols-[92px_1fr]">
+                  <article key={version.id} className="grid grid-cols-[72px_1fr] gap-6 md:grid-cols-[92px_1fr]">
                     <div className="pt-1 text-right">
                       <div className="font-mono text-xs text-[var(--accent)]">v{version.version_number}</div>
                       <div className="mt-2 text-[11px] leading-4 text-[var(--muted)]">{formatDate(version.created_at)}</div>
@@ -382,15 +390,15 @@ export default function PredictionsPage() {
 
                         <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-border)] md:grid-cols-3">
                           <div className="bg-[var(--card)] p-3">
-                            <div className="text-[11px] text-[var(--muted)]">{t("predictions.confidence")}</div>
+                            <div className="section-label mb-1">{t("predictions.confidence")}</div>
                             <div className="mt-1 font-mono text-sm">{formatPercent(version.confidence)}</div>
                           </div>
                           <div className="bg-[var(--card)] p-3">
-                            <div className="text-[11px] text-[var(--muted)]">{t("predictions.triggerType")}</div>
+                            <div className="section-label mb-1">{t("predictions.triggerType")}</div>
                             <div className="mt-1 truncate text-sm">{version.trigger_type || "-"}</div>
                           </div>
                           <div className="bg-[var(--card)] p-3">
-                            <div className="text-[11px] text-[var(--muted)]">{t("predictions.status")}</div>
+                            <div className="section-label mb-1">{t("predictions.status")}</div>
                             <div className="mt-1 truncate text-sm">{version.status || "-"}</div>
                           </div>
                         </div>

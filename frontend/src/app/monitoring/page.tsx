@@ -97,7 +97,7 @@ function HealthDot({ healthy, failures = 0 }: { healthy: boolean; failures?: num
 
 function EventLabel({ event }: { event: MonitoringEvent }) {
   return (
-    <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-2 py-0.5 font-mono text-[11px] text-[var(--accent)]">
+    <span className="badge badge-premium font-mono">
       {event.event || event.topic || event.type || "event"}
     </span>
   );
@@ -115,9 +115,9 @@ function BentoPanel({
   action?: ReactNode;
 }) {
   return (
-    <section className={`rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5 ${className}`}>
+    <section className={`card rounded-xl p-5 ${className}`}>
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h2 className="text-sm font-medium">{title}</h2>
+        <h2 className="heading-section">{title}</h2>
         {action}
       </div>
       {children}
@@ -138,7 +138,7 @@ function InlineMetric({ label, value, tone = "default" }: { label: string; value
   return (
     <div className="border-b border-[var(--card-border)] py-3 last:border-b-0">
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-xs text-[var(--muted)]">{label}</span>
+        <span className="section-label">{label}</span>
         <span className={`font-mono text-xl ${toneClass}`}>{value}</span>
       </div>
     </div>
@@ -173,8 +173,8 @@ function CalibrationGauge({ value, label }: { value?: number; label: string }) {
         </div>
       </div>
       <div>
-        <div className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
-        <div className="mt-2 h-px w-20 bg-[var(--card-border)]" />
+        <div className="section-label">{label}</div>
+        <div className="divider-subtle mt-2 w-20" />
       </div>
     </div>
   );
@@ -184,7 +184,7 @@ function SkeletonPanel() {
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-6">
       {[0, 1, 2, 3].map((item) => (
-        <div key={item} className="h-44 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5">
+        <div key={item} className="h-44 card rounded-xl p-5">
           <div className="h-3 w-24 rounded bg-[var(--card-border)] animate-pulse" />
           <div className="mt-8 h-12 rounded bg-[var(--card-border)]/70 animate-pulse" />
           <div className="mt-5 h-3 w-2/3 rounded bg-[var(--card-border)]/60 animate-pulse" />
@@ -254,15 +254,16 @@ export default function MonitoringPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 border-b border-[var(--card-border)] pb-6 lg:grid-cols-[1fr_280px]">
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div className="grid gap-6 pb-6 lg:grid-cols-[1fr_280px]">
         <div>
-          <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--accent)]">{t("monitoring.eventFeed")}</p>
-          <h1 className="text-3xl font-semibold tracking-normal">{t("monitoring.title")}</h1>
+          <p className="section-label mb-3">{t("monitoring.eventFeed")}</p>
+          <h1 className="heading-display">{t("monitoring.title")}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("monitoring.subtitle")}</p>
         </div>
-        <div className="self-end rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4">
+        <div className="liquid-glass self-end rounded-xl p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[var(--muted)]">{t("monitoring.watchRules")}</span>
+            <span className="section-label">{t("monitoring.watchRules")}</span>
             <span className="font-mono text-xs text-[var(--accent-green)]">{healthyRules}/{watchRules.length}</span>
           </div>
           <div className="mt-4 flex gap-1">
@@ -274,6 +275,8 @@ export default function MonitoringPage() {
         </div>
       </div>
 
+      <div className="divider-subtle" />
+
       {loading && <SkeletonPanel />}
 
       {!loading && error && (
@@ -284,7 +287,8 @@ export default function MonitoringPage() {
       )}
 
       {!loading && !error && (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-6">
+          {/* ── Watch Rules Panel ─────────────────────────────────────────── */}
           <BentoPanel title={t("monitoring.watchRules")} className="xl:col-span-4 xl:row-span-2">
             <div className="grid grid-cols-1 gap-x-8 lg:grid-cols-2">
               {watchRules.map((rule) => {
@@ -301,7 +305,9 @@ export default function MonitoringPage() {
                       </div>
                     </div>
                     <div className="text-right text-xs text-[var(--muted)]">
-                      <div>{healthy ? t("monitoring.healthy") : t("monitoring.unhealthy")}</div>
+                      <span className={healthy ? "badge badge-success" : "badge badge-error"}>
+                        {healthy ? t("monitoring.healthy") : t("monitoring.unhealthy")}
+                      </span>
                       <div className="mt-1 font-mono">{t("monitoring.failures")}: {rule.failures ?? 0}</div>
                     </div>
                   </div>
@@ -316,6 +322,7 @@ export default function MonitoringPage() {
             </div>
           </BentoPanel>
 
+          {/* ── Revision Jobs Panel ───────────────────────────────────────── */}
           <BentoPanel title={t("monitoring.revisionJobs")} className="xl:col-span-2">
             <InlineMetric label={t("common.pending")} value={revisionJobs.pending ?? 0} tone="yellow" />
             <InlineMetric label={t("common.processing")} value={revisionJobs.processing ?? 0} />
@@ -323,27 +330,29 @@ export default function MonitoringPage() {
             <InlineMetric label={t("common.failed")} value={revisionJobs.failed ?? 0} tone="red" />
           </BentoPanel>
 
+          {/* ── Predictions Panel ─────────────────────────────────────────── */}
           <BentoPanel title={t("monitoring.predictions")} className="xl:col-span-2">
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card-border)]">
               <div className="bg-[var(--background)] p-4">
-                <div className="text-[11px] text-[var(--muted)]">{t("monitoring.active")}</div>
+                <div className="section-label">{t("monitoring.active")}</div>
                 <div className="mt-2 font-mono text-xl text-[var(--accent-green)]">{predictionStats.active ?? 0}</div>
               </div>
               <div className="bg-[var(--background)] p-4">
-                <div className="text-[11px] text-[var(--muted)]">{t("monitoring.superseded")}</div>
+                <div className="section-label">{t("monitoring.superseded")}</div>
                 <div className="mt-2 font-mono text-xl text-[var(--accent-yellow)]">{predictionStats.superseded ?? 0}</div>
               </div>
               <div className="bg-[var(--background)] p-4">
-                <div className="text-[11px] text-[var(--muted)]">{t("monitoring.verified")}</div>
+                <div className="section-label">{t("monitoring.verified")}</div>
                 <div className="mt-2 font-mono text-xl text-[var(--accent)]">{predictionStats.verified ?? 0}</div>
               </div>
             </div>
           </BentoPanel>
 
+          {/* ── Calibration Panel ─────────────────────────────────────────── */}
           <BentoPanel title={t("monitoring.calibration")} className="xl:col-span-3">
             <div className="grid gap-6 lg:grid-cols-[160px_1fr]">
               <CalibrationGauge value={calibration.avg_accuracy} label={t("monitoring.avgCalibrationScore")} />
-              <div className="space-y-5">
+              <div className="space-y-6">
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="text-sm font-medium">{t("monitoring.ruleAccuracyDistribution")}</div>
@@ -372,16 +381,17 @@ export default function MonitoringPage() {
             </div>
           </BentoPanel>
 
+          {/* ── Recent Changes Panel ──────────────────────────────────────── */}
           <BentoPanel title={t("monitoring.recentChanges")} className="xl:col-span-3">
             <div className="max-h-[320px] overflow-y-auto border-y border-[var(--card-border)]">
               {recentChanges.map((change) => (
                 <div key={change.id} className="grid grid-cols-[92px_1fr_auto] gap-4 border-b border-[var(--card-border)] py-4 last:border-b-0">
-                  <div className="truncate text-xs uppercase text-[var(--muted)]">{change.source_type}</div>
+                  <div className="section-label truncate">{change.source_type}</div>
                   <div className="min-w-0">
                     <p className="line-clamp-2 text-sm leading-5">{change.diff_summary || "-"}</p>
                     <div className="mt-1 text-xs text-[var(--muted)]">{formatDate(change.created_at)}</div>
                   </div>
-                  <span className="font-mono text-xs text-[var(--accent)]">{change.significance ?? "-"}</span>
+                  <span className="badge badge-premium font-mono">{change.significance ?? "-"}</span>
                 </div>
               ))}
 
@@ -393,9 +403,10 @@ export default function MonitoringPage() {
             </div>
           </BentoPanel>
 
-          <aside className="xl:col-span-6 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-5">
+          {/* ── Event Feed Panel ──────────────────────────────────────────── */}
+          <aside className="xl:col-span-6 card rounded-xl p-5">
             <div className="mb-5 flex items-center justify-between gap-4">
-              <h2 className="flex items-center gap-2 text-sm font-medium">
+              <h2 className="heading-section flex items-center gap-2">
                 <span className="status-dot online" />
                 {t("monitoring.eventFeed")}
               </h2>

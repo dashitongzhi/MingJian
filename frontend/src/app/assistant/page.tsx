@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import useSWR, { mutate as globalMutate } from "swr";
-import { fetchSessions, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound } from "@/lib/api";
+import { fetchSessions, fetchSessionDetail, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound, type StrategicSessionDetail } from "@/lib/api";
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
 import { TextReveal, StaggerContainer, StaggerItem, AnimatedGradientText } from "@/components/ui/aceternity";
 
 function SectionLabel({ children }: { children: ReactNode }) {
-  return <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--muted)]">{children}</div>;
+  return <div className="section-label">{children}</div>;
 }
 
 function SkeletonLine({ className = "" }: { className?: string }) {
@@ -18,9 +18,9 @@ function SkeletonLine({ className = "" }: { className?: string }) {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="flex min-h-[320px] items-center border-t border-[var(--card-border)]">
+    <div className="flex min-h-[320px] items-center divider-subtle">
       <div className="max-w-md py-12">
-        <div className="text-sm font-medium text-[var(--foreground)]">{title}</div>
+        <div className="heading-section text-[var(--foreground)]">{title}</div>
         <div className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</div>
       </div>
     </div>
@@ -29,7 +29,7 @@ function EmptyState({ title, description }: { title: string; description: string
 
 function StreamingSkeleton({ label }: { label: string }) {
   return (
-    <div className="border-t border-[var(--card-border)] py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+    <div className="divider-subtle py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
       <div className="mb-4 flex items-center gap-3 text-xs text-[var(--accent)]">
         <span className="h-2 w-2 rounded-full bg-[var(--accent)] motion-safe:animate-pulse" />
         <span>{label}</span>
@@ -98,11 +98,11 @@ function StepIndicator({ step, index }: { step: AnalysisStep; index: number }) {
   };
 
   return (
-    <div className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
+    <div className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
       <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--accent)] ${tone[step.stage] || tone.default}`}>
+          <span className={`section-label ${tone[step.stage] || tone.default}`}>
             {step.stage}
           </span>
           <span className="text-xs text-[var(--muted)]">{t("assistant.step")} {index + 1}</span>
@@ -126,7 +126,7 @@ function SourceCard({ source, index }: { source: { title: string; url: string };
       href={source.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="grid grid-cols-[48px_minmax(0,1fr)_18px] gap-4 border-t border-[var(--card-border)] py-4 outline-none motion-safe:animate-[fadeIn_0.25s_ease-out] motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      className="grid grid-cols-[48px_minmax(0,1fr)_18px] gap-4 divider-subtle py-4 outline-none motion-safe:animate-[fadeIn_0.25s_ease-out] motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
       style={{ animationDelay: `${index * 45}ms` }}
     >
       <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
@@ -142,9 +142,10 @@ function SourceCard({ source, index }: { source: { title: string; url: string };
 function PanelMessageCard({ msg }: { msg: PanelMessage }) {
   const { t } = useTranslation();
   const stance = msg.stance === "support" ? "S" : msg.stance === "challenge" ? "C" : "M";
+  const stanceBadge = msg.stance === "support" ? "badge-success" : msg.stance === "challenge" ? "badge-error" : "badge badge-warning";
 
   return (
-    <div className="border-t border-[var(--card-border)] py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+    <div className="divider-subtle py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
       <div className="mb-3 flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center border border-[var(--card-border)] font-mono text-[11px] text-[var(--accent)]">
@@ -152,12 +153,12 @@ function PanelMessageCard({ msg }: { msg: PanelMessage }) {
           </span>
           <span className="truncate text-sm font-medium">{msg.label}</span>
         </div>
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">{msg.stance}</span>
+        <span className={`badge ${stanceBadge}`}>{msg.stance}</span>
       </div>
       <RichText text={msg.summary} />
       {msg.recommendation && (
         <div className="mt-4 border-l border-[var(--accent)] pl-4">
-          <div className="mb-1 text-xs text-[var(--muted)]">{t("assistant.recommendation")}</div>
+          <div className="mb-1 section-label">{t("assistant.recommendation")}</div>
           <RichText text={msg.recommendation} />
         </div>
       )}
@@ -168,9 +169,10 @@ function PanelMessageCard({ msg }: { msg: PanelMessage }) {
 function DebateRoundCard({ round }: { round: DebateRound }) {
   const { t } = useTranslation();
   const confidence = Math.max(0, Math.min(1, round.confidence));
+  const confidenceBadge = confidence >= 0.7 ? "badge-success" : confidence >= 0.4 ? "badge badge-warning" : "badge-error";
 
   return (
-    <div className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
+    <div className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5 motion-safe:animate-[slideIn_0.25s_ease-out]">
       <div className="font-mono text-xs text-[var(--muted)]">{String(round.round_number).padStart(2, "0")}</div>
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -182,7 +184,7 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
             <div className="h-1 w-24 overflow-hidden bg-[var(--code-bg)]">
               <div className="h-full origin-left bg-[var(--accent)] motion-safe:transition-transform" style={{ transform: `scaleX(${confidence})` }} />
             </div>
-            <span className="font-mono text-xs text-[var(--muted)]">{(confidence * 100).toFixed(0)}%</span>
+            <span className={`badge ${confidenceBadge}`}>{(confidence * 100).toFixed(0)}%</span>
           </div>
         </div>
         <div className="mt-3">
@@ -212,16 +214,16 @@ function ProcessTimeline({
 
   return (
     <div>
-      <div className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-4 text-xs text-[var(--muted)]">
+      <div className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-4 text-xs text-[var(--muted)]">
         <span>ST</span>
-        <span className="font-mono uppercase tracking-[0.14em] text-[var(--accent)]">{currentStage}</span>
+        <span className="section-label">{currentStage}</span>
       </div>
       {steps.map((step, index) => (
-        <div key={step.id} className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5">
+        <div key={step.id} className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5">
           <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--accent)]">{step.stage}</span>
+              <span className="section-label">{step.stage}</span>
               <span className="text-xs text-[var(--muted)]">{step.timestamp}</span>
             </div>
             <div className="mt-2 text-sm font-medium">{step.title}</div>
@@ -239,7 +241,7 @@ function ProcessTimeline({
         </div>
       ))}
       {debateMessages.map((message, index) => (
-        <div key={`${message.role}-${message.round}-${index}`} className="grid grid-cols-[48px_minmax(0,1fr)] border-t border-[var(--card-border)] py-5">
+        <div key={`${message.role}-${message.round}-${index}`} className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5">
           <div className="font-mono text-xs text-[var(--muted)]">D{message.round}</div>
           <div>
             <div className="flex items-center justify-between gap-3">
@@ -253,6 +255,185 @@ function ProcessTimeline({
         </div>
       ))}
       {isStreaming && <StreamingSkeleton label={t("common.processing")} />}
+    </div>
+  );
+}
+
+function SessionDetailPanel({ detail, onBack }: { detail: StrategicSessionDetail; onBack: () => void }) {
+  const { t } = useTranslation();
+  const { session, daily_briefs, recent_runs } = detail;
+
+  return (
+    <div className="motion-safe:animate-[fadeIn_0.25s_ease-out]">
+      <div className="flex items-center justify-between divider-subtle px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex h-7 w-7 shrink-0 items-center justify-center border border-[var(--card-border)] font-mono text-xs text-[var(--muted)] outline-none motion-safe:transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            ←
+          </button>
+          <div className="min-w-0">
+            <SectionLabel>{t("assistant.sessionDetail")}</SectionLabel>
+            <div className="mt-1 truncate text-sm font-medium">{session.name || session.topic.slice(0, 60)}</div>
+          </div>
+        </div>
+        <span className="badge shrink-0">{session.domain_id}</span>
+      </div>
+
+      <div className="px-5 py-5">
+        {/* Session Info */}
+        <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-4 divider-subtle pb-5">
+          <div className="font-mono text-xs text-[var(--muted)]">01</div>
+          <div className="space-y-3">
+            <div>
+              <div className="section-label">{t("assistant.topic")}</div>
+              <div className="mt-1 text-sm text-[var(--foreground)]">{session.topic}</div>
+            </div>
+            {session.subject_name && (
+              <div>
+                <div className="section-label">{t("assistant.subjectName")}</div>
+                <div className="mt-1 text-sm text-[var(--foreground)]">{session.subject_name}</div>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <div>
+                <div className="section-label">{t("assistant.autoRefresh")}</div>
+                <div className="mt-1">
+                  <span className={`badge ${session.auto_refresh_enabled ? "badge-success" : "badge-error"}`}>
+                    {session.auto_refresh_enabled ? t("assistant.enabled") : t("assistant.disabled")}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="section-label">{t("assistant.createdAt")}</div>
+                <div className="mt-1 font-mono text-xs text-[var(--muted-foreground)]">
+                  {new Date(session.created_at).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Briefs */}
+        <div className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <SectionLabel>{t("assistant.dailyBriefs")}</SectionLabel>
+            <span className="font-mono text-[11px] text-[var(--muted)]">{daily_briefs.length}</span>
+          </div>
+          {daily_briefs.length > 0 ? (
+            <div className="space-y-0">
+              {daily_briefs.map((brief, i) => (
+                <div
+                  key={brief.id}
+                  className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-4 motion-safe:animate-[fadeIn_0.25s_ease-out]"
+                  style={{ animationDelay: `${i * 45}ms` }}
+                >
+                  <div className="font-mono text-xs text-[var(--muted)]">{String(i + 1).padStart(2, "0")}</div>
+                  <div className="min-w-0">
+                    <div className="mb-1 section-label">
+                      {t("assistant.briefSummary")} · {new Date(brief.generated_at).toLocaleDateString()}
+                    </div>
+                    <RichText text={brief.summary} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="divider-subtle py-6 text-sm text-[var(--muted)]">
+              {t("assistant.noDailyBriefs")}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Runs */}
+        <div className="mt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <SectionLabel>{t("assistant.recentRuns")}</SectionLabel>
+            <span className="font-mono text-[11px] text-[var(--muted)]">{recent_runs.length}</span>
+          </div>
+          {recent_runs.length > 0 ? (
+            <div className="space-y-0">
+              {recent_runs.map((run, i) => (
+                <div
+                  key={run.id}
+                  className="divider-subtle py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]"
+                  style={{ animationDelay: `${i * 45}ms` }}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="section-label">
+                        {t("assistant.runResult")}
+                      </span>
+                      <span className="font-mono text-[10px] text-[var(--muted)]">{run.id.slice(0, 8)}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-[var(--muted)]">
+                      {new Date(run.generated_at).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Analysis Summary */}
+                  {run.result?.analysis?.summary && (
+                    <div className="mb-3">
+                      <RichText text={run.result.analysis.summary} />
+                    </div>
+                  )}
+
+                  {/* Key Findings */}
+                  {run.result?.analysis?.findings && run.result.analysis.findings.length > 0 && (
+                    <div className="mb-3 border-l border-[var(--card-border)] pl-4">
+                      <div className="mb-2 section-label">
+                        {t("assistant.keyFindings")}
+                      </div>
+                      <div className="space-y-1">
+                        {run.result.analysis.findings.slice(0, 5).map((f, fi) => (
+                          <div key={fi} className="flex gap-2 text-xs text-[var(--muted-foreground)]">
+                            <span className="font-mono text-[var(--accent)]">{String(fi + 1).padStart(2, "0")}</span>
+                            <span className="leading-5">{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Debate Verdict */}
+                  {run.result?.debate?.verdict && (
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 divider-subtle pt-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[var(--muted)]">{t("assistant.debateVerdict")}:</span>
+                        <span className="badge badge-success uppercase">{run.result.debate.verdict.verdict}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[var(--muted)]">{t("common.confidence")}:</span>
+                        <span className="badge">{(run.result.debate.verdict.confidence * 100).toFixed(0)}%</span>
+                      </div>
+                      {run.result.debate.verdict.minority_opinion && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[var(--muted)]">{t("debate.minorityOpinion")}:</span>
+                          <span className="text-[var(--muted-foreground)]">{run.result.debate.verdict.minority_opinion.slice(0, 80)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Simulation status */}
+                  {run.result?.simulation_run && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
+                      <span>{t("assistant.simulation")}:</span>
+                      <span className="font-mono">{run.result.simulation_run.id.slice(0, 8)}</span>
+                      <span className="badge badge-warning uppercase">{run.result.simulation_run.status}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="divider-subtle py-6 text-sm text-[var(--muted)]">
+              {t("assistant.noRecentRuns")}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -279,6 +460,11 @@ export default function AssistantPage() {
   const [processSteps, setProcessSteps] = useState<ProcessStep[]>([]);
   const [debateMessages, setDebateMessages] = useState<DebateMessage[]>([]);
   const [currentStage, setCurrentStage] = useState("ingest");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const { data: sessionDetail, isLoading: sessionDetailLoading } = useSWR(
+    selectedSessionId ? `session-detail/${selectedSessionId}` : null,
+    () => fetchSessionDetail(selectedSessionId!),
+  );
 
   useEffect(() => {
     const hasVisited = localStorage.getItem("planagent_assistant_visited");
@@ -290,6 +476,7 @@ export default function AssistantPage() {
 
   const handleRun = useCallback(async () => {
     if (!topic.trim()) return;
+    setSelectedSessionId(null);
     setStreaming(true);
     setError(null);
     setSteps([]);
@@ -441,29 +628,29 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
   ];
 
   return (
-    <div className="space-y-8">
-      <header className="border-b border-[var(--card-border)] pb-7">
+    <div className="space-y-6">
+      <header className="divider-subtle pb-7">
         <TextReveal>
           <SectionLabel>{t("assistant.title")}</SectionLabel>
         </TextReveal>
         <TextReveal delay={0.1}>
-          <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-tight text-balance">
+          <h1 className="heading-display mt-4 max-w-3xl text-balance">
             <AnimatedGradientText>{t("assistant.subtitle")}</AnimatedGradientText>
           </h1>
         </TextReveal>
       </header>
 
-      <div className="grid grid-cols-1 gap-8 xl:grid-cols-[390px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="space-y-6 xl:sticky xl:top-[76px] xl:self-start">
-          <section className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]/85 backdrop-blur">
-            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
-              <h2 className="text-sm font-semibold">{t("assistant.missionInput")}</h2>
-              <span className="font-mono text-[11px] text-[var(--muted)]">CMD</span>
+          <section className="liquid-glass overflow-hidden rounded-xl">
+            <div className="flex items-center justify-between divider-subtle px-5 py-4">
+              <h2 className="heading-section">{t("assistant.missionInput")}</h2>
+              <span className="badge">CMD</span>
             </div>
 
             <div className="p-5">
-              <div className="overflow-hidden border border-[var(--card-border)] bg-[var(--code-bg)] focus-within:ring-2 focus-within:ring-[var(--accent)]">
-                <div className="border-b border-[var(--card-border)] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
+              <div className="glass overflow-hidden rounded-lg focus-within:ring-2 focus-within:ring-[var(--accent)] focus-within:ring-offset-1 focus-within:ring-offset-[var(--surface-1)]">
+                <div className="divider-subtle px-3 py-2 section-label">
                   {t("assistant.topicPlaceholder")}
                 </div>
                 <textarea
@@ -475,8 +662,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               </div>
 
               <div className="mt-5">
-                <label className="mb-3 block text-xs text-[var(--muted)]">{t("assistant.quickStartExamples")}</label>
-                <div className="space-y-1 border-y border-[var(--card-border)]">
+                <label className="mb-3 block section-label">{t("assistant.quickStartExamples")}</label>
+                <div className="space-y-1 divider-subtle">
                   {[
                     { topic: t("assistant.exampleTaiwan"), domain: "military" },
                     { topic: t("assistant.exampleEv"), domain: "corporate" },
@@ -500,9 +687,9 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
 
               <div className="mt-5 grid grid-cols-2 gap-4">
                 <label className="block">
-                  <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.domain")}</span>
+                  <span className="mb-2 block section-label">{t("assistant.domain")}</span>
                   <select
-                    className="w-full border border-[var(--card-border)] bg-[var(--code-bg)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    className="glass w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     value={domainId}
                     onChange={(e) => setDomainId(e.target.value)}
                   >
@@ -512,8 +699,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.ticks")}</span>
-                  <div className="flex h-[38px] items-center gap-3 border border-[var(--card-border)] bg-[var(--code-bg)] px-3">
+                  <span className="mb-2 block section-label">{t("assistant.ticks")}</span>
+                  <div className="glass flex h-[38px] items-center gap-3 rounded-lg px-3">
                     <input
                       type="range"
                       min={2}
@@ -528,9 +715,9 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               </div>
 
               <label className="mt-5 block">
-                <span className="mb-2 block text-xs text-[var(--muted)]">{t("assistant.subjectName")}</span>
+                <span className="mb-2 block section-label">{t("assistant.subjectName")}</span>
                 <input
-                  className="w-full border border-[var(--card-border)] bg-[var(--code-bg)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
+                  className="glass w-full rounded-lg px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
                   placeholder={t("assistant.subjectPlaceholder")}
                   value={subjectName}
                   onChange={(e) => setSubjectName(e.target.value)}
@@ -541,7 +728,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <button
                   onClick={handleRun}
                   disabled={streaming || !topic.trim()}
-                  className="flex flex-1 items-center justify-center gap-2 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] outline-none motion-safe:transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="btn btn-primary flex-1 gap-2"
                 >
                   {streaming ? (
                     <>
@@ -560,7 +747,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 {streaming && (
                   <button
                     onClick={() => abortRef.current?.abort()}
-                    className="border border-[var(--accent-red)] px-4 py-2.5 text-sm text-[var(--accent-red)] outline-none motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent-red)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                    className="badge-error border border-[var(--accent-red)] px-4 py-2.5 text-sm outline-none motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent-red)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                   >
                     {t("common.cancel")}
                   </button>
@@ -580,10 +767,10 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
 
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{t("assistant.recentSessions")}</h2>
+              <h2 className="heading-section">{t("assistant.recentSessions")}</h2>
               <span className="font-mono text-[11px] text-[var(--muted)]">{sessions?.length ?? 0}</span>
             </div>
-            <StaggerContainer className="max-h-[310px] overflow-y-auto border-y border-[var(--card-border)]">
+            <StaggerContainer className="max-h-[310px] overflow-y-auto">
               {!sessions && !sessionsError && (
                 <div className="space-y-3 py-4">
                   <SkeletonLine className="h-4 w-10/12" />
@@ -593,14 +780,25 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               )}
               {sessionsError && <div className="py-4 text-sm text-[var(--accent-red)]">{sessionsError.message}</div>}
               {sessions?.map((s) => (
-                <StaggerItem key={s.id} className="border-b border-[var(--card-border)] py-3 last:border-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="truncate text-sm font-medium">{s.name || s.topic.slice(0, 40)}</div>
-                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                      {s.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--muted)]">{s.domain_id}</div>
+                <StaggerItem
+                  key={s.id}
+                  className={`divider-subtle last:border-0 ${
+                    selectedSessionId === s.id ? "border-l-2 border-l-[var(--accent)] bg-[var(--code-bg)]" : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSessionId(s.id)}
+                    className="w-full py-3 text-left outline-none motion-safe:transition-colors hover:bg-[var(--code-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="truncate text-sm font-medium">{s.name || s.topic.slice(0, 40)}</div>
+                      <span className={`badge shrink-0 ${s.auto_refresh_enabled ? "badge-success" : ""}`}>
+                        {s.auto_refresh_enabled ? t("common.auto") : t("common.manual")}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-[var(--muted)]">{s.domain_id}</div>
+                  </button>
                 </StaggerItem>
               ))}
               {sessions && sessions.length === 0 && (
@@ -611,32 +809,59 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
         </aside>
 
         <main className="min-w-0">
+          {selectedSessionId && sessionDetail ? (
+            <section className="liquid-glass min-h-[560px] rounded-xl">
+              <SessionDetailPanel
+                detail={sessionDetail}
+                onBack={() => setSelectedSessionId(null)}
+              />
+            </section>
+          ) : selectedSessionId ? (
+            <section className="liquid-glass min-h-[560px] rounded-xl">
+              <div className="px-5 py-10 space-y-3">
+                <SkeletonLine className="h-4 w-8/12" />
+                <SkeletonLine className="h-4 w-6/12" />
+                <SkeletonLine className="h-4 w-10/12" />
+              </div>
+            </section>
+          ) : (
+            <>
           <div className="sticky top-[56px] z-10 -mx-1 mb-4 bg-[var(--background)]/80 px-1 py-2 backdrop-blur">
-            <div className="flex gap-px overflow-x-auto border border-[var(--card-border)] bg-[var(--card-border)]">
+            <div className="flex gap-0 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`min-w-28 flex-1 px-4 py-3 text-sm outline-none motion-safe:transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                  className={`relative min-w-28 flex-1 px-4 py-3 text-sm outline-none motion-safe:transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
                     activeTab === tab.id
-                      ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
-                      : "bg-[var(--card)] text-[var(--muted-foreground)] hover:bg-[var(--card-hover)]"
+                      ? "text-[var(--foreground)]"
+                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   }`}
                 >
                   <span>{tab.label}</span>
                   {tab.count > 0 && <span className="ml-2 font-mono text-[11px] opacity-70">{tab.count}</span>}
+                  {activeTab === tab.id && (
+                    <span className="absolute inset-x-4 bottom-0 h-0.5 bg-[var(--accent)] rounded-full" />
+                  )}
                 </button>
               ))}
             </div>
+            <div className="divider-subtle" />
           </div>
 
-          <section className="min-h-[560px] border border-[var(--card-border)] bg-[var(--card)]/60 backdrop-blur">
-            <div className="flex items-center justify-between border-b border-[var(--card-border)] px-5 py-4">
+          <section className="liquid-glass min-h-[560px] rounded-xl">
+            <div className="flex items-center justify-between divider-subtle px-5 py-4">
               <div>
                 <SectionLabel>{tabs.find((tab) => tab.id === activeTab)?.label}</SectionLabel>
               </div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted)]">
-                {streaming ? t("common.running") : result ? t("assistant.analysisComplete") : t("common.auto")}
+              <div className="flex items-center gap-2">
+                {streaming ? (
+                  <span className="badge badge-warning">{t("common.running")}</span>
+                ) : result ? (
+                  <span className="badge badge-success">{t("assistant.analysisComplete")}</span>
+                ) : (
+                  <span className="badge">{t("common.auto")}</span>
+                )}
               </div>
             </div>
             <div className="px-5">
@@ -720,12 +945,12 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
           </section>
 
           {result && (
-            <section className="mt-6 border border-[var(--card-border)] bg-[var(--card)]/70 p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+            <section className="liquid-glass mt-6 rounded-xl p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
               <div className="mb-5 flex items-center justify-between gap-4">
-                <h3 className="text-sm font-semibold">{t("assistant.analysisComplete")}</h3>
+                <h3 className="heading-section">{t("assistant.analysisComplete")}</h3>
                 <button
                   onClick={handleExport}
-                  className="border border-[var(--card-border)] px-3 py-2 text-xs text-[var(--muted-foreground)] outline-none motion-safe:transition-colors hover:bg-[var(--card-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                  className="btn btn-ghost"
                 >
                   {t("common.exportMd")}
                 </button>
@@ -736,9 +961,9 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               {result.analysis.findings.length > 0 && (
                 <div className="mt-6">
                   <SectionLabel>{t("assistant.keyFindings")}</SectionLabel>
-                  <div className="mt-3 divide-y divide-[var(--card-border)] border-y border-[var(--card-border)]">
+                  <div className="mt-3 divider-subtle">
                     {result.analysis.findings.map((f, i) => (
-                      <div key={i} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-3">
+                      <div key={i} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-3 divider-subtle">
                         <span className="font-mono text-xs text-[var(--accent)]">{String(i + 1).padStart(2, "0")}</span>
                         <RichText text={f} />
                       </div>
@@ -747,43 +972,45 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 </div>
               )}
 
-              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-[var(--card-border)] pt-4 text-xs text-[var(--muted)]">
+              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 divider-subtle pt-4 text-xs text-[var(--muted)]">
                 {result.simulation_run && (
                   <div className="flex items-center gap-2">
                     <span>{t("assistant.simulation")}:</span>
                     <span className="font-mono text-[var(--muted-foreground)]">{result.simulation_run.id.slice(0, 8)}</span>
-                    <span className="font-mono uppercase">{result.simulation_run.status}</span>
+                    <span className="badge badge-warning uppercase">{result.simulation_run.status}</span>
                   </div>
                 )}
                 {result.debate?.verdict && (
                   <div className="flex items-center gap-2">
                     <span>{t("assistant.verdict")}:</span>
-                    <span className="font-mono uppercase text-[var(--muted-foreground)]">{result.debate.verdict.verdict}</span>
-                    <span className="font-mono">{(result.debate.verdict.confidence * 100).toFixed(0)}%</span>
+                    <span className="badge badge-success uppercase">{result.debate.verdict.verdict}</span>
+                    <span className="badge">{(result.debate.verdict.confidence * 100).toFixed(0)}%</span>
                   </div>
                 )}
               </div>
             </section>
+          )}
+            </>
           )}
         </main>
       </div>
 
       {showGuide && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4 backdrop-blur">
-          <div className="w-full max-w-md border border-[var(--card-border)] bg-[var(--card)] p-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+          <div className="liquid-glass w-full max-w-md rounded-xl p-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
             <div className="mb-6">
               <SectionLabel>{t("assistant.onboardingTitle")}</SectionLabel>
-              <h2 className="mt-3 text-2xl font-semibold leading-tight text-balance">{t("assistant.onboardingSubtitle")}</h2>
+              <h2 className="heading-display mt-3 text-balance">{t("assistant.onboardingSubtitle")}</h2>
             </div>
 
-            <div className="mb-6 divide-y divide-[var(--card-border)] border-y border-[var(--card-border)]">
+            <div className="mb-6">
               {[
                 { title: t("assistant.onboardingEnterTopic"), desc: t("assistant.onboardingEnterTopicDesc") },
                 { title: t("assistant.onboardingAiAnalysis"), desc: t("assistant.onboardingAiAnalysisDesc") },
                 { title: t("assistant.onboardingDebate"), desc: t("assistant.onboardingDebateDesc") },
                 { title: t("assistant.onboardingInsights"), desc: t("assistant.onboardingInsightsDesc") },
               ].map((step, i) => (
-                <div key={i} className={`grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-4 motion-safe:transition-opacity ${i === guideStep ? "opacity-100" : "opacity-45"}`}>
+                <div key={i} className={`grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-4 divider-subtle motion-safe:transition-opacity ${i === guideStep ? "opacity-100" : "opacity-45"}`}>
                   <span className="font-mono text-xs text-[var(--accent)]">{String(i + 1).padStart(2, "0")}</span>
                   <div>
                     <div className="text-sm font-medium">{step.title}</div>
@@ -796,7 +1023,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             <div className="flex gap-3">
               <button
                 onClick={() => setShowGuide(false)}
-                className="flex-1 border border-[var(--card-border)] px-4 py-2.5 text-sm text-[var(--muted-foreground)] outline-none motion-safe:transition-colors hover:bg-[var(--card-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                className="btn btn-ghost flex-1"
               >
                 {t("common.skip")}
               </button>
@@ -808,7 +1035,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                     setShowGuide(false);
                   }
                 }}
-                className="flex-1 bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] outline-none motion-safe:transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                className="btn btn-primary flex-1"
               >
                 {guideStep < 3 ? t("common.next") : t("common.getStarted")}
               </button>

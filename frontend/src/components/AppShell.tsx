@@ -79,7 +79,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
   return (
     <>
-      {/* Brand — minimal */}
+      {/* Brand — logo + text with tight tracking */}
       <div className="h-[var(--header-height)] flex items-center px-5">
         <Link href="/" className="flex items-center gap-2.5 group" onClick={onNavClick}>
           <Image
@@ -87,14 +87,17 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             alt="明鉴"
             width={24}
             height={24}
-            className="rounded-md object-cover"
+            className="rounded-md object-cover transition-transform duration-300 group-hover:scale-105"
             priority
           />
-          <span className="text-[13px] font-semibold tracking-wide text-[var(--foreground)]">
+          <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
             明鉴
           </span>
         </Link>
       </div>
+
+      {/* Brand accent line — gradient divider */}
+      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/15 to-transparent" />
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-0.5">
@@ -109,7 +112,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
                 relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium
                 transition-all duration-200 min-h-[36px] group
                 ${isActive
-                  ? "text-[var(--foreground)] bg-[var(--card)]"
+                  ? "text-[var(--foreground)] bg-[var(--card)] shadow-sm shadow-[var(--accent)]/5"
                   : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]/60"
                 }
               `}
@@ -131,8 +134,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         })}
       </nav>
 
-      {/* Gradient divider */}
-      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-[var(--card-border)] to-transparent" />
+      {/* Section divider — subtle gradient */}
+      <div className="divider-subtle mx-4" />
 
       {/* User section */}
       <div className="p-4">
@@ -174,12 +177,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* ── Desktop Sidebar ───────────────────────────────────────────────── */}
+      {/* ── Desktop Sidebar (240px, glass background) ─────────────────────── */}
       <aside className="hidden md:flex w-[var(--sidebar-width)] glass flex-col">
         <SidebarContent />
       </aside>
 
-      {/* ── Mobile Drawer Overlay ─────────────────────────────────────────── */}
+      {/* ── Mobile Drawer Overlay (backdrop-blur) ─────────────────────────── */}
       {drawerOpen && (
         <div
           className="fixed inset-0 z-40 bg-[var(--overlay)] backdrop-blur-sm md:hidden animate-fadeIn"
@@ -188,7 +191,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* ── Mobile Drawer ─────────────────────────────────────────────────── */}
+      {/* ── Mobile Drawer (280px, backdrop-blur-xl) ───────────────────────── */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-50 w-[280px] backdrop-blur-xl bg-[var(--sidebar)]/90
@@ -200,9 +203,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <SidebarContent onNavClick={closeDrawer} />
       </aside>
 
-      {/* ── Main Content ───────────────────────────────────────────────────── */}
+      {/* ── Main Content Area ─────────────────────────────────────────────── */}
       <main className="flex-1 overflow-auto min-w-0">
-        <header className="h-[var(--header-height)] glass sticky top-0 z-10 flex items-center justify-between px-4 md:px-6">
+        {/* Header (56px sticky, glass with border-bottom) */}
+        <header className="h-[var(--header-height)] glass sticky top-0 z-10 flex items-center justify-between px-4 md:px-6 border-b border-[var(--card-border)]/30">
           <div className="flex items-center gap-3">
             {/* Mobile hamburger */}
             <button
