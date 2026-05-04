@@ -257,8 +257,6 @@ NEXT_PUBLIC_API_URL=/api
 | MiniMax | `https://api.minimax.chat/v1` |
 | 任意兼容代理 | 你的代理地址 |
 
-> **示例：** 主分析用 OpenAI，信息提取用 DeepSeek，辩论用 Claude —— 一个配置搞定。
-
 #### 安装步骤
 
 ```bash

@@ -260,8 +260,6 @@ NEXT_PUBLIC_API_URL=/api
 | MiniMax | `https://api.minimax.chat/v1` |
 | 任意の互換プロキシ | あなたのプロキシURL |
 
-> **例：** OpenAIをプライマリ分析に、DeepSeekを抽出に、Claudeをディベートに使用 — すべて1つの設定で。
-
 #### インストール手順
 
 ```bash

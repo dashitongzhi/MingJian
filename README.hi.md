@@ -259,8 +259,6 @@ NEXT_PUBLIC_API_URL=/api
 | MiniMax | `https://api.minimax.chat/v1` |
 | कोई भी संगत प्रॉक्सी | आपका प्रॉक्सी URL |
 
-> **उदाहरण:** प्राथमिक विश्लेषण के लिए OpenAI, निष्कर्षण के लिए DeepSeek, बहस के लिए Claude — सब एक कॉन्फ़िगरेशन में।
-
 #### स्थापना चरण
 
 ```bash

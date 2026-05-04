@@ -259,8 +259,6 @@ All slots use the OpenAI-compatible `/chat/completions` endpoint. You can mix an
 | MiniMax | `https://api.minimax.chat/v1` |
 | Any compatible proxy | Your proxy URL |
 
-> **Example:** Use OpenAI for primary analysis, DeepSeek for extraction, Claude for debate — all in one config.
-
 #### Installation Steps
 
 ```bash
