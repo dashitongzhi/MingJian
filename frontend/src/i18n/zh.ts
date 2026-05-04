@@ -44,6 +44,8 @@ const zh: Translations = {
     platform: "决策智能平台",
     systemOnline: "系统在线",
     user: "用户",
+    collapseSidebar: "收起侧边栏",
+    expandSidebar: "展开侧边栏",
   },
   language: {
     switchToEnglish: "切换为英文",

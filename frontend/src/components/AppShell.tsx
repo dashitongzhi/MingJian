@@ -23,6 +23,8 @@ import {
   Menu,
   X,
   Bell,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -68,11 +70,21 @@ const NAV_ITEMS = [
   },
 ];
 
+const SIDEBAR_WIDTH = 240;
+const SIDEBAR_COLLAPSED_WIDTH = 56;
+const COLLAPSE_KEY = "planagent_sidebar_collapsed";
+
 function HamburgerIcon({ open }: { open: boolean }) {
   return open ? <X size={20} /> : <Menu size={20} />;
 }
 
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
+function SidebarContent({
+  onNavClick,
+  collapsed,
+}: {
+  onNavClick?: () => void;
+  collapsed?: boolean;
+}) {
   const { t } = useTranslation();
   const pathname = usePathname() || "/";
 
@@ -86,19 +98,21 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             alt="明鉴"
             width={24}
             height={24}
-            className="rounded-md object-cover"
+            className="rounded-md object-cover shrink-0"
             priority
           />
-          <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
-            明鉴
-          </span>
+          {!collapsed && (
+            <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
+              明鉴
+            </span>
+          )}
         </Link>
       </div>
 
       <div className="mx-4 h-px bg-[var(--sidebar-border)]" />
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5">
+      <nav className={`flex-1 py-2 space-y-0.5 ${collapsed ? "px-2" : "px-3"}`}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return (
@@ -106,37 +120,48 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               key={item.href}
               href={item.href}
               onClick={onNavClick}
+              title={collapsed ? t(item.labelKey) : undefined}
               className={`
-                relative flex min-h-[32px] items-center gap-2 px-2.5 py-1.5 text-[13px] font-medium
-                border-l transition-colors duration-150 group
+                relative flex items-center text-[13px] font-medium
+                transition-colors duration-150 group
+                ${collapsed
+                  ? "min-h-[32px] justify-center rounded-md mx-1 px-0"
+                  : "min-h-[32px] gap-2 border-l px-2.5"
+                }
                 ${isActive
-                  ? "border-l-[var(--accent)] bg-[var(--sidebar-accent)] text-[var(--foreground)]"
-                  : "border-l-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  ? collapsed
+                    ? "bg-[var(--sidebar-accent)] text-[var(--accent)]"
+                    : "border-l-[var(--accent)] bg-[var(--sidebar-accent)] text-[var(--foreground)]"
+                  : collapsed
+                    ? "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--sidebar-accent)]/50"
+                    : "border-l-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 }
               `}
             >
               <span className={isActive ? "text-[var(--accent)]" : "opacity-70 group-hover:opacity-100 transition-opacity"}>
                 {item.icon}
               </span>
-              <span>{t(item.labelKey)}</span>
+              {!collapsed && <span>{t(item.labelKey)}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {/* Section divider — subtle gradient */}
+      {/* Section divider */}
       <div className="divider-line mx-4" />
 
       {/* User section */}
-      <div className="p-4">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-7 h-7 rounded-full border border-[var(--card-border)] bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] text-[11px] font-semibold">
+      <div className={collapsed ? "p-3" : "p-4"}>
+        <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3 px-3 py-2"}`}>
+          <div className="w-7 h-7 rounded-full border border-[var(--card-border)] bg-[var(--accent)]/10 flex items-center justify-center text-[var(--accent)] text-[11px] font-semibold shrink-0">
             U
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium truncate">{t("layout.user")}</div>
-            <div className="text-[11px] text-[var(--muted)] truncate">user@mingjian.ai</div>
-          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium truncate">{t("layout.user")}</div>
+              <div className="text-[11px] text-[var(--muted)] truncate">user@mingjian.ai</div>
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -147,7 +172,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname() || "/";
+
+  // Load collapsed state from localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem(COLLAPSE_KEY);
+    if (stored === "true") setCollapsed(true);
+  }, []);
+
+  // Persist collapsed state
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSE_KEY, String(next));
+      return next;
+    });
+  }, []);
 
   // Close drawer on route change
   useEffect(() => {
@@ -165,11 +207,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
+  const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
+
   return (
     <div className="flex min-h-screen">
       {/* ── Desktop Sidebar ──────────────────────────────────────────────── */}
-      <aside className="hidden w-[var(--sidebar-width)] flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] md:flex">
-        <SidebarContent />
+      <aside
+        className="hidden md:flex flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] transition-[width] duration-200 ease-out"
+        style={{ width: sidebarWidth }}
+      >
+        <SidebarContent collapsed={collapsed} />
+
+        {/* Collapse toggle */}
+        <div className="border-t border-[var(--sidebar-border)] p-2">
+          <button
+            onClick={toggleCollapsed}
+            className="flex w-full items-center justify-center h-8 rounded-md text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] hover:bg-[var(--sidebar-accent)]/50"
+            aria-label={collapsed ? t("layout.expandSidebar") : t("layout.collapseSidebar")}
+            title={collapsed ? t("layout.expandSidebar") : t("layout.collapseSidebar")}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        </div>
       </aside>
 
       {/* ── Mobile Drawer Overlay ────────────────────────────────────────── */}
@@ -224,7 +283,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="p-4 md:p-6 animate-fadeIn">{children}</div>
+        <div className="p-5 md:p-7 animate-fadeIn">{children}</div>
       </main>
 
       {/* ── Global Command Palette (⌘K) ──────────────────────────────── */}

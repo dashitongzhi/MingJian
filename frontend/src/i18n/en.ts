@@ -42,6 +42,8 @@ const en = {
     platform: "Decision Intelligence Platform",
     systemOnline: "System Online",
     user: "User",
+    collapseSidebar: "Collapse sidebar",
+    expandSidebar: "Expand sidebar",
   },
   language: {
     switchToEnglish: "Switch to English",
