@@ -28,8 +28,9 @@ from planagent.domain.models import (
     SimulationRun,
 )
 from planagent.events.bus import EventBus
-from planagent.services.openai_client import OpenAIService
+from planagent.services.openai_client import DebatePositionPayload, OpenAIService
 from planagent.services.pipeline import normalize_text
+from planagent.services.providers import AnthropicProvider
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _CLAIM_STOPWORDS = {
@@ -464,19 +465,7 @@ class DebateService:
         context: str,
         evidence_ids: list[str],
     ) -> list[dict[str, Any]] | None:
-        if self.openai_service is None:
-            return None
-        if not any(
-            self.openai_service.is_configured(target)
-            for target in [
-                "debate_advocate",
-                "debate_challenger",
-                "debate_arbitrator",
-                "primary",
-                "extraction",
-                "report",
-            ]
-        ):
+        if not self._has_available_debate_provider():
             return None
 
         def argument_dicts(arguments: list[Any]) -> list[dict[str, Any]]:
@@ -532,19 +521,17 @@ class DebateService:
                 f"Original context:\n{context}"
             )
 
-        advocate_r1 = await self.openai_service.generate_debate_position(
+        advocate_r1 = await self._call_llm(
             role="advocate",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
-            target=self._debate_target_for_role("advocate"),
         )
-        challenger_r1 = await self.openai_service.generate_debate_position(
+        challenger_r1 = await self._call_llm(
             role="challenger",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
-            target=self._debate_target_for_role("challenger"),
         )
         if advocate_r1 is None and challenger_r1 is None:
             return None
@@ -559,23 +546,21 @@ class DebateService:
             rounds.append(round_payload(1, "challenger", challenger_r1))
 
         round_2_instruction = "请针对对方在Round 1的论点，提出具体的质疑和反驳"
-        advocate_r2 = await self.openai_service.generate_debate_position(
+        advocate_r2 = await self._call_llm(
             role="advocate",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_2_instruction, rounds),
             opponent_arguments=argument_refs(chal_args_r1),
             own_previous=[{"claim": a.claim} for a in adv_args_r1],
-            target=self._debate_target_for_role("advocate"),
         )
-        challenger_r2 = await self.openai_service.generate_debate_position(
+        challenger_r2 = await self._call_llm(
             role="challenger",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_2_instruction, rounds),
             opponent_arguments=argument_refs(adv_args_r1),
             own_previous=[{"claim": a.claim} for a in chal_args_r1],
-            target=self._debate_target_for_role("challenger"),
         )
 
         if advocate_r2 is not None:
@@ -586,23 +571,21 @@ class DebateService:
         adv_args_r2 = advocate_r2.arguments if advocate_r2 else []
         chal_args_r2 = challenger_r2.arguments if challenger_r2 else []
         round_3_instruction = "请根据Round 2对方的质询，修订和完善你的立场"
-        advocate_r3 = await self.openai_service.generate_debate_position(
+        advocate_r3 = await self._call_llm(
             role="advocate",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_3_instruction, rounds),
             opponent_arguments=argument_refs(chal_args_r2),
             own_previous=[{"claim": a.claim} for a in adv_args_r1 + adv_args_r2],
-            target=self._debate_target_for_role("advocate"),
         )
-        challenger_r3 = await self.openai_service.generate_debate_position(
+        challenger_r3 = await self._call_llm(
             role="challenger",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_3_instruction, rounds),
             opponent_arguments=argument_refs(adv_args_r2),
             own_previous=[{"claim": a.claim} for a in chal_args_r1 + chal_args_r2],
-            target=self._debate_target_for_role("challenger"),
         )
 
         if advocate_r3 is not None:
@@ -624,18 +607,220 @@ class DebateService:
             "Round 4 仲裁轮：请基于Round 1立论、Round 2交叉质询、"
             "Round 3修订立场的全部历史做出最终裁决"
         )
-        arbitrator = await self.openai_service.generate_debate_position(
+        arbitrator = await self._call_llm(
             role="arbitrator",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_4_instruction, rounds),
             opponent_arguments=argument_refs(all_adv_args + all_chal_args),
-            target=self._debate_target_for_role("arbitrator"),
         )
         if arbitrator is not None:
             rounds.append(round_payload(4, "arbitrator", arbitrator))
 
         return rounds if rounds else None
+
+    def _has_available_debate_provider(self) -> bool:
+        if self._anthropic_is_configured():
+            return True
+        if self.openai_service is None:
+            return False
+        return any(
+            self.openai_service.is_configured(target)
+            for target in [
+                "debate_advocate",
+                "debate_challenger",
+                "debate_arbitrator",
+                "primary",
+                "extraction",
+                "report",
+            ]
+        )
+
+    async def _call_llm(
+        self,
+        *,
+        role: str,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        opponent_arguments: list[dict[str, Any]] | None = None,
+        own_previous: list[dict[str, Any]] | None = None,
+    ) -> DebatePositionPayload | None:
+        requested_provider = self._debate_provider_for_role(role)
+        provider_order = list(dict.fromkeys([requested_provider, "openai"]))
+        for provider_name in provider_order:
+            if provider_name == "anthropic":
+                result = await self._call_anthropic_llm(
+                    role=role,
+                    topic=topic,
+                    trigger_type=trigger_type,
+                    context=context,
+                    opponent_arguments=opponent_arguments,
+                    own_previous=own_previous,
+                )
+            elif provider_name == "openai":
+                result = await self._call_openai_llm(
+                    role=role,
+                    topic=topic,
+                    trigger_type=trigger_type,
+                    context=context,
+                    opponent_arguments=opponent_arguments,
+                    own_previous=own_previous,
+                )
+            else:
+                result = None
+            if result is not None:
+                return result
+        return None
+
+    async def _call_openai_llm(
+        self,
+        *,
+        role: str,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        opponent_arguments: list[dict[str, Any]] | None,
+        own_previous: list[dict[str, Any]] | None,
+    ) -> DebatePositionPayload | None:
+        if self.openai_service is None:
+            return None
+        target = self._debate_target_for_role(role)
+        if not self.openai_service.is_configured(target):
+            return None
+
+        prompt = self._build_debate_prompt(
+            role=role,
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+            opponent_arguments=opponent_arguments,
+            own_previous=own_previous,
+        )
+        if hasattr(self.openai_service, "generate_json_for_target"):
+            _, parsed = await self.openai_service.generate_json_for_target(
+                target=target,
+                system_prompt=self._debate_role_instruction(role),
+                user_content=(
+                    f"{prompt}\n\n"
+                    "Return valid JSON only. "
+                    f"Target schema: {DebatePositionPayload.model_json_schema()}"
+                ),
+                max_tokens=1000,
+            )
+            position = self._parse_debate_position_payload(parsed)
+            if position is not None:
+                return position
+
+        return await self.openai_service.generate_debate_position(
+            role=role,
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+            opponent_arguments=opponent_arguments,
+            own_previous=own_previous,
+            target=target,
+        )
+
+    async def _call_anthropic_llm(
+        self,
+        *,
+        role: str,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        opponent_arguments: list[dict[str, Any]] | None,
+        own_previous: list[dict[str, Any]] | None,
+    ) -> DebatePositionPayload | None:
+        if not self._anthropic_is_configured():
+            return None
+        provider = AnthropicProvider(
+            api_key=self.settings.resolved_anthropic_api_key,
+            timeout=self.settings.openai_timeout_seconds,
+        )
+        try:
+            prompt = self._build_debate_prompt(
+                role=role,
+                topic=topic,
+                trigger_type=trigger_type,
+                context=context,
+                opponent_arguments=opponent_arguments,
+                own_previous=own_previous,
+            )
+            _, parsed = await provider.generate_json(
+                model=self.settings.anthropic_model,
+                system_prompt=self._debate_role_instruction(role),
+                user_prompt=prompt,
+                schema=DebatePositionPayload.model_json_schema(),
+                max_tokens=1000,
+                temperature=0.3,
+            )
+            return self._parse_debate_position_payload(parsed)
+        finally:
+            await provider.close()
+
+    def _debate_provider_for_role(self, role: str) -> str:
+        role_providers = {
+            "advocate": self.settings.debate_advocate_provider,
+            "strategist": self.settings.debate_advocate_provider,
+            "challenger": self.settings.debate_challenger_provider,
+            "risk_analyst": self.settings.debate_challenger_provider,
+            "arbitrator": self.settings.debate_arbitrator_provider,
+            "opportunist": self.settings.debate_arbitrator_provider,
+        }
+        return role_providers.get(role, "openai").strip().lower() or "openai"
+
+    def _anthropic_is_configured(self) -> bool:
+        return bool(self.settings.resolved_anthropic_api_key)
+
+    def _debate_role_instruction(self, role: str) -> str:
+        return {
+            "advocate": "You argue IN FAVOR of the proposition. Present supporting evidence and reasoning.",
+            "challenger": "You argue AGAINST the proposition. Find counter-evidence and weaknesses.",
+            "arbitrator": "You evaluate both sides fairly based on evidence quality. Deliver a verdict.",
+        }.get(role, "You evaluate the proposition objectively.")
+
+    def _build_debate_prompt(
+        self,
+        *,
+        role: str,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        opponent_arguments: list[dict[str, Any]] | None = None,
+        own_previous: list[dict[str, Any]] | None = None,
+    ) -> str:
+        opponent_text = ""
+        if opponent_arguments:
+            opponent_text = "\nOpponent's previous arguments:\n" + "\n".join(
+                f"- {a.get('claim', a.get('counter', str(a)))[:200]}" for a in opponent_arguments[:5]
+            )
+
+        own_text = ""
+        if own_previous:
+            own_text = "\nYour previous arguments:\n" + "\n".join(
+                f"- {a.get('claim', str(a))[:200]}" for a in own_previous[:3]
+            )
+
+        return (
+            f"Role: {role}\n"
+            f"Topic: {topic}\n"
+            f"Trigger: {trigger_type}\n"
+            f"Context, evidence items, and claims:\n{context}\n"
+            f"{opponent_text}{own_text}\n\n"
+            "Return your position (SUPPORT/OPPOSE/CONDITIONAL), confidence (0-1), "
+            "up to 3 arguments (each with claim, evidence_ids, reasoning, strength), "
+            "optional rebuttals (target_argument_idx, counter), "
+            "and optional concessions (argument_idx, reason). Use supplied evidence_ids when possible."
+        )
+
+    def _parse_debate_position_payload(self, parsed: dict[str, Any] | None) -> DebatePositionPayload | None:
+        if parsed is None:
+            return None
+        try:
+            return DebatePositionPayload.model_validate(parsed)
+        except Exception:
+            return None
 
     def _debate_target_for_role(self, role: str) -> str:
         if self.openai_service is None:
@@ -1056,6 +1241,8 @@ class DebateService:
             f"Supporting claims: {len(relations.supportive_claims)}",
             f"Conflicting claims: {len(relations.conflicting_claims)}",
         ]
+        if payload.context_lines:
+            context_parts.append("Trigger context:\n" + "\n".join(payload.context_lines))
         if relations.supportive_claims:
             context_parts.append(f"Strongest support: {relations.supportive_claims[0].statement[:200]}")
         if relations.conflicting_claims:
@@ -1283,6 +1470,8 @@ class DebateService:
             f"Matched rules: {matched_rules[:5]}",
             f"Shocks: {[s.shock_type for s in shocks[:5]]}",
         ] + [f"Evidence: {e}" for e in evidence_statements[:3]]
+        if payload.context_lines:
+            context_parts.append("Trigger context:\n" + "\n".join(payload.context_lines))
         if report is not None:
             context_parts.append(f"Report summary: {report.summary[:500]}")
         llm_context = "\n".join(context_parts)

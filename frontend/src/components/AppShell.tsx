@@ -14,6 +14,7 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import {
   LayoutDashboard,
   Brain,
+  ClipboardCheck,
   Clock,
   MessageSquare,
   Search,
@@ -37,6 +38,11 @@ const NAV_ITEMS = [
     labelKey: "nav.assistant",
     href: "/assistant",
     icon: <Brain size={16} />,
+  },
+  {
+    labelKey: "nav.workbench",
+    href: "/workbench",
+    icon: <ClipboardCheck size={16} />,
   },
   {
     labelKey: "nav.simulation",

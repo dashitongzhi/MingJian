@@ -18,6 +18,7 @@ import {
 import {
   LayoutDashboard,
   Brain,
+  ClipboardCheck,
   Clock,
   MessageSquare,
   Search,
@@ -43,6 +44,7 @@ const NAV_ITEMS: {
 }[] = [
   { href: "/", labelKey: "nav.dashboard", icon: LayoutDashboard, shortcut: "G D" },
   { href: "/assistant", labelKey: "nav.assistant", icon: Brain, shortcut: "G A" },
+  { href: "/workbench", labelKey: "nav.workbench", icon: ClipboardCheck, shortcut: "G W" },
   { href: "/simulation", labelKey: "nav.simulation", icon: Clock, shortcut: "G S" },
   { href: "/debate", labelKey: "nav.debate", icon: MessageSquare, shortcut: "G B" },
   { href: "/evidence", labelKey: "nav.evidence", icon: Search, shortcut: "G E" },

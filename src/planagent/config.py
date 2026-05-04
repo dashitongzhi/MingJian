@@ -110,6 +110,11 @@ class Settings(BaseSettings):
     xhs_provider_api_key: str | None = None
     douyin_provider_base_url: str | None = None
     douyin_provider_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-sonnet-4-20250514"
+    debate_advocate_provider: str = "openai"
+    debate_challenger_provider: str = "anthropic"
+    debate_arbitrator_provider: str = "openai"
     accepted_claim_confidence: float = 0.70
     review_claim_confidence_floor: float = 0.45
     source_snapshot_retention_days: int = 90
@@ -370,6 +375,10 @@ class Settings(BaseSettings):
     @property
     def resolved_x_bearer_token(self) -> str | None:
         return self.x_bearer_token or os.getenv("X_BEARER_TOKEN")
+
+    @property
+    def resolved_anthropic_api_key(self) -> str | None:
+        return self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
 
     @property
     def x_enabled(self) -> bool:

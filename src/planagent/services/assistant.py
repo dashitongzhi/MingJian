@@ -27,9 +27,13 @@ from planagent.domain.api import (
     StrategicSessionRead,
 )
 from planagent.domain.models import (
+    Claim,
+    EvidenceItem,
     GeneratedReport,
     Hypothesis,
+    NormalizedItem,
     PredictionVersion,
+    RawSourceItem,
     StrategicBriefRecord,
     StrategicRunSnapshot,
     StrategicSession,
@@ -124,6 +128,12 @@ class StrategicAssistantService:
             },
         )
 
+        debate_context_lines = await self._build_debate_context_lines(
+            session=session,
+            payload=payload,
+            analysis_result=analysis_result,
+            ingest_run_id=ingest_run.id,
+        )
         debate = await self.debate_service.trigger_debate(
             session,
             DebateTriggerRequest(
@@ -131,10 +141,7 @@ class StrategicAssistantService:
                 topic=self._debate_topic(domain_id, subject_name),
                 trigger_type="pivot_decision",
                 target_type="run",
-                context_lines=[
-                    f"User topic: {payload.topic}",
-                    f"Analysis summary: {analysis_result.summary}",
-                ],
+                context_lines=debate_context_lines,
             ),
         )
         for round_payload in debate.rounds:
@@ -186,6 +193,126 @@ class StrategicAssistantService:
         except Exception:
             await session.rollback()
         yield self._event("assistant_result", result.model_dump(mode="json"))
+
+    async def _build_debate_context_lines(
+        self,
+        session: AsyncSession,
+        payload: StrategicAssistantRequest,
+        analysis_result: AnalysisResponse,
+        ingest_run_id: str,
+    ) -> list[str]:
+        evidence_items = await self._load_session_evidence_items(
+            session=session,
+            payload=payload,
+            current_ingest_run_id=ingest_run_id,
+        )
+        claims = await self._load_session_claims(session, evidence_items)
+
+        return [
+            f"User topic: {payload.topic}",
+            f"Analysis summary: {analysis_result.summary}",
+            self._format_evidence_context(evidence_items),
+            self._format_claim_context(claims),
+        ]
+
+    async def _load_session_evidence_items(
+        self,
+        session: AsyncSession,
+        payload: StrategicAssistantRequest,
+        current_ingest_run_id: str,
+    ) -> list[EvidenceItem]:
+        ingest_run_ids = [current_ingest_run_id]
+        if payload.session_id is not None:
+            snapshot_rows = list(
+                (
+                    await session.scalars(
+                        select(StrategicRunSnapshot)
+                        .where(
+                            StrategicRunSnapshot.session_id == payload.session_id,
+                            StrategicRunSnapshot.ingest_run_id.is_not(None),
+                        )
+                        .order_by(StrategicRunSnapshot.generated_at.desc())
+                        .limit(5)
+                    )
+                ).all()
+            )
+            ingest_run_ids.extend(
+                row.ingest_run_id for row in snapshot_rows if row.ingest_run_id is not None
+            )
+        ingest_run_ids = list(dict.fromkeys(ingest_run_ids))
+
+        evidence_items = list(
+            (
+                await session.scalars(
+                    select(EvidenceItem)
+                    .join(NormalizedItem, EvidenceItem.normalized_item_id == NormalizedItem.id)
+                    .join(RawSourceItem, NormalizedItem.raw_source_item_id == RawSourceItem.id)
+                    .where(RawSourceItem.ingest_run_id.in_(ingest_run_ids))
+                    .order_by(EvidenceItem.confidence.desc(), EvidenceItem.created_at.desc())
+                    .limit(20)
+                )
+            ).all()
+        )
+        if evidence_items or (payload.tenant_id is None and payload.preset_id is None):
+            return evidence_items
+
+        query = select(EvidenceItem).order_by(EvidenceItem.created_at.desc()).limit(20)
+        if payload.tenant_id is not None:
+            query = query.where(EvidenceItem.tenant_id == payload.tenant_id)
+        if payload.preset_id is not None:
+            query = query.where(EvidenceItem.preset_id == payload.preset_id)
+        return list((await session.scalars(query)).all())
+
+    async def _load_session_claims(
+        self,
+        session: AsyncSession,
+        evidence_items: list[EvidenceItem],
+    ) -> list[Claim]:
+        evidence_ids = [item.id for item in evidence_items]
+        if not evidence_ids:
+            return []
+        return list(
+            (
+                await session.scalars(
+                    select(Claim)
+                    .where(Claim.evidence_item_id.in_(evidence_ids))
+                    .order_by(Claim.confidence.desc(), Claim.created_at.desc())
+                    .limit(10)
+                )
+            ).all()
+        )
+
+    def _format_evidence_context(self, evidence_items: list[EvidenceItem]) -> str:
+        if not evidence_items:
+            return "Evidence items: none found for this strategic session."
+        lines = ["Evidence items (max 20):"]
+        for index, item in enumerate(evidence_items, start=1):
+            title = self._clean_text(item.title)[:240]
+            summary = self._clean_text(item.summary)[:500]
+            source_url = self._clean_text(item.source_url)[:240]
+            lines.append(
+                f"{index}. id={item.id}; type={item.evidence_type}; "
+                f"confidence={item.confidence:.2f}; source={source_url}"
+            )
+            lines.append(f"   title: {title}")
+            lines.append(f"   summary: {summary}")
+        return "\n".join(lines)
+
+    def _format_claim_context(self, claims: list[Claim]) -> str:
+        if not claims:
+            return "Claims (max 10): none found for this strategic session."
+        lines = ["Claims (max 10):"]
+        for index, claim in enumerate(claims, start=1):
+            statement = self._clean_text(claim.statement)[:500]
+            reasoning = self._clean_text(claim.reasoning or "")[:300]
+            lines.append(
+                f"{index}. id={claim.id}; evidence_id={claim.evidence_item_id}; "
+                f"kind={claim.kind}; status={claim.status}; confidence={claim.confidence:.2f}"
+            )
+            lines.append(f"   statement: {statement}")
+            if reasoning:
+                lines.append(f"   reasoning: {reasoning}")
+        return "\n".join(lines)
 
     async def daily_brief(
         self,
