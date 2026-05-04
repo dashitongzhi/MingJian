@@ -14,6 +14,7 @@ export interface AnalysisResponse { query: string; domain_id: string; summary: s
 export interface IngestRun { id: string; status: string; source_types: string[]; summary: Record<string, number>; created_at: string }
 export interface SimulationRun { id: string; domain_id: string; actor_template: string; status: string; tick_count: number; summary: Record<string, unknown>; created_at: string; military_use_mode: string | null }
 export interface DebateRound { round_number: number; role: string; position: string; confidence: number; arguments: Record<string, unknown>[]; rebuttals: Record<string, unknown>[]; concessions: Record<string, unknown>[] }
+export interface DebateVote { id: string; debate_session_id: string; round_number: number; role: "advocate" | "challenger" | "arbitrator"; vote: "agree" | "disagree" | "neutral"; comment: string | null; created_at: string }
 export interface WorkbenchRecommendation { title: string; priority?: string | null; rationale?: string | null; action_items?: string[]; text?: string | null }
 export interface WorkbenchAlternativeScenario { name: string; description?: string | null; expected_outcome?: string | null; probability?: number | null }
 export interface WorkbenchPredictionVersion { id: string; series_id?: string | null; run_id?: string | null; version_number: number; probability?: number | null; confidence?: number | null; trigger_type?: string | null; prediction_text?: string | null; summary_delta?: string | null; status?: string | null; created_at?: string | null; updated_at?: string | null }
@@ -42,6 +43,8 @@ export interface PredictionScoreboard { total_hypotheses: number; confirmed: num
 export interface SourceReputation { source_key: string; source_type: string | null; display_name: string | null; domain_id: string; confirmed_count: number; refuted_count: number; reputation_score: number; noise_rate: number }
 export interface WatchRule { id: string; name: string; domain_id: string; query: string; enabled: boolean; poll_interval_minutes: number; auto_trigger_simulation: boolean; created_at: string }
 export interface RuntimeQueueHealth { queues: Array<{ queue: string; pending: number; processing: number; completed: number; failed: number }>; dead_letter_count: number }
+export type UserDecisionValue = "adopt" | "defer" | "need_more_info" | "reject";
+export interface UserDecision { id: string; session_id: string; decision: UserDecisionValue; notes: string | null; outcome: string | null; outcome_recorded_at: string | null; created_at: string; updated_at: string }
 
 export const fetchHealth = () => fetch_<{ status: string }>("/health");
 export const fetchSessions = () => fetch_<StrategicSession[]>("/assistant/sessions");
@@ -53,6 +56,8 @@ export const createSimulationRun = (data: Record<string, unknown>) => fetch_<Sim
 export interface DebateSummary { debate_id: string; topic: string; trigger_type: string; verdict: string | null; confidence: number | null; created_at: string }
 export const fetchDebateDetail = (id: string) => fetch_<DebateDetail>(`/debates/${id}`);
 export const fetchDebates = (limit = 50) => fetch_<DebateSummary[]>(`/debates?limit=${limit}`);
+export const fetchDebateVotes = (debateSessionId: string) => fetch_<DebateVote[]>(`/debate/votes?debate_session_id=${encodeURIComponent(debateSessionId)}`);
+export const createDebateVote = (data: { debate_session_id: string; round_number: number; role: "advocate" | "challenger" | "arbitrator"; vote: "agree" | "disagree" | "neutral"; comment?: string | null }) => fetch_<DebateVote>("/debate/votes", { method: "POST", body: JSON.stringify(data) });
 export const fetchEvidence = async (limit = 50) => {
   const res = await fetch_<{ items: Array<{ id: string; title: string; summary: string; confidence: number; created_at: string }>; total: number }>(`/evidence?limit=${limit}`);
   return res.items;
@@ -67,6 +72,9 @@ export const fetchScoreboard = () => fetch_<PredictionScoreboard>("/hypotheses/s
 export const fetchSourceReputations = () => fetch_<SourceReputation[]>("/sources/reputation");
 export const fetchWatchRules = () => fetch_<WatchRule[]>("/admin/watch-rules");
 export const fetchQueueHealth = () => fetch_<RuntimeQueueHealth>("/admin/runtime/queues");
+export const createUserDecision = (data: { session_id: string; decision: UserDecisionValue; notes?: string | null }) => (
+  fetch_<UserDecision>("/decisions", { method: "POST", body: JSON.stringify(data) })
+);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;

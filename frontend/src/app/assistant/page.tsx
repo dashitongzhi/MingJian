@@ -139,6 +139,64 @@ function SourceCard({ source, index }: { source: { title: string; url: string };
   );
 }
 
+type SourceSearchState = {
+  provider: string;
+  label: string;
+  status: "searching" | "completed" | "failed";
+  count?: number;
+  error?: string;
+};
+
+function SourceSearchProgress({ sources }: { sources: SourceSearchState[] }) {
+  if (sources.length === 0) return null;
+
+  const active = sources.filter((source) => source.status === "searching").length;
+  const finished = sources.filter((source) => source.status !== "searching").length;
+  const collected = sources.reduce((sum, source) => sum + (source.count || 0), 0);
+  const statusClass: Record<SourceSearchState["status"], string> = {
+    searching: "bg-[var(--accent)] motion-safe:animate-pulse",
+    completed: "bg-[var(--accent-green)]",
+    failed: "bg-[var(--accent-red)]",
+  };
+  const statusText: Record<SourceSearchState["status"], string> = {
+    searching: "搜索中",
+    completed: "完成",
+    failed: "失败",
+  };
+
+  return (
+    <div className="divider-subtle py-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="section-label">并行搜索</div>
+          <div className="mt-1 text-sm text-[var(--muted-foreground)]">
+            {active > 0
+              ? `正在搜索 ${sources.find((source) => source.status === "searching")?.label || "公共来源"}... (${finished}/${sources.length})`
+              : `搜索完成 (${finished}/${sources.length})`}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-[var(--muted)]">
+          <span>active={active}</span>
+          <span>items={collected}</span>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {sources.map((source) => (
+          <div key={source.provider} className="flex min-w-0 items-center justify-between gap-3 border border-[var(--card-border)] px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${statusClass[source.status]}`} />
+              <span className="truncate text-xs font-medium">{source.label}</span>
+            </div>
+            <span className="shrink-0 font-mono text-[11px] text-[var(--muted)]">
+              {source.status === "completed" ? `${source.count || 0}` : statusText[source.status]}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PanelMessageCard({ msg }: { msg: PanelMessage }) {
   const { t } = useTranslation();
   const stance = msg.stance === "support" ? "S" : msg.stance === "challenge" ? "C" : "M";
@@ -198,17 +256,19 @@ function DebateRoundCard({ round }: { round: DebateRound }) {
 function ProcessTimeline({
   steps,
   debateMessages,
+  sourceSearches,
   currentStage,
   isStreaming,
 }: {
   steps: ProcessStep[];
   debateMessages: DebateMessage[];
+  sourceSearches: SourceSearchState[];
   currentStage: string;
   isStreaming: boolean;
 }) {
   const { t } = useTranslation();
 
-  if (steps.length === 0 && debateMessages.length === 0 && !isStreaming) {
+  if (steps.length === 0 && debateMessages.length === 0 && sourceSearches.length === 0 && !isStreaming) {
     return <EmptyState title={t("assistant.waitingForAnalysis")} description={t("assistant.waitingForAnalysisDescription")} />;
   }
 
@@ -218,6 +278,7 @@ function ProcessTimeline({
         <span>ST</span>
         <span className="section-label">{currentStage}</span>
       </div>
+      <SourceSearchProgress sources={sourceSearches} />
       {steps.map((step, index) => (
         <div key={step.id} className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5">
           <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
@@ -459,12 +520,45 @@ export default function AssistantPage() {
   const [events, setEvents] = useState<Array<{ event: string; payload: any }>>([]);
   const [processSteps, setProcessSteps] = useState<ProcessStep[]>([]);
   const [debateMessages, setDebateMessages] = useState<DebateMessage[]>([]);
+  const [sourceSearches, setSourceSearches] = useState<SourceSearchState[]>([]);
   const [currentStage, setCurrentStage] = useState("ingest");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const { data: sessionDetail, isLoading: sessionDetailLoading } = useSWR(
     selectedSessionId ? `session-detail/${selectedSessionId}` : null,
     () => fetchSessionDetail(selectedSessionId!),
   );
+
+  useEffect(() => {
+    const openSessionFromLocation = () => {
+      const storedSessionId = window.sessionStorage.getItem("planagent_notification_session_id");
+      const hashSessionId = window.location.hash.startsWith("#session-")
+        ? decodeURIComponent(window.location.hash.slice("#session-".length))
+        : "";
+      const nextSessionId = storedSessionId || hashSessionId;
+      if (nextSessionId) {
+        setSelectedSessionId(nextSessionId);
+        window.sessionStorage.removeItem("planagent_notification_session_id");
+      }
+    };
+
+    const handleOpenSession = (event: Event) => {
+      const sessionId = (event as CustomEvent<string>).detail;
+      if (sessionId) {
+        setSelectedSessionId(sessionId);
+        window.sessionStorage.removeItem("planagent_notification_session_id");
+      } else {
+        openSessionFromLocation();
+      }
+    };
+
+    openSessionFromLocation();
+    window.addEventListener("hashchange", openSessionFromLocation);
+    window.addEventListener("planagent-open-session", handleOpenSession);
+    return () => {
+      window.removeEventListener("hashchange", openSessionFromLocation);
+      window.removeEventListener("planagent-open-session", handleOpenSession);
+    };
+  }, []);
 
   useEffect(() => {
     const hasVisited = localStorage.getItem("planagent_assistant_visited");
@@ -488,6 +582,7 @@ export default function AssistantPage() {
     setEvents([]);
     setProcessSteps([]);
     setDebateMessages([]);
+    setSourceSearches([]);
     setCurrentStage("ingest");
     toast.info('分析已启动');
     const ctrl = new AbortController();
@@ -498,7 +593,51 @@ export default function AssistantPage() {
         (evt) => {
           setEvents(prev => [...prev, evt]);
 
-          if (evt.event === "step") {
+          if (evt.event === "source_start") {
+            const payload = evt.payload as { provider: string; label?: string };
+            setSourceSearches(prev => {
+              const next = prev.filter((source) => source.provider !== payload.provider);
+              return [
+                ...next,
+                {
+                  provider: payload.provider,
+                  label: payload.label || payload.provider,
+                  status: "searching",
+                },
+              ];
+            });
+            setCurrentStage("fetch");
+          } else if (evt.event === "source_complete") {
+            const payload = evt.payload as { provider: string; label?: string; count?: number };
+            setSourceSearches(prev => {
+              const existing = prev.find((source) => source.provider === payload.provider);
+              const next = prev.filter((source) => source.provider !== payload.provider);
+              return [
+                ...next,
+                {
+                  provider: payload.provider,
+                  label: payload.label || existing?.label || payload.provider,
+                  status: "completed",
+                  count: payload.count || 0,
+                },
+              ];
+            });
+          } else if (evt.event === "source_error") {
+            const payload = evt.payload as { provider: string; label?: string; error?: string };
+            setSourceSearches(prev => {
+              const existing = prev.find((source) => source.provider === payload.provider);
+              const next = prev.filter((source) => source.provider !== payload.provider);
+              return [
+                ...next,
+                {
+                  provider: payload.provider,
+                  label: payload.label || existing?.label || payload.provider,
+                  status: "failed",
+                  error: payload.error,
+                },
+              ];
+            });
+          } else if (evt.event === "step") {
             const step = evt.payload as AnalysisStep;
             setSteps(p => [...p, step]);
             setProcessSteps(prev => [...prev, {
@@ -869,6 +1008,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <ProcessTimeline
                   steps={processSteps}
                   debateMessages={debateMessages}
+                  sourceSearches={sourceSearches}
                   currentStage={currentStage}
                   isStreaming={streaming}
                 />

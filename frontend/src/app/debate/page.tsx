@@ -2,7 +2,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { fetchDebateDetail, fetchDebates, type DebateRound, type DebateSummary } from "@/lib/api";
+import { createDebateVote, fetchDebateDetail, fetchDebates, fetchDebateVotes, type DebateRound, type DebateSummary, type DebateVote } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
 
@@ -53,7 +53,109 @@ function RecommendationCard({ rec, index }: { rec: { title: string; priority: st
   );
 }
 
-function DebateRoundBlock({ round }: { round: DebateRound }) {
+type VoteValue = "agree" | "disagree" | "neutral";
+type VoteRole = DebateVote["role"];
+
+function canonicalVoteRole(role: string): VoteRole {
+  if (role === "strategist") return "advocate";
+  if (role === "risk_analyst") return "challenger";
+  if (role === "opportunist") return "arbitrator";
+  if (role === "challenger" || role === "arbitrator") return role;
+  return "advocate";
+}
+
+function voteKey(round: DebateRound) {
+  return `${round.round_number}:${canonicalVoteRole(round.role)}`;
+}
+
+function VoteControls({
+  round,
+  votes,
+  comment,
+  submitting,
+  onCommentChange,
+  onVote,
+}: {
+  round: DebateRound;
+  votes: DebateVote[];
+  comment: string;
+  submitting: boolean;
+  onCommentChange: (value: string) => void;
+  onVote: (round: DebateRound, vote: VoteValue) => void;
+}) {
+  const counts = votes.reduce<Record<VoteValue, number>>(
+    (acc, item) => {
+      acc[item.vote] += 1;
+      return acc;
+    },
+    { agree: 0, disagree: 0, neutral: 0 },
+  );
+  const total = votes.length;
+  const latestComments = votes.filter((item) => item.comment).slice(0, 2);
+
+  return (
+    <div className="mt-5 divider-subtle pt-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="section-label !text-[var(--muted)]">用户投票</div>
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-[var(--muted)]">
+          <span>同意 {counts.agree}</span>
+          <span>不同意 {counts.disagree}</span>
+          <span>中立 {counts.neutral}</span>
+          <span>总计 {total}</span>
+        </div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+        <input
+          className="min-w-0 rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-xs outline-none placeholder:text-[var(--muted)]"
+          placeholder="可选评论"
+          value={comment}
+          onChange={(event) => onCommentChange(event.target.value)}
+        />
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            ["agree", "同意 👍"],
+            ["disagree", "不同意 👎"],
+            ["neutral", "中立 🤔"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              disabled={submitting}
+              onClick={() => onVote(round, value)}
+              className="rounded-md border border-[var(--card-border)] px-3 py-2 text-xs transition-colors hover:border-[var(--muted)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {latestComments.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {latestComments.map((item) => (
+            <div key={item.id} className="truncate border-l border-[var(--card-border)] pl-3 text-xs text-[var(--muted-foreground)]">
+              {item.comment}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DebateRoundBlock({
+  round,
+  votes,
+  comment,
+  submitting,
+  onCommentChange,
+  onVote,
+}: {
+  round: DebateRound;
+  votes: DebateVote[];
+  comment: string;
+  submitting: boolean;
+  onCommentChange: (value: string) => void;
+  onVote: (round: DebateRound, vote: VoteValue) => void;
+}) {
   const { t } = useTranslation();
   const roleConfig: Record<string, { tone: string; marker: string; label: string; align: string }> = {
     strategist: {
@@ -146,6 +248,14 @@ function DebateRoundBlock({ round }: { round: DebateRound }) {
               </div>
             </div>
           )}
+          <VoteControls
+            round={round}
+            votes={votes}
+            comment={comment}
+            submitting={submitting}
+            onCommentChange={onCommentChange}
+            onVote={onVote}
+          />
         </div>
       </div>
     </article>
@@ -191,6 +301,8 @@ function DebatePageInner() {
   const searchParams = useSearchParams();
   const [inputId, setInputId] = useState("");
   const [qId, setQId] = useState<string | null>(null);
+  const [voteComments, setVoteComments] = useState<Record<string, string>>({});
+  const [submittingVoteKey, setSubmittingVoteKey] = useState<string | null>(null);
 
   useEffect(() => {
     const urlId = searchParams.get("id");
@@ -199,8 +311,15 @@ function DebatePageInner() {
       setInputId(urlId);
     }
   }, [searchParams, qId]);
+
+  useEffect(() => {
+    setVoteComments({});
+    setSubmittingVoteKey(null);
+  }, [qId]);
+
   const { data: debate, error, isLoading } = useSWR(qId ? `debate-${qId}` : null, () => fetchDebateDetail(qId!));
   const { data: debateList } = useSWR("debates-list", () => fetchDebates(20), { refreshInterval: 30000 });
+  const { data: votes = [], mutate: refreshVotes } = useSWR(qId ? `debate-votes-${qId}` : null, () => fetchDebateVotes(qId!));
 
   const grouped = (debate?.rounds || []).reduce<Record<number, DebateRound[]>>((a, r) => {
     (a[r.round_number] ??= []).push(r);
@@ -218,6 +337,33 @@ function DebatePageInner() {
       setQId(inputId.trim());
       toast.info('分析报告已加载');
     }
+  };
+
+  const handleVote = async (round: DebateRound, vote: VoteValue) => {
+    if (!debate) return;
+    const key = voteKey(round);
+    setSubmittingVoteKey(key);
+    try {
+      await createDebateVote({
+        debate_session_id: debate.id,
+        round_number: round.round_number,
+        role: canonicalVoteRole(round.role),
+        vote,
+        comment: voteComments[key]?.trim() || null,
+      });
+      setVoteComments((prev) => ({ ...prev, [key]: "" }));
+      await refreshVotes();
+      toast.success("投票已记录");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "投票失败");
+    } finally {
+      setSubmittingVoteKey(null);
+    }
+  };
+
+  const votesForRound = (round: DebateRound) => {
+    const role = canonicalVoteRole(round.role);
+    return votes.filter((vote) => vote.round_number === round.round_number && vote.role === role);
   };
 
   return (
@@ -372,7 +518,15 @@ function DebatePageInner() {
                         <span className="divider-subtle flex-1" />
                       </div>
                       {rounds.map((r, i) => (
-                        <DebateRoundBlock key={i} round={r} />
+                        <DebateRoundBlock
+                          key={i}
+                          round={r}
+                          votes={votesForRound(r)}
+                          comment={voteComments[voteKey(r)] || ""}
+                          submitting={submittingVoteKey === voteKey(r)}
+                          onCommentChange={(value) => setVoteComments((prev) => ({ ...prev, [voteKey(r)]: value }))}
+                          onVote={handleVote}
+                        />
                       ))}
                     </div>
                   ))}

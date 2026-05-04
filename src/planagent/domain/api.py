@@ -411,6 +411,24 @@ class DebateDetailRead(APIModel):
     updated_at: datetime
 
 
+class DebateVoteCreate(APIModel):
+    debate_session_id: str
+    round_number: int = Field(ge=1)
+    role: Literal["advocate", "challenger", "arbitrator"]
+    vote: Literal["agree", "disagree", "neutral"]
+    comment: str | None = None
+
+
+class DebateVoteRead(APIModel):
+    id: str
+    debate_session_id: str
+    round_number: int
+    role: str
+    vote: str
+    comment: str | None = None
+    created_at: datetime
+
+
 class RuleReloadResponse(APIModel):
     domains: list[str]
     rules_loaded: int
@@ -628,6 +646,36 @@ class StrategicSessionDetailRead(APIModel):
 
 
 StrategicRunSnapshotRead.model_rebuild()
+
+
+UserDecisionValue = Literal["adopt", "defer", "need_more_info", "reject"]
+
+
+class UserDecisionCreate(APIModel):
+    session_id: str
+    decision: UserDecisionValue
+    notes: str | None = None
+
+
+class UserDecisionOutcomeUpdate(APIModel):
+    outcome: str
+
+
+class UserDecisionRead(APIModel):
+    id: str
+    session_id: str
+    decision: UserDecisionValue
+    notes: str | None = None
+    outcome: str | None = None
+    outcome_recorded_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserDecisionStatsRead(APIModel):
+    total: int
+    counts: dict[str, int] = Field(default_factory=dict)
+    ratios: dict[str, float] = Field(default_factory=dict)
 
 
 class OpenAIStatusResponse(APIModel):

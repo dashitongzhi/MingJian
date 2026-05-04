@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import html
+import inspect
 import logging
 import re
 from typing import Any
@@ -94,11 +95,14 @@ class AutomatedAnalysisService:
             reasoning_steps.append(fetch_step)
             yield self._event("step", fetch_step)
 
-            fetch_bundle = await self._fetch_related_sources(
-                payload=payload,
-                query=query,
-                domain_id=domain_id,
-            )
+            fetch_bundle: SourceFetchBundle | None = None
+            async for fetch_item in self._fetch_related_sources_with_events(payload, query, domain_id):
+                if isinstance(fetch_item, AnalysisEvent):
+                    yield fetch_item
+                else:
+                    fetch_bundle = fetch_item
+            if fetch_bundle is None:
+                raise RuntimeError("Source fetching finished without a result bundle.")
             sources = fetch_bundle.sources
             for provider_step in fetch_bundle.steps:
                 reasoning_steps.append(provider_step)
@@ -124,6 +128,40 @@ class AutomatedAnalysisService:
 
         analysis = await self._build_analysis(payload, domain_id, query, sources, reasoning_steps)
         yield self._event("result", analysis)
+
+    async def _fetch_related_sources_with_events(
+        self,
+        payload: AnalysisRequest,
+        query: str,
+        domain_id: str,
+    ) -> AsyncIterator[AnalysisEvent | SourceFetchBundle]:
+        event_queue: asyncio.Queue[AnalysisEvent] = asyncio.Queue()
+        parameters = inspect.signature(self._fetch_related_sources).parameters
+        kwargs: dict[str, Any] = {}
+        if "event_queue" in parameters:
+            kwargs["event_queue"] = event_queue
+
+        fetch_task = asyncio.create_task(
+            self._fetch_related_sources(payload=payload, query=query, domain_id=domain_id, **kwargs)
+        )
+
+        while True:
+            event_task = asyncio.create_task(event_queue.get())
+            done, pending = await asyncio.wait(
+                {fetch_task, event_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+
+            if event_task in done:
+                yield event_task.result()
+
+            if fetch_task in done:
+                while not event_queue.empty():
+                    yield event_queue.get_nowait()
+                yield fetch_task.result()
+                return
 
     async def _build_analysis(
         self,
@@ -213,6 +251,7 @@ class AutomatedAnalysisService:
         payload: AnalysisRequest,
         query: str,
         domain_id: str,
+        event_queue: asyncio.Queue[AnalysisEvent] | None = None,
     ) -> SourceFetchBundle:
         results: list[AnalysisSourceRead] = []
         steps_by_adapter: list[AnalysisStepRead | None] = []
@@ -224,6 +263,10 @@ class AutomatedAnalysisService:
         async def fetch_with_timeout(adapter: SourceAdapter, limit: int) -> list[AnalysisSourceRead]:
             async with asyncio.timeout(30):
                 return await adapter.fetcher(limit)
+
+        async def emit(event: str, payload: dict[str, Any]) -> None:
+            if event_queue is not None:
+                await event_queue.put(self._event(event, payload))
 
         for index, adapter in enumerate(adapters):
             provider_key = adapter.key
@@ -261,6 +304,13 @@ class AutomatedAnalysisService:
 
             steps_by_adapter.append(None)
             fetch_requests.append((index, adapter, limit))
+            await emit(
+                "source_start",
+                {
+                    "provider": provider_key,
+                    "label": provider_label,
+                },
+            )
             tasks.append(fetch_with_timeout(adapter, limit))
 
         fetch_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -282,6 +332,14 @@ class AutomatedAnalysisService:
                     f"{provider_label} fetch failed.",
                     error_detail,
                 )
+                await emit(
+                    "source_error",
+                    {
+                        "provider": adapter.key,
+                        "label": provider_label,
+                        "error": error_detail,
+                    },
+                )
                 continue
 
             added = 0
@@ -299,6 +357,14 @@ class AutomatedAnalysisService:
                     f"Collected {added} item(s) from {provider_label}.",
                     f"Requested {limit}; deduped total is now {len(results)}.",
                 )
+            )
+            await emit(
+                "source_complete",
+                {
+                    "provider": adapter.key,
+                    "label": provider_label,
+                    "count": added,
+                },
             )
 
         return SourceFetchBundle(

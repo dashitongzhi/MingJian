@@ -634,6 +634,7 @@ class DebateSessionRecord(Base):
         back_populates="debate_session",
         uselist=False,
     )
+    votes: Mapped[list["DebateVote"]] = relationship(back_populates="debate_session")
 
 
 class DebateRoundRecord(Base):
@@ -684,6 +685,34 @@ class DebateVerdictRecord(Base):
     debate_session: Mapped[DebateSessionRecord] = relationship(back_populates="verdict")
 
 
+class DebateVote(Base):
+    __tablename__ = "debate_votes"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('advocate', 'challenger', 'arbitrator')",
+            name="ck_debate_votes_role",
+        ),
+        CheckConstraint(
+            "vote IN ('agree', 'disagree', 'neutral')",
+            name="ck_debate_votes_vote",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    debate_session_id: Mapped[str] = mapped_column(
+        ForeignKey("debate_sessions.id"), nullable=False, index=True
+    )
+    round_number: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    vote: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    debate_session: Mapped[DebateSessionRecord] = relationship(back_populates="votes")
+
+
 class StrategicSession(Base):
     __tablename__ = "strategic_sessions"
 
@@ -722,6 +751,34 @@ class StrategicSession(Base):
 
     briefs: Mapped[list["StrategicBriefRecord"]] = relationship(back_populates="session")
     run_snapshots: Mapped[list["StrategicRunSnapshot"]] = relationship(back_populates="session")
+    user_decisions: Mapped[list["UserDecision"]] = relationship(back_populates="session")
+
+
+class UserDecision(Base):
+    __tablename__ = "user_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('adopt', 'defer', 'need_more_info', 'reject')",
+            name="ck_user_decisions_decision",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("strategic_sessions.id"), nullable=False, index=True
+    )
+    decision: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    outcome: Mapped[str | None] = mapped_column(Text)
+    outcome_recorded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    session: Mapped[StrategicSession] = relationship(back_populates="user_decisions")
 
 
 class StrategicBriefRecord(Base):

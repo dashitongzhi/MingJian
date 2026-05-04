@@ -14,9 +14,11 @@ import {
   TrendingUp,
 } from "lucide-react";
 import {
+  createUserDecision,
   fetchSessions,
   fetchWorkbenchData,
   type StrategicSession,
+  type UserDecisionValue,
   type WorkbenchAlternativeScenario,
   type WorkbenchPredictionVersion,
   type WorkbenchRecommendation,
@@ -291,7 +293,8 @@ export default function WorkbenchPage() {
   const { t } = useTranslation();
   const { data: sessions, error: sessionsError, isLoading: sessionsLoading } = useSWR("workbench-sessions", fetchSessions);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
-  const [decision, setDecision] = useState<string | null>(null);
+  const [decision, setDecision] = useState<UserDecisionValue | null>(null);
+  const [savingDecision, setSavingDecision] = useState(false);
 
   useEffect(() => {
     if (!selectedSessionId && sessions && sessions.length > 0) {
@@ -309,9 +312,23 @@ export default function WorkbenchPage() {
     [selectedSessionId, sessions],
   );
 
-  const handleDecision = (next: string, message: string) => {
-    setDecision(next);
-    toast.info(message);
+  const decisionLabelKey = (value: UserDecisionValue) => {
+    if (value === "need_more_info") return "workbench.needMoreInfoDecision";
+    return `workbench.${value}`;
+  };
+
+  const handleDecision = async (next: UserDecisionValue, message: string) => {
+    if (!selectedSessionId || savingDecision) return;
+    setSavingDecision(true);
+    try {
+      await createUserDecision({ session_id: selectedSessionId, decision: next });
+      setDecision(next);
+      toast.success(message);
+    } catch (error) {
+      toast.error(`${t("workbench.decisionSaveFailed")}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setSavingDecision(false);
+    }
   };
 
   const loading = sessionsLoading || (selectedSessionId && workbenchLoading);
@@ -446,12 +463,17 @@ export default function WorkbenchPage() {
             <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <h2 className="heading-section">{t("workbench.decisionActions")}</h2>
-                {decision && <span className="badge badge-success">{t(`workbench.${decision}`)}</span>}
+                {savingDecision ? (
+                  <span className="badge">{t("workbench.savingDecision")}</span>
+                ) : (
+                  decision && <span className="badge badge-success">{t(decisionLabelKey(decision))}</span>
+                )}
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <button
                   type="button"
-                  onClick={() => handleDecision("adopted", t("workbench.adoptedToast"))}
+                  onClick={() => handleDecision("adopt", t("workbench.adoptedToast"))}
+                  disabled={!selectedSessionId || savingDecision}
                   className="btn btn-primary justify-center"
                 >
                   <CheckCircle2 size={16} />
@@ -459,7 +481,8 @@ export default function WorkbenchPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDecision("deferred", t("workbench.deferredToast"))}
+                  onClick={() => handleDecision("defer", t("workbench.deferredToast"))}
+                  disabled={!selectedSessionId || savingDecision}
                   className="btn btn-ghost justify-center"
                 >
                   <PauseCircle size={16} />
@@ -467,7 +490,8 @@ export default function WorkbenchPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDecision("needsMoreInfo", t("workbench.moreInfoToast"))}
+                  onClick={() => handleDecision("need_more_info", t("workbench.moreInfoToast"))}
+                  disabled={!selectedSessionId || savingDecision}
                   className="btn btn-ghost justify-center"
                 >
                   <CircleHelp size={16} />

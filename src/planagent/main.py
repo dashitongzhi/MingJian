@@ -8,6 +8,7 @@ import uvicorn
 
 import planagent.simulation  # noqa: F401
 from planagent.api.routes import router
+from planagent.api.routes.ws import router as websocket_router
 from planagent.config import get_settings
 from planagent.db import get_database
 from planagent.events.bus import build_event_bus
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
+    app.include_router(websocket_router)
     return app
 
 
