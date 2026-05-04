@@ -245,17 +245,17 @@ NEXT_PUBLIC_API_URL=/api
 
 所有槽位均使用 OpenAI 兼容的 `/chat/completions` 接口，可自由混搭：
 
-| 提供商 | Base URL | 备注 |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | 原生 |
-| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI 兼容端点 |
-| DeepSeek | `https://api.deepseek.com/v1` | 性价比高，中文强 |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI 兼容端点 |
-| xAI Grok | `https://api.x.ai/v1` | 原生兼容 |
-| 小米 MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | 兼容 |
-| Together AI | `https://api.together.xyz/v1` | 开源模型聚合 |
-| Fireworks AI | `https://api.fireworks.ai/inference/v1` | 快速推理 |
-| 任意兼容代理 | 你的代理地址 | vLLM、Ollama、LiteLLM 等 |
+| 提供商 | Base URL |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** |
+| DeepSeek | `https://api.deepseek.com/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| xAI Grok | `https://api.x.ai/v1` |
+| 小米 MiMo | `https://token-plan-cn.xiaomimimo.com/v1` |
+| 智谱 GLM | `https://open.bigmodel.cn/api/paas/v4` |
+| MiniMax | `https://api.minimax.chat/v1` |
+| 任意兼容代理 | 你的代理地址 |
 
 > **示例：** 主分析用 OpenAI，信息提取用 DeepSeek，辩论用 Claude —— 一个配置搞定。
 

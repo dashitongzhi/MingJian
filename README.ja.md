@@ -248,17 +248,17 @@ NEXT_PUBLIC_API_URL=/api
 
 すべてのスロットはOpenAI互換の`/chat/completions`エンドポイントを使用します。プロバイダーを自由に組み合わせることができます：
 
-| プロバイダー | ベースURL | 備考 |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | ネイティブ |
-| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI互換エンドポイント |
-| DeepSeek | `https://api.deepseek.com/v1` | コスト効率が高く、中国語に強い |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI互換エンドポイント |
-| xAI Grok | `https://api.x.ai/v1` | ネイティブ互換 |
-| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | 互換 |
-| Together AI | `https://api.together.xyz/v1` | オープンソースモデル集約 |
-| Fireworks AI | `https://api.fireworks.ai/inference/v1` | 高速推論 |
-| 任意の互換プロキシ | あなたのプロキシURL | vLLM、Ollama、LiteLLMなど |
+| プロバイダー | ベースURL |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** |
+| DeepSeek | `https://api.deepseek.com/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| xAI Grok | `https://api.x.ai/v1` |
+| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` |
+| Zhipu GLM | `https://open.bigmodel.cn/api/paas/v4` |
+| MiniMax | `https://api.minimax.chat/v1` |
+| 任意の互換プロキシ | あなたのプロキシURL |
 
 > **例：** OpenAIをプライマリ分析に、DeepSeekを抽出に、Claudeをディベートに使用 — すべて1つの設定で。
 

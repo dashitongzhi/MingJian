@@ -247,17 +247,17 @@ NEXT_PUBLIC_API_URL=/api
 
 सभी स्लॉट OpenAI-संगत `/chat/completions` एंडपॉइंट का उपयोग करते हैं। आप प्रदाताओं को स्वतंत्र रूप से मिला-जुला सकते हैं:
 
-| प्रदाता | बेस URL | नोट्स |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | नेटिव |
-| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI-संगत एंडपॉइंट |
-| DeepSeek | `https://api.deepseek.com/v1` | किफायती, मजबूत चीनी |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI-संगत एंडपॉइंट |
-| xAI Grok | `https://api.x.ai/v1` | नेटिव संगत |
-| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | संगत |
-| Together AI | `https://api.together.xyz/v1` | ओपन-सोर्स मॉडल एग्रीगेशन |
-| Fireworks AI | `https://api.fireworks.ai/inference/v1` | तेज़ इनफेरेंस |
-| कोई भी संगत प्रॉक्सी | आपका प्रॉक्सी URL | vLLM, Ollama, LiteLLM, आदि |
+| प्रदाता | बेस URL |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** |
+| DeepSeek | `https://api.deepseek.com/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| xAI Grok | `https://api.x.ai/v1` |
+| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` |
+| Zhipu GLM | `https://open.bigmodel.cn/api/paas/v4` |
+| MiniMax | `https://api.minimax.chat/v1` |
+| कोई भी संगत प्रॉक्सी | आपका प्रॉक्सी URL |
 
 > **उदाहरण:** प्राथमिक विश्लेषण के लिए OpenAI, निष्कर्षण के लिए DeepSeek, बहस के लिए Claude — सब एक कॉन्फ़िगरेशन में।
 

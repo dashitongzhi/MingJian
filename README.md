@@ -247,17 +247,17 @@ NEXT_PUBLIC_API_URL=/api
 
 All slots use the OpenAI-compatible `/chat/completions` endpoint. You can mix and match providers freely:
 
-| Provider | Base URL | Notes |
-|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | Native |
-| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** | OpenAI-compatible endpoint |
-| DeepSeek | `https://api.deepseek.com/v1` | Cost-effective, strong Chinese |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | OpenAI-compatible endpoint |
-| xAI Grok | `https://api.x.ai/v1` | Native compatible |
-| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` | Compatible |
-| Together AI | `https://api.together.xyz/v1` | Open-source model aggregation |
-| Fireworks AI | `https://api.fireworks.ai/inference/v1` | Fast inference |
-| Any compatible proxy | Your proxy URL | vLLM, Ollama, LiteLLM, etc. |
+| Provider | Base URL |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** |
+| DeepSeek | `https://api.deepseek.com/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| xAI Grok | `https://api.x.ai/v1` |
+| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` |
+| Zhipu GLM | `https://open.bigmodel.cn/api/paas/v4` |
+| MiniMax | `https://api.minimax.chat/v1` |
+| Any compatible proxy | Your proxy URL |
 
 > **Example:** Use OpenAI for primary analysis, DeepSeek for extraction, Claude for debate — all in one config.
 
