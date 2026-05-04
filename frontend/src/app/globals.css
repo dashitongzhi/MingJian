@@ -6,8 +6,8 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM — MingJian (明鉴)
-   Decision Intelligence · Dark-first · Sage Green Accent
-   Inspired by Linear (precision), VoltAgent (depth), charcoal surfaces
+   Decision Intelligence · Dark-first · Warm Amber Accent
+   Linear surface ladder · No shadows · Hairline borders · Tight tracking
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── LIGHT THEME (default) ───────────────────────────────────────────────── */
@@ -22,9 +22,9 @@
   --popover: #ffffff;
   --popover-foreground: #1a1a2e;
 
-  /* Brand accent — sage green (明鉴 identity) */
-  --accent: #5a8a7a;
-  --accent-hover: #4a7a6a;
+  /* Brand accent — warm amber (明鉴 identity) */
+  --accent: #d4940a;
+  --accent-hover: #b8800a;
   --accent-foreground: #ffffff;
 
   /* Accent secondary — purple */
@@ -52,11 +52,11 @@
   --destructive: #dc2626;
   --border: #e2e4e8;
   --input: #e2e4e8;
-  --ring: #5a8a7a;
+  --ring: #d4940a;
 
   /* Gradient */
-  --gradient-start: #5a8a7a;
-  --gradient-end: #3d6b5e;
+  --gradient-start: #d4940a;
+  --gradient-end: #b8800a;
 
   /* Layout */
   --sidebar-width: 240px;
@@ -64,7 +64,7 @@
   --radius: 8px;
 
   /* Charts */
-  --chart-1: #5a8a7a;
+  --chart-1: #d4940a;
   --chart-2: #16a34a;
   --chart-3: #ca8a04;
   --chart-4: #dc2626;
@@ -78,30 +78,30 @@
   /* Sidebar */
   --sidebar: #f8f9fa;
   --sidebar-foreground: #1a1a2e;
-  --sidebar-primary: #5a8a7a;
+  --sidebar-primary: #d4940a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e8f0ec;
+  --sidebar-accent: #fef9ee;
   --sidebar-accent-foreground: #1a1a2e;
   --sidebar-border: #e2e4e8;
-  --sidebar-ring: #5a8a7a;
+  --sidebar-ring: #d4940a;
 }
 
-/* ── DARK THEME — Linear.app + VoltAgent charcoal palette ────────────────── */
+/* ── DARK THEME — Linear surface ladder + amber accent ─────────────────── */
 .dark {
-  /* Canvas — near-pure black like Linear #010102 and VoltAgent #050507 */
+  /* Canvas — near-pure black (Linear #010102 / VoltAgent #050507) */
   --background: #050507;
-  --foreground: #f2f2f2;
+  --foreground: #f0f0f0;
   --card: #0c0c0e;
-  --card-hover: #111114;
+  --card-hover: #121214;
   --card-border: #1e1e22;
-  --card-foreground: #f2f2f2;
+  --card-foreground: #f0f0f0;
   --popover: #0c0c0e;
-  --popover-foreground: #f2f2f2;
+  --popover-foreground: #f0f0f0;
 
-  /* Brand accent — sage green (明鉴 identity) */
-  --accent: #7f9f90;
-  --accent-hover: #6f8d7f;
-  --accent-foreground: #050507;
+  /* Brand accent — warm amber (明鉴 strategic identity) */
+  --accent: #e5a00c;
+  --accent-hover: #f0b73a;
+  --accent-foreground: #000000;
 
   /* Accent secondary — purple */
   --accent-purple: #a78bfa;
@@ -118,24 +118,24 @@
   --accent-yellow: var(--accent-amber);
   --accent-yellow-bg: var(--accent-amber-bg);
 
-  /* Text hierarchy — like Linear's ink system */
-  --muted: #8a8f98;
-  --muted-foreground: #8a8f98;
-  --primary: #f2f2f2;
+  /* Text hierarchy — Linear ink system */
+  --muted: #787878;
+  --muted-foreground: #b0b0b0;
+  --primary: #f0f0f0;
   --primary-foreground: #050507;
   --secondary: #0f1011;
-  --secondary-foreground: #f2f2f2;
+  --secondary-foreground: #f0f0f0;
   --destructive: #f87171;
   --border: #1e1e22;
   --input: #1e1e22;
-  --ring: #7f9f90;
+  --ring: #e5a00c;
 
   /* Gradient */
-  --gradient-start: #7f9f90;
-  --gradient-end: #5a8a7a;
+  --gradient-start: #e5a00c;
+  --gradient-end: #c78b0a;
 
   /* Charts */
-  --chart-1: #7f9f90;
+  --chart-1: #e5a00c;
   --chart-2: #34d399;
   --chart-3: #fbbf24;
   --chart-4: #f87171;
@@ -148,27 +148,27 @@
 
   /* Sidebar — slightly darker than canvas */
   --sidebar: #070709;
-  --sidebar-foreground: #f2f2f2;
-  --sidebar-primary: #7f9f90;
-  --sidebar-primary-foreground: #050507;
+  --sidebar-foreground: #f0f0f0;
+  --sidebar-primary: #e5a00c;
+  --sidebar-primary-foreground: #000000;
   --sidebar-accent: #0f1011;
-  --sidebar-accent-foreground: #f2f2f2;
+  --sidebar-accent-foreground: #f0f0f0;
   --sidebar-border: #1a1a1e;
-  --sidebar-ring: #7f9f90;
+  --sidebar-ring: #e5a00c;
 }
 
-/* ── Accent Progression (sage green) ──────────────────────────────────────── */
+/* ── Accent Progression (warm amber) ────────────────────────────────────── */
 :root {
-  --accent-50:  #f0f5f3;
-  --accent-100: #dce8e3;
-  --accent-200: #b8d1c6;
-  --accent-300: #94baa9;
-  --accent-400: #7f9f90;
-  --accent-500: #6b8a7b;
-  --accent-600: #577566;
-  --accent-700: #435f52;
-  --accent-800: #2f4a3d;
-  --accent-900: #1b3529;
+  --accent-50:  #fef9ee;
+  --accent-100: #fdf0d0;
+  --accent-200: #fbe0a0;
+  --accent-300: #f8cb66;
+  --accent-400: #f0b73a;
+  --accent-500: #e5a00c;
+  --accent-600: #c78b0a;
+  --accent-700: #a06d08;
+  --accent-800: #7a5206;
+  --accent-900: #543904;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -178,7 +178,7 @@
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -228,30 +228,7 @@ a {
   text-decoration: none;
 }
 
-/* ── Gradient Mesh Background (Liquid Ambient) ───────────────────────────── */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 80% 50% at 10% 20%, rgba(90, 138, 122, 0.06), transparent 50%),
-    radial-gradient(ellipse 50% 60% at 85% 75%, rgba(120, 160, 140, 0.045), transparent 50%),
-    radial-gradient(ellipse 40% 40% at 50% 5%, rgba(90, 138, 122, 0.035), transparent 40%),
-    radial-gradient(ellipse 30% 30% at 70% 30%, rgba(180, 200, 190, 0.025), transparent 30%),
-    radial-gradient(ellipse 60% 40% at 30% 80%, rgba(167, 139, 250, 0.02), transparent 40%);
-  pointer-events: none;
-}
-
-.dark body::before {
-  background:
-    radial-gradient(ellipse 80% 50% at 10% 15%, rgba(127, 159, 144, 0.10), transparent 50%),
-    radial-gradient(ellipse 60% 40% at 85% 80%, rgba(90, 138, 122, 0.06), transparent 50%),
-    radial-gradient(ellipse 40% 50% at 45% 5%, rgba(127, 159, 144, 0.05), transparent 40%),
-    radial-gradient(ellipse 25% 25% at 75% 25%, rgba(160, 190, 175, 0.04), transparent 30%),
-    radial-gradient(ellipse 35% 35% at 20% 70%, rgba(100, 140, 120, 0.04), transparent 35%),
-    radial-gradient(ellipse 50% 30% at 60% 50%, rgba(167, 139, 250, 0.025), transparent 35%);
-}
+/* ── No atmospheric gradients — Linear principle: dark canvas IS the whitespace */
 
 /* ── Custom Scrollbar — Linear-style thin ────────────────────────────────── */
 ::-webkit-scrollbar {
@@ -276,7 +253,7 @@ body::before {
    TYPOGRAPHY — Geist, Linear-inspired tight tracking
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Display heading — like Linear's hero with -0.04em tracking */
+/* Display heading — Linear-style aggressive negative tracking */
 .heading-display {
   font-size: 2rem;
   font-weight: 600;
@@ -290,7 +267,7 @@ body::before {
 .heading-section {
   font-size: 1rem;
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   color: var(--foreground);
 }

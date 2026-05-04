@@ -18,7 +18,7 @@ function generateSparkle(): Sparkle {
     id: Math.random().toString(36).slice(2),
     x: `${Math.random() * 100}%`,
     y: `${Math.random() * 100}%`,
-    color: ["#7f9f90", "#5a8a7a", "#a8d8c0", "#e8f5e9"][Math.floor(Math.random() * 4)],
+    color: ["#e5a00c", "#f0b73a", "#c78b0a", "#fbbf24"][Math.floor(Math.random() * 4)],
     delay: Math.random() * 2,
     scale: Math.random() * 0.5 + 0.5,
     duration: Math.random() * 1.5 + 1,
