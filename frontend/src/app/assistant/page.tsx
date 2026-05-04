@@ -6,7 +6,7 @@ import { fetchSessions, fetchSessionDetail, streamAssistant, type AssistantResul
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
-import { TextReveal, StaggerContainer, StaggerItem, AnimatedGradientText } from "@/components/ui/aceternity";
+import { TextReveal, StaggerContainer, StaggerItem } from "@/components/ui/aceternity";
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return <div className="section-label">{children}</div>;
@@ -269,7 +269,7 @@ function SessionDetailPanel({ detail, onBack }: { detail: StrategicSessionDetail
         <div className="flex min-w-0 items-center gap-3">
           <button
             onClick={onBack}
-            className="flex h-7 w-7 shrink-0 items-center justify-center border border-[var(--card-border)] font-mono text-xs text-[var(--muted)] outline-none motion-safe:transition-colors hover:bg-[var(--card-hover)] hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="flex h-7 w-7 shrink-0 items-center justify-center border border-[var(--card-border)] font-mono text-xs text-[var(--muted)] outline-none motion-safe:transition-colors hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             ←
           </button>
@@ -635,21 +635,21 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
         </TextReveal>
         <TextReveal delay={0.1}>
           <h1 className="heading-display mt-4 max-w-3xl text-balance">
-            <AnimatedGradientText>{t("assistant.subtitle")}</AnimatedGradientText>
+            {t("assistant.subtitle")}
           </h1>
         </TextReveal>
       </header>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="space-y-6 xl:sticky xl:top-[76px] xl:self-start">
-          <section className="liquid-glass overflow-hidden rounded-xl">
+          <section className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
             <div className="flex items-center justify-between divider-subtle px-5 py-4">
               <h2 className="heading-section">{t("assistant.missionInput")}</h2>
               <span className="badge">CMD</span>
             </div>
 
             <div className="p-5">
-              <div className="glass overflow-hidden rounded-lg focus-within:ring-2 focus-within:ring-[var(--accent)] focus-within:ring-offset-1 focus-within:ring-offset-[var(--surface-1)]">
+              <div className="overflow-hidden rounded-md border border-[var(--input)] bg-[var(--background)] focus-within:ring-2 focus-within:ring-[var(--accent)] focus-within:ring-offset-1 focus-within:ring-offset-[var(--card)]">
                 <div className="divider-subtle px-3 py-2 section-label">
                   {t("assistant.topicPlaceholder")}
                 </div>
@@ -676,7 +676,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                         setTopic(example.topic);
                         setDomainId(example.domain);
                       }}
-                      className="grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3 py-3 text-left text-xs outline-none motion-safe:transition-colors hover:bg-[var(--code-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                      className="grid w-full grid-cols-[28px_minmax(0,1fr)] gap-3 py-3 text-left text-xs outline-none motion-safe:transition-colors hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                     >
                       <span className="font-mono text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
                       <span className="truncate text-[var(--muted-foreground)]">{example.topic}</span>
@@ -689,7 +689,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 <label className="block">
                   <span className="mb-2 block section-label">{t("assistant.domain")}</span>
                   <select
-                    className="glass w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    className="w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     value={domainId}
                     onChange={(e) => setDomainId(e.target.value)}
                   >
@@ -700,7 +700,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                 </label>
                 <label className="block">
                   <span className="mb-2 block section-label">{t("assistant.ticks")}</span>
-                  <div className="glass flex h-[38px] items-center gap-3 rounded-lg px-3">
+                  <div className="flex h-[38px] items-center gap-3 rounded-md border border-[var(--input)] bg-[var(--background)] px-3">
                     <input
                       type="range"
                       min={2}
@@ -717,7 +717,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
               <label className="mt-5 block">
                 <span className="mb-2 block section-label">{t("assistant.subjectName")}</span>
                 <input
-                  className="glass w-full rounded-lg px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
+                  className="w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:ring-2 focus:ring-[var(--accent)]"
                   placeholder={t("assistant.subjectPlaceholder")}
                   value={subjectName}
                   onChange={(e) => setSubjectName(e.target.value)}
@@ -789,7 +789,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   <button
                     type="button"
                     onClick={() => setSelectedSessionId(s.id)}
-                    className="w-full py-3 text-left outline-none motion-safe:transition-colors hover:bg-[var(--code-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
+                    className="w-full py-3 text-left outline-none motion-safe:transition-colors hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--card)]"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="truncate text-sm font-medium">{s.name || s.topic.slice(0, 40)}</div>
@@ -810,14 +810,14 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
 
         <main className="min-w-0">
           {selectedSessionId && sessionDetail ? (
-            <section className="liquid-glass min-h-[560px] rounded-xl">
+            <section className="min-h-[560px] rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
               <SessionDetailPanel
                 detail={sessionDetail}
                 onBack={() => setSelectedSessionId(null)}
               />
             </section>
           ) : selectedSessionId ? (
-            <section className="liquid-glass min-h-[560px] rounded-xl">
+            <section className="min-h-[560px] rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
               <div className="px-5 py-10 space-y-3">
                 <SkeletonLine className="h-4 w-8/12" />
                 <SkeletonLine className="h-4 w-6/12" />
@@ -826,7 +826,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             </section>
           ) : (
             <>
-          <div className="sticky top-[56px] z-10 -mx-1 mb-4 bg-[var(--background)]/80 px-1 py-2 backdrop-blur">
+          <div className="sticky top-[52px] z-10 -mx-1 mb-4 bg-[var(--background)]/95 px-1 py-2">
             <div className="flex gap-0 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
@@ -841,15 +841,15 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
                   <span>{tab.label}</span>
                   {tab.count > 0 && <span className="ml-2 font-mono text-[11px] opacity-70">{tab.count}</span>}
                   {activeTab === tab.id && (
-                    <span className="absolute inset-x-4 bottom-0 h-0.5 bg-[var(--accent)] rounded-full" />
+                    <span className="absolute inset-x-4 bottom-0 h-px bg-[var(--accent)]" />
                   )}
                 </button>
               ))}
             </div>
-            <div className="divider-subtle" />
+            <div className="divider-line" />
           </div>
 
-          <section className="liquid-glass min-h-[560px] rounded-xl">
+          <section className="min-h-[560px] rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
             <div className="flex items-center justify-between divider-subtle px-5 py-4">
               <div>
                 <SectionLabel>{tabs.find((tab) => tab.id === activeTab)?.label}</SectionLabel>
@@ -945,7 +945,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
           </section>
 
           {result && (
-            <section className="liquid-glass mt-6 rounded-xl p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+            <section className="mt-6 rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <h3 className="heading-section">{t("assistant.analysisComplete")}</h3>
                 <button
@@ -996,8 +996,8 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
       </div>
 
       {showGuide && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4 backdrop-blur">
-          <div className="liquid-glass w-full max-w-md rounded-xl p-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] px-4">
+          <div className="w-full max-w-md rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
             <div className="mb-6">
               <SectionLabel>{t("assistant.onboardingTitle")}</SectionLabel>
               <h2 className="heading-display mt-3 text-balance">{t("assistant.onboardingSubtitle")}</h2>

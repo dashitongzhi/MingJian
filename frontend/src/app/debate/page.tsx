@@ -25,7 +25,7 @@ function PriorityBadge({ priority }: { priority: string }) {
 
 function RecommendationCard({ rec, index }: { rec: { title: string; priority: string; rationale: string; action_items: string[] }; index: number }) {
   return (
-    <div className="liquid-glass rounded-xl p-5 animate-fadeIn" style={{ animationDelay: `${index * 80}ms` }}>
+    <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 animate-fadeIn" style={{ animationDelay: `${index * 80}ms` }}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
           <span className="font-mono text-lg text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
@@ -55,45 +55,39 @@ function RecommendationCard({ rec, index }: { rec: { title: string; priority: st
 
 function DebateRoundBlock({ round }: { round: DebateRound }) {
   const { t } = useTranslation();
-  const roleConfig: Record<string, { tone: string; rail: string; marker: string; label: string; align: string }> = {
+  const roleConfig: Record<string, { tone: string; marker: string; label: string; align: string }> = {
     strategist: {
       tone: "text-[var(--accent-green)]",
-      rail: "border-[var(--accent-green)] bg-[var(--accent-green)]/8",
       marker: "S",
       label: "战略顾问",
       align: "md:mr-16",
     },
     risk_analyst: {
       tone: "text-[var(--accent-red)]",
-      rail: "border-[var(--accent-red)] bg-[var(--accent-red)]/8",
       marker: "R",
       label: "风险分析",
       align: "md:ml-16",
     },
     opportunist: {
       tone: "text-[var(--accent)]",
-      rail: "border-[var(--accent)] bg-[var(--accent)]/8",
       marker: "O",
       label: "机会评估",
       align: "md:mx-8",
     },
     advocate: {
       tone: "text-[var(--accent-green)]",
-      rail: "border-[var(--accent-green)] bg-[var(--accent-green)]/8",
       marker: "S",
       label: "战略顾问",
       align: "md:mr-16",
     },
     challenger: {
       tone: "text-[var(--accent-red)]",
-      rail: "border-[var(--accent-red)] bg-[var(--accent-red)]/8",
       marker: "R",
       label: "风险分析",
       align: "md:ml-16",
     },
     arbitrator: {
       tone: "text-[var(--accent)]",
-      rail: "border-[var(--accent)] bg-[var(--accent)]/8",
       marker: "O",
       label: "机会评估",
       align: "md:mx-8",
@@ -103,7 +97,7 @@ function DebateRoundBlock({ round }: { round: DebateRound }) {
   const config = roleConfig[round.role] || roleConfig.strategist;
 
   return (
-    <article className={`${config.align} animate-fadeIn border-l-2 ${config.rail} rounded-r-lg`}>
+    <article className={`${config.align} animate-fadeIn rounded-lg border border-[var(--card-border)] bg-[var(--card)]`}>
       <div className="grid grid-cols-[44px_1fr]">
         <div className={`border-r border-[var(--card-border)] px-3 py-4 text-center font-mono text-lg ${config.tone}`}>{config.marker}</div>
         <div className="min-w-0 p-4">
@@ -174,7 +168,7 @@ function DebateSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="liquid-glass rounded-xl p-5 animate-pulse">
+        <div key={i} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 animate-pulse">
           <div className="h-3 w-32 bg-[var(--card-hover)]" />
           <div className="mt-4 h-3 w-full bg-[var(--card-hover)]" />
           <div className="mt-3 h-3 w-2/3 bg-[var(--card-hover)]" />
@@ -235,7 +229,7 @@ function DebatePageInner() {
           <h1 className="heading-display mt-3">{t("debate.subtitle")}</h1>
         </div>
 
-        <section className="content-end self-end liquid-glass rounded-xl p-5">
+        <section className="content-end self-end rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
           <h2 className="mb-3 flex items-center gap-2 heading-section">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
               <circle cx="11" cy="11" r="8" />
@@ -245,7 +239,7 @@ function DebatePageInner() {
           </h2>
           <div className="flex gap-3">
             <input
-              className="glass min-w-0 flex-1 rounded-md px-3 py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
+              className="min-w-0 flex-1 rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 font-mono text-sm outline-none placeholder:text-[var(--muted)]"
               placeholder={t("debate.debateIdPlaceholder")}
               value={inputId}
               onChange={(event) => setInputId(event.target.value)}
@@ -262,14 +256,14 @@ function DebatePageInner() {
           )}
         </section>
       </div>
-      <div className="divider-subtle" />
+      <div className="divider-line" />
 
       {isLoading && <DebateSkeleton />}
 
       {debate ? (
         <div className="space-y-8">
           {/* Header */}
-          <section className="liquid-glass rounded-xl p-6">
+          <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="section-label !text-[var(--muted)]">{t("debate.trigger")}: {debate.trigger_type}</div>
@@ -284,7 +278,7 @@ function DebatePageInner() {
 
           {/* Conclusion Summary */}
           {conclusionSummary && (
-            <section className="liquid-glass rounded-xl border border-[var(--accent)]/20 p-6">
+            <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
               <h3 className="flex items-center gap-2 heading-section mb-3">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]">
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -326,7 +320,7 @@ function DebatePageInner() {
                 风险提示
                 <span className="badge badge-error">{riskFactors.length}</span>
               </h3>
-              <div className="liquid-glass rounded-xl divide-y divide-[var(--card-border)] overflow-hidden">
+              <div className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)] divide-y divide-[var(--card-border)]">
                 {riskFactors.map((risk: string, i: number) => (
                   <div key={i} className="flex items-start gap-3 p-4">
                     <span className="font-mono text-xs text-[var(--accent-red)] shrink-0">{String(i + 1).padStart(2, "0")}</span>
@@ -346,7 +340,7 @@ function DebatePageInner() {
               </h3>
               <div className="grid gap-4 md:grid-cols-2">
                 {alternativeScenarios.map((scenario: any, i: number) => (
-                  <div key={i} className="liquid-glass rounded-xl p-5">
+                  <div key={i} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
                     <h4 className="heading-section !text-sm mb-2">{scenario.name}</h4>
                     <p className="text-xs leading-6 text-[var(--muted-foreground)] mb-3">{scenario.description}</p>
                     {scenario.expected_outcome && (
@@ -363,7 +357,7 @@ function DebatePageInner() {
 
           {/* Analysis Rounds (collapsed by default) */}
           {Object.keys(grouped).length > 0 && (
-            <details className="liquid-glass rounded-xl overflow-hidden">
+            <details className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
               <summary className="cursor-pointer px-5 py-4 heading-section hover:bg-[var(--card-hover)] transition-colors">
                 分析过程详情
                 <span className="ml-2 font-mono text-[11px] text-[var(--muted)]">({Object.keys(grouped).length} 轮)</span>
@@ -399,7 +393,7 @@ function DebatePageInner() {
                   <button
                     key={d.debate_id}
                     onClick={() => { setQId(d.debate_id); setInputId(d.debate_id); }}
-                    className="w-full text-left group liquid-glass rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 text-left transition-colors duration-150 hover:border-[var(--muted)]"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">

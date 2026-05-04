@@ -19,7 +19,7 @@ import { fetchSessions, fetchScoreboard, fetchQueueHealth, fetchWatchRules, type
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { useTranslation } from "@/contexts/LanguageContext";
-import { TextReveal, StaggerContainer, StaggerItem, AnimatedGradientText } from "@/components/ui/aceternity";
+import { TextReveal, StaggerContainer, StaggerItem } from "@/components/ui/aceternity";
 
 function SkeletonLine({ className = "" }: { className?: string }) {
   return <div className={`skeleton ${className}`} />;
@@ -37,7 +37,7 @@ function DashboardSkeleton() {
         <SkeletonLine className="hidden h-16 w-16 rounded md:block" />
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="min-h-[270px] rounded-2xl bg-[var(--card)] p-7">
+        <div className="min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
           <SkeletonLine className="h-4 w-36" />
           <SkeletonLine className="mt-5 h-12 w-32" />
           <div className="mt-8 grid grid-cols-6 gap-1">
@@ -47,7 +47,7 @@ function DashboardSkeleton() {
           </div>
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="min-h-[270px] rounded-2xl bg-[var(--card)] p-7">
+          <div key={i} className="min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
             <SkeletonLine className="h-4 w-28" />
             <SkeletonLine className="mt-5 h-10 w-24" />
             <SkeletonLine className="mt-8 h-2 w-full" />
@@ -88,22 +88,9 @@ function MetricPanel({
 }) {
   return (
     <section
-      className={`group relative overflow-hidden liquid-glass iridescent
-        h-full min-h-[270px] rounded-2xl p-7 hover:-translate-y-0.5`}
+      className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6"
     >
-      {/* Top accent bar — subtle brand signal */}
-      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--accent)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      {/* Top edge light refraction */}
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-      {/* Bottom edge shadow */}
-      <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-black/5 to-transparent" />
-      {/* Accent glow on hover */}
-      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-        style={{
-          background: "radial-gradient(ellipse at 30% 20%, rgba(127,159,144,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(167,139,250,0.03) 0%, transparent 50%)",
-        }}
-      />
-      <div className="relative z-10 flex h-full flex-col">
+      <div className="flex h-full flex-col">
         <div className="flex items-center gap-2.5">
           {icon && (
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">
@@ -163,7 +150,7 @@ function QueueBars({ queues }: { queues: Array<{ queue: string; pending: number;
           <div key={q.queue} className="grid grid-cols-[minmax(0,1fr)_90px] items-center gap-4">
             <div className="min-w-0">
               <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="truncate font-mono text-[var(--muted-foreground)]">{q.queue}</span>
+                <span className="min-w-0 truncate font-mono text-[var(--muted-foreground)]">{q.queue}</span>
                 <span className="text-[var(--muted)]">{total}</span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden bg-[var(--code-bg)] rounded-full">
@@ -187,16 +174,16 @@ function QuickAction({ label, description, icon, href }: { label: string; descri
   return (
     <a
       href={href}
-      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 py-5 outline-none transition-all duration-300 hover:bg-[var(--card)]/40 hover:pl-3 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+      className="group grid grid-cols-[32px_minmax(0,1fr)_18px] gap-4 border-b border-[var(--card-border)] py-5 last:border-b-0 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
     >
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--accent)] transition-all duration-300 group-hover:scale-110 group-hover:bg-[var(--accent)]/10">
+      <div className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--accent)]">
         {icon}
       </div>
       <div className="min-w-0">
         <div className="text-sm font-medium text-[var(--foreground)]">{label}</div>
         <div className="mt-1 text-[13px] text-[var(--muted)] leading-relaxed">{description}</div>
       </div>
-      <div className="pt-1 text-[var(--muted)]/50 transition-all duration-300 group-hover:translate-x-1.5 group-hover:text-[var(--accent)]">→</div>
+      <div className="pt-1 text-[var(--muted)]/50 transition-colors duration-150 group-hover:text-[var(--accent)]">→</div>
     </a>
   );
 }
@@ -259,19 +246,16 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* ── Hero Header ──────────────────────────────────────────────────────── */}
-      <header className="relative pb-4">
-        {/* Ambient glow orbs — sage green + subtle purple pulse */}
-        <div className="absolute right-0 top-0 h-32 w-80 bg-[var(--accent)]/5 blur-[80px] rounded-full" />
-        <div className="absolute left-1/3 -top-8 h-20 w-40 bg-[var(--accent-purple)]/3 blur-[60px] rounded-full ambient-pulse" />
+      <header className="pb-4">
         <TextReveal>
-          <div className="relative">
+          <div>
             <div className="flex items-center gap-3 mb-4">
               <Image src="/mingjian-icon.jpg" alt="明鉴" width={40} height={40} className="rounded-lg object-cover" />
               <SectionLabel>{t("dashboard.welcome")}</SectionLabel>
             </div>
-            <AnimatedGradientText className="block max-w-2xl text-4xl font-bold leading-[1.1] tracking-[-0.035em] text-balance">
+            <h1 className="heading-display max-w-2xl">
               {t("dashboard.tagline")}
-            </AnimatedGradientText>
+            </h1>
             <p className="mt-4 max-w-xl text-[15px] text-[var(--muted-foreground)] leading-relaxed tracking-[-0.01em]">
               {t("dashboard.taglineSubtitle")}
             </p>
@@ -286,7 +270,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Overview Metrics ─────────────────────────────────────────────────── */}
-      <StaggerContainer className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4" staggerDelay={0.06}>
+      <StaggerContainer className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" staggerDelay={0.06}>
         <StaggerItem className="min-w-0">
           <MetricPanel
             large
@@ -348,11 +332,11 @@ export default function DashboardPage() {
       </StaggerContainer>
 
       {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
-      <StaggerContainer className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(280px,0.85fr)_minmax(280px,0.85fr)_minmax(520px,1.3fr)]" staggerDelay={0.06}>
+      <StaggerContainer className="grid grid-cols-1 gap-4 lg:grid-cols-3" staggerDelay={0.06}>
         <StaggerItem className="min-w-0">
-          <section className="h-full min-h-[270px] rounded-2xl liquid-glass p-7">
+          <section className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
             <h2 className="mb-1 heading-section text-balance">{t("dashboard.quickActions")}</h2>
-            <div className="mt-4 space-y-0 divide-y divide-[var(--foreground)]/5">
+            <div className="mt-4">
               <QuickAction
                 label={t("dashboard.newAnalysis")}
                 description={t("dashboard.newAnalysisDescription")}
@@ -393,7 +377,7 @@ export default function DashboardPage() {
                         style={{
                           height: "100%",
                           transform: `scaleY(${value / max})`,
-                          background: `linear-gradient(to top, var(--accent), rgba(127, 159, 144, ${0.3 + i * 0.2}))`,
+                          background: "var(--accent)",
                         }}
                       />
                     </div>
@@ -407,8 +391,8 @@ export default function DashboardPage() {
           </MetricPanel>
         </StaggerItem>
 
-        <StaggerItem className="min-w-0 lg:col-span-2 xl:col-span-1">
-          <section className="h-full min-h-[270px] rounded-2xl liquid-glass p-7">
+        <StaggerItem className="min-w-0">
+          <section className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="heading-section text-balance">{t("dashboard.recentSessions")}</h2>
               <Zap size={16} className="text-[var(--accent)]/60" />

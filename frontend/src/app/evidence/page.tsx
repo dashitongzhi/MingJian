@@ -118,13 +118,9 @@ function StateBlock({ title, description, icon }: { title: string; description?:
 
 function EditorShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden liquid-glass rounded-xl">
+    <div className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
       <div className="flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card)] px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]/60" />
-          <span className="h-2 w-2 rounded-full bg-[var(--accent-amber)]/60" />
-          <span className="h-2 w-2 rounded-full bg-[var(--accent-green)]/60" />
-        </div>
+        <div className="section-label">Detail</div>
         <div className="section-label">evidence.md</div>
       </div>
       {children}
@@ -217,7 +213,7 @@ export default function EvidencePage() {
             <TabsTrigger
               key={tabItem.key}
               value={tabItem.key}
-              className="flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium rounded-lg transition-all duration-200 magnetic-hover data-active:bg-[var(--accent)]/8 data-active:text-[var(--foreground)] data-active:border data-active:border-[var(--accent)]/20 text-[var(--muted)] hover:text-[var(--muted-foreground)] hover:bg-[var(--card-hover)] border border-transparent"
+              className="flex items-center gap-2 border-b border-transparent px-3 py-2.5 text-left text-[12px] font-medium text-[var(--muted)] transition-colors duration-150 data-active:border-b-[var(--accent)] data-active:text-[var(--foreground)] hover:text-[var(--muted-foreground)]"
             >
               {tabItem.icon}
               <span className="truncate">{t(tabItem.labelKey)}</span>
@@ -225,7 +221,7 @@ export default function EvidencePage() {
           ))}
         </TabsList>
       </div>
-      <div className="divider-subtle" />
+      <div className="divider-line" />
 
       {/* ── Evidence Tab ──────────────────────────────────────────────────────── */}
       <TabsContent value="evidence" className="mt-0">
@@ -238,14 +234,14 @@ export default function EvidencePage() {
                   <path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
-                  className="glass w-full rounded-md py-3 pl-7 pr-3 text-[13px] outline-none placeholder:text-[var(--muted)] focus:text-[var(--foreground)]"
+                  className="w-full rounded-md border border-[var(--input)] bg-[var(--background)] py-3 pl-7 pr-3 text-[13px] outline-none placeholder:text-[var(--muted)] focus:text-[var(--foreground)]"
                   placeholder={t("evidence.searchPlaceholder")}
                   value={listQuery}
                   onChange={(event) => setListQuery(event.target.value)}
                 />
               </div>
               <select
-                className="glass rounded-md py-3 px-3 text-[13px] text-[var(--muted-foreground)] outline-none"
+                className="rounded-md border border-[var(--input)] bg-[var(--background)] py-3 px-3 text-[13px] text-[var(--muted-foreground)] outline-none"
                 value={confidenceFilter}
                 onChange={(event) => setConfidenceFilter(event.target.value as ConfidenceFilter)}
               >
@@ -278,7 +274,7 @@ export default function EvidencePage() {
                   <button
                     key={e.id}
                     onClick={() => setSelectedEvidenceId(e.id)}
-                    className={`group w-full py-5 text-left transition-all duration-200 hover:pl-2 ${
+                    className={`group w-full border-b border-[var(--card-border)] py-5 text-left transition-opacity duration-150 last:border-b-0 ${
                       selectedEvidence?.id === e.id ? "opacity-100" : "opacity-70 hover:opacity-100"
                     }`}
                   >
@@ -295,35 +291,37 @@ export default function EvidencePage() {
             )}
           </section>
 
-          <section>
+          <section className="min-w-0 overflow-hidden">
             <EditorShell>
               {selectedEvidence ? (
-                <div className="grid grid-cols-[44px_1fr] font-mono text-[13px] leading-7">
+                <div className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)] overflow-hidden font-mono text-[13px] leading-7">
                   <div className="select-none border-r border-[var(--card-border)] bg-[var(--card)]/40 py-5 text-right text-xs text-[var(--muted)]">
                     {Array.from({ length: 10 }).map((_, i) => (
                       <div key={i} className="px-3">{i + 1}</div>
                     ))}
                   </div>
-                  <div className="min-h-[520px] px-5 py-5">
+                  <div className="min-w-0 min-h-[520px] overflow-auto px-5 py-5">
                     <div className="section-label !text-[var(--muted)]"># {t("common.title")}</div>
-                    <h2 className="mb-5 text-xl font-semibold font-sans leading-tight">{selectedEvidence.title}</h2>
+                    <h2 className="mb-5 truncate text-xl font-semibold font-sans leading-tight">{selectedEvidence.title}</h2>
                     <div className="section-label !text-[var(--muted)]">## {t("common.summary")}</div>
                     <p className="mb-6 whitespace-pre-wrap font-sans text-[13px] leading-7 text-[var(--muted-foreground)]">
                       {selectedEvidence.summary}
                     </p>
                     <div className="section-label !text-[var(--muted)]">## {t("evidence.confidence")}</div>
-                    <div className="mt-3 flex items-center gap-4">
+                    <div className="mt-3 flex min-w-0 items-center gap-4 overflow-hidden">
                       <div className="h-1.5 flex-1 bg-[var(--card-border)] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[var(--accent)] transition-all duration-700 ease-out rounded-full"
                           style={{ width: `${selectedEvidence.confidence * 100}%` }}
                         />
                       </div>
-                      <ConfidenceBadge value={selectedEvidence.confidence} />
+                      <span className="shrink-0">
+                        <ConfidenceBadge value={selectedEvidence.confidence} />
+                      </span>
                     </div>
-                    <div className="mt-8 divider-subtle pt-5 text-xs text-[var(--muted)]">
-                      <span className="mr-4">id: {selectedEvidence.id}</span>
-                      <span>{selectedEvidence.created_at}</span>
+                    <div className="mt-8 flex min-w-0 items-center gap-4 overflow-hidden divider-subtle pt-5 text-xs text-[var(--muted)]">
+                      <span className="min-w-0 truncate">id: {selectedEvidence.id}</span>
+                      <span className="shrink-0 truncate">{selectedEvidence.created_at}</span>
                     </div>
                   </div>
                 </div>
@@ -362,7 +360,7 @@ export default function EvidencePage() {
             />
           )}
           {!clLoading && !clError && cl && cl.length > 0 && (
-            <div className="liquid-glass rounded-xl overflow-hidden">
+            <div className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
               <div className="grid grid-cols-[1fr_100px_100px] gap-4 p-4 pb-3 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--muted)]">
                 <span>{t("evidence.statement")}</span>
                 <span className="text-right">{t("evidence.confidence")}</span>
@@ -387,7 +385,7 @@ export default function EvidencePage() {
       <TabsContent value="graph" className="mt-0">
         <section className="grid gap-8 lg:grid-cols-[420px_1fr] animate-fadeIn">
           <div className="space-y-6">
-            <div className="liquid-glass rounded-xl p-5">
+            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
               <label className="section-label mb-2 block">
                 {t("evidence.searchResults")}
               </label>
@@ -397,7 +395,7 @@ export default function EvidencePage() {
                   <path d="m21 21-4.35-4.35" />
                 </svg>
                 <input
-                  className="glass w-full rounded-md py-4 pl-7 pr-3 text-[13px] outline-none placeholder:text-[var(--muted)]"
+                  className="w-full rounded-md border border-[var(--input)] bg-[var(--background)] py-4 pl-7 pr-3 text-[13px] outline-none placeholder:text-[var(--muted)]"
                   placeholder={t("evidence.searchPlaceholder")}
                   value={graphQuery}
                   onChange={(event) => setGraphQuery(event.target.value)}
@@ -408,7 +406,7 @@ export default function EvidencePage() {
             {srLoading && <SkeletonRows count={3} />}
             {srError && <StateBlock title={t("common.failed")} description={String(srError.message || srError)} />}
             {sr && sr.length > 0 && (
-              <div className="liquid-glass rounded-xl divide-y divide-[var(--card-border)]/50 overflow-hidden stagger-children">
+              <div className="overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)] divide-y divide-[var(--card-border)]/50 stagger-children">
                 {sr.map((r) => (
                   <div key={r.node_id} className="flex items-center justify-between gap-4 px-5 py-4">
                     <div className="text-[13px]">{r.label}</div>
@@ -419,7 +417,7 @@ export default function EvidencePage() {
             )}
           </div>
 
-          <div className="min-h-[460px] liquid-glass rounded-xl p-6">
+          <div className="min-h-[460px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
             {graphLoading && <SkeletonRows count={8} />}
             {graphError && <StateBlock title={t("common.failed")} description={String(graphError.message || graphError)} />}
             {graph && (
@@ -485,7 +483,7 @@ export default function EvidencePage() {
           {sbError && <StateBlock title={t("common.failed")} description={String(sbError.message || sbError)} />}
           {sb && (
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr] stagger-children">
-              <div className="liquid-glass rounded-xl">
+              <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
                 <div className="grid grid-cols-2 gap-x-8 gap-y-10 p-8 md:grid-cols-4">
                   <div>
                     <div className="text-4xl font-semibold tabular-nums">{sb.total_hypotheses}</div>
@@ -507,7 +505,7 @@ export default function EvidencePage() {
                   </div>
                 </div>
               </div>
-              <div className="liquid-glass rounded-xl grid grid-cols-3 gap-px overflow-hidden">
+              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)]">
                 <div className="bg-[var(--background)] p-6">
                   <div className="text-3xl font-semibold text-[var(--accent-green)] tabular-nums">{sb.confirmed}</div>
                   <div className="mt-2 section-label !text-[var(--muted)]">{t("evidence.confirmed")}</div>
@@ -522,7 +520,7 @@ export default function EvidencePage() {
                 </div>
               </div>
               {/* Calibration Curve Chart */}
-              <div className="col-span-full liquid-glass rounded-xl p-6">
+              <div className="col-span-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
                 <h3 className="heading-section mb-4">{t("evidence.calibration")}</h3>
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart

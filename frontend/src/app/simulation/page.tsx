@@ -186,11 +186,11 @@ export default function SimulationPage() {
           </button>
         </div>
       </div>
-      <div className="divider-subtle" />
+      <div className="divider-line" />
 
       {/* ── Create Form ── */}
       {showCreate && (
-        <section className="animate-fadeIn liquid-glass rounded-xl p-6">
+        <section className="animate-fadeIn rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
           <div className="mb-6 flex items-center justify-between gap-6">
             <h2 className="heading-section">{t("simulation.createNewSimulation")}</h2>
             <div className="hidden gap-3 section-label !text-[var(--muted)] md:flex">
@@ -202,7 +202,7 @@ export default function SimulationPage() {
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1fr_220px]">
             <div className="border-l border-[var(--accent)] pl-5">
               <label className="section-label">{t("simulation.domain")}</label>
-              <select className="glass mt-3 w-full rounded-md px-3 py-2 text-lg outline-none" value={domain} onChange={(event) => setDomain(event.target.value)}>
+              <select className="mt-3 w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-lg outline-none" value={domain} onChange={(event) => setDomain(event.target.value)}>
                 <option value="corporate">{t("simulation.corporate")}</option>
                 <option value="military">{t("simulation.military")}</option>
               </select>
@@ -238,7 +238,7 @@ export default function SimulationPage() {
       {/* ── Main Content ── */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[390px_1fr]">
         {/* Sidebar — Runs List */}
-        <aside className="liquid-glass rounded-xl p-5">
+        <aside className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="heading-section">{t("simulation.simulationRuns")}</h2>
             <span className="font-mono text-xs text-[var(--muted)]">{runs?.length ?? 0}</span>
@@ -271,7 +271,7 @@ export default function SimulationPage() {
             <>
               <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 {/* KPI Comparator */}
-                <div className="liquid-glass rounded-xl p-5">
+                <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
                   <div className="mb-5 flex items-center justify-between">
                     <h2 className="heading-section">{t("simulation.kpiComparator")}</h2>
                     <span className="font-mono text-xs text-[var(--muted)]">{metrics.length}</span>
@@ -286,7 +286,7 @@ export default function SimulationPage() {
 
                 {/* Geo Assets */}
                 {wb.geo_map?.assets?.length > 0 && (
-                  <div className="liquid-glass rounded-xl p-5">
+                  <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
                     <div className="mb-5 flex items-center justify-between gap-4">
                       <h2 className="heading-section">{t("simulation.geoAssets")}</h2>
                       {wb.geo_map.theater && <span className="font-mono text-xs text-[var(--muted)]">{wb.geo_map.theater}</span>}
@@ -302,7 +302,7 @@ export default function SimulationPage() {
 
               {/* Timeline */}
               {wb.timeline.length > 0 && (
-                <section className="liquid-glass rounded-xl p-6">
+                <section className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
                   <div className="mb-6 flex items-center justify-between">
                     <h2 className="heading-section">{t("simulation.timeline")}</h2>
                     <span className="font-mono text-xs text-[var(--muted)]">{wb.timeline.length}</span>

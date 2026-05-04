@@ -40,7 +40,7 @@ type CustomProviderValues = z.infer<typeof customProviderSchema>;
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 function inputClass(hasError?: boolean) {
-  return `input w-full ${
+  return `w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)] ${
     hasError ? "border-[var(--accent-red)]" : ""
   }`;
 }
@@ -69,7 +69,7 @@ function ProviderCard({
   return (
     <button
       onClick={onConfigure}
-      className="group grid min-h-[150px] w-full grid-rows-[auto_1fr_auto] card rounded-xl p-5 text-left magnetic-hover"
+      className="group grid min-h-[150px] w-full grid-rows-[auto_1fr_auto] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 text-left transition-colors duration-150 hover:border-[var(--muted)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -78,7 +78,9 @@ function ProviderCard({
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{provider.name || provider.id}</div>
-            <div className="mt-1 truncate text-xs text-[var(--muted)]">{provider.base_url}</div>
+            <div className="mt-1 truncate text-xs text-[var(--muted)]" title={provider.base_url}>
+              {provider.base_url}
+            </div>
           </div>
         </div>
         <ProviderStatus configured={provider.api_key_set} />
@@ -203,9 +205,9 @@ function PanelShell({
   rail: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--overlay)] p-4" onClick={onClose}>
       <div
-        className="grid w-full max-w-4xl overflow-hidden rounded-xl card animate-fadeIn md:grid-cols-[220px_1fr]"
+        className="grid w-full max-w-4xl overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)] animate-fadeIn md:grid-cols-[220px_1fr]"
         onClick={(e) => e.stopPropagation()}
       >
         {rail}
@@ -462,7 +464,7 @@ function AddCustomCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="grid min-h-[150px] w-full place-items-center rounded-xl border border-dashed border-[var(--card-border)] bg-transparent p-5 text-center magnetic-hover transition-[border-color,background-color] duration-200 hover:border-[var(--accent)] hover:bg-[var(--card)]"
+      className="grid min-h-[150px] w-full place-items-center rounded-lg border border-dashed border-[var(--card-border)] bg-[var(--card)] p-5 text-center transition-colors duration-150 hover:border-[var(--muted)]"
     >
       <div>
         <div className="mx-auto grid h-9 w-9 place-items-center rounded-lg border border-[var(--card-border)] text-lg text-[var(--accent)]">+</div>
@@ -739,7 +741,7 @@ export default function ProvidersPage() {
             <h1 className="heading-display">{t("providers.title")}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("providers.subtitlePrefix")}</p>
           </div>
-          <div className="liquid-glass rounded-xl p-5">
+          <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
             <div className="flex items-center justify-between">
               <span className="section-label">{t("providers.providers")}</span>
               <span className="font-mono text-xs text-[var(--accent)]">{configuredCount}/{totalProviders}</span>
@@ -753,7 +755,7 @@ export default function ProvidersPage() {
           </div>
         </div>
 
-        <div className="divider-subtle" />
+        <div className="divider-line" />
 
         {isLoading && <ProvidersSkeleton />}
 

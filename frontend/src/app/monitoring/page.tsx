@@ -261,7 +261,7 @@ export default function MonitoringPage() {
           <h1 className="heading-display">{t("monitoring.title")}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("monitoring.subtitle")}</p>
         </div>
-        <div className="liquid-glass self-end rounded-xl p-5">
+        <div className="self-end rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
           <div className="flex items-center justify-between">
             <span className="section-label">{t("monitoring.watchRules")}</span>
             <span className="font-mono text-xs text-[var(--accent-green)]">{healthyRules}/{watchRules.length}</span>
@@ -275,7 +275,7 @@ export default function MonitoringPage() {
         </div>
       </div>
 
-      <div className="divider-subtle" />
+      <div className="divider-line" />
 
       {loading && <SkeletonPanel />}
 
@@ -290,11 +290,11 @@ export default function MonitoringPage() {
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-6">
           {/* ── Watch Rules Panel ─────────────────────────────────────────── */}
           <BentoPanel title={t("monitoring.watchRules")} className="xl:col-span-4 xl:row-span-2">
-            <div className="grid grid-cols-1 gap-x-8 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-8 divide-y divide-[var(--card-border)] lg:grid-cols-2">
               {watchRules.map((rule) => {
                 const healthy = rule.healthy ?? (rule.status || "").toUpperCase() === "HEALTHY";
                 return (
-                  <div key={rule.id} className="grid grid-cols-[14px_1fr_auto] items-start gap-3 border-b border-[var(--card-border)] py-4 last:border-b-0">
+                  <div key={rule.id} className="grid grid-cols-[14px_1fr_auto] items-start gap-3 py-4">
                     <div className="pt-1.5">
                       <HealthDot healthy={healthy} failures={rule.failures} />
                     </div>

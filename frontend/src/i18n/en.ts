@@ -76,6 +76,8 @@ const en = {
     noSessions: "No sessions yet",
     noSessionsDescription: "Start a new strategic analysis to see your sessions here",
     brier: "Brier",
+    sessionName: "Session Name",
+    createdAt: "Created At",
   },
   assistant: {
     title: "Strategic Assistant",
@@ -199,6 +201,7 @@ const en = {
     geoAssets: "Geo Assets",
     selectRun: "Select a simulation run",
     selectRunDescription: "Choose a simulation from the list to view its workbench and analysis results",
+    actorTemplate: "Actor Template",
   },
   evidence: {
     title: "Intelligence Center",

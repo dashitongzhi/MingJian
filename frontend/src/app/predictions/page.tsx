@@ -235,7 +235,7 @@ export default function PredictionsPage() {
           <h1 className="heading-display">{t("predictions.title")}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">{t("predictions.subtitle")}</p>
         </div>
-        <div className="liquid-glass rounded-xl p-5">
+        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="section-label mb-2">{t("predictions.series")}</div>
@@ -249,7 +249,7 @@ export default function PredictionsPage() {
         </div>
       </div>
 
-      <div className="divider-subtle" />
+      <div className="divider-line" />
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[390px_1fr]">
@@ -275,13 +275,13 @@ export default function PredictionsPage() {
                 <button
                   key={prediction.id}
                   onClick={() => loadTimeline(prediction.id)}
-                  className={`group grid w-full grid-cols-[56px_1fr] gap-4 px-0 py-4 text-left transition-[background-color,opacity] duration-200 border-b border-[var(--card-border)] last:border-b-0 ${
-                    selected ? "bg-[var(--accent)]/8" : "hover:bg-[var(--card)]"
+                  className={`group grid w-full grid-cols-[56px_1fr] gap-4 px-0 py-4 text-left transition-[opacity] duration-150 border-b border-[var(--card-border)] last:border-b-0 ${
+                    selected ? "bg-[var(--sidebar-accent)]" : ""
                   }`}
                 >
                   <div className="pl-3 font-mono text-xs text-[var(--muted)]">
                     <div className={selected ? "text-[var(--accent)]" : ""}>v{currentVersion}</div>
-                    <div className="mt-2 h-px w-8 bg-[var(--card-border)] group-hover:bg-[var(--accent)]/50" />
+                    <div className="mt-2 h-px w-8 bg-[var(--card-border)]" />
                   </div>
                   <div className="min-w-0 pr-3">
                     <div className="flex items-start justify-between gap-3">
@@ -374,7 +374,7 @@ export default function PredictionsPage() {
                     </div>
                     <div className="relative border-l border-[var(--card-border)] pl-6">
                       <span className="absolute -left-[5px] top-2 h-2.5 w-2.5 rounded-full border border-[var(--accent)] bg-[var(--card)]" />
-                      <div className="rounded-lg bg-[var(--background)]/70 p-4 ring-1 ring-[var(--card-border)] transition-[transform,opacity,background-color] duration-200 hover:-translate-y-0.5 hover:bg-[var(--background)]">
+                      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-4">
                         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
@@ -415,7 +415,6 @@ export default function PredictionsPage() {
           {!timelineLoading && !timelineError && !selectedSeries && (
             <div className="empty-state py-16">
               <div className="empty-state-title">{t("predictions.timeline")}</div>
-              <div className="empty-state-description">{t("predictions.subtitle")}</div>
             </div>
           )}
 

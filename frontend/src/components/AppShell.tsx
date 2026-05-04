@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { Toaster } from "sonner";
 import WelcomeGuide from "@/components/WelcomeGuide";
@@ -79,7 +78,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
   return (
     <>
-      {/* Brand — logo + text with tight tracking */}
+      {/* Brand */}
       <div className="h-[var(--header-height)] flex items-center px-5">
         <Link href="/" className="flex items-center gap-2.5 group" onClick={onNavClick}>
           <Image
@@ -87,7 +86,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             alt="明鉴"
             width={24}
             height={24}
-            className="rounded-md object-cover transition-transform duration-300 group-hover:scale-105"
+            className="rounded-md object-cover"
             priority
           />
           <span className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
@@ -96,8 +95,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         </Link>
       </div>
 
-      {/* Brand accent line — gradient divider */}
-      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/15 to-transparent" />
+      <div className="mx-4 h-px bg-[var(--sidebar-border)]" />
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-0.5">
@@ -109,22 +107,14 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               href={item.href}
               onClick={onNavClick}
               className={`
-                relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium
-                transition-all duration-200 min-h-[36px] group
+                relative flex min-h-[32px] items-center gap-2 px-2.5 py-1.5 text-[13px] font-medium
+                border-l transition-colors duration-150 group
                 ${isActive
-                  ? "text-[var(--foreground)] bg-[var(--card)] shadow-sm shadow-[var(--accent)]/5"
-                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)]/60"
+                  ? "border-l-[var(--accent)] bg-[var(--sidebar-accent)] text-[var(--foreground)]"
+                  : "border-l-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 }
               `}
             >
-              {/* Animated active indicator via Framer Motion layoutId */}
-              {isActive && (
-                <motion.div
-                  layoutId="nav-active-indicator"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-[var(--accent)] shadow-sm shadow-[var(--accent)]/30"
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                />
-              )}
               <span className={isActive ? "text-[var(--accent)]" : "opacity-70 group-hover:opacity-100 transition-opacity"}>
                 {item.icon}
               </span>
@@ -135,7 +125,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       </nav>
 
       {/* Section divider — subtle gradient */}
-      <div className="divider-subtle mx-4" />
+      <div className="divider-line mx-4" />
 
       {/* User section */}
       <div className="p-4">
@@ -177,25 +167,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* ── Desktop Sidebar (240px, glass background) ─────────────────────── */}
-      <aside className="hidden md:flex w-[var(--sidebar-width)] glass flex-col">
+      {/* ── Desktop Sidebar ──────────────────────────────────────────────── */}
+      <aside className="hidden w-[var(--sidebar-width)] flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] md:flex">
         <SidebarContent />
       </aside>
 
-      {/* ── Mobile Drawer Overlay (backdrop-blur) ─────────────────────────── */}
+      {/* ── Mobile Drawer Overlay ────────────────────────────────────────── */}
       {drawerOpen && (
         <div
-          className="fixed inset-0 z-40 bg-[var(--overlay)] backdrop-blur-sm md:hidden animate-fadeIn"
+          className="fixed inset-0 z-40 bg-[var(--overlay)] md:hidden animate-fadeIn"
           onClick={closeDrawer}
           aria-hidden="true"
         />
       )}
 
-      {/* ── Mobile Drawer (280px, backdrop-blur-xl) ───────────────────────── */}
+      {/* ── Mobile Drawer ────────────────────────────────────────────────── */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-[280px] backdrop-blur-xl bg-[var(--sidebar)]/90
-          border-r border-[var(--card-border)]/50 flex flex-col
+          fixed inset-y-0 left-0 z-50 w-[280px] bg-[var(--sidebar)]
+          border-r border-[var(--sidebar-border)] flex flex-col
           transition-transform duration-300 ease-out md:hidden
           ${drawerOpen ? "translate-x-0" : "-translate-x-full"}
         `}
@@ -205,12 +195,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Main Content Area ─────────────────────────────────────────────── */}
       <main className="flex-1 overflow-auto min-w-0">
-        {/* Header (56px sticky, glass with border-bottom) */}
-        <header className="h-[var(--header-height)] glass sticky top-0 z-10 flex items-center justify-between px-4 md:px-6 border-b border-[var(--card-border)]/30">
+        {/* Header */}
+        <header className="h-[var(--header-height)] sticky top-0 z-10 flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--background)]/80 px-4 md:px-6">
           <div className="flex items-center gap-3">
             {/* Mobile hamburger */}
             <button
-              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card-hover)] transition-colors"
+              className="md:hidden flex h-9 w-9 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
               onClick={() => setDrawerOpen(!drawerOpen)}
               aria-label="Toggle menu"
             >
@@ -228,7 +218,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <LanguageSwitcher />
             <ThemeToggle />
             <WelcomeGuide />
-            <button className="btn btn-ghost btn-sm magnetic-hover hidden sm:flex" aria-label="Notifications">
+            <button className="btn btn-ghost btn-sm hidden sm:flex" aria-label="Notifications">
               <Bell size={16} />
             </button>
           </div>

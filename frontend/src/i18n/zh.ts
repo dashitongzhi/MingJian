@@ -78,6 +78,8 @@ const zh: Translations = {
     noSessions: "暂无会话",
     noSessionsDescription: "新建一次战略分析后，会话将显示在这里",
     brier: "Brier",
+    sessionName: "会话名称",
+    createdAt: "创建时间",
   },
   assistant: {
     title: "战略助手",
@@ -201,6 +203,7 @@ const zh: Translations = {
     geoAssets: "地理资产",
     selectRun: "选择一次推演记录",
     selectRunDescription: "从左侧列表选择推演，查看工作台与分析结果",
+    actorTemplate: "角色模板",
   },
   evidence: {
     title: "情报中心",
