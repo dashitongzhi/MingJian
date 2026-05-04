@@ -482,6 +482,7 @@ git push origin feature/amazing-feature
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - 数据库
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - 事件流
 - [MinIO](https://min.io/) - 对象存储
+- [Linux.do](https://linux.do) - 开源社区支持与交流
 
 ---
 

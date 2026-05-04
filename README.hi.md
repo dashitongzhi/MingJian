@@ -484,6 +484,7 @@ git push origin feature/amazing-feature
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - डेटाबेस
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - इवेंट स्ट्रीमिंग
 - [MinIO](https://min.io/) - ऑब्जेक्ट स्टोरेज
+- [Linux.do](https://linux.do) - ओपन-सोर्स कम्युनिटी सपोर्ट और संवाद
 
 ---
 

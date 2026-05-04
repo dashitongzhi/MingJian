@@ -484,6 +484,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - Database
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - Event streaming
 - [MinIO](https://min.io/) - Object storage
+- [Linux.do](https://linux.do) - 开源社区支持与交流
 
 ---
 
