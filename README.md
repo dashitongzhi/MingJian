@@ -489,9 +489,11 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) for deta
 
 ---
 
-## 📞 Support
+## 📞 Support & Contact
 
-- 📧 Email: [Your Email]
+If you're interested in this project — whether for collaboration, feedback, or just a chat — feel free to reach out! We'd love to hear from you.
+
+- 📧 Email: [cajd6876@gmail.com](mailto:cajd6876@gmail.com) | [2965866908@qq.com](mailto:2965866908@qq.com)
 - 🐛 Issues: [GitHub Issues](https://github.com/dashitongzhi/MingJian/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/dashitongzhi/MingJian/discussions)
 
