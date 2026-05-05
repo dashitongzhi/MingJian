@@ -87,14 +87,16 @@ export interface AgentStatus {
   name_en: string;
   icon: string;
   description: string;
-  provider_type: string;
-  model: string;
+  recommended_models: string[];
+  model_override: string;
+  effective_model: string;
   has_key: boolean;
   priority: number;
 }
 export interface AgentRegistryStatus {
   total: number;
   ready: number;
+  spare_keys: number;
   agents: AgentStatus[];
 }
 export interface ApiKeyInput {
@@ -106,6 +108,8 @@ export interface ApiKeyInput {
 export const fetchAgentStatus = () => fetch_<AgentRegistryStatus>("/agents/status");
 export const configureAgents = (keys: ApiKeyInput[]) =>
   fetch_<AgentRegistryStatus>("/agents/configure", { method: "POST", body: JSON.stringify({ keys }) });
+export const setAgentModel = (role: string, model: string) =>
+  fetch_<AgentRegistryStatus>("/agents/model", { method: "POST", body: JSON.stringify({ role, model }) });
 export const resetAgents = () => fetch_<AgentRegistryStatus>("/agents/reset", { method: "POST" });
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -24,21 +24,24 @@ class ConfigureRequest(BaseModel):
     keys: list[ApiKeyInput]
 
 
+class ModelOverrideRequest(BaseModel):
+    role: str
+    model: str  # 空字符串 = 恢复系统推荐
+
+
 # ── 端点 ──────────────────────────────────────────────────
 
 
 @router.get("")
 async def list_agents():
     """列出所有 9 个智能体及其状态"""
-    registry = get_agent_registry()
-    return registry.get_status()
+    return get_agent_registry().get_status()
 
 
 @router.get("/status")
 async def agent_status():
     """获取智能体注册中心状态"""
-    registry = get_agent_registry()
-    return registry.get_status()
+    return get_agent_registry().get_status()
 
 
 @router.post("/configure")
@@ -49,8 +52,15 @@ async def configure_agents(req: ConfigureRequest):
     return registry.get_status()
 
 
+@router.post("/model")
+async def set_model_override(req: ModelOverrideRequest):
+    """设置单个智能体的模型选择"""
+    registry = get_agent_registry()
+    registry.set_model_override(req.role, req.model)
+    return registry.get_status()
+
+
 @router.post("/reset")
 async def reset_agents():
     """重置所有智能体配置"""
-    registry = reset_agent_registry()
-    return registry.get_status()
+    return reset_agent_registry().get_status()
