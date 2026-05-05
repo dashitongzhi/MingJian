@@ -124,19 +124,22 @@ Inspired by **Mixture of Experts (MoE)** architecture: core agents are always ac
 
 ## 🆚 明鉴 vs The Competition
 
-| Feature | 明鉴 | Traditional AI | Single-Agent | LangChain |
-|---------|------|----------------|--------------|-----------|
-| **Data Sources** | ✅ 10+ real-time | ❌ Manual input | ⚠️ Limited | ⚠️ Limited |
-| **Evidence Chain** | ✅ Full traceability | ❌ No tracking | ❌ No tracking | ❌ No tracking |
-| **Multi-Agent Debate** | ✅ Adversarial reasoning | ❌ Single model | ❌ Single model | ⚠️ Basic |
-| **Decision Traces** | ✅ Deterministic | ❌ Black box | ❌ Black box | ❌ Black box |
-| **Self-Repair** | ✅ Jarvis engine | ❌ None | ❌ None | ❌ None |
-| **Streaming Analysis** | ✅ Real-time | ❌ Batch only | ❌ Batch only | ⚠️ Limited |
-| **Corporate Domain** | ✅ Full support | ⚠️ Generic | ❌ Generic | ❌ Generic |
-| **Military Domain** | ✅ Full support | ⚠️ Generic | ❌ Generic | ❌ Generic |
-| **Scenario Branching** | ✅ Beam-search | ❌ Manual | ❌ None | ❌ None |
-| **Knowledge Graph** | ✅ Embedding-backed | ❌ None | ❌ None | ❌ None |
-| **Open Source** | ✅ MIT License | ⚠️ Varies | ⚠️ Varies | ✅ Various |
+| Feature | 明鉴 | Manus | Traditional AI | Single-Agent | LangChain |
+|---------|------|-------|----------------|--------------|-----------|
+| **Data Sources** | ✅ 10+ real-time | ⚠️ General search | ❌ Manual input | ⚠️ Limited | ⚠️ Limited |
+| **Evidence Chain** | ✅ Full traceability | ❌ No tracking | ❌ No tracking | ❌ No tracking | ❌ No tracking |
+| **Multi-Agent Debate** | ✅ 9-agent adversarial | ⚠️ Orchestrator + sub-agents | ❌ Single model | ❌ Single model | ⚠️ Basic |
+| **Decision Traces** | ✅ Deterministic | ❌ Black box | ❌ Black box | ❌ Black box | ❌ Black box |
+| **Self-Repair** | ✅ Jarvis engine | ⚠️ Dynamic re-planning | ❌ None | ❌ None | ❌ None |
+| **Streaming Analysis** | ✅ Real-time | ✅ Real-time | ❌ Batch only | ❌ Batch only | ⚠️ Limited |
+| **Continuous Monitoring** | ✅ WatchRule + auto-update | ❌ One-shot tasks | ❌ None | ❌ None | ❌ None |
+| **Corporate Domain** | ✅ Full support | ❌ Generic | ⚠️ Generic | ❌ Generic | ❌ Generic |
+| **Military Domain** | ✅ Full support | ❌ Generic | ⚠️ Generic | ❌ Generic | ❌ Generic |
+| **Scenario Branching** | ✅ Beam-search | ❌ None | ❌ Manual | ❌ None | ❌ None |
+| **Knowledge Graph** | ✅ Embedding-backed | ❌ None | ❌ None | ❌ None | ❌ None |
+| **Code Execution** | ⚠️ Planned | ✅ Full sandbox VM | ❌ None | ⚠️ Limited | ❌ None |
+| **Data Sovereignty** | ✅ Self-hosted | ❌ Cloud only | ⚠️ Varies | ⚠️ Varies | ✅ Self-hosted |
+| **Open Source** | ✅ MIT License | ❌ Closed source | ⚠️ Varies | ⚠️ Varies | ✅ Various |
 
 ---
 
