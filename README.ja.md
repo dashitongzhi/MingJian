@@ -1,518 +1,543 @@
-<div align="center">
-
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
-
-# 明鉴 (MingJian)
-
-### *明察秋毫、鑑往知来*
-
-**AI駆動マルチエージェントプラットフォーム | 証拠駆動シナリオシミュレーションと戦略的意思決定**
-
----
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
-
-**🌐 言語選択 / Language Selection**
-
-[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
-
----
-
-![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
-
-</div>
-
----
-
-## 🌟 なぜ明鉴を選ぶのか？
-
-> **「証拠駆動分析、マルチエージェントディベート、リアルタイムシミュレーションを一つの統合ワークスペースに結合した最初のオープンソースプラットフォーム」**
-
-明鉴は単なるAIツールではありません — 組織が戦略的意思決定を行う方法における**パラダイムシフト**です。10以上のリアルタイムデータソース、対立型マルチエージェントディベート、そして決定論的な意思決定トレースを組み合わせることで、明鉴は従来のAIシステムを悩ませる「ブラックボックス」問題を排除します。
-
----
-
-## 🎯 現在のインテリジェント分析の問題点
-
-現在のAI分析システム — ChatGPTからエンタープライズコパイロットまで — すべてが同じ根本的な欠陥を持っています：
-
-- ❌ **ハルシネーションを事実として扱う** — LLMは統計情報、出典、結論を実データに基づかずに自信を持ってでっち上げます。真実と虚構の区別がつきません。
-- ❌ **単一モデルのブラインドスポット** — 一つのモデル、一つの世界観。相互検証もなく、対立的な挑戦もなく、第二の意見もありません。バイアスは検出されません。
-- ❌ **ブラックボックスの推論** — 答えは得られますが、*どのように*？証拠の連鎖も、出典の帰属もなく、ロジックの監査や再現もできません。
-- ❌ **古い知識、証拠なし** — モデルは時間的に凍結されたトレーニングデータに依存しています。ニュース、市場、センサーからリアルタイムインテリジェンスを取得できません — *知る*のではなく*推測*しているのです。
-- ❌ **自己修正なし** — AIの出力は「発射して忘れる」方式です。エラーは黙って伝播します。レビューループも、品質ゲートも、反復的な精査もありません。
-- ❌ **断片化したワークフロー** — データ収集、分析、ディベート、レポート作成が別々のツールで行われます。各引き継ぎのたびにコンテキストが失われます。
-- ❌ **再現性ゼロ** — 同じクエリを2回実行すると、異なる答えが返されます。決定論的なトレースも、意思決定ログも、説明責任もありません。
-
-## 💡 明鉴の解決策
-
-明鉴は推測を**証拠**に、意見を**ディベート**に、ブラックボックスを**トレース**に置き換えます：
-
-- ✅ **証拠に基づく** — すべての分析が10以上のソース（Google News、Reddit、GitHub、GDELT、X/Twitterなど）からのリアルタイムデータに基づいて構築されます。ハルシネーションも捏造もありません。
-- ✅ **マルチエージェント対立型ディベート** — GPT、Gemini、Claude、Grokは単に同意するだけでなく、お互いに**挑戦**します。ブラインドスポットが露呈し、バイアスに異議が唱えられます。
-- ✅ **完全な監査証跡** — すべてのステップが記録されます：参照したソース、行われた議論、意思決定。完全に透明で、完全に再現可能です。
-- ✅ **リアルタイムインテリジェンス** — ライブデータの取り込み、ストリーミング分析、即時インサイトの提供。凍結されたトレーニングデータはありません。
-- ✅ **自己修復パイプライン** — Jarvisエンジンが自らの出力をレビュー、批評、反復し、品質しきい値に達するまで実行します。エラーはあなたの手に届く前に検出されます。
-
----
-
-## 🔬 コア機能
-
-### 1. 推測ではなく証拠に基づく
-
-**問題点：** 従来のAIツールは作業過程を示さずに答えを提示します。
-
-**明鉴の解決策：** 明鉴は10以上のデータソースからの**現実世界の証拠**に基づいてすべての決定を裏付けます。すべての主張は追跡可能で、すべての決定は監査可能です。
-
-### 2. マルチエージェントディベートプロトコル
-
-**問題点：** 単一のAIモデルにはブラインドスポットとバイアスがあります。
-
-**明鉴の解決策：** 複数のAIモデル（GPT、Gemini、Claude、Grok）があなたの決定について**ディベート**し、仮定に挑戦し、証拠に基づいた結論に到達します。
-
-### 3. デュアルドメイン専門性
-
-**問題点：** ほとんどのAIツールは汎用的で、特定のドメインを理解していません。
-
-**明鉴の解決策：** 明鉴は**企業向け**（市場分析、競合インテリジェンス）と**軍事向け**（作戦計画、兵站）の両方をドメイン固有のルールとモデルでサポートします。
-
-### 4. 意思決定トレースによる完全な監査可能性
-
-**問題点：** AIがどのように結論に至ったか説明できません。
-
-**明鉴の解決策：** すべてのシミュレーションは**決定論的意思決定トレース**を生成します — AIがどのように結論に至ったかのステップバイステップの記録です。ブラックボックスはありません。
-
-### 5. Jarvis自己修復エンジン
-
-**問題点：** AIの出力は間違っている可能性がありますが、気づいた時には手遅れです。
-
-**明鉴の解決策：** 明鉴は自らの出力をレビューし、弱点を特定し、品質しきい値に達するまで反復します — すべて人間の介入なしで実行されます。
-
-### 6. リアルタイムストリーミング分析
-
-**問題点：** AIの完了を待ってから、ブラックボックスの結果を受け取ります。
-
-**明鉴の解決策：** 分析リクエストを送信すると、AIがリアルタイムで作業する様子を確認できます — ストリーミング進捗イベント、ソースの帰属、中間結果とともにお届けします。
-
----
-
-## 🆚 明鉴 vs 競合製品
-
-| 機能 | 明鉴 | 従来のAI | シングルエージェント | LangChain |
-|---------|------|----------------|--------------|-----------|
-| **データソース** | ✅ 10以上のリアルタイム | ❌ 手動入力 | ⚠️ 限定的 | ⚠️ 限定的 |
-| **証拠チェーン** | ✅ 完全な追跡可能性 | ❌ 追跡なし | ❌ 追跡なし | ❌ 追跡なし |
-| **マルチエージェントディベート** | ✅ 対立型推論 | ❌ 単一モデル | ❌ 単一モデル | ⚠️ 基本的 |
-| **意思決定トレース** | ✅ 決定論的 | ❌ ブラックボックス | ❌ ブラックボックス | ❌ ブラックボックス |
-| **自己修復** | ✅ Jarvisエンジン | ❌ なし | ❌ なし | ❌ なし |
-| **ストリーミング分析** | ✅ リアルタイム | ❌ バッチのみ | ❌ バッチのみ | ⚠️ 限定的 |
-| **企業ドメイン** | ✅ 完全サポート | ⚠️ 汎用的 | ❌ 汎用的 | ❌ 汎用的 |
-| **軍事ドメイン** | ✅ 完全サポート | ⚠️ 汎用的 | ❌ 汎用的 | ❌ 汎用的 |
-| **シナリオ分岐** | ✅ ビームサーチ | ❌ 手動 | ❌ なし | ❌ なし |
-| **ナレッジグラフ** | ✅ 埋め込み対応 | ❌ なし | ❌ なし | ❌ なし |
-| **オープンソース** | ✅ MITライセンス | ⚠️ 多様 | ⚠️ 多様 | ✅ 多様 |
-
----
-
-## 🎯 ユースケース
-
-| ユースケース | 説明 | メリット |
-|----------|-------------|---------|
-| **📊 投資リサーチ** | 市場トレンドの分析、投資仮説のディベート | 高速リサーチ、より良い意思決定 |
-| **🏭 企業戦略** | 競合インテリジェンス、シナリオプランニング | データ駆動の意思決定、リスク低減 |
-| **⚔️ 軍事計画** | 作戦分析、兵站最適化 | 戦略的優位性、より良い成果 |
-| **🛡️ リスク管理** | 多角的なリスク評価 | 不確実性の軽減 |
-| **📈 市場分析** | リアルタイム市場インテリジェンス | 高速インサイト、より良いポジショニング |
-| **🎯 政策分析** | 多様なステークホルダーへの影響評価 | 十分な情報を得た政策、より良い成果 |
-
----
-
-## 🚀 クイックスタート
-
-### ワンクリックDockerセットアップ
-
-明鉴をローカルで実行する最も速い方法はDockerセットアップスクリプトです。Dockerの確認、`.env.example`から`.env`の作成、OpenAI APIキーの入力、フルスタックの起動を行います。
-
-#### 前提条件
-
-まず[Docker Desktop](https://www.docker.com/products/docker-desktop/)をインストールしてから、以下を実行してください：
-
-```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-スクリプトが完了したら、以下のURLを開いてください：
-
-| サービス | URL |
-|---------|-----|
-| フロントエンド | http://localhost:3001 |
-| API | http://localhost:8000 |
-| MinIOコンソール | http://localhost:9001 |
-
-MinIOログイン：`planagent` / `planagent123`
-
-Dockerスタックを停止するには：
-
-```bash
-docker compose -f docker-compose.yml down
-```
-
-### 手動開発セットアップ
-
-バックエンドとフロントエンドをマシン上で直接実行して開発したい場合は、このパスを使用してください。
-
-#### 前提条件
-
-開始前に、以下がインストールされていることを確認してください：
-
-| 要件 | バージョン | インストール方法 |
-|-------------|---------|--------------|
-| **Python** | 3.12+ | [python.org](https://www.python.org/downloads/) |
-| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) |
-| **npm** | 9+ | Node.jsに同梱 |
-| **Git** | 2.30+ | [git-scm.com](https://git-scm.com/) |
-| **PostgreSQL** | 14+（任意） | [postgresql.org](https://www.postgresql.org/download/) |
-| **Redis** | 7+（任意） | [redis.io](https://redis.io/download) |
-
-#### システム要件
-
-| コンポーネント | 最小構成 | 推奨構成 |
-|-----------|---------|-------------|
-| **CPU** | 2コア | 4コア以上 |
-| **RAM** | 4 GB | 8 GB以上 |
-| **ストレージ** | 10 GB | 50 GB以上 |
-| **OS** | macOS、Linux、Windows | macOSまたはLinux |
-
-#### 環境変数
-
-プロジェクトルートに以下の変数を含む`.env`ファイルを作成してください：
-
-```bash
-# ═══════════════════════════════════════════════════════════════
-# AIモデル設定
-# ═══════════════════════════════════════════════════════════════
-# 開始するには1つのAPIキーがあれば十分です。
-# システムは同じキーをすべての7つのモデルスロット
-#（primary、extraction、x_search、report、debate_advocate、
-#  debate_challenger、debate_arbitrator）に自動的に使用します。
-# 個別にオーバーライドしない限り。
-
-PLANAGENT_OPENAI_API_KEY=your_api_key_here
-
-# 個別のターゲットをオーバーライド（未設定の場合は共通値にフォールバック）
-# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
-# PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
-# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
-# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
-# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
-# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
-
-# ═══════════════════════════════════════════════════════════════
-# データベース（任意 — ローカル開発ではSQLiteがデフォルト）
-# ═══════════════════════════════════════════════════════════════
-# PLANAGENT_DATABASE_URL=postgresql+psycopg://planagent:planagent@localhost:5432/planagent
-
-# ═══════════════════════════════════════════════════════════════
-# Redis（任意 — 本番環境のイベントバス用）
-# ═══════════════════════════════════════════════════════════════
-# PLANAGENT_REDIS_URL=redis://localhost:6379/0
-
-# ═══════════════════════════════════════════════════════════════
-# MinIOオブジェクトストレージ（任意）
-# ═══════════════════════════════════════════════════════════════
-# PLANAGENT_MINIO_ENDPOINT=localhost:9000
-# PLANAGENT_MINIO_ACCESS_KEY=minioadmin
-# PLANAGENT_MINIO_SECRET_KEY=minioadmin
-
-# ═══════════════════════════════════════════════════════════════
-# X / Twitter（任意 — ソーシャルインテリジェンス用）
-# ═══════════════════════════════════════════════════════════════
-# X_BEARER_TOKEN=your_x_bearer_token
-
-# ═══════════════════════════════════════════════════════════════
-# フロントエンド
-# ═══════════════════════════════════════════════════════════════
-NEXT_PUBLIC_API_URL=/api
-```
-
-> **💡 重要なポイント：** **1つ**のモデルプロバイダー（例：OpenAI、または任意のOpenAI互換API）にしかアクセスできない場合でも、すべての7つのモデルスロットに使用できます。`PLANAGENT_OPENAI_API_KEY`を設定するだけで、システムが残りを自動的に補完します。開始するために4つの異なるAPIキーは必要ありません。
-
-#### 互換性のあるプロバイダー
-
-すべてのスロットはOpenAI互換の`/chat/completions`エンドポイントを使用します。プロバイダーを自由に組み合わせることができます：
-
-| プロバイダー | ベースURL |
-|---|---|
-| OpenAI | `https://api.openai.com/v1` |
-| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** |
-| DeepSeek | `https://api.deepseek.com/v1` |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
-| xAI Grok | `https://api.x.ai/v1` |
-| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` |
-| Zhipu GLM | `https://open.bigmodel.cn/api/paas/v4` |
-| MiniMax | `https://api.minimax.chat/v1` |
-| 任意の互換プロキシ | あなたのプロキシURL |
-
-#### インストール手順
-
-```bash
-# 1. リポジトリをクローン
-git clone https://github.com/dashitongzhi/MingJian.git
-cd planagent
-
-# 2. Python仮想環境を作成・有効化
-python -m venv .venv
-source .venv/bin/activate  # Windowsの場合: .venv\Scripts\activate
-
-# 3. Pythonの依存関係をインストール
-pip install -e ".[dev]"
-
-# 4. フロントエンドの依存関係をインストール
-cd frontend
-npm install
-cd ..
-
-# 5. 環境を設定
-cp .env.example .env
-# .envファイルをAPIキーと設定で編集
-
-# 6. データベースを初期化（PostgreSQLを使用する場合）
-# 'planagent'という名前のデータベースを作成
-# マイグレーションを実行
-alembic upgrade head
-
-# 7. バックエンドサーバーを起動
-uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
-
-# 8. フロントエンドを起動（新しいターミナルで）
-cd frontend
-npm run dev
-# http://localhost:3000 を開く
-```
-
----
-
-## 📦 依存関係
-
-### バックエンド依存関係（Python）
-
-| パッケージ | バージョン | 用途 |
-|---------|---------|---------|
-| **FastAPI** | 0.110+ | 高性能非同期APIフレームワーク |
-| **SQLAlchemy** | 2.0+ | データベースORM |
-| **Alembic** | 1.16+ | データベースマイグレーション |
-| **Pydantic** | 2.11+ | データバリデーション |
-| **OpenAI** | 2.28+ | OpenAI APIクライアント |
-| **Anthropic** | 0.52+ | Anthropic APIクライアント |
-| **Redis** | 6.2+ | イベントバスとキャッシング |
-| **pgvector** | 0.3+ | ベクトル類似性検索 |
-| **MinIO** | 7.2+ | オブジェクトストレージ |
-| **HTTPX** | 0.28+ | 非同期HTTPクライアント |
-| **Uvicorn** | 0.35+ | ASGIサーバー |
-
-### フロントエンド依存関係（Node.js）
-
-| パッケージ | バージョン | 用途 |
-|---------|---------|---------|
-| **Next.js** | 15+ | Reactフレームワーク |
-| **React** | 19+ | UIライブラリ |
-| **TypeScript** | 5.8+ | 型安全性 |
-| **Tailwind CSS** | 4.1+ | ユーティリティファーストCSS |
-| **SWR** | 2.3+ | データフェッチング |
-| **Recharts** | 2.15+ | チャートライブラリ |
-| **Zustand** | 5.0+ | 状態管理 |
-
-### 開発用依存関係
-
-| パッケージ | バージョン | 用途 |
-|---------|---------|---------|
-| **pytest** | 8.4+ | テストフレームワーク |
-| **pytest-asyncio** | 1.1+ | 非同期テストサポート |
-| **Ruff** | 0.12+ | Pythonリンター |
-| **ESLint** | 9+ | JavaScriptリンター |
-| **Prettier** | 3+ | コードフォーマッター |
-
----
-
-## 🏗️ システムアーキテクチャ
-
-```mermaid
-graph TB
-    subgraph "User Interface"
-        Console[Strategic Console]
-        API[FastAPI Control Plane]
-    end
-    
-    subgraph "Core Services"
-        Evidence[Evidence Ingestion]
-        Simulation[Simulation Engine]
-        Debate[Debate Engine]
-        Jarvis[Jarvis Integration]
-    end
-    
-    subgraph "Data Sources"
-        RSS[RSS Feeds]
-        News[Google News]
-        Reddit[Reddit]
-        GitHub[GitHub]
-        X[X/Twitter]
-        GDELT[GDELT]
-    end
-    
-    subgraph "Storage"
-        PostgreSQL[(PostgreSQL)]
-        Redis[(Redis)]
-        MinIO[(MinIO)]
-    end
-    
-    Console --> API
-    API --> Evidence
-    API --> Simulation
-    API --> Debate
-    API --> Jarvis
-    
-    Evidence --> RSS
-    Evidence --> News
-    Evidence --> Reddit
-    Evidence --> GitHub
-    Evidence --> X
-    Evidence --> GDELT
-```
-
----
-
-## 📁 プロジェクト構造
+     1|<div align="center">
+     2|
+     3|<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
+     4|
+     5|# 明鉴 (MingJian)
+     6|
+     7|### *明察秋毫、鑑往知来*
+     8|
+     9|**AI駆動マルチエージェントプラットフォーム | 証拠駆動シナリオシミュレーションと戦略的意思決定**
+    10|
+    11|---
+    12|
+    13|[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+    14|[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+    15|[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
+    16|[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+    17|[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+    18|[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
+    19|[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
+    20|
+    21|**🌐 言語選択 / Language Selection**
+    22|
+    23|[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
+    24|
+    25|---
+    26|
+    27|![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
+    28|
+    29|</div>
+    30|
+    31|---
+    32|
+    33|## 🌟 なぜ明鉴を選ぶのか？
+    34|
+    35|> **「証拠駆動分析、マルチエージェントディベート、リアルタイムシミュレーションを一つの統合ワークスペースに結合した最初のオープンソースプラットフォーム」**
+    36|
+    37|明鉴は単なるAIツールではありません — 組織が戦略的意思決定を行う方法における**パラダイムシフト**です。10以上のリアルタイムデータソース、対立型マルチエージェントディベート、そして決定論的な意思決定トレースを組み合わせることで、明鉴は従来のAIシステムを悩ませる「ブラックボックス」問題を排除します。
+    38|
+    39|---
+    40|
+    41|## 🎯 現在のインテリジェント分析の問題点
+    42|
+    43|現在のAI分析システム — ChatGPTからエンタープライズコパイロットまで — すべてが同じ根本的な欠陥を持っています：
+    44|
+    45|- ❌ **ハルシネーションを事実として扱う** — LLMは統計情報、出典、結論を実データに基づかずに自信を持ってでっち上げます。真実と虚構の区別がつきません。
+    46|- ❌ **単一モデルのブラインドスポット** — 一つのモデル、一つの世界観。相互検証もなく、対立的な挑戦もなく、第二の意見もありません。バイアスは検出されません。
+    47|- ❌ **ブラックボックスの推論** — 答えは得られますが、*どのように*？証拠の連鎖も、出典の帰属もなく、ロジックの監査や再現もできません。
+    48|- ❌ **古い知識、証拠なし** — モデルは時間的に凍結されたトレーニングデータに依存しています。ニュース、市場、センサーからリアルタイムインテリジェンスを取得できません — *知る*のではなく*推測*しているのです。
+    49|- ❌ **自己修正なし** — AIの出力は「発射して忘れる」方式です。エラーは黙って伝播します。レビューループも、品質ゲートも、反復的な精査もありません。
+    50|- ❌ **断片化したワークフロー** — データ収集、分析、ディベート、レポート作成が別々のツールで行われます。各引き継ぎのたびにコンテキストが失われます。
+    51|- ❌ **再現性ゼロ** — 同じクエリを2回実行すると、異なる答えが返されます。決定論的なトレースも、意思決定ログも、説明責任もありません。
+    52|
+    53|## 💡 明鉴の解決策
+    54|
+    55|明鉴は推測を**証拠**に、意見を**ディベート**に、ブラックボックスを**トレース**に置き換えます：
+    56|
+    57|- ✅ **証拠に基づく** — すべての分析が10以上のソース（Google News、Reddit、GitHub、GDELT、X/Twitterなど）からのリアルタイムデータに基づいて構築されます。ハルシネーションも捏造もありません。
+    58|- ✅ **マルチエージェント対立型ディベート** — GPT、Gemini、Claude、Grokは単に同意するだけでなく、お互いに**挑戦**します。ブラインドスポットが露呈し、バイアスに異議が唱えられます。
+    59|- ✅ **完全な監査証跡** — すべてのステップが記録されます：参照したソース、行われた議論、意思決定。完全に透明で、完全に再現可能です。
+    60|- ✅ **リアルタイムインテリジェンス** — ライブデータの取り込み、ストリーミング分析、即時インサイトの提供。凍結されたトレーニングデータはありません。
+    61|- ✅ **自己修復パイプライン** — Jarvisエンジンが自らの出力をレビュー、批評、反復し、品質しきい値に達するまで実行します。エラーはあなたの手に届く前に検出されます。
+    62|
+    63|---
+    64|
+    65|## 🔬 コア機能
+    66|
+    67|### 1. 推測ではなく証拠に基づく
+    68|
+    69|**問題点：** 従来のAIツールは作業過程を示さずに答えを提示します。
+    70|
+    71|**明鉴の解決策：** 明鉴は10以上のデータソースからの**現実世界の証拠**に基づいてすべての決定を裏付けます。すべての主張は追跡可能で、すべての決定は監査可能です。
+    72|
+    73|### 2. マルチエージェントディベートプロトコル
+    74|
+    75|**問題点：** 単一のAIモデルにはブラインドスポットとバイアスがあります。
+    76|
+    77|**明鉴の解決策：** 複数のAIモデル（GPT、Gemini、Claude、Grok）があなたの決定について**ディベート**し、仮定に挑戦し、証拠に基づいた結論に到達します。
+    78|
+    79|### 3. デュアルドメイン専門性
+    80|
+    81|**問題点：** ほとんどのAIツールは汎用的で、特定のドメインを理解していません。
+    82|
+    83|**明鉴の解決策：** 明鉴は**企業向け**（市場分析、競合インテリジェンス）と**軍事向け**（作戦計画、兵站）の両方をドメイン固有のルールとモデルでサポートします。
+    84|
+    85|### 4. 意思決定トレースによる完全な監査可能性
+    86|
+    87|**問題点：** AIがどのように結論に至ったか説明できません。
+    88|
+    89|**明鉴の解決策：** すべてのシミュレーションは**決定論的意思決定トレース**を生成します — AIがどのように結論に至ったかのステップバイステップの記録です。ブラックボックスはありません。
+    90|
+    91|### 5. Jarvis自己修復エンジン
+    92|
+    93|**問題点：** AIの出力は間違っている可能性がありますが、気づいた時には手遅れです。
+    94|
+    95|**明鉴の解決策：** 明鉴は自らの出力をレビューし、弱点を特定し、品質しきい値に達するまで反復します — すべて人間の介入なしで実行されます。
+    96|
+    97|### 6. リアルタイムストリーミング分析
+    98|
+    99|**問題点：** AIの完了を待ってから、ブラックボックスの結果を受け取ります。
+   100|
+   101|**明鉴の解決策：** 分析リクエストを送信すると、AIがリアルタイムで作業する様子を確認できます — ストリーミング進捗イベント、ソースの帰属、中間結果とともにお届けします。
+   102|
+   103|---
+   104|
+   105|## 🆚 明鉴 vs 競合製品
+   106|
+   107|| 機能 | 明鉴 | 従来のAI | シングルエージェント | LangChain |
+   108||---------|------|----------------|--------------|-----------|
+   109|| **データソース** | ✅ 10以上のリアルタイム | ❌ 手動入力 | ⚠️ 限定的 | ⚠️ 限定的 |
+   110|| **証拠チェーン** | ✅ 完全な追跡可能性 | ❌ 追跡なし | ❌ 追跡なし | ❌ 追跡なし |
+   111|| **マルチエージェントディベート** | ✅ 対立型推論 | ❌ 単一モデル | ❌ 単一モデル | ⚠️ 基本的 |
+   112|| **意思決定トレース** | ✅ 決定論的 | ❌ ブラックボックス | ❌ ブラックボックス | ❌ ブラックボックス |
+   113|| **自己修復** | ✅ Jarvisエンジン | ❌ なし | ❌ なし | ❌ なし |
+   114|| **ストリーミング分析** | ✅ リアルタイム | ❌ バッチのみ | ❌ バッチのみ | ⚠️ 限定的 |
+   115|| **企業ドメイン** | ✅ 完全サポート | ⚠️ 汎用的 | ❌ 汎用的 | ❌ 汎用的 |
+   116|| **軍事ドメイン** | ✅ 完全サポート | ⚠️ 汎用的 | ❌ 汎用的 | ❌ 汎用的 |
+   117|| **シナリオ分岐** | ✅ ビームサーチ | ❌ 手動 | ❌ なし | ❌ なし |
+   118|| **ナレッジグラフ** | ✅ 埋め込み対応 | ❌ なし | ❌ なし | ❌ なし |
+   119|| **オープンソース** | ✅ MITライセンス | ⚠️ 多様 | ⚠️ 多様 | ✅ 多様 |
+   120|
+   121|---
+   122|
+## 🧭 明鉴 のポジショニング：AI 意思決定参謀
+
+> **汎用ツールではなく、専属の参謀チーム。**
+
+AI Agent の時代が到来した。オーケストレーションレイヤーが複数のサブAgentとツールを調整し、サンドボックス環境で複雑なタスクを自律的に完了する — これは実証済みのパラダイムである。
+
+明鑑はこの基盤の上にさらに進み、**意思決定インテリジェンス**に特化する：
+
+### 設計理念
+
+| 設計原則 | 明鉴 の実践 |
+|---------|------------|
+| オーケストレーション > ベースモデル | 9エージェント登録センター、役割別モデル配分 |
+| リアルタイムストリーミングが信頼を構築 | ディベートをラウンドごとにレンダリング、ユーザーが全ステップを確認 |
+| マルチツール協調 | 12データソース + ディベートエンジン + シミュレーションエンジン |
+| 失敗時の動的再計画 | ディベート失敗時に自動戦略調整 |
+
+### 中核的な差別化
+
+| 次元 | 明鉴 |
+|------|------|
+| **目標** | より良い意思決定を行う |
+| **推論方式** | 9エージェントが独立論証、相互質問、仲裁裁定 |
+| **エビデンス基盤** | 12データソース構造化収集 → エビデンス抽出 → ナレッジグラフ |
+| **継続性** | WatchRule 持続監視 + 定期更新 + 突発イベント検知 |
+| **ドメイン深度** | 企業/軍事デュアルドメインシミュレーション、KPI追跡、シナリオ分岐 |
+| **透明性** | 推論過程の表示 + ユーザーの投票・質問 |
+| **データ主権** | セルフホスト、データは完全にローカル |
+| **コスト** | 独自モデル、限界コストはほぼゼロ |
+
+### MoE アーキテクチャ思想
+
+明鉴 の9エージェントシステムは **Mixture of Experts (MoE)** の中核思想から着想を得ている：
 
 ```
-planagent/
-├── src/planagent/           # Pythonバックエンド
-│   ├── api/                 # FastAPIルート
-│   ├── core/                # データベース、設定
-│   ├── models/              # SQLAlchemyモデル
-│   ├── services/            # ビジネスロジック
-│   ├── engine/              # シミュレーションエンジン
-│   ├── rules/               # YAMLルール
-│   └── worker/              # バックグラウンドタスク
-├── frontend/                # Next.jsフロントエンド
-│   ├── src/app/             # Reactページ
-│   ├── src/lib/             # APIクライアント
-│   └── public/              # 静的アセット
-├── migrations/              # データベースマイグレーション
-├── tests/                   # テストファイル
-├── docs/                    # ドキュメント
-├── examples/                # シナリオ例
-├── .env.example/            # 環境テンプレート
-├── docker-compose.yml       # Docker設定
-├── pyproject.toml           # Pythonプロジェクト設定
-└── package.json             # Node.jsプロジェクト設定
+ユーザーの質問 → ルーター（ディベートフロー）→ エキスパート組み合わせ選択 → 独立推論 → 重み付き裁定
 ```
 
----
-
-## 🧪 テストの実行
-
-```bash
-# すべてのテストを実行
-pytest
-
-# カバレッジ付きで実行
-pytest --cov=planagent
-
-# 特定のテストを実行
-pytest tests/test_debate.py
-
-# 詳細出力で実行
-pytest -v
-
-# フロントエンドテストを実行
-cd frontend
-npm test
-```
+DeepSeek-V3が256エキスパートの中から少数のみを活性化させるように、明鑑は9エージェントの中から質問タイプに応じて最適な組み合わせを選択する。コア3役割（支持者/挑戦者/仲裁者）は常に活性化、パースペクティブ6役割は必要に応じて参加 — これがソフトウェアレイヤーでのスパース活性化である。
 
 ---
 
-## 📚 ドキュメント
-
-- [📖 完全テクニカルレポート](docs/planagent_full_report.md)
-- [🚀 エージェントスタートアッププレイブック](docs/agent_startup_playbook.md)
-- [🔧 技術的負債バックログ](TECHNICAL_DEBT_BACKLOG.md)
-- [🤝 コントリビューションガイド](CONTRIBUTING.md)
-- [📝 変更履歴](CHANGELOG.md)
-
----
-
-## 🤝 コントリビューション
-
-コントリビューションを歓迎します！[コントリビューションガイド](CONTRIBUTING.md)をご覧ください。
-
-```bash
-# 1. リポジトリをフォーク
-# 2. 機能ブランチを作成
-git checkout -b feature/amazing-feature
-
-# 3. 変更を加える
-# 4. テストを実行
-pytest
-
-# 5. 変更をコミット
-git commit -m "feat: add amazing feature"
-
-# 6. ブランチにプッシュ
-git push origin feature/amazing-feature
-
-# 7. プルリクエストを開く
-```
-
----
-
-## 📄 ライセンス
-
-このプロジェクトはMITライセンスの下でライセンスされています - 詳細は[LICENSE](LICENSE)をご覧ください。
-
----
-
-## 🙏 謝辞
-
-- [FastAPI](https://fastapi.tiangolo.com/) - 高性能非同期API
-- [Next.js](https://nextjs.org/) - Reactフレームワーク
-- [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - データベース
-- [Redis Streams](https://redis.io/docs/data-types/streams/) - イベントストリーミング
-- [MinIO](https://min.io/) - オブジェクトストレージ
-- [Linux.do](https://linux.do) - オープンソースコミュニティの支援と交流
-
----
-
-## 📞 お問い合わせ
-
-このプロジェクトに興味をお持ちいただけましたら、コラボレーション、フィードバック、または気軽なお話でも大歓迎です。お気軽にご連絡ください！
-
-- 📧 メール：[cajd6876@gmail.com](mailto:cajd6876@gmail.com) | [2965866908@qq.com](mailto:2965866908@qq.com)
-- 🐛 Issues：[GitHub Issues](https://github.com/dashitongzhi/MingJian/issues)
-- 💬 ディスカッション：[GitHub Discussions](https://github.com/dashitongzhi/MingJian/discussions)
-
----
-
-<div align="center">
-
-## 🌟 スター履歴
-
-[![Star History Chart](https://api.star-history.com/svg?repos=dashitongzhi/MingJian&type=Date)](https://star-history.com/#dashitongzhi/MingJian&Date)
-
----
-
-**明鉴** — *明察秋毫、鑑往知来*
-
-**明鉴** — *See Clearly, Judge Wisely*
-
----
-
-**Made with ❤️ by the 明鉴 Team**
-
-</div>
+   123|## 🎯 ユースケース
+   124|
+   125|| ユースケース | 説明 | メリット |
+   126||----------|-------------|---------|
+   127|| **📊 投資リサーチ** | 市場トレンドの分析、投資仮説のディベート | 高速リサーチ、より良い意思決定 |
+   128|| **🏭 企業戦略** | 競合インテリジェンス、シナリオプランニング | データ駆動の意思決定、リスク低減 |
+   129|| **⚔️ 軍事計画** | 作戦分析、兵站最適化 | 戦略的優位性、より良い成果 |
+   130|| **🛡️ リスク管理** | 多角的なリスク評価 | 不確実性の軽減 |
+   131|| **📈 市場分析** | リアルタイム市場インテリジェンス | 高速インサイト、より良いポジショニング |
+   132|| **🎯 政策分析** | 多様なステークホルダーへの影響評価 | 十分な情報を得た政策、より良い成果 |
+   133|
+   134|---
+   135|
+   136|## 🚀 クイックスタート
+   137|
+   138|### ワンクリックDockerセットアップ
+   139|
+   140|明鉴をローカルで実行する最も速い方法はDockerセットアップスクリプトです。Dockerの確認、`.env.example`から`.env`の作成、OpenAI APIキーの入力、フルスタックの起動を行います。
+   141|
+   142|#### 前提条件
+   143|
+   144|まず[Docker Desktop](https://www.docker.com/products/docker-desktop/)をインストールしてから、以下を実行してください：
+   145|
+   146|```bash
+   147|chmod +x setup.sh
+   148|./setup.sh
+   149|```
+   150|
+   151|スクリプトが完了したら、以下のURLを開いてください：
+   152|
+   153|| サービス | URL |
+   154||---------|-----|
+   155|| フロントエンド | http://localhost:3001 |
+   156|| API | http://localhost:8000 |
+   157|| MinIOコンソール | http://localhost:9001 |
+   158|
+   159|MinIOログイン：`planagent` / `planagent123`
+   160|
+   161|Dockerスタックを停止するには：
+   162|
+   163|```bash
+   164|docker compose -f docker-compose.yml down
+   165|```
+   166|
+   167|### 手動開発セットアップ
+   168|
+   169|バックエンドとフロントエンドをマシン上で直接実行して開発したい場合は、このパスを使用してください。
+   170|
+   171|#### 前提条件
+   172|
+   173|開始前に、以下がインストールされていることを確認してください：
+   174|
+   175|| 要件 | バージョン | インストール方法 |
+   176||-------------|---------|--------------|
+   177|| **Python** | 3.12+ | [python.org](https://www.python.org/downloads/) |
+   178|| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) |
+   179|| **npm** | 9+ | Node.jsに同梱 |
+   180|| **Git** | 2.30+ | [git-scm.com](https://git-scm.com/) |
+   181|| **PostgreSQL** | 14+（任意） | [postgresql.org](https://www.postgresql.org/download/) |
+   182|| **Redis** | 7+（任意） | [redis.io](https://redis.io/download) |
+   183|
+   184|#### システム要件
+   185|
+   186|| コンポーネント | 最小構成 | 推奨構成 |
+   187||-----------|---------|-------------|
+   188|| **CPU** | 2コア | 4コア以上 |
+   189|| **RAM** | 4 GB | 8 GB以上 |
+   190|| **ストレージ** | 10 GB | 50 GB以上 |
+   191|| **OS** | macOS、Linux、Windows | macOSまたはLinux |
+   192|
+   193|#### 環境変数
+   194|
+   195|プロジェクトルートに以下の変数を含む`.env`ファイルを作成してください：
+   196|
+   197|```bash
+   198|# ═══════════════════════════════════════════════════════════════
+   199|# AIモデル設定
+   200|# ═══════════════════════════════════════════════════════════════
+   201|# 開始するには1つのAPIキーがあれば十分です。
+   202|# システムは同じキーをすべての7つのモデルスロット
+   203|#（primary、extraction、x_search、report、debate_advocate、
+   204|#  debate_challenger、debate_arbitrator）に自動的に使用します。
+   205|# 個別にオーバーライドしない限り。
+   206|
+   207|PLANAGENT_OPENAI_API_KEY=your_api_key_here
+   208|
+   209|# 個別のターゲットをオーバーライド（未設定の場合は共通値にフォールバック）
+   210|# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+   211|# PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
+   212|# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
+   213|# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
+   214|# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
+   215|# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
+   216|
+   217|# ═══════════════════════════════════════════════════════════════
+   218|# データベース（任意 — ローカル開発ではSQLiteがデフォルト）
+   219|# ═══════════════════════════════════════════════════════════════
+   220|# PLANAGENT_DATABASE_URL=postgresql+psycopg://planagent:planagent@localhost:5432/planagent
+   221|
+   222|# ═══════════════════════════════════════════════════════════════
+   223|# Redis（任意 — 本番環境のイベントバス用）
+   224|# ═══════════════════════════════════════════════════════════════
+   225|# PLANAGENT_REDIS_URL=redis://localhost:6379/0
+   226|
+   227|# ═══════════════════════════════════════════════════════════════
+   228|# MinIOオブジェクトストレージ（任意）
+   229|# ═══════════════════════════════════════════════════════════════
+   230|# PLANAGENT_MINIO_ENDPOINT=localhost:9000
+   231|# PLANAGENT_MINIO_ACCESS_KEY=minioadmin
+   232|# PLANAGENT_MINIO_SECRET_KEY=minioadmin
+   233|
+   234|# ═══════════════════════════════════════════════════════════════
+   235|# X / Twitter（任意 — ソーシャルインテリジェンス用）
+   236|# ═══════════════════════════════════════════════════════════════
+   237|# X_BEARER_TOKEN=your_x_bearer_token
+   238|
+   239|# ═══════════════════════════════════════════════════════════════
+   240|# フロントエンド
+   241|# ═══════════════════════════════════════════════════════════════
+   242|NEXT_PUBLIC_API_URL=/api
+   243|```
+   244|
+   245|> **💡 重要なポイント：** **1つ**のモデルプロバイダー（例：OpenAI、または任意のOpenAI互換API）にしかアクセスできない場合でも、すべての7つのモデルスロットに使用できます。`PLANAGENT_OPENAI_API_KEY`を設定するだけで、システムが残りを自動的に補完します。開始するために4つの異なるAPIキーは必要ありません。
+   246|
+   247|#### 互換性のあるプロバイダー
+   248|
+   249|すべてのスロットはOpenAI互換の`/chat/completions`エンドポイントを使用します。プロバイダーを自由に組み合わせることができます：
+   250|
+   251|| プロバイダー | ベースURL |
+   252||---|---|
+   253|| OpenAI | `https://api.openai.com/v1` |
+   254|| **Anthropic (Claude)** | **`https://api.anthropic.com/v1/openai`** |
+   255|| DeepSeek | `https://api.deepseek.com/v1` |
+   256|| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+   257|| xAI Grok | `https://api.x.ai/v1` |
+   258|| Xiaomi MiMo | `https://token-plan-cn.xiaomimimo.com/v1` |
+   259|| Zhipu GLM | `https://open.bigmodel.cn/api/paas/v4` |
+   260|| MiniMax | `https://api.minimax.chat/v1` |
+   261|| 任意の互換プロキシ | あなたのプロキシURL |
+   262|
+   263|#### インストール手順
+   264|
+   265|```bash
+   266|# 1. リポジトリをクローン
+   267|git clone https://github.com/dashitongzhi/MingJian.git
+   268|cd planagent
+   269|
+   270|# 2. Python仮想環境を作成・有効化
+   271|python -m venv .venv
+   272|source .venv/bin/activate  # Windowsの場合: .venv\Scripts\activate
+   273|
+   274|# 3. Pythonの依存関係をインストール
+   275|pip install -e ".[dev]"
+   276|
+   277|# 4. フロントエンドの依存関係をインストール
+   278|cd frontend
+   279|npm install
+   280|cd ..
+   281|
+   282|# 5. 環境を設定
+   283|cp .env.example .env
+   284|# .envファイルをAPIキーと設定で編集
+   285|
+   286|# 6. データベースを初期化（PostgreSQLを使用する場合）
+   287|# 'planagent'という名前のデータベースを作成
+   288|# マイグレーションを実行
+   289|alembic upgrade head
+   290|
+   291|# 7. バックエンドサーバーを起動
+   292|uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+   293|
+   294|# 8. フロントエンドを起動（新しいターミナルで）
+   295|cd frontend
+   296|npm run dev
+   297|# http://localhost:3000 を開く
+   298|```
+   299|
+   300|---
+   301|
+   302|## 📦 依存関係
+   303|
+   304|### バックエンド依存関係（Python）
+   305|
+   306|| パッケージ | バージョン | 用途 |
+   307||---------|---------|---------|
+   308|| **FastAPI** | 0.110+ | 高性能非同期APIフレームワーク |
+   309|| **SQLAlchemy** | 2.0+ | データベースORM |
+   310|| **Alembic** | 1.16+ | データベースマイグレーション |
+   311|| **Pydantic** | 2.11+ | データバリデーション |
+   312|| **OpenAI** | 2.28+ | OpenAI APIクライアント |
+   313|| **Anthropic** | 0.52+ | Anthropic APIクライアント |
+   314|| **Redis** | 6.2+ | イベントバスとキャッシング |
+   315|| **pgvector** | 0.3+ | ベクトル類似性検索 |
+   316|| **MinIO** | 7.2+ | オブジェクトストレージ |
+   317|| **HTTPX** | 0.28+ | 非同期HTTPクライアント |
+   318|| **Uvicorn** | 0.35+ | ASGIサーバー |
+   319|
+   320|### フロントエンド依存関係（Node.js）
+   321|
+   322|| パッケージ | バージョン | 用途 |
+   323||---------|---------|---------|
+   324|| **Next.js** | 15+ | Reactフレームワーク |
+   325|| **React** | 19+ | UIライブラリ |
+   326|| **TypeScript** | 5.8+ | 型安全性 |
+   327|| **Tailwind CSS** | 4.1+ | ユーティリティファーストCSS |
+   328|| **SWR** | 2.3+ | データフェッチング |
+   329|| **Recharts** | 2.15+ | チャートライブラリ |
+   330|| **Zustand** | 5.0+ | 状態管理 |
+   331|
+   332|### 開発用依存関係
+   333|
+   334|| パッケージ | バージョン | 用途 |
+   335||---------|---------|---------|
+   336|| **pytest** | 8.4+ | テストフレームワーク |
+   337|| **pytest-asyncio** | 1.1+ | 非同期テストサポート |
+   338|| **Ruff** | 0.12+ | Pythonリンター |
+   339|| **ESLint** | 9+ | JavaScriptリンター |
+   340|| **Prettier** | 3+ | コードフォーマッター |
+   341|
+   342|---
+   343|
+   344|## 🏗️ システムアーキテクチャ
+   345|
+   346|```mermaid
+   347|graph TB
+   348|    subgraph "User Interface"
+   349|        Console[Strategic Console]
+   350|        API[FastAPI Control Plane]
+   351|    end
+   352|    
+   353|    subgraph "Core Services"
+   354|        Evidence[Evidence Ingestion]
+   355|        Simulation[Simulation Engine]
+   356|        Debate[Debate Engine]
+   357|        Jarvis[Jarvis Integration]
+   358|    end
+   359|    
+   360|    subgraph "Data Sources"
+   361|        RSS[RSS Feeds]
+   362|        News[Google News]
+   363|        Reddit[Reddit]
+   364|        GitHub[GitHub]
+   365|        X[X/Twitter]
+   366|        GDELT[GDELT]
+   367|    end
+   368|    
+   369|    subgraph "Storage"
+   370|        PostgreSQL[(PostgreSQL)]
+   371|        Redis[(Redis)]
+   372|        MinIO[(MinIO)]
+   373|    end
+   374|    
+   375|    Console --> API
+   376|    API --> Evidence
+   377|    API --> Simulation
+   378|    API --> Debate
+   379|    API --> Jarvis
+   380|    
+   381|    Evidence --> RSS
+   382|    Evidence --> News
+   383|    Evidence --> Reddit
+   384|    Evidence --> GitHub
+   385|    Evidence --> X
+   386|    Evidence --> GDELT
+   387|```
+   388|
+   389|---
+   390|
+   391|## 📁 プロジェクト構造
+   392|
+   393|```
+   394|planagent/
+   395|├── src/planagent/           # Pythonバックエンド
+   396|│   ├── api/                 # FastAPIルート
+   397|│   ├── core/                # データベース、設定
+   398|│   ├── models/              # SQLAlchemyモデル
+   399|│   ├── services/            # ビジネスロジック
+   400|│   ├── engine/              # シミュレーションエンジン
+   401|│   ├── rules/               # YAMLルール
+   402|│   └── worker/              # バックグラウンドタスク
+   403|├── frontend/                # Next.jsフロントエンド
+   404|│   ├── src/app/             # Reactページ
+   405|│   ├── src/lib/             # APIクライアント
+   406|│   └── public/              # 静的アセット
+   407|├── migrations/              # データベースマイグレーション
+   408|├── tests/                   # テストファイル
+   409|├── docs/                    # ドキュメント
+   410|├── examples/                # シナリオ例
+   411|├── .env.example/            # 環境テンプレート
+   412|├── docker-compose.yml       # Docker設定
+   413|├── pyproject.toml           # Pythonプロジェクト設定
+   414|└── package.json             # Node.jsプロジェクト設定
+   415|```
+   416|
+   417|---
+   418|
+   419|## 🧪 テストの実行
+   420|
+   421|```bash
+   422|# すべてのテストを実行
+   423|pytest
+   424|
+   425|# カバレッジ付きで実行
+   426|pytest --cov=planagent
+   427|
+   428|# 特定のテストを実行
+   429|pytest tests/test_debate.py
+   430|
+   431|# 詳細出力で実行
+   432|pytest -v
+   433|
+   434|# フロントエンドテストを実行
+   435|cd frontend
+   436|npm test
+   437|```
+   438|
+   439|---
+   440|
+   441|## 📚 ドキュメント
+   442|
+   443|- [📖 完全テクニカルレポート](docs/planagent_full_report.md)
+   444|- [🚀 エージェントスタートアッププレイブック](docs/agent_startup_playbook.md)
+   445|- [🔧 技術的負債バックログ](TECHNICAL_DEBT_BACKLOG.md)
+   446|- [🤝 コントリビューションガイド](CONTRIBUTING.md)
+   447|- [📝 変更履歴](CHANGELOG.md)
+   448|
+   449|---
+   450|
+   451|## 🤝 コントリビューション
+   452|
+   453|コントリビューションを歓迎します！[コントリビューションガイド](CONTRIBUTING.md)をご覧ください。
+   454|
+   455|```bash
+   456|# 1. リポジトリをフォーク
+   457|# 2. 機能ブランチを作成
+   458|git checkout -b feature/amazing-feature
+   459|
+   460|# 3. 変更を加える
+   461|# 4. テストを実行
+   462|pytest
+   463|
+   464|# 5. 変更をコミット
+   465|git commit -m "feat: add amazing feature"
+   466|
+   467|# 6. ブランチにプッシュ
+   468|git push origin feature/amazing-feature
+   469|
+   470|# 7. プルリクエストを開く
+   471|```
+   472|
+   473|---
+   474|
+   475|## 📄 ライセンス
+   476|
+   477|このプロジェクトはMITライセンスの下でライセンスされています - 詳細は[LICENSE](LICENSE)をご覧ください。
+   478|
+   479|---
+   480|
+   481|## 🙏 謝辞
+   482|
+   483|- [FastAPI](https://fastapi.tiangolo.com/) - 高性能非同期API
+   484|- [Next.js](https://nextjs.org/) - Reactフレームワーク
+   485|- [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - データベース
+   486|- [Redis Streams](https://redis.io/docs/data-types/streams/) - イベントストリーミング
+   487|- [MinIO](https://min.io/) - オブジェクトストレージ
+   488|- [Linux.do](https://linux.do) - オープンソースコミュニティの支援と交流
+   489|
+   490|---
+   491|
+   492|## 📞 お問い合わせ
+   493|
+   494|このプロジェクトに興味をお持ちいただけましたら、コラボレーション、フィードバック、または気軽なお話でも大歓迎です。お気軽にご連絡ください！
+   495|
+   496|- 📧 メール：[cajd6876@gmail.com](mailto:cajd6876@gmail.com) | [2965866908@qq.com](mailto:2965866908@qq.com)
+   497|- 🐛 Issues：[GitHub Issues](https://github.com/dashitongzhi/MingJian/issues)
+   498|- 💬 ディスカッション：[GitHub Discussions](https://github.com/dashitongzhi/MingJian/discussions)
+   499|
+   500|---
+   501|
