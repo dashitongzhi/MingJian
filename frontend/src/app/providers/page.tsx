@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Check, X, Loader2, Eye, EyeOff, FlaskConical, ExternalLink, Trash2 } from "lucide-react";
+import { Check, X, Loader2, Eye, EyeOff, FlaskConical, ExternalLink, Trash2, Plus, Bot, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useConfiguredProviders,
@@ -15,6 +15,7 @@ import {
   type ConfiguredProvider,
   type ProviderTestResult,
 } from "@/lib/providers";
+import { fetchAgentStatus, configureAgents, resetAgents, type AgentRegistryStatus, type ApiKeyInput } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 // ── Zod schemas ─────────────────────────────────────────────────────────────
@@ -722,6 +723,217 @@ function ProvidersSkeleton() {
   );
 }
 
+// ── Agent Configuration Section ─────────────────────────────────────────
+
+function AgentConfigSection() {
+  const [agentStatus, setAgentStatus] = useState<AgentRegistryStatus | null>(null);
+  const [keys, setKeys] = useState<ApiKeyInput[]>([{ api_key: "", provider_type: "openai" }]);
+  const [configuring, setConfiguring] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const status = await fetchAgentStatus();
+      setAgentStatus(status);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadStatus(); }, [loadStatus]);
+
+  const handleConfigure = async () => {
+    const validKeys = keys.filter((k) => k.api_key.trim());
+    if (validKeys.length === 0) return;
+    setConfiguring(true);
+    try {
+      const status = await configureAgents(validKeys);
+      setAgentStatus(status);
+      toast.success(`配置成功: ${status.ready}/9 智能体已就绪`);
+    } catch (e) {
+      toast.error(`配置失败: ${e instanceof Error ? e.message : "未知错误"}`);
+    } finally {
+      setConfiguring(false);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      const status = await resetAgents();
+      setAgentStatus(status);
+      setKeys([{ api_key: "", provider_type: "openai" }]);
+      toast.success("已重置所有智能体配置");
+    } catch (e) {
+      toast.error(`重置失败: ${e instanceof Error ? e.message : "未知错误"}`);
+    }
+  };
+
+  const addKey = () => setKeys([...keys, { api_key: "", provider_type: "openai" }]);
+  const removeKey = (i: number) => setKeys(keys.filter((_, idx) => idx !== i));
+  const updateKey = (i: number, field: keyof ApiKeyInput, value: string) => {
+    const next = [...keys];
+    next[i] = { ...next[i], [field]: value };
+    setKeys(next);
+  };
+
+  if (loading) {
+    return (
+      <div className="card rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-6">
+        <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-sm">加载智能体状态...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const readyCount = agentStatus?.ready ?? 0;
+  const coreAgents = agentStatus?.agents.filter((a) => a.priority === 1) ?? [];
+  const perspectiveAgents = agentStatus?.agents.filter((a) => a.priority === 2) ?? [];
+
+  return (
+    <div className="card rounded-xl border border-[var(--card-border)] bg-[var(--card)] overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[var(--card-border)] px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent)]/10">
+            <Bot size={20} className="text-[var(--accent)]" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold">🤖 9智能体配置</h2>
+            <p className="text-xs text-[var(--muted-foreground)]">提供API Key，自动分配到9个智能体</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <span className="font-mono text-lg font-bold text-[var(--accent)]">{readyCount}</span>
+            <span className="text-sm text-[var(--muted-foreground)]">/9</span>
+          </div>
+          <div className="h-2 w-24 overflow-hidden rounded-full bg-[var(--muted)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+              style={{ width: `${(readyCount / 9) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 p-6 lg:grid-cols-[1fr_1.5fr]">
+        {/* Left: API Key Input */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">API Key</h3>
+          {keys.map((k, i) => (
+            <div key={i} className="space-y-2 rounded-lg border border-[var(--input)] p-3">
+              <div className="flex items-center justify-between">
+                <select
+                  value={k.provider_type}
+                  onChange={(e) => updateKey(i, "provider_type", e.target.value)}
+                  className="rounded border border-[var(--input)] bg-[var(--background)] px-2 py-1 text-xs"
+                >
+                  <option value="openai">OpenAI 兼容</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="custom">自定义</option>
+                </select>
+                {keys.length > 1 && (
+                  <button onClick={() => removeKey(i)} className="p-1 text-[var(--muted-foreground)] hover:text-[var(--accent-red)]">
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+              <input
+                type="password"
+                placeholder="sk-..."
+                value={k.api_key}
+                onChange={(e) => updateKey(i, "api_key", e.target.value)}
+                className={inputClass()}
+              />
+              <input
+                placeholder="Base URL（可选）"
+                value={k.base_url || ""}
+                onChange={(e) => updateKey(i, "base_url", e.target.value)}
+                className={inputClass()}
+              />
+              <input
+                placeholder="模型（可选，如 gpt-4o）"
+                value={k.model || ""}
+                onChange={(e) => updateKey(i, "model", e.target.value)}
+                className={inputClass()}
+              />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <button onClick={addKey} className="flex items-center gap-1 rounded-md border border-[var(--input)] px-3 py-1.5 text-xs hover:bg-[var(--accent)]/5">
+              <Plus size={12} /> 添加更多Key
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleConfigure}
+              disabled={configuring || keys.every((k) => !k.api_key.trim())}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+            >
+              {configuring ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
+              {agentStatus && readyCount > 0 ? "重新配置" : "一键配置"}
+            </button>
+            {agentStatus && readyCount > 0 && (
+              <button onClick={handleReset} className="flex items-center gap-1 rounded-lg border border-[var(--input)] px-3 py-2.5 text-xs hover:bg-[var(--accent-red)]/5">
+                <RotateCcw size={12} /> 重置
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Agent Grid */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">核心角色</h3>
+          <div className="grid grid-cols-3 gap-2">
+            {coreAgents.map((agent) => (
+              <AgentCard key={agent.role} agent={agent} />
+            ))}
+          </div>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)]">视角角色</h3>
+          <div className="grid grid-cols-3 gap-2">
+            {perspectiveAgents.map((agent) => (
+              <AgentCard key={agent.role} agent={agent} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgentCard({ agent }: { agent: { icon: string; name: string; description: string; has_key: boolean; provider_type: string; model: string; priority: number } }) {
+  return (
+    <div
+      className={`rounded-lg border p-3 transition-all ${
+        agent.has_key
+          ? "border-[var(--accent)]/30 bg-[var(--accent)]/5"
+          : "border-[var(--card-border)] bg-[var(--card)]"
+      } ${agent.priority === 1 ? "ring-1 ring-[var(--accent)]/20" : ""}`}
+    >
+      <div className="flex items-start justify-between">
+        <span className="text-lg">{agent.icon}</span>
+        {agent.has_key ? (
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-500/20 text-[10px] text-green-400">✓</span>
+        ) : (
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--muted)] text-[10px] text-[var(--muted-foreground)]">—</span>
+        )}
+      </div>
+      <div className="mt-1.5 text-xs font-medium">{agent.name}</div>
+      <div className="mt-0.5 text-[10px] leading-tight text-[var(--muted-foreground)]">{agent.description}</div>
+      {agent.has_key && agent.provider_type && (
+        <div className="mt-1.5 flex items-center gap-1">
+          <span className="rounded bg-[var(--accent)]/10 px-1.5 py-0.5 text-[9px] font-mono text-[var(--accent)]">{agent.provider_type}</span>
+          {agent.model && <span className="truncate text-[9px] text-[var(--muted-foreground)]">{agent.model}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProvidersPage() {
   const { t } = useTranslation();
   const { data: providers, error, isLoading, mutate } = useConfiguredProviders();
@@ -734,6 +946,9 @@ export default function ProvidersPage() {
   return (
     <>
       <div className="space-y-8">
+        {/* ── Agent Configuration ─────────────────────────────────────── */}
+        <AgentConfigSection />
+
         {/* ── Header ────────────────────────────────────────────────────────── */}
         <div className="grid gap-6 pb-6 lg:grid-cols-[1fr_280px]">
           <div>

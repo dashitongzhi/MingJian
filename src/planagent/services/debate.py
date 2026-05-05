@@ -155,10 +155,12 @@ class DebateService:
         settings: Settings,
         event_bus: EventBus,
         openai_service: OpenAIService | None = None,
+        agent_registry: object | None = None,
     ) -> None:
         self.settings = settings
         self.event_bus = event_bus
         self.openai_service = openai_service
+        self.agent_registry = agent_registry
 
     async def trigger_debate(
         self,
@@ -1087,6 +1089,22 @@ class DebateService:
         opponent_arguments: list[dict[str, Any]] | None = None,
         own_previous: list[dict[str, Any]] | None = None,
     ) -> DebatePositionPayload | None:
+        # ── 优先使用 Agent Registry ──────────────────────────
+        registry_cfg = self._get_agent_registry_config(role)
+        if registry_cfg and registry_cfg.get("api_key"):
+            result = await self._call_registry_llm(
+                role=role,
+                topic=topic,
+                trigger_type=trigger_type,
+                context=context,
+                opponent_arguments=opponent_arguments,
+                own_previous=own_previous,
+                cfg=registry_cfg,
+            )
+            if result is not None:
+                return result
+
+        # ── 回退到原有 settings 逻辑 ────────────────────────
         requested_provider = self._debate_provider_for_role(role)
         provider_order = list(dict.fromkeys([requested_provider, "openai"]))
         for provider_name in provider_order:
@@ -1210,6 +1228,101 @@ class DebateService:
             "opportunist": self.settings.debate_arbitrator_provider,
         }
         return role_providers.get(role, "openai").strip().lower() or "openai"
+
+    # ── Agent Registry 集成 ──────────────────────────────────
+
+    def _get_agent_registry_config(self, role: str) -> dict[str, str] | None:
+        """从 Agent Registry 获取角色的 provider 配置"""
+        if self.agent_registry is None:
+            return None
+        role_map = {
+            "advocate": "advocate",
+            "strategist": "advocate",
+            "challenger": "challenger",
+            "risk_analyst": "challenger",
+            "arbitrator": "arbitrator",
+            "opportunist": "arbitrator",
+        }
+        agent_role = role_map.get(role)
+        if agent_role is None:
+            return None
+        try:
+            return self.agent_registry.get_provider_config(agent_role)
+        except Exception:
+            return None
+
+    async def _call_registry_llm(
+        self,
+        *,
+        role: str,
+        topic: str,
+        trigger_type: str,
+        context: str,
+        opponent_arguments: list[dict[str, Any]] | None,
+        own_previous: list[dict[str, Any]] | None,
+        cfg: dict[str, str],
+    ) -> DebatePositionPayload | None:
+        """使用 Agent Registry 的配置调用 LLM"""
+        provider_type = cfg.get("provider_type", "openai")
+        api_key = cfg.get("api_key", "")
+        base_url = cfg.get("base_url", "")
+        model = cfg.get("model", "")
+
+        if not api_key:
+            return None
+
+        prompt = self._build_debate_prompt(
+            role=role,
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+            opponent_arguments=opponent_arguments,
+            own_previous=own_previous,
+        )
+
+        if provider_type == "anthropic":
+            provider = AnthropicProvider(api_key=api_key, timeout=45.0)
+            try:
+                _, parsed = await provider.generate_json(
+                    model=model or self.settings.anthropic_model,
+                    system_prompt=self._debate_role_instruction(role),
+                    user_prompt=prompt,
+                    schema=DebatePositionPayload.model_json_schema(),
+                    max_tokens=1000,
+                    temperature=0.3,
+                )
+                return self._parse_debate_position_payload(parsed)
+            finally:
+                await provider.close()
+        else:
+            # OpenAI 兼容
+            from openai import AsyncOpenAI
+
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url or None,
+                timeout=45.0,
+            )
+            try:
+                resp = await client.chat.completions.create(
+                    model=model or "gpt-4o",
+                    messages=[
+                        {"role": "system", "content": self._debate_role_instruction(role)},
+                        {"role": "user", "content": f"{prompt}\n\nReturn valid JSON only."},
+                    ],
+                    max_tokens=1000,
+                    temperature=0.3,
+                    response_format={"type": "json_object"},
+                )
+                import json
+
+                content = resp.choices[0].message.content or "{}"
+                parsed = json.loads(content)
+                return self._parse_debate_position_payload(parsed)
+            except Exception:
+                return None
+            finally:
+                await client.close()
 
     def _anthropic_is_configured(self) -> bool:
         return bool(self.settings.resolved_anthropic_api_key)

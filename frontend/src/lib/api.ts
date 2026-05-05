@@ -80,6 +80,34 @@ export const createUserDecision = (data: { session_id: string; decision: UserDec
   fetch_<UserDecision>("/decisions", { method: "POST", body: JSON.stringify(data) })
 );
 
+// ── 9 智能体 API ──────────────────────────────────────────
+export interface AgentStatus {
+  role: string;
+  name: string;
+  name_en: string;
+  icon: string;
+  description: string;
+  provider_type: string;
+  model: string;
+  has_key: boolean;
+  priority: number;
+}
+export interface AgentRegistryStatus {
+  total: number;
+  ready: number;
+  agents: AgentStatus[];
+}
+export interface ApiKeyInput {
+  api_key: string;
+  provider_type: string;
+  base_url?: string;
+  model?: string;
+}
+export const fetchAgentStatus = () => fetch_<AgentRegistryStatus>("/agents/status");
+export const configureAgents = (keys: ApiKeyInput[]) =>
+  fetch_<AgentRegistryStatus>("/agents/configure", { method: "POST", body: JSON.stringify({ keys }) });
+export const resetAgents = () => fetch_<AgentRegistryStatus>("/agents/reset", { method: "POST" });
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
