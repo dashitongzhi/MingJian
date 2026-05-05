@@ -99,13 +99,21 @@ class AutomatedAnalysisService:
             yield self._event("step", fetch_step)
 
             fetch_bundle: SourceFetchBundle | None = None
-            async for fetch_item in self._fetch_related_sources_with_events(payload, query, domain_id):
-                if isinstance(fetch_item, AnalysisEvent):
-                    yield fetch_item
-                else:
-                    fetch_bundle = fetch_item
+            try:
+                async for fetch_item in self._fetch_related_sources_with_events(payload, query, domain_id):
+                    if isinstance(fetch_item, AnalysisEvent):
+                        yield fetch_item
+                    else:
+                        fetch_bundle = fetch_item
+            except Exception as exc:
+                logger.warning("Source fetching with events failed: %s", exc)
+                fetch_bundle = SourceFetchBundle(sources=[], steps=[
+                    self._step("fetch_error", "Source fetching failed.", str(exc)[:240])
+                ])
             if fetch_bundle is None:
-                raise RuntimeError("Source fetching finished without a result bundle.")
+                fetch_bundle = SourceFetchBundle(sources=[], steps=[
+                    self._step("fetch_error", "Source fetching returned no result.", None)
+                ])
             sources = fetch_bundle.sources
             for provider_step in fetch_bundle.steps:
                 reasoning_steps.append(provider_step)
@@ -154,16 +162,30 @@ class AutomatedAnalysisService:
                 {fetch_task, event_task},
                 return_when=asyncio.FIRST_COMPLETED,
             )
+            # Only cancel event_task, NEVER cancel fetch_task
             for task in pending:
-                task.cancel()
+                if task is not fetch_task:
+                    task.cancel()
 
             if event_task in done:
-                yield event_task.result()
+                try:
+                    yield event_task.result()
+                except Exception:
+                    pass  # event queue item failed; skip
 
             if fetch_task in done:
                 while not event_queue.empty():
-                    yield event_queue.get_nowait()
-                yield fetch_task.result()
+                    try:
+                        yield event_queue.get_nowait()
+                    except Exception:
+                        pass
+                try:
+                    yield fetch_task.result()
+                except Exception as exc:
+                    logger.warning("Source fetch task failed: %s", exc)
+                    yield SourceFetchBundle(sources=[], steps=[
+                        self._step("fetch_error", "Source fetching failed.", str(exc)[:240])
+                    ])
                 return
 
     async def _build_analysis(
@@ -1465,5 +1487,7 @@ class AutomatedAnalysisService:
     def _step(self, stage: str, message: str, detail: str | None = None) -> AnalysisStepRead:
         return AnalysisStepRead(stage=stage, message=message, detail=detail)
 
-    def _event(self, event: str, payload: AnalysisStepRead | AnalysisSourceRead | AnalysisResponse) -> AnalysisEvent:
+    def _event(self, event: str, payload: AnalysisStepRead | AnalysisSourceRead | AnalysisResponse | dict[str, Any]) -> AnalysisEvent:
+        if isinstance(payload, dict):
+            return AnalysisEvent(event=event, payload=payload)
         return AnalysisEvent(event=event, payload=payload.model_dump(mode="json"))
