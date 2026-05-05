@@ -18,11 +18,11 @@ export interface DebateVote { id: string; debate_session_id: string; round_numbe
 export interface WorkbenchRecommendation { title: string; priority?: string | null; rationale?: string | null; action_items?: string[]; text?: string | null }
 export interface WorkbenchAlternativeScenario { name: string; description?: string | null; expected_outcome?: string | null; probability?: number | null }
 export interface WorkbenchPredictionVersion { id: string; series_id?: string | null; run_id?: string | null; version_number: number; probability?: number | null; confidence?: number | null; trigger_type?: string | null; prediction_text?: string | null; summary_delta?: string | null; status?: string | null; created_at?: string | null; updated_at?: string | null }
-export interface DebateVerdict { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; minority_opinion: string | null; recommendations?: WorkbenchRecommendation[]; risk_factors?: string[]; alternative_scenarios?: WorkbenchAlternativeScenario[]; conclusion_summary?: string | null }
+export interface DebateVerdict { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; minority_opinion: string | null; conditions?: string[] | null; recommendations?: WorkbenchRecommendation[]; risk_factors?: string[]; alternative_scenarios?: WorkbenchAlternativeScenario[]; conclusion_summary?: string | null }
 export interface DebateDetail { id: string; topic: string; trigger_type: string; status: string; rounds: DebateRound[]; verdict: DebateVerdict | null; created_at: string }
 export interface DebateRoundStartEvent { event: "debate_round_start"; payload: { round_number: number; role: string; debate_id?: string } }
 export interface DebateRoundCompleteEvent { event: "debate_round_complete"; payload: { round_number: number; role: string; position: string; confidence: number; key_arguments: string[]; debate_id?: string } }
-export interface DebateVerdictEvent { event: "debate_verdict"; payload: { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; debate_id?: string } }
+export interface DebateVerdictEvent { event: "debate_verdict"; payload: { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; minority_opinion?: string | null; debate_id?: string } }
 export type DebateStreamEvent = DebateRoundStartEvent | DebateRoundCompleteEvent | DebateVerdictEvent;
 export interface PanelMessage { participant_id: string; label: string; model_target: string; stance: "support" | "challenge" | "monitor"; summary: string; key_points: string[]; recommendation: string; confidence: number }
 export interface StrategicSession { id: string; name: string; topic: string; domain_id: string; subject_name: string | null; auto_refresh_enabled: boolean; latest_brief_summary: string | null; latest_run_summary: string | null; created_at: string }
@@ -250,7 +250,13 @@ async function streamEvents<TEvent extends { event: string; payload: unknown }>(
         if (line.startsWith("event: ")) ev = line.slice(7);
         if (line.startsWith("data: ")) data.push(line.slice(6));
       }
-      if (ev && data.length) try { onEvent({ event: ev, payload: JSON.parse(data.join("\n")) } as TEvent); } catch {}
+      if (ev && data.length) {
+          try {
+            onEvent({ event: ev, payload: JSON.parse(data.join("\n")) } as TEvent);
+          } catch (err) {
+            console.warn("SSE event parse error", { event: ev, error: err });
+          }
+        }
     }
   }
 }

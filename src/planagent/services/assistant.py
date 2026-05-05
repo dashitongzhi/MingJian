@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,7 @@ from planagent.domain.api import (
     StrategicRunSnapshotRead,
     StrategicSessionDetailRead,
     StrategicSessionRead,
+    RunWorkbenchRead,
 )
 from planagent.domain.models import (
     Claim,
@@ -49,6 +51,7 @@ from planagent.services.workbench import WorkbenchService
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _SLUG_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -150,9 +153,32 @@ class StrategicAssistantService:
                 debate_id = debate_event.payload.get("debate_id")
         debate = await self.debate_service.get_debate(session, debate_id) if debate_id is not None else None
 
-        workbench = await self.workbench_service.build_run_workbench(session, simulation_run.id)
-        latest_report = await self._latest_report(session, domain_id, subject_id, simulation_run.id, payload.tenant_id)
-        panel_discussion = await self._build_panel_discussion(payload, domain_id, subject_name, analysis_result, latest_report)
+        result = None
+        try_errors: list[str] = []
+        try:
+            workbench = await self.workbench_service.build_run_workbench(session, simulation_run.id)
+        except Exception as exc:
+            _logger.warning("workbench build failed", exc_info=True)
+            try_errors.append(f"workbench: {exc}")
+            workbench = RunWorkbenchRead.model_construct(
+                run_id=simulation_run.id,
+                domain_id=domain_id,
+            )
+
+        try:
+            latest_report = await self._latest_report(session, domain_id, subject_id, simulation_run.id, payload.tenant_id)
+        except Exception as exc:
+            _logger.warning("report generation failed", exc_info=True)
+            try_errors.append(f"report: {exc}")
+            latest_report = None
+
+        try:
+            panel_discussion = await self._build_panel_discussion(payload, domain_id, subject_name, analysis_result, latest_report)
+        except Exception as exc:
+            _logger.warning("panel discussion failed", exc_info=True)
+            try_errors.append(f"panel_discussion: {exc}")
+            panel_discussion = []
+
         for message in panel_discussion:
             yield self._event("discussion", message.model_dump(mode="json"))
 
@@ -170,20 +196,42 @@ class StrategicAssistantService:
             panel_discussion=panel_discussion,
             generated_at=datetime.now(timezone.utc),
         )
-        session_record = await self._ensure_session_record(
-            session,
-            payload,
-            domain_id,
-            subject_id,
-            subject_name,
-        )
-        if session_record is not None:
-            result.session_id = session_record.id
-            await self._store_run_snapshot(session, session_record, result)
+
+        try:
+            session_record = await self._ensure_session_record(
+                session,
+                payload,
+                domain_id,
+                subject_id,
+                subject_name,
+            )
+            if session_record is not None:
+                result.session_id = session_record.id
+                await self._store_run_snapshot(session, session_record, result)
+        except Exception as exc:
+            _logger.warning("session persist failed", exc_info=True)
+            try_errors.append(f"session_persist: {exc}")
+            try:
+                await session.rollback()
+            except Exception:
+                _logger.warning("session rollback failed after persist error", exc_info=True)
+
         try:
             await self._auto_create_watch_rule(session, payload.topic, domain_id, payload.tick_count)
         except Exception:
-            await session.rollback()
+            _logger.warning("auto watch rule creation failed", exc_info=True)
+            try:
+                await session.rollback()
+            except Exception:
+                _logger.warning("session rollback failed after watch rule error", exc_info=True)
+
+        if try_errors:
+            yield self._event("step", {
+                "phase": "post_debate_errors",
+                "message": "; ".join(try_errors),
+                "status": "warning",
+            })
+
         yield self._event("assistant_result", result.model_dump(mode="json"))
 
     async def _build_debate_context_lines(

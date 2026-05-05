@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import useSWR, { mutate as globalMutate } from "swr";
 import { RefreshCw } from "lucide-react";
-import { fetchSessions, fetchSessionDetail, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound, type DebateVerdict, type StrategicSessionDetail } from "@/lib/api";
+import { fetchSessions, fetchSessionDetail, streamAssistant, type AssistantResult, type AnalysisStep, type PanelMessage, type DebateRound, type DebateVerdict, type StrategicSessionDetail, type WorkbenchAlternativeScenario } from "@/lib/api";
+import { RecommendationCard } from "@/components/RecommendationCard";
 import type { ProcessStep, DebateMessage } from "@/components/ProcessVisualizer";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
@@ -146,6 +148,8 @@ type SourceSearchState = {
   status: "searching" | "completed" | "failed";
   count?: number;
   error?: string;
+  icon?: string;
+  itemsPreview?: string[];
 };
 
 function SourceSearchProgress({ sources }: { sources: SourceSearchState[] }) {
@@ -183,14 +187,24 @@ function SourceSearchProgress({ sources }: { sources: SourceSearchState[] }) {
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {sources.map((source) => (
-          <div key={source.provider} className="flex min-w-0 items-center justify-between gap-3 border border-[var(--card-border)] px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${statusClass[source.status]}`} />
-              <span className="truncate text-xs font-medium">{source.label}</span>
+          <div key={source.provider} className="border border-[var(--card-border)] px-3 py-2">
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${statusClass[source.status]}`} />
+                {source.icon && <span className="text-sm shrink-0">{source.icon}</span>}
+                <span className="truncate text-xs font-medium">{source.label}</span>
+              </div>
+              <span className="shrink-0 font-mono text-[11px] text-[var(--muted)]">
+                {source.status === "completed" ? `${source.count || 0}` : statusText[source.status]}
+              </span>
             </div>
-            <span className="shrink-0 font-mono text-[11px] text-[var(--muted)]">
-              {source.status === "completed" ? `${source.count || 0}` : statusText[source.status]}
-            </span>
+            {source.status === "completed" && source.itemsPreview && source.itemsPreview.length > 0 && (
+              <div className="mt-1.5 space-y-0.5 pl-4">
+                {source.itemsPreview.slice(0, 3).map((item, j) => (
+                  <div key={j} className="truncate text-[11px] text-[var(--muted-foreground)]">• {item}</div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -230,6 +244,7 @@ type AssistantRunParams = {
   domain_id: string;
   subject_name: string;
   tick_count: number;
+  session_name?: string;
 };
 
 type CurrentDebateRound = {
@@ -499,78 +514,141 @@ function SessionDetailPanel({ detail, onBack }: { detail: StrategicSessionDetail
           </div>
           {recent_runs.length > 0 ? (
             <div className="space-y-0">
-              {recent_runs.map((run, i) => (
-                <div
-                  key={run.id}
-                  className="divider-subtle py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]"
-                  style={{ animationDelay: `${i * 45}ms` }}
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="section-label">
-                        {t("assistant.runResult")}
+              {recent_runs.map((run, i) => {
+                const verdict = run.result?.debate?.verdict;
+                const recs = verdict?.recommendations || [];
+                const risks = verdict?.risk_factors || [];
+                const conclusion = verdict?.conclusion_summary;
+                const debateId = run.debate_id || run.result?.debate?.id;
+
+                const content = (
+                  <div
+                    className="divider-subtle py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]"
+                    style={{ animationDelay: `${i * 45}ms` }}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="section-label">
+                          {t("assistant.runResult")}
+                        </span>
+                        <span className="font-mono text-[10px] text-[var(--muted)]">{run.id.slice(0, 8)}</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-[var(--muted)]">
+                        {new Date(run.generated_at).toLocaleString()}
                       </span>
-                      <span className="font-mono text-[10px] text-[var(--muted)]">{run.id.slice(0, 8)}</span>
                     </div>
-                    <span className="font-mono text-[10px] text-[var(--muted)]">
-                      {new Date(run.generated_at).toLocaleString()}
-                    </span>
-                  </div>
 
-                  {/* Analysis Summary */}
-                  {run.result?.analysis?.summary && (
-                    <div className="mb-3">
-                      <RichText text={run.result.analysis.summary} />
-                    </div>
-                  )}
-
-                  {/* Key Findings */}
-                  {run.result?.analysis?.findings && run.result.analysis.findings.length > 0 && (
-                    <div className="mb-3 border-l border-[var(--card-border)] pl-4">
-                      <div className="mb-2 section-label">
-                        {t("assistant.keyFindings")}
+                    {/* Conclusion Summary (truncated) */}
+                    {conclusion && (
+                      <div className="mb-3 border-l-2 border-[var(--accent)] pl-3">
+                        <p className="text-xs leading-5 text-[var(--muted-foreground)] line-clamp-2">
+                          {conclusion.slice(0, 150)}{conclusion.length > 150 ? "…" : ""}
+                        </p>
                       </div>
-                      <div className="space-y-1">
-                        {run.result.analysis.findings.slice(0, 5).map((f, fi) => (
-                          <div key={fi} className="flex gap-2 text-xs text-[var(--muted-foreground)]">
-                            <span className="font-mono text-[var(--accent)]">{String(fi + 1).padStart(2, "0")}</span>
-                            <span className="leading-5">{f}</span>
-                          </div>
+                    )}
+
+                    {/* Analysis Summary */}
+                    {run.result?.analysis?.summary && (
+                      <div className="mb-3">
+                        <RichText text={run.result.analysis.summary} />
+                      </div>
+                    )}
+
+                    {/* Recommendations tags */}
+                    {recs.length > 0 && (
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-[var(--muted)]">{t("assistant.recommendations")}:</span>
+                        {recs.slice(0, 3).map((rec, ri) => (
+                          <span key={ri} className="badge text-[10px] truncate max-w-[200px]">
+                            {rec.title || (typeof rec === "string" ? rec : "")}
+                          </span>
                         ))}
+                        {recs.length > 3 && (
+                          <span className="text-[10px] text-[var(--muted)]">+{recs.length - 3}</span>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Debate Verdict */}
-                  {run.result?.debate?.verdict && (
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 divider-subtle pt-3 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[var(--muted)]">{t("assistant.debateVerdict")}:</span>
-                        <span className="badge badge-success uppercase">{run.result.debate.verdict.verdict}</span>
+                    {/* Risk Factors tags */}
+                    {risks.length > 0 && (
+                      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-[var(--accent-red)]">{t("assistant.riskFactors")}:</span>
+                        {risks.slice(0, 3).map((risk, ri) => (
+                          <span key={ri} className="badge badge-error text-[10px] truncate max-w-[200px]">
+                            {typeof risk === "string" ? risk.slice(0, 40) : ""}
+                          </span>
+                        ))}
+                        {risks.length > 3 && (
+                          <span className="text-[10px] text-[var(--muted)]">+{risks.length - 3}</span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[var(--muted)]">{t("common.confidence")}:</span>
-                        <span className="badge">{(run.result.debate.verdict.confidence * 100).toFixed(0)}%</span>
-                      </div>
-                      {run.result.debate.verdict.minority_opinion && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[var(--muted)]">{t("debate.minorityOpinion")}:</span>
-                          <span className="text-[var(--muted-foreground)]">{run.result.debate.verdict.minority_opinion.slice(0, 80)}</span>
+                    )}
+
+                    {/* Key Findings */}
+                    {run.result?.analysis?.findings && run.result.analysis.findings.length > 0 && (
+                      <div className="mb-3 border-l border-[var(--card-border)] pl-4">
+                        <div className="mb-2 section-label">
+                          {t("assistant.keyFindings")}
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <div className="space-y-1">
+                          {run.result.analysis.findings.slice(0, 5).map((f, fi) => (
+                            <div key={fi} className="flex gap-2 text-xs text-[var(--muted-foreground)]">
+                              <span className="font-mono text-[var(--accent)]">{String(fi + 1).padStart(2, "0")}</span>
+                              <span className="leading-5">{f}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                  {/* Simulation status */}
-                  {run.result?.simulation_run && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
-                      <span>{t("assistant.simulation")}:</span>
-                      <span className="font-mono">{run.result.simulation_run.id.slice(0, 8)}</span>
-                      <span className="badge badge-warning uppercase">{run.result.simulation_run.status}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    {/* Debate Verdict */}
+                    {verdict && (
+                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 divider-subtle pt-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[var(--muted)]">{t("assistant.debateVerdict")}:</span>
+                          <span className="badge badge-success uppercase">{verdict.verdict}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[var(--muted)]">{t("common.confidence")}:</span>
+                          <span className="badge">{((verdict.confidence ?? 0) * 100).toFixed(0)}%</span>
+                        </div>
+                        {verdict.minority_opinion && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[var(--muted)]">{t("debate.minorityOpinion")}:</span>
+                            <span className="text-[var(--muted-foreground)]">{verdict.minority_opinion.slice(0, 80)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Simulation status */}
+                    {run.result?.simulation_run && (
+                      <div className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
+                        <span>{t("assistant.simulation")}:</span>
+                        <span className="font-mono">{run.result.simulation_run.id.slice(0, 8)}</span>
+                        <span className="badge badge-warning uppercase">{run.result.simulation_run.status}</span>
+                      </div>
+                    )}
+
+                    {/* Link to debate */}
+                    {debateId && (
+                      <div className="mt-2">
+                        <Link href={`/debate?id=${debateId}`} className="text-xs text-[var(--accent)] hover:underline">
+                          {t("assistant.viewFullDebate")} →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                );
+
+                return debateId ? (
+                  <Link key={run.id} href={`/debate?id=${debateId}`} className="block outline-none motion-safe:transition-opacity hover:opacity-85 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]">
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={run.id}>{content}</div>
+                );
+              })}
             </div>
           ) : (
             <div className="divider-subtle py-6 text-sm text-[var(--muted)]">
@@ -583,6 +661,269 @@ function SessionDetailPanel({ detail, onBack }: { detail: StrategicSessionDetail
   );
 }
 
+function ResultVerdictBadge({ verdict }: { verdict: string }) {
+  const colors: Record<string, string> = {
+    ACCEPTED: "badge-success",
+    REJECTED: "badge-error",
+    CONDITIONAL: "badge-warning",
+  };
+  return <span className={`badge uppercase text-sm ${colors[verdict] || "badge"}`}>{verdict}</span>;
+}
+
+function ResultSection({
+  result,
+  onExport,
+  onReanalyze,
+  streaming,
+}: {
+  result: AssistantResult;
+  onExport: () => void;
+  onReanalyze: () => void;
+  streaming: boolean;
+}) {
+  const { t } = useTranslation();
+  const verdict = result.debate?.verdict;
+  const recs = verdict?.recommendations || [];
+  const simpleRecs = result.analysis.recommendations || [];
+  const risks = verdict?.risk_factors || [];
+  const scenarios = verdict?.alternative_scenarios || [];
+  const conclusion = verdict?.conclusion_summary;
+
+  return (
+    <section className="mt-6 space-y-6 motion-safe:animate-[fadeIn_0.25s_ease-out]">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h3 className="heading-section">{t("assistant.analysisComplete")}</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          {result.debate?.id && (
+            <Link href={`/debate?id=${result.debate.id}`} className="btn btn-ghost text-xs">
+              {t("assistant.viewFullDebate")}
+            </Link>
+          )}
+          <button onClick={onReanalyze} disabled={streaming} className="btn btn-primary">
+            <RefreshCw size={16} />
+            {t("assistant.reanalyze")}
+          </button>
+          <button onClick={onExport} className="btn btn-ghost">{t("common.exportMd")}</button>
+        </div>
+      </div>
+
+      {/* 1. Conclusion Summary */}
+      {conclusion && verdict && (
+        <div className="rounded-lg border-l-4 border-[var(--accent)] bg-[var(--card)] p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <ResultVerdictBadge verdict={verdict.verdict} />
+            <span className="text-sm text-[var(--muted)]">
+              {t("assistant.confidence")}: <span className="font-mono text-[var(--foreground)]">{((verdict.confidence ?? 0) * 100).toFixed(0)}%</span>
+            </span>
+          </div>
+          <p className="text-sm leading-7 text-[var(--muted-foreground)]">{conclusion}</p>
+        </div>
+      )}
+
+      {/* 2. Structured Recommendations */}
+      {recs.length > 0 && (
+        <div>
+          <SectionLabel>{t("assistant.actionRecommendations")}</SectionLabel>
+          <div className="mt-3 space-y-3">
+            {recs.map((rec, i) => (
+              <RecommendationCard
+                key={i}
+                rec={rec}
+                index={i}
+                actionItemsLabel={t("assistant.actionItems")}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 2b. Simple recommendations fallback */}
+      {recs.length === 0 && simpleRecs.length > 0 && (
+        <div>
+          <SectionLabel>{t("assistant.recommendations")}</SectionLabel>
+          <div className="mt-3 space-y-3">
+            {simpleRecs.map((rec, i) => (
+              <div key={i} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4 flex items-start gap-3">
+                <span className="font-mono text-xs text-[var(--accent)] shrink-0">{String(i + 1).padStart(2, "0")}</span>
+                <RichText text={rec} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Risk Factors */}
+      {risks.length > 0 && (
+        <div>
+          <SectionLabel>{t("assistant.riskFactors")}</SectionLabel>
+          <div className="mt-3 overflow-hidden rounded-lg border border-[var(--card-border)] bg-[var(--card)] divide-y divide-[var(--card-border)]">
+            {risks.map((risk: string, i: number) => (
+              <div key={i} className="flex items-start gap-3 p-4">
+                <span className="font-mono text-xs text-[var(--accent-red)] shrink-0">{String(i + 1).padStart(2, "0")}</span>
+                <span className="text-sm leading-6 text-[var(--muted-foreground)]">{typeof risk === "string" ? risk : JSON.stringify(risk)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Alternative Scenarios */}
+      {scenarios.length > 0 && (
+        <div>
+          <SectionLabel>{t("assistant.alternativeScenarios")}</SectionLabel>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            {scenarios.map((sc: WorkbenchAlternativeScenario, i: number) => (
+              <div key={i} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4">
+                <h4 className="text-sm font-semibold mb-2">{sc.name || `Scenario ${String.fromCharCode(65 + i)}`}</h4>
+                {sc.description && <p className="text-xs leading-6 text-[var(--muted-foreground)] mb-2">{sc.description}</p>}
+                {sc.expected_outcome && (
+                  <p className="text-xs text-[var(--muted)]">
+                    {t("assistant.expectedOutcome")}: <span className="text-[var(--muted-foreground)]">{sc.expected_outcome}</span>
+                  </p>
+                )}
+                {sc.probability != null && (
+                  <span className="badge mt-2">{((sc.probability ?? 0) * 100).toFixed(0)}%</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 5. Debate Details (collapsible) */}
+      {verdict && (
+        <details className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
+          <summary className="cursor-pointer font-medium text-sm">{t("assistant.debateDetails")}</summary>
+          <div className="mt-4 space-y-4">
+            {verdict.winning_arguments.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-[var(--muted)] mb-2">{t("assistant.winningArguments")}</div>
+                <ul className="space-y-1">
+                  {verdict.winning_arguments.map((arg, i) => (
+                    <li key={i} className="text-sm text-[var(--muted-foreground)] flex items-start gap-2">
+                      <span className="text-[var(--accent)] shrink-0">+</span>
+                      {arg}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {verdict.decisive_evidence.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-[var(--muted)] mb-2">{t("assistant.decisiveEvidence")}</div>
+                <ul className="space-y-1">
+                  {verdict.decisive_evidence.map((ev, i) => (
+                    <li key={i} className="text-sm text-[var(--muted-foreground)] flex items-start gap-2">
+                      <span className="text-[var(--accent)] shrink-0">*</span>
+                      {ev}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {verdict.minority_opinion && (
+              <div className="border-l-2 border-[var(--accent-red)] pl-3">
+                <div className="text-xs font-medium text-[var(--accent-red)] mb-1">{t("assistant.minorityOpinion")}</div>
+                <p className="text-sm text-[var(--muted-foreground)]">{verdict.minority_opinion}</p>
+              </div>
+            )}
+
+            {verdict.conditions && verdict.conditions.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-[var(--muted)] mb-2">{t("assistant.conditions")}</div>
+                <ul className="space-y-1">
+                  {verdict.conditions.map((cond, i) => (
+                    <li key={i} className="text-sm text-[var(--muted-foreground)] flex items-start gap-2">
+                      <span className="text-[var(--accent)] shrink-0">*</span>
+                      {cond}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+
+      {/* 6. Latest Report */}
+      {result.latest_report && (
+        <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4">
+          <SectionLabel>{t("assistant.latestReport")}</SectionLabel>
+          <p className="mt-2 text-sm font-medium">{result.latest_report.title}</p>
+          <p className="text-xs text-[var(--muted-foreground)] mt-1">{result.latest_report.summary}</p>
+        </div>
+      )}
+
+      {/* 7. Analysis Summary */}
+      <RichText text={result.analysis.summary} />
+
+      {/* 8. Key Findings */}
+      {result.analysis.findings.length > 0 && (
+        <div>
+          <SectionLabel>{t("assistant.keyFindings")}</SectionLabel>
+          <div className="mt-3 divider-subtle">
+            {result.analysis.findings.map((f, i) => (
+              <div key={i} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-3 divider-subtle">
+                <span className="font-mono text-xs text-[var(--accent)]">{String(i + 1).padStart(2, "0")}</span>
+                <RichText text={f} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 9. Panel Discussion key points */}
+      {result.panel_discussion.length > 0 && (
+        <div>
+          <SectionLabel>{t("assistant.panelDiscussion")}</SectionLabel>
+          <div className="mt-3 space-y-3">
+            {result.panel_discussion.map((msg, i) => (
+              <div key={i} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-medium text-sm">{msg.label}</span>
+                  <span className={`badge text-xs ${msg.stance === "support" ? "badge-success" : msg.stance === "challenge" ? "badge-error" : "badge-warning"}`}>{msg.stance}</span>
+                  <span className="text-xs text-[var(--muted)]">{(msg.confidence * 100).toFixed(0)}%</span>
+                </div>
+                <RichText text={msg.summary} />
+                {msg.key_points.length > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs font-medium text-[var(--muted)] mb-1">{t("assistant.keyPoints")}</div>
+                    <ul className="space-y-0.5">
+                      {msg.key_points.map((kp, j) => (
+                        <li key={j} className="text-xs text-[var(--muted-foreground)]">• {kp}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {msg.recommendation && (
+                  <div className="mt-3 border-l-2 border-[var(--accent)] pl-3">
+                    <div className="text-xs font-medium text-[var(--muted)] mb-1">{t("assistant.recommendation")}</div>
+                    <RichText text={msg.recommendation} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 10. Simulation metadata */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs text-[var(--muted)]">
+        {result.simulation_run && (
+          <div className="flex items-center gap-2">
+            <span>{t("assistant.simulation")}:</span>
+            <span className="font-mono text-[var(--muted-foreground)]">{result.simulation_run.id.slice(0, 8)}</span>
+            <span className="badge badge-warning uppercase">{result.simulation_run.status}</span>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function AssistantPage() {
   const { t } = useTranslation();
   const { data: sessions, error: sessionsError, mutate: refreshSessions } = useSWR("sessions", fetchSessions);
@@ -592,7 +933,7 @@ export default function AssistantPage() {
   const [debateRounds, setDebateRounds] = useState<DebateRound[]>([]);
   const [debateStatus, setDebateStatus] = useState<"idle" | "in_progress" | "complete">("idle");
   const [currentDebateRound, setCurrentDebateRound] = useState<CurrentDebateRound>(null);
-  const [debateVerdict, setDebateVerdict] = useState<Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> | null>(null);
+  const [debateVerdict, setDebateVerdict] = useState<DebateVerdict | null>(null);
   const [result, setResult] = useState<AssistantResult | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -662,6 +1003,7 @@ export default function AssistantPage() {
       domain_id: domainId,
       subject_name: subjectName || topic.slice(0, 50),
       tick_count: tickCount,
+      session_name: topic.slice(0, 80),
     };
     if (!runParams.topic.trim()) return;
     lastRunParamsRef.current = runParams;
@@ -682,6 +1024,7 @@ export default function AssistantPage() {
     setDebateMessages([]);
     setSourceSearches([]);
     setCurrentStage("ingest");
+    let hasError = false;
     toast.info('分析已启动');
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -692,21 +1035,22 @@ export default function AssistantPage() {
           setEvents(prev => [...prev, evt]);
 
           if (evt.event === "source_start") {
-            const payload = evt.payload as { provider: string; label?: string };
+            const payload = evt.payload as { provider: string; label?: string; agent_name?: string; agent_icon?: string; task_desc?: string };
             setSourceSearches(prev => {
               const next = prev.filter((source) => source.provider !== payload.provider);
               return [
                 ...next,
                 {
                   provider: payload.provider,
-                  label: payload.label || payload.provider,
+                  label: payload.label || payload.agent_name || payload.provider,
                   status: "searching",
+                  icon: payload.agent_icon,
                 },
               ];
             });
             setCurrentStage("fetch");
           } else if (evt.event === "source_complete") {
-            const payload = evt.payload as { provider: string; label?: string; count?: number };
+            const payload = evt.payload as { provider: string; label?: string; count?: number; items_preview?: string[] };
             setSourceSearches(prev => {
               const existing = prev.find((source) => source.provider === payload.provider);
               const next = prev.filter((source) => source.provider !== payload.provider);
@@ -717,6 +1061,8 @@ export default function AssistantPage() {
                   label: payload.label || existing?.label || payload.provider,
                   status: "completed",
                   count: payload.count || 0,
+                  icon: existing?.icon,
+                  itemsPreview: payload.items_preview,
                 },
               ];
             });
@@ -748,6 +1094,28 @@ export default function AssistantPage() {
               timestamp: new Date().toLocaleTimeString()
             }]);
             if (step.stage) setCurrentStage(step.stage);
+          } else if (evt.event === "ingest_run") {
+            const payload = evt.payload as { ingest_run?: string; summary?: Record<string, number> };
+            setCurrentStage("ingest");
+            setProcessSteps(prev => [...prev, {
+              id: `ingest-${Date.now()}`,
+              stage: "ingest",
+              title: t("assistant.ingestStarted"),
+              description: payload.ingest_run?.slice(0, 8) || "",
+              status: "completed",
+              timestamp: new Date().toLocaleTimeString(),
+            }]);
+          } else if (evt.event === "simulation_run") {
+            const payload = evt.payload as { simulation_run?: string; status?: string };
+            setCurrentStage("simulate");
+            setProcessSteps(prev => [...prev, {
+              id: `sim-${Date.now()}`,
+              stage: "simulate",
+              title: t("assistant.simulationStarted"),
+              description: payload.simulation_run?.slice(0, 8) || "",
+              status: "completed",
+              timestamp: new Date().toLocaleTimeString(),
+            }]);
           } else if (evt.event === "source") {
             const source = evt.payload as { title: string; url: string };
             setSources(p => [...p, source]);
@@ -793,12 +1161,8 @@ export default function AssistantPage() {
             }]);
             setCurrentStage("debate");
           } else if (evt.event === "debate_verdict") {
-            const payload = evt.payload as Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments">;
-            setDebateVerdict({
-              verdict: payload.verdict,
-              confidence: payload.confidence,
-              winning_arguments: payload.winning_arguments || [],
-            });
+            const payload = evt.payload as DebateVerdict;
+            setDebateVerdict(payload);
             setDebateStatus("complete");
             setCurrentDebateRound(null);
             setCurrentStage("debate");
@@ -823,12 +1187,18 @@ export default function AssistantPage() {
               setDebateStatus("complete");
               setCurrentDebateRound(null);
             }
+          } else if (evt.event === "error") {
+            hasError = true;
+            const errPayload = evt.payload as { message?: string } | undefined;
+            setError(errPayload?.message || t("assistant.sseError"));
           }
         },
         ctrl.signal
       );
       refreshSessions();
-      toast.success('分析完成');
+      if (!hasError) {
+        toast.success(t("assistant.analysisCompleteToast"));
+      }
       // Plan A: refresh all cross-page SWR caches
       globalMutate("sim-runs");
       globalMutate("ev");
@@ -1236,65 +1606,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
             </div>
           </section>
 
-          {result && (
-            <section className="mt-6 rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <h3 className="heading-section">{t("assistant.analysisComplete")}</h3>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const params = lastRunParamsRef.current;
-                      if (params) handleRun(params);
-                    }}
-                    disabled={streaming || !lastRunParamsRef.current}
-                    className="btn btn-primary"
-                  >
-                    <RefreshCw size={16} />
-                    重新分析
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    className="btn btn-ghost"
-                  >
-                    {t("common.exportMd")}
-                  </button>
-                </div>
-              </div>
-
-              <RichText text={result.analysis.summary} />
-
-              {result.analysis.findings.length > 0 && (
-                <div className="mt-6">
-                  <SectionLabel>{t("assistant.keyFindings")}</SectionLabel>
-                  <div className="mt-3 divider-subtle">
-                    {result.analysis.findings.map((f, i) => (
-                      <div key={i} className="grid grid-cols-[34px_minmax(0,1fr)] gap-3 py-3 divider-subtle">
-                        <span className="font-mono text-xs text-[var(--accent)]">{String(i + 1).padStart(2, "0")}</span>
-                        <RichText text={f} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 divider-subtle pt-4 text-xs text-[var(--muted)]">
-                {result.simulation_run && (
-                  <div className="flex items-center gap-2">
-                    <span>{t("assistant.simulation")}:</span>
-                    <span className="font-mono text-[var(--muted-foreground)]">{result.simulation_run.id.slice(0, 8)}</span>
-                    <span className="badge badge-warning uppercase">{result.simulation_run.status}</span>
-                  </div>
-                )}
-                {result.debate?.verdict && (
-                  <div className="flex items-center gap-2">
-                    <span>{t("assistant.verdict")}:</span>
-                    <span className="badge badge-success uppercase">{result.debate.verdict.verdict}</span>
-                    <span className="badge">{(result.debate.verdict.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
+          {result && <ResultSection result={result} onExport={handleExport} onReanalyze={() => { const p = lastRunParamsRef.current; if (p) handleRun(p); }} streaming={streaming} />}
             </>
           )}
         </main>

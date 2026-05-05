@@ -56,3 +56,7 @@ docs/release_impact_test_report.md
 
 # Local workspace notes
 current-workspace-chat-history.md
+
+# PPT build artifacts
+workspace/
+*.pptx

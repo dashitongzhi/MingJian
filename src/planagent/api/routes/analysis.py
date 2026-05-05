@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -31,6 +32,7 @@ from planagent.api.routes._deps import (
 router = APIRouter()
 _CONSOLE_HTML = Path(__file__).resolve().parents[2] / "ui" / "strategic_console.html"
 _APP_VERSION = "0.1.0"
+_logger = logging.getLogger(__name__)
 
 
 @router.get("/")
@@ -109,9 +111,14 @@ async def analyze_content_stream(
     service = get_analysis_service(request)
 
     async def event_stream():
-        async for event in service.stream_analysis(payload):
-            yield f"event: {event.event}\n"
-            yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+        try:
+            async for event in service.stream_analysis(payload):
+                yield f"event: {event.event}\n"
+                yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            _logger.exception("Analysis stream failed")
+            yield f"event: error\n"
+            yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -125,9 +132,14 @@ async def debate_stream(
     service = get_debate_service(request)
 
     async def event_stream():
-        async for event in service.stream_debate(session, payload):
-            yield f"event: {event.event}\n"
-            yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+        try:
+            async for event in service.stream_debate(session, payload):
+                yield f"event: {event.event}\n"
+                yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            _logger.exception("Debate stream failed")
+            yield f"event: error\n"
+            yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -213,8 +225,13 @@ async def strategic_assistant_stream(
     service = get_assistant_service(request)
 
     async def event_stream():
-        async for event in service.stream(session, payload):
-            yield f"event: {event.event}\n"
-            yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+        try:
+            async for event in service.stream(session, payload):
+                yield f"event: {event.event}\n"
+                yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
+        except Exception as exc:
+            _logger.exception("Assistant stream failed")
+            yield f"event: error\n"
+            yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

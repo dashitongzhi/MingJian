@@ -6,52 +6,11 @@ import { Play, Radio, RefreshCw } from "lucide-react";
 import { createDebateVote, fetchDebateDetail, fetchDebates, fetchDebateVotes, fetchSimulationRuns, streamDebate, type DebateRound, type DebateSummary, type DebateVote, type DebateVerdict } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
+import { PriorityBadge } from "@/components/PriorityBadge";
+import { RecommendationCard } from "@/components/RecommendationCard";
 
 function toText(value: unknown) {
   return typeof value === "string" ? value : JSON.stringify(value);
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const colors: Record<string, string> = {
-    high: "badge badge-error",
-    medium: "badge badge-warning",
-    low: "badge badge-success",
-  };
-  return (
-    <span className={colors[priority] || "badge badge-warning"}>
-      {priority}
-    </span>
-  );
-}
-
-function RecommendationCard({ rec, index }: { rec: { title: string; priority: string; rationale: string; action_items: string[] }; index: number }) {
-  return (
-    <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 animate-fadeIn" style={{ animationDelay: `${index * 80}ms` }}>
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-lg text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
-          <h4 className="heading-section !text-sm">{rec.title}</h4>
-        </div>
-        <PriorityBadge priority={rec.priority} />
-      </div>
-      {rec.rationale && (
-        <p className="text-xs leading-6 text-[var(--muted-foreground)] mb-3 pl-8">{rec.rationale}</p>
-      )}
-      {rec.action_items.length > 0 && (
-        <div className="divider-subtle pt-3 pl-8 mt-3">
-          <div className="section-label !text-[var(--muted)] mb-2">行动项</div>
-          <div className="space-y-1.5">
-            {rec.action_items.map((item, i) => (
-              <div key={i} className="grid grid-cols-[18px_1fr] text-xs leading-5">
-                <span className="text-[var(--accent)]">→</span>
-                <span className="text-[var(--muted-foreground)]">{toText(item)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 type VoteValue = "agree" | "disagree" | "neutral";
@@ -89,7 +48,7 @@ function LiveProgressBar({ value }: { value: number }) {
   );
 }
 
-function LiveVerdictCard({ verdict }: { verdict: Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> }) {
+function LiveVerdictCard({ verdict }: { verdict: DebateVerdict }) {
   return (
     <section className="rounded-lg border border-[var(--accent)]/40 bg-[var(--card)] p-5 animate-scaleIn">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -352,7 +311,7 @@ function DebatePageInner() {
   const [liveStatus, setLiveStatus] = useState<"idle" | "in_progress" | "complete">("idle");
   const [liveCurrentRound, setLiveCurrentRound] = useState<{ round_number: number; role: string } | null>(null);
   const [liveRounds, setLiveRounds] = useState<DebateRound[]>([]);
-  const [liveVerdict, setLiveVerdict] = useState<Pick<DebateVerdict, "verdict" | "confidence" | "winning_arguments"> | null>(null);
+  const [liveVerdict, setLiveVerdict] = useState<DebateVerdict | null>(null);
   const [liveDebateId, setLiveDebateId] = useState<string | null>(null);
   const liveAbortRef = useRef<AbortController | null>(null);
 
@@ -380,10 +339,10 @@ function DebatePageInner() {
   }, {});
 
   const verdict = debate?.verdict;
-  const recommendations = (verdict as any)?.recommendations || [];
-  const riskFactors = (verdict as any)?.risk_factors || [];
-  const alternativeScenarios = (verdict as any)?.alternative_scenarios || [];
-  const conclusionSummary = (verdict as any)?.conclusion_summary;
+  const recommendations = verdict?.recommendations || [];
+  const riskFactors = verdict?.risk_factors || [];
+  const alternativeScenarios = verdict?.alternative_scenarios || [];
+  const conclusionSummary = verdict?.conclusion_summary;
 
   const handleLoad = () => {
     if (inputId.trim()) {
@@ -444,11 +403,7 @@ function DebatePageInner() {
             setLiveRounds((prev) => [...prev, round]);
             setLiveCurrentRound({ round_number: evt.payload.round_number, role: evt.payload.role });
           } else if (evt.event === "debate_verdict") {
-            setLiveVerdict({
-              verdict: evt.payload.verdict,
-              confidence: evt.payload.confidence,
-              winning_arguments: evt.payload.winning_arguments,
-            });
+            setLiveVerdict(evt.payload as DebateVerdict);
             setLiveCurrentRound(null);
           }
         },
