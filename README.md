@@ -100,6 +100,26 @@ Current AI analysis systems — from ChatGPT to enterprise copilots — share th
 
 **Our Solution:** Submit an analysis request and watch the AI work in real-time — streaming progress events, source attribution, and intermediate results.
 
+### 7. 9-Agent Decision Council
+
+**The Problem:** Single AI models have blind spots and biases.
+
+**Our Solution:** 明鉴 deploys **9 specialized AI agents** — each with a distinct role, perspective, and model — to form a decision council:
+
+| Role | Agent | Function |
+|------|-------|----------|
+| 🟢 **Strategic Advocate** | Core | Argues FOR, finds supporting evidence |
+| 🔴 **Risk Challenger** | Core | Argues AGAINST, finds counter-evidence |
+| ⚖️ **Chief Arbitrator** | Core | Delivers final verdict based on evidence |
+| 🔍 **Intelligence Analyst** | Perspective | Assesses evidence quality |
+| 🌍 **Geopolitical Expert** | Perspective | Geopolitical analysis |
+| 💰 **Economic Analyst** | Perspective | Economic/market analysis |
+| ⚔️ **Military Strategist** | Perspective | Military/security analysis |
+| 🔮 **Tech Forecaster** | Perspective | Technology trend analysis |
+| 👥 **Social Impact Assessor** | Perspective | Social/public opinion analysis |
+
+Inspired by **Mixture of Experts (MoE)** architecture: core agents are always active, perspective agents are activated as needed — sparse activation at the software layer.
+
 ---
 
 ## 🆚 明鉴 vs The Competition
@@ -117,6 +137,48 @@ Current AI analysis systems — from ChatGPT to enterprise copilots — share th
 | **Scenario Branching** | ✅ Beam-search | ❌ Manual | ❌ None | ❌ None |
 | **Knowledge Graph** | ✅ Embedding-backed | ❌ None | ❌ None | ❌ None |
 | **Open Source** | ✅ MIT License | ⚠️ Varies | ⚠️ Varies | ✅ Various |
+
+---
+
+## 🧭 明鉴 的定位：AI 决策参谋
+
+> **Manus 是通用工具人，明鉴 是专属参谋团。**
+
+2025年3月，[Manus](https://manus.im) 的发布标志着 AI Agent 时代的到来。Manus 证明了一个核心观点：**AI 的价值不在于聊天，而在于执行**。它用编排层（Orchestrator）协调多个子 Agent 和 29 个工具，在沙箱 VM 中自主完成复杂任务，拿下 GAIA 基准测试全球第一。
+
+明鉴从 Manus 的成功中汲取了灵感，但选择了一条不同的道路：
+
+### 我们学到了什么
+
+| Manus 的洞察 | 明鉴的实践 |
+|-------------|-----------|
+| 编排层 > 底层模型 | 9智能体注册中心，按角色分配模型 |
+| 实时流式展示建立信任 | 辩论逐轮渲染，用户看到每一步推理 |
+| 多工具协同完成任务 | 12个数据源 + 辩论引擎 + 仿真引擎 |
+| 动态重规划应对失败 | 辩论失败时自动调整策略重新论证 |
+
+### 我们独特的价值
+
+| 维度 | Manus (通用 Agent) | 明鉴 (决策参谋) |
+|------|-------------------|----------------|
+| **目标** | 完成任何任务 | 做出更好的决策 |
+| **推理方式** | 单一编排模型调度 | 9个智能体独立论证、交叉质询、仲裁裁决 |
+| **证据基础** | 通用搜索 | 12个数据源结构化采集 → 证据提取 → 知识图谱 |
+| **持续性** | 一次性任务 | WatchRule 持续监控 + 定时更新 + 突发事件检测 |
+| **领域深度** | 通用型 | 企业/军事双领域仿真，KPI 追踪，场景分支 |
+| **透明度** | 展示执行步骤 | 展示推理过程 + 用户可投票质疑 |
+| **数据主权** | Manus 云端 | 自部署，数据完全在本地 |
+| **成本** | $39-199/月/席位 | 自有模型，边际成本趋近于零 |
+
+### MoE 架构思想
+
+明鉴的 9 智能体系统借鉴了 **Mixture of Experts (MoE)** 的核心思想：
+
+```
+用户问题 → 路由器（辩论流程）→ 选择专家组合 → 独立推理 → 加权裁决
+```
+
+就像 DeepSeek-V3 用 256 个专家中只激活少数最相关的，明鉴在 9 个智能体中根据问题类型选择最合适的组合。核心 3 角色（支持方/挑战方/仲裁官）始终激活，视角 6 角色按需参与 — 这就是软件层的稀疏激活。
 
 ---
 
