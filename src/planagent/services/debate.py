@@ -230,7 +230,7 @@ class DebateService:
         )
         session.add(verdict)
 
-        if payload.trigger_type == "pivot_decision" and payload.run_id is not None:
+        if payload.trigger_type in ("pivot_decision", "auto_conflict_detection") and payload.run_id is not None:
             latest_decision = (
                 await session.scalars(
                     select(DecisionRecordRecord)
@@ -372,7 +372,7 @@ class DebateService:
                 debate_session.context_payload = assessment.context_payload
                 session.add(verdict)
 
-                if payload.trigger_type == "pivot_decision" and payload.run_id is not None:
+                if payload.trigger_type in ("pivot_decision", "auto_conflict_detection") and payload.run_id is not None:
                     latest_decision = (
                         await session.scalars(
                             select(DecisionRecordRecord)
@@ -777,10 +777,26 @@ class DebateService:
             )
 
         round_plan = [
-            (1, "advocate", "Round 1 advocate立论：请提出支持该命题的核心证据链。"),
-            (2, "challenger", "Round 2 challenger质询：请针对advocate立论提出具体质疑和反驳。"),
-            (3, "advocate", "Round 3 advocate修订：请根据challenger质询修订和完善你的立场。"),
-            (4, "arbitrator", "Round 4 arbitrator仲裁：请基于全部历史做出最终裁决。"),
+            # ── Round 1: 立论 ──────────────────────────────────────
+            (1, "advocate", "【第1轮·立论】战略支持者：请提出支持该命题的核心证据链和战略逻辑框架。"),
+            (1, "intel_analyst", "【第1轮·立论】情报分析师：请提供情报支撑，评估关键信息的可靠性和情报盲区。"),
+            (1, "geo_expert", "【第1轮·立论】地缘政治专家：请从地理、联盟体系和国际秩序维度分析命题的可行性。"),
+            (1, "econ_analyst", "【第1轮·立论】经济分析师：请评估命题的宏观经济影响、成本收益和经济约束。"),
+            (1, "military_strategist", "【第1轮·立论】军事战略家：请从军事力量平衡和作战可行性角度评估命题。"),
+            (1, "tech_foresight", "【第1轮·立论】技术前瞻者：请评估相关技术发展趋势及其对命题的影响。"),
+            (1, "social_impact", "【第1轮·立论】社会影响评估师：请评估命题的社会维度影响和公众舆论基础。"),
+            # ── Round 2: 质询 ──────────────────────────────────────
+            (2, "challenger", "【第2轮·质询】风险挑战者：请针对所有立论进行系统性质疑，找出逻辑漏洞和证据缺陷。"),
+            (2, "intel_analyst", "【第2轮·质询】情报分析师：请对立论中的事实声明进行情报核实，标注矛盾信息和来源可信度。"),
+            # ── Round 3: 修订 ──────────────────────────────────────
+            (3, "advocate", "【第3轮·修订】战略支持者：请根据质询反馈修订和完善你的核心论证。"),
+            (3, "geo_expert", "【第3轮·修订】地缘政治专家：请根据质询修订地缘政治分析，补充被质疑的论据。"),
+            (3, "econ_analyst", "【第3轮·修订】经济分析师：请根据质询修订经济分析，修正数据和结论。"),
+            (3, "military_strategist", "【第3轮·修订】军事战略家：请根据质询修订军事评估，强化或修正关键判断。"),
+            (3, "tech_foresight", "【第3轮·修订】技术前瞻者：请根据质询修订技术评估，更新时间线和置信度。"),
+            (3, "social_impact", "【第3轮·修订】社会影响评估师：请根据质询修订社会影响分析。"),
+            # ── Round 4: 仲裁 ──────────────────────────────────────
+            (4, "arbitrator", "【第4轮·仲裁】首席仲裁官：请基于全部论证历史做出最终裁决，综合权衡各维度分析。"),
         ]
 
         for round_number, role, instruction in round_plan:
@@ -790,9 +806,9 @@ class DebateService:
             )
             opponent_rounds = [
                 item for item in completed_rounds
-                if (role == "challenger" and item["role"] == "advocate")
-                or (role == "advocate" and round_number == 3 and item["role"] == "challenger")
-                or (role == "arbitrator")
+                if (round_number == 2 and item["round_number"] == 1)  # 质询方看到所有立论
+                or (round_number == 3 and item["round_number"] == 2)  # 修订方看到所有质询
+                or (role == "arbitrator")  # 仲裁官看到所有历史
             ]
             position = await self._call_llm(
                 role=role,
@@ -964,8 +980,45 @@ class DebateService:
                 f"Original context:\n{context}"
             )
 
+        # ── Round 1: 立论 ──────────────────────────────────────
         advocate_r1 = await self._call_llm(
             role="advocate",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+        )
+        intel_r1 = await self._call_llm(
+            role="intel_analyst",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+        )
+        geo_r1 = await self._call_llm(
+            role="geo_expert",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+        )
+        econ_r1 = await self._call_llm(
+            role="econ_analyst",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+        )
+        military_r1 = await self._call_llm(
+            role="military_strategist",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+        )
+        tech_r1 = await self._call_llm(
+            role="tech_foresight",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context,
+        )
+        social_r1 = await self._call_llm(
+            role="social_impact",
             topic=topic,
             trigger_type=trigger_type,
             context=context,
@@ -979,83 +1032,152 @@ class DebateService:
         if advocate_r1 is None and challenger_r1 is None:
             return None
 
-        adv_args_r1 = advocate_r1.arguments if advocate_r1 else []
-        chal_args_r1 = challenger_r1.arguments if challenger_r1 else []
         rounds: list[dict[str, Any]] = []
-
         if advocate_r1 is not None:
             rounds.append(round_payload(1, "advocate", advocate_r1))
+        if intel_r1 is not None:
+            rounds.append(round_payload(1, "intel_analyst", intel_r1))
+        if geo_r1 is not None:
+            rounds.append(round_payload(1, "geo_expert", geo_r1))
+        if econ_r1 is not None:
+            rounds.append(round_payload(1, "econ_analyst", econ_r1))
+        if military_r1 is not None:
+            rounds.append(round_payload(1, "military_strategist", military_r1))
+        if tech_r1 is not None:
+            rounds.append(round_payload(1, "tech_foresight", tech_r1))
+        if social_r1 is not None:
+            rounds.append(round_payload(1, "social_impact", social_r1))
         if challenger_r1 is not None:
             rounds.append(round_payload(1, "challenger", challenger_r1))
 
-        round_2_instruction = "请针对对方在Round 1的论点，提出具体的质疑和反驳"
-        advocate_r2 = await self._call_llm(
-            role="advocate",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context_with_history(round_2_instruction, rounds),
-            opponent_arguments=argument_refs(chal_args_r1),
-            own_previous=[{"claim": a.claim} for a in adv_args_r1],
-        )
+        # ── Round 2: 质询 ──────────────────────────────────────
+        all_r1_args = [
+            a for p in [advocate_r1, intel_r1, geo_r1, econ_r1, military_r1, tech_r1, social_r1]
+            if p is not None for a in p.arguments
+        ]
+        chal_args_r1 = challenger_r1.arguments if challenger_r1 else []
+        round_2_instruction = "【第2轮·质询】请针对第1轮所有立论进行系统性质疑，找出逻辑漏洞和证据缺陷。"
         challenger_r2 = await self._call_llm(
             role="challenger",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_2_instruction, rounds),
-            opponent_arguments=argument_refs(adv_args_r1),
-            own_previous=[{"claim": a.claim} for a in chal_args_r1],
+            opponent_arguments=argument_refs(all_r1_args),
+        )
+        intel_r2 = await self._call_llm(
+            role="intel_analyst",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(
+                "【第2轮·质询】情报分析师：请对立论中的事实声明进行情报核实，标注矛盾信息和来源可信度。",
+                rounds,
+            ),
+            opponent_arguments=argument_refs(all_r1_args),
         )
 
-        if advocate_r2 is not None:
-            rounds.append(round_payload(2, "advocate", advocate_r2))
         if challenger_r2 is not None:
             rounds.append(round_payload(2, "challenger", challenger_r2))
+        if intel_r2 is not None:
+            rounds.append(round_payload(2, "intel_analyst", intel_r2))
 
-        adv_args_r2 = advocate_r2.arguments if advocate_r2 else []
-        chal_args_r2 = challenger_r2.arguments if challenger_r2 else []
-        round_3_instruction = "请根据Round 2对方的质询，修订和完善你的立场"
+        # ── Round 3: 修订 ──────────────────────────────────────
+        all_r2_args = [
+            a for p in [challenger_r2, intel_r2]
+            if p is not None for a in p.arguments
+        ]
+        adv_args_r1 = advocate_r1.arguments if advocate_r1 else []
+        round_3_instruction = "【第3轮·修订】请根据第2轮质询反馈修订和完善你的核心论证，保留有证据支撑的部分，修正被质疑的部分。"
         advocate_r3 = await self._call_llm(
             role="advocate",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_3_instruction, rounds),
-            opponent_arguments=argument_refs(chal_args_r2),
-            own_previous=[{"claim": a.claim} for a in adv_args_r1 + adv_args_r2],
+            opponent_arguments=argument_refs(all_r2_args),
+            own_previous=[{"claim": a.claim} for a in adv_args_r1],
         )
-        challenger_r3 = await self._call_llm(
-            role="challenger",
+        geo_r3 = await self._call_llm(
+            role="geo_expert",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(round_3_instruction, rounds),
-            opponent_arguments=argument_refs(adv_args_r2),
-            own_previous=[{"claim": a.claim} for a in chal_args_r1 + chal_args_r2],
+            context=context_with_history(
+                "【第3轮·修订】地缘政治专家：请根据质询修订地缘政治分析，补充被质疑的论据。",
+                rounds,
+            ),
+            opponent_arguments=argument_refs(all_r2_args),
+        )
+        econ_r3 = await self._call_llm(
+            role="econ_analyst",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(
+                "【第3轮·修订】经济分析师：请根据质询修订经济分析，修正数据和结论。",
+                rounds,
+            ),
+            opponent_arguments=argument_refs(all_r2_args),
+        )
+        military_r3 = await self._call_llm(
+            role="military_strategist",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(
+                "【第3轮·修订】军事战略家：请根据质询修订军事评估，强化或修正关键判断。",
+                rounds,
+            ),
+            opponent_arguments=argument_refs(all_r2_args),
+        )
+        tech_r3 = await self._call_llm(
+            role="tech_foresight",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(
+                "【第3轮·修订】技术前瞻者：请根据质询修订技术评估，更新时间线和置信度。",
+                rounds,
+            ),
+            opponent_arguments=argument_refs(all_r2_args),
+        )
+        social_r3 = await self._call_llm(
+            role="social_impact",
+            topic=topic,
+            trigger_type=trigger_type,
+            context=context_with_history(
+                "【第3轮·修订】社会影响评估师：请根据质询修订社会影响分析。",
+                rounds,
+            ),
+            opponent_arguments=argument_refs(all_r2_args),
         )
 
         if advocate_r3 is not None:
             rounds.append(round_payload(3, "advocate", advocate_r3))
-        if challenger_r3 is not None:
-            rounds.append(round_payload(3, "challenger", challenger_r3))
+        if geo_r3 is not None:
+            rounds.append(round_payload(3, "geo_expert", geo_r3))
+        if econ_r3 is not None:
+            rounds.append(round_payload(3, "econ_analyst", econ_r3))
+        if military_r3 is not None:
+            rounds.append(round_payload(3, "military_strategist", military_r3))
+        if tech_r3 is not None:
+            rounds.append(round_payload(3, "tech_foresight", tech_r3))
+        if social_r3 is not None:
+            rounds.append(round_payload(3, "social_impact", social_r3))
 
-        all_adv_args = (
-            adv_args_r1
-            + adv_args_r2
-            + (advocate_r3.arguments if advocate_r3 else [])
-        )
-        all_chal_args = (
-            chal_args_r1
-            + chal_args_r2
-            + (challenger_r3.arguments if challenger_r3 else [])
-        )
+        # ── Round 4: 仲裁 ──────────────────────────────────────
+        all_round_args = [
+            a for p in [
+                advocate_r1, intel_r1, geo_r1, econ_r1, military_r1, tech_r1, social_r1,
+                challenger_r1, challenger_r2, intel_r2,
+                advocate_r3, geo_r3, econ_r3, military_r3, tech_r3, social_r3,
+            ]
+            if p is not None for a in p.arguments
+        ]
         round_4_instruction = (
-            "Round 4 仲裁轮：请基于Round 1立论、Round 2交叉质询、"
-            "Round 3修订立场的全部历史做出最终裁决"
+            "【第4轮·仲裁】首席仲裁官：请基于全部论证历史做出最终裁决，"
+            "综合权衡战略、情报、地缘政治、经济、军事、技术和社会各维度的分析。"
         )
         arbitrator = await self._call_llm(
             role="arbitrator",
             topic=topic,
             trigger_type=trigger_type,
             context=context_with_history(round_4_instruction, rounds),
-            opponent_arguments=argument_refs(all_adv_args + all_chal_args),
+            opponent_arguments=argument_refs(all_round_args),
         )
         if arbitrator is not None:
             rounds.append(round_payload(4, "arbitrator", arbitrator))
@@ -1226,6 +1348,12 @@ class DebateService:
             "risk_analyst": self.settings.debate_challenger_provider,
             "arbitrator": self.settings.debate_arbitrator_provider,
             "opportunist": self.settings.debate_arbitrator_provider,
+            "intel_analyst": self.settings.debate_challenger_provider,
+            "geo_expert": self.settings.debate_advocate_provider,
+            "econ_analyst": self.settings.debate_advocate_provider,
+            "military_strategist": self.settings.debate_advocate_provider,
+            "tech_foresight": self.settings.debate_advocate_provider,
+            "social_impact": self.settings.debate_advocate_provider,
         }
         return role_providers.get(role, "openai").strip().lower() or "openai"
 
@@ -1242,6 +1370,12 @@ class DebateService:
             "risk_analyst": "challenger",
             "arbitrator": "arbitrator",
             "opportunist": "arbitrator",
+            "intel_analyst": "challenger",
+            "geo_expert": "advocate",
+            "econ_analyst": "advocate",
+            "military_strategist": "advocate",
+            "tech_foresight": "advocate",
+            "social_impact": "advocate",
         }
         agent_role = role_map.get(role)
         if agent_role is None:
@@ -1328,11 +1462,127 @@ class DebateService:
         return bool(self.settings.resolved_anthropic_api_key)
 
     def _debate_role_instruction(self, role: str) -> str:
-        return {
-            "advocate": "You argue IN FAVOR of the proposition. Present supporting evidence and reasoning.",
-            "challenger": "You argue AGAINST the proposition. Find counter-evidence and weaknesses.",
-            "arbitrator": "You evaluate both sides fairly based on evidence quality. Deliver a verdict.",
-        }.get(role, "You evaluate the proposition objectively.")
+        _HILL_CLIMBING = (
+            "\n\n【迭代攀升要求】当你收到前序轮次的质疑或挑战时，你必须："
+            "（1）逐条审视自己先前的论点，识别被有效挑战的部分；"
+            "（2）保留有充分证据支撑的核心主张，修正或放弃被证伪的子论点；"
+            "（3）补充新的证据或推理来强化薄弱环节；"
+            "（4）明确标注置信度的变化及原因。"
+            "你的目标不是固守初始立场，而是在每一轮交互中让分析更加精确和可靠。"
+        )
+        _EVIDENCE_CITATION = (
+            "\n\n【证据引用规范】每个论点必须附带具体来源：引用具体的报告名称、日期、"
+            "数据指标（如GDP增长率、军费开支、部署数量等）、条约编号或历史先例。"
+            "禁止使用'据相关报道''一般来说''众所周知'等模糊表述。"
+            "如果缺乏直接证据，必须明确标注为'推测性分析'并给出推理链条。"
+        )
+        _CROSS_DOMAIN = (
+            "\n\n【跨域关联要求】你的分析不应局限于本专业领域。主动识别并引用其他维度"
+            "的关联因素：经济决策的地缘政治背景、军事行动的经济约束、技术发展的社会影响等。"
+            "在论证中明确指出跨域因果链，例如'经济制裁→供应链中断→军事后勤压力'。"
+        )
+
+        prompts = {
+            # ── 核心辩论角色 ──────────────────────────────────────
+            "advocate": (
+                "你是【战略支持者🟢】，负责为命题构建系统性的支持论证。"
+                "你的思维风格是结构化演绎：从宏观战略框架出发，逐层分解为可验证的子命题。"
+                "你擅长识别命题成立的充分条件，并构建多条独立的证据链形成交叉验证。"
+                "在论证中采用'战略叙事'手法——将分散的事实编织成连贯的战略逻辑。"
+                "始终站在决策者视角，说明该命题为何在战略上是必要且可行的。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+            "challenger": (
+                "你是【风险挑战者🔴】，负责系统性地解构命题的支撑论据。"
+                "你的思维风格是批判性分析：采用'红队思维'，专门寻找论证中的逻辑漏洞、"
+                "证据缺陷和隐含假设。你擅长运用'事前验尸法'——假设命题已经失败，"
+                "逆向推导失败的可能路径。对每个论点追问三个层次：证据是否充分？"
+                "推理是否严密？结论是否唯一？你的目标不是为反对而反对，而是通过"
+                "严格的压力测试暴露命题的真实脆弱性。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+            "arbitrator": (
+                "你是【首席仲裁官⚖️】，负责在充分听取各方论证后做出最终裁决。"
+                "你的思维风格是辩证综合：不简单地选择胜出方，而是通过'辩证扬弃'——"
+                "保留各方论证中经得起检验的部分，剔除被有效反驳的部分，"
+                "在此基础上构建更高层次的综合判断。你必须：（1）评估每条证据链的可靠性；"
+                "（2）权衡不同维度分析的权重；（3）明确裁决的置信区间；"
+                "（4）指出在什么条件下裁决可能需要修正。"
+                "你的裁决应当体现'认知谦逊'——对不确定性保持诚实。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN
+            ),
+            # ── 专业分析角色 ──────────────────────────────────────
+            "intel_analyst": (
+                "你是【情报分析师🔍】，负责为辩论提供情报基础的事实核查与来源评估。"
+                "你的思维风格是结构化情报分析（SIA）：采用A-B-C来源分级体系评估信息可靠性，"
+                "区分硬情报（已验证事实）与软情报（未验证传闻）。你擅长识别情报盲区——"
+                "哪些关键信息缺失？信息不对称在哪里？对手可能拥有哪些我们不知道的信息？"
+                "在辩论中，你的核心职能是为其他专家的论点提供情报可信度评估，"
+                "并对矛盾信息进行交叉验证。"
+                "引用情报时必须标注来源类型（OSINT/HUMINT/SIGINT/公开报告）和时效性。"
+                + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+            "geo_expert": (
+                "你是【地缘政治专家🌍】，负责从地理、联盟体系和国际秩序维度分析命题。"
+                "你的思维风格是地缘战略推演：运用麦金德心脏地带论、马汉海权论、"
+                "斯皮克曼边缘地带论等经典地缘政治框架，结合当代多极化现实进行分析。"
+                "你特别关注：（1）关键地理节点（海峡、通道、战略要地）的影响；"
+                "（2）联盟体系的可靠性与约束（如北约第五条款、双边安全条约）；"
+                "（3）国际制度框架（联合国安理会、WTO、区域组织）的制约作用；"
+                "（4）非国家行为体（跨国公司、NGO、恐怖组织）的地缘影响力。"
+                "分析中必须引用具体的地缘历史先例和当前联盟承诺。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+            "econ_analyst": (
+                "你是【经济分析师💰】，负责评估命题的宏观经济影响和经济可行性。"
+                "你的思维风格是量化成本收益分析：用具体经济指标（GDP、CPI、失业率、"
+                "贸易差额、外汇储备、债务率等）支撑每个论点。你擅长分析："
+                "（1）直接经济成本与机会成本；（2）供应链脆弱性与关键依赖；"
+                "（3）制裁/贸易战的传导效应；（4）金融市场预期与风险溢价变化；"
+                "（5）长期结构性影响与短期周期性波动的区别。"
+                "你的分析必须考虑地缘政治对经济的外溢效应——例如安全风险如何影响资本流动、"
+                "能源价格如何传导至通胀。引用数据时注明时间范围和数据来源。"
+                + _EVIDENCE_CITATION + _HILL_CLIMBING
+            ),
+            "military_strategist": (
+                "你是【军事战略家⚔️】，负责从军事力量平衡和作战可行性角度评估命题。"
+                "你的思维风格是兵棋推演式分析：评估（1）双方军事力量对比（兵力、装备、"
+                "训练、指挥体系）；（2）地理环境对作战的影响；（3）后勤保障能力与持续作战能力；"
+                "（4）技术代差与不对称作战可能性；（5）核威慑与升级风险。"
+                "你擅长引用具体战例进行类比分析（如海湾战争的后勤教训、"
+                "俄乌冲突的无人机战术演变），并评估军事选项的政治后果。"
+                "分析中必须区分'军事可行性'与'政治可接受性'——军事上可行的方案"
+                "政治上未必可接受。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+            "tech_foresight": (
+                "你是【技术前瞻者🔮】，负责评估技术发展趋势对命题的影响。"
+                "你的思维风格是技术成熟度曲线（Gartner Hype Cycle）与S曲线分析相结合："
+                "评估关键技术的当前TRL（技术就绪水平）、发展瓶颈和突破时间窗口。"
+                "你关注：（1）颠覆性技术（AI、量子计算、高超音速武器）对现有格局的冲击；"
+                "（2）技术封锁与自主可控的博弈；（3）军民融合技术的扩散效应；"
+                "（4）网络空间与信息战的新维度。"
+                "你的分析必须区分'技术可能性'与'工程可行性'与'规模化部署时间线'。"
+                "引用具体的研发项目进展、专利数据和技术指标。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+            "social_impact": (
+                "你是【社会影响评估师👥】，负责评估命题的社会维度影响。"
+                "你的思维风格是社会系统动力学：分析（1）公众舆论与政治合法性；"
+                "（2）社会稳定与治理韧性；（3）人口结构变化的长期影响；"
+                "（4）信息环境与认知战的影响；（5）人道主义关切与国际规范。"
+                "你擅长识别'社会脆弱性指标'——哪些社会因素可能成为决策的约束条件或放大器？"
+                "分析中引用民调数据、社会运动案例、人口统计数据和历史社会危机案例。"
+                "特别关注技术变革对社会结构的冲击以及代际价值观差异对政策执行的影响。"
+                + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+            ),
+        }
+        return prompts.get(role, (
+            "你是一名客观分析员，负责基于证据评估命题。"
+            "要求：引用具体数据和来源，避免模糊表述；考虑跨领域关联因素；"
+            "在收到质疑时主动修正和完善分析。"
+            + _EVIDENCE_CITATION + _CROSS_DOMAIN + _HILL_CLIMBING
+        ))
 
     def _build_debate_prompt(
         self,
@@ -1344,28 +1594,45 @@ class DebateService:
         opponent_arguments: list[dict[str, Any]] | None = None,
         own_previous: list[dict[str, Any]] | None = None,
     ) -> str:
+        _ROLE_DISPLAY = {
+            "advocate": "战略支持者🟢",
+            "challenger": "风险挑战者🔴",
+            "arbitrator": "首席仲裁官⚖️",
+            "intel_analyst": "情报分析师🔍",
+            "geo_expert": "地缘政治专家🌍",
+            "econ_analyst": "经济分析师💰",
+            "military_strategist": "军事战略家⚔️",
+            "tech_foresight": "技术前瞻者🔮",
+            "social_impact": "社会影响评估师👥",
+        }
+        role_display = _ROLE_DISPLAY.get(role, role)
+
         opponent_text = ""
         if opponent_arguments:
-            opponent_text = "\nOpponent's previous arguments:\n" + "\n".join(
-                f"- {a.get('claim', a.get('counter', str(a)))[:200]}" for a in opponent_arguments[:5]
+            opponent_text = "\n【前序论证摘要】\n" + "\n".join(
+                f"- {a.get('claim', a.get('counter', str(a)))[:200]}" for a in opponent_arguments[:8]
             )
 
         own_text = ""
         if own_previous:
-            own_text = "\nYour previous arguments:\n" + "\n".join(
-                f"- {a.get('claim', str(a))[:200]}" for a in own_previous[:3]
+            own_text = "\n【你此前的论点】\n" + "\n".join(
+                f"- {a.get('claim', str(a))[:200]}" for a in own_previous[:5]
             )
 
         return (
-            f"Role: {role}\n"
-            f"Topic: {topic}\n"
-            f"Trigger: {trigger_type}\n"
-            f"Context, evidence items, and claims:\n{context}\n"
+            f"角色：{role_display}\n"
+            f"议题：{topic}\n"
+            f"触发类型：{trigger_type}\n"
+            f"背景信息、证据项和相关声明：\n{context}\n"
             f"{opponent_text}{own_text}\n\n"
-            "Return your position (SUPPORT/OPPOSE/CONDITIONAL), confidence (0-1), "
-            "up to 3 arguments (each with claim, evidence_ids, reasoning, strength), "
-            "optional rebuttals (target_argument_idx, counter), "
-            "and optional concessions (argument_idx, reason). Use supplied evidence_ids when possible."
+            "请返回以下结构化结果：\n"
+            "1. 立场（SUPPORT/OPPOSE/CONDITIONAL）\n"
+            "2. 置信度（0-1之间的浮点数）\n"
+            "3. 最多3条论证（每条包含：claim-论点声明、evidence_ids-引用的证据ID、"
+            "reasoning-推理过程、strength-论点强度0-1）\n"
+            "4. 可选的反驳（target_argument_idx-目标论点索引、counter-反驳内容）\n"
+            "5. 可选的让步（argument_idx-论点索引、reason-让步原因）\n"
+            "请尽量使用提供的evidence_ids。如果进行了跨域分析，在reasoning中明确标注关联领域。"
         )
 
     def _parse_debate_position_payload(self, parsed: dict[str, Any] | None) -> DebatePositionPayload | None:
@@ -1386,6 +1653,12 @@ class DebateService:
             "strategist": ("debate_advocate", "primary"),
             "risk_analyst": ("debate_challenger", "extraction", "primary"),
             "opportunist": ("debate_arbitrator", "report", "primary"),
+            "intel_analyst": ("debate_challenger", "extraction", "primary"),
+            "geo_expert": ("debate_advocate", "primary"),
+            "econ_analyst": ("debate_advocate", "primary"),
+            "military_strategist": ("debate_advocate", "primary"),
+            "tech_foresight": ("debate_advocate", "primary"),
+            "social_impact": ("debate_advocate", "primary"),
         }
         for target in role_targets.get(role, ("primary",)):
             if self.openai_service.is_configured(target):
@@ -1407,8 +1680,8 @@ class DebateService:
         claim_statement: str | None = None,
         claim_confidence: float | None = None,
     ) -> DebateAssessment:
-        advocate_rounds = [r for r in rounds if r["role"] in {"advocate", "strategist"}]
-        challenger_rounds = [r for r in rounds if r["role"] in {"challenger", "risk_analyst"}]
+        advocate_rounds = [r for r in rounds if r["role"] in {"advocate", "strategist", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"}]
+        challenger_rounds = [r for r in rounds if r["role"] in {"challenger", "risk_analyst", "intel_analyst"}]
         arbitrator_rounds = [r for r in rounds if r["role"] in {"arbitrator", "opportunist"}]
 
         support_confidence = max(
@@ -1671,13 +1944,13 @@ class DebateService:
             challenge_confidence=challenge_confidence,
         )
         branch_risk_factors = self._generate_risk_factors(
-            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            challenger_rounds=[r for r in rounds if r["role"] in {"risk_analyst", "challenger", "intel_analyst"}],
             verdict=verdict,
             minority_opinion=minority_opinion,
         )
         branch_alternative_scenarios = self._generate_alternative_scenarios(
-            advocate_rounds=[r for r in rounds if r["role"] == "strategist"],
-            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            advocate_rounds=[r for r in rounds if r["role"] in {"strategist", "advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"}],
+            challenger_rounds=[r for r in rounds if r["role"] in {"risk_analyst", "challenger", "intel_analyst"}],
             verdict=verdict,
         )
         branch_conclusion = self._generate_conclusion_summary(
@@ -1936,13 +2209,13 @@ class DebateService:
             challenge_confidence=challenge_confidence,
         )
         claim_risk_factors = self._generate_risk_factors(
-            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            challenger_rounds=[r for r in rounds if r["role"] in {"risk_analyst", "challenger", "intel_analyst"}],
             verdict=verdict,
             minority_opinion=minority_opinion,
         )
         claim_alternative_scenarios = self._generate_alternative_scenarios(
-            advocate_rounds=[r for r in rounds if r["role"] == "strategist"],
-            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            advocate_rounds=[r for r in rounds if r["role"] in {"strategist", "advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"}],
+            challenger_rounds=[r for r in rounds if r["role"] in {"risk_analyst", "challenger", "intel_analyst"}],
             verdict=verdict,
         )
         claim_conclusion = self._generate_conclusion_summary(
@@ -2208,13 +2481,13 @@ class DebateService:
             challenge_confidence=challenge_confidence,
         )
         run_risk_factors = self._generate_risk_factors(
-            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            challenger_rounds=[r for r in rounds if r["role"] in {"risk_analyst", "challenger", "intel_analyst"}],
             verdict=verdict,
             minority_opinion=minority_opinion,
         )
         run_alternative_scenarios = self._generate_alternative_scenarios(
-            advocate_rounds=[r for r in rounds if r["role"] == "strategist"],
-            challenger_rounds=[r for r in rounds if r["role"] == "risk_analyst"],
+            advocate_rounds=[r for r in rounds if r["role"] in {"strategist", "advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"}],
+            challenger_rounds=[r for r in rounds if r["role"] in {"risk_analyst", "challenger", "intel_analyst"}],
             verdict=verdict,
         )
         run_conclusion = self._generate_conclusion_summary(

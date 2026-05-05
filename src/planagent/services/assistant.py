@@ -60,6 +60,43 @@ class AssistantEvent:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class DebateSuggestion:
+    """Result of conflict detection over an analysis response."""
+    warranted: bool
+    confidence: float
+    reasons: list[str]
+    suggested_topic: str
+    conflicting_signals: list[str]
+    risk_score: float = 0.0
+    opportunity_score: float = 0.0
+
+
+ # Heuristic keywords used to detect tension in findings / recommendations.
+_RISK_KEYWORDS = {
+    "risk", "risks", "risky", "threat", "threats", "danger", "dangerous",
+    "loss", "losses", "decline", "declining", "drop", "fall", "fell",
+    "delay", "delayed", "cancel", "canceled", "disrupt", "disrupted",
+    "downside", "volatile", "volatility", "uncertain", "uncertainty",
+    "concern", "concerns", "warning", "caution", "cautionary",
+    "challenge", "challenges", "headwind", "headwinds",
+}
+_OPPORTUNITY_KEYWORDS = {
+    "opportunity", "opportunities", "growth", "growing", "grow",
+    "increase", "increased", "improve", "improved", "gain", "gains",
+    "upside", "bullish", "optimistic", "positive", "strength", "strong",
+    "launch", "launched", "expand", "expanding", "momentum",
+    "catalyst", "catalysts", "tailwind", "tailwinds",
+}
+_UNCERTAINTY_KEYWORDS = {
+    "uncertain", "uncertainty", "unclear", "ambiguous", "mixed",
+    "conflicting", "conflict", "diverge", "divergent", "contested",
+    "debate", "debated", "disputed", "controversial",
+    "however", "although", "despite", "nevertheless", "on the other hand",
+    "could go either", "high risk high reward", "volatile",
+}
+
+
 class StrategicAssistantService:
     def __init__(
         self,
@@ -116,6 +153,22 @@ class StrategicAssistantService:
         domain_id = analysis_result.domain_id
         subject_id, subject_name = self._resolve_subject(payload, analysis_result)
 
+        # ---- Auto-trigger debate: detect conflicting signals ----
+        debate_suggestion = self._detect_conflicting_signals(
+            analysis=analysis_result,
+            domain_id=domain_id,
+            subject_name=subject_name,
+        )
+        yield self._event("debate_suggested", {
+            "warranted": debate_suggestion.warranted,
+            "confidence": round(debate_suggestion.confidence, 4),
+            "reasons": debate_suggestion.reasons,
+            "suggested_topic": debate_suggestion.suggested_topic,
+            "conflicting_signals": debate_suggestion.conflicting_signals,
+            "risk_score": round(debate_suggestion.risk_score, 4),
+            "opportunity_score": round(debate_suggestion.opportunity_score, 4),
+        })
+
         ingest_payload = self._build_ingest_payload(payload, analysis_result, subject_name)
         ingest_run = await self.pipeline_service.create_ingest_run(session, ingest_payload)
         yield self._event("ingest_run", {"ingest_run": ingest_run.id, "status": ingest_run.status})
@@ -137,13 +190,22 @@ class StrategicAssistantService:
             analysis_result=analysis_result,
             ingest_run_id=ingest_run.id,
         )
+
+        # Use the detected suggested topic when debate is warranted.
+        if debate_suggestion.warranted:
+            debate_topic = debate_suggestion.suggested_topic
+            trigger_type = "auto_conflict_detection"
+        else:
+            debate_topic = self._debate_topic(domain_id, subject_name)
+            trigger_type = "pivot_decision"
+
         debate_id: str | None = None
         async for debate_event in self.debate_service.stream_debate(
             session,
             DebateTriggerRequest(
                 run_id=simulation_run.id,
-                topic=self._debate_topic(domain_id, subject_name),
-                trigger_type="pivot_decision",
+                topic=debate_topic,
+                trigger_type=trigger_type,
                 target_type="run",
                 context_lines=debate_context_lines,
             ),
@@ -1102,6 +1164,145 @@ class StrategicAssistantService:
         if domain_id == "military":
             return f"Should {subject_name} adjust its current operational posture?"
         return f"Should {subject_name} change its current business posture?"
+
+    # ------------------------------------------------------------------
+    # Auto-trigger debate: conflict / uncertainty detection
+    # ------------------------------------------------------------------
+
+    def _detect_conflicting_signals(
+        self,
+        analysis: AnalysisResponse,
+        domain_id: str,
+        subject_name: str,
+        panel_messages: list[PanelDiscussionMessageRead] | None = None,
+    ) -> DebateSuggestion:
+        """Evaluate analysis results for conflicting signals or high uncertainty.
+
+        Detection criteria (any one triggers a suggestion):
+        1) Derived analysis confidence < 60%
+        2) Multiple panel agents disagree on recommendation stance
+        3) Both risk and opportunity scores are high (>= 0.4 each)
+        """
+        reasons: list[str] = []
+        conflicting_signals: list[str] = []
+
+        # --- Criterion 1: derived confidence ---
+        confidence = self._derive_analysis_confidence(analysis)
+        if confidence < 0.60:
+            reasons.append(
+                f"Analysis confidence is low ({confidence:.0%}), suggesting the evidence is thin or ambiguous."
+            )
+            conflicting_signals.append("low_confidence")
+
+        # --- Criterion 2: panel disagreement ---
+        if panel_messages:
+            stances = {msg.stance for msg in panel_messages}
+            if "support" in stances and "challenge" in stances:
+                reasons.append(
+                    "Panel agents disagree on stance: some support while others challenge the direction."
+                )
+                conflicting_signals.append("panel_disagreement")
+            # Also check if average confidence across panels is low
+            avg_panel_conf = sum(m.confidence for m in panel_messages) / len(panel_messages)
+            if avg_panel_conf < 0.60:
+                reasons.append(
+                    f"Average panel confidence is low ({avg_panel_conf:.0%}), indicating broad uncertainty."
+                )
+                conflicting_signals.append("low_panel_confidence")
+
+        # --- Criterion 3: high risk + high opportunity ---
+        risk_score, opportunity_score = self._compute_risk_opportunity_scores(analysis)
+        if risk_score >= 0.4 and opportunity_score >= 0.4:
+            reasons.append(
+                f"Both risk signals ({risk_score:.0%}) and opportunity signals ({opportunity_score:.0%}) are strong."
+            )
+            conflicting_signals.append("risk_opportunity_tension")
+
+        warranted = len(reasons) > 0
+
+        # Build a suggested debate topic that surfaces the specific tension.
+        if warranted:
+            tension_label = "conflicting signals"
+            if conflicting_signals:
+                tension_label = conflicting_signals[0].replace("_", " ")
+            suggested_topic = (
+                f"Given {tension_label} around {subject_name}, "
+                f"should the current strategy be revised?"
+            )
+        else:
+            suggested_topic = self._debate_topic(domain_id, subject_name)
+
+        return DebateSuggestion(
+            warranted=warranted,
+            confidence=confidence,
+            reasons=reasons,
+            suggested_topic=suggested_topic,
+            conflicting_signals=conflicting_signals,
+            risk_score=risk_score,
+            opportunity_score=opportunity_score,
+        )
+
+    def _derive_analysis_confidence(self, analysis: AnalysisResponse) -> float:
+        """Heuristic confidence score (0.0–1.0) derived from analysis richness.
+
+        Signals:
+        - Number of sources consulted
+        - Number of findings produced
+        - Length / specificity of the summary
+        - Presence of uncertainty language in the summary
+        """
+        score = 0.5  # baseline
+
+        # Source count contribution (up to +0.2)
+        source_count = len(analysis.sources)
+        score += min(source_count / 15.0, 0.2)
+
+        # Findings count contribution (up to +0.15)
+        findings_count = len(analysis.findings)
+        score += min(findings_count / 6.0, 0.15)
+
+        # Recommendations count contribution (up to +0.1)
+        recs_count = len(analysis.recommendations)
+        score += min(recs_count / 5.0, 0.1)
+
+        # Summary quality: longer, more specific summaries indicate confidence
+        summary_len = len(analysis.summary)
+        if summary_len > 200:
+            score += 0.05
+        elif summary_len < 50:
+            score -= 0.1
+
+        # Penalty: uncertainty language in summary
+        summary_lower = analysis.summary.lower()
+        uncertainty_hits = sum(1 for kw in _UNCERTAINTY_KEYWORDS if kw in summary_lower)
+        score -= min(uncertainty_hits * 0.05, 0.2)
+
+        # Penalty: very few sources
+        if source_count == 0:
+            score -= 0.15
+
+        return max(0.0, min(1.0, score))
+
+    def _compute_risk_opportunity_scores(
+        self, analysis: AnalysisResponse
+    ) -> tuple[float, float]:
+        """Scan findings + recommendations for risk and opportunity keyword density.
+
+        Returns (risk_score, opportunity_score), each in [0.0, 1.0].
+        """
+        text_pool = " ".join(
+            [analysis.summary] + analysis.findings + analysis.recommendations
+        ).lower()
+        words = set(re.findall(r"[a-z]+", text_pool))
+        if not words:
+            return 0.0, 0.0
+
+        risk_hits = len(words & _RISK_KEYWORDS)
+        opp_hits = len(words & _OPPORTUNITY_KEYWORDS)
+        # Normalize: 4+ distinct keyword hits → score 1.0
+        risk_score = min(risk_hits / 4.0, 1.0)
+        opp_score = min(opp_hits / 4.0, 1.0)
+        return risk_score, opp_score
 
     def _default_actor_template(self, market: str) -> str:
         normalized = market.strip().lower()
