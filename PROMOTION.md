@@ -50,7 +50,7 @@
 
 **技术栈：** Python FastAPI + Next.js 15 + SQLAlchemy + Redis Streams + pgvector + 多模型并行调度
 
-项目完全开源，MIT协议，欢迎Star和贡献：
+项目完全开源，Apache 2.0协议，欢迎Star和贡献：
 👉 https://github.com/dashitongzhi/MingJian
 
 ---
@@ -70,6 +70,6 @@
 ✅ 完整审计追踪，每步可复现
 ✅ 自愈引擎自动迭代纠错
 
-FastAPI + Next.js + pgvector，MIT协议
+FastAPI + Next.js + pgvector，Apache 2.0协议
 
 ⭐ https://github.com/dashitongzhi/MingJian

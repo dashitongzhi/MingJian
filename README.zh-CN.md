@@ -10,7 +10,7 @@
 
 ---
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
@@ -137,7 +137,7 @@
 | **知识图谱** | ✅ 嵌入支持 | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
 | **代码执行** | ⚠️ 计划中 | ✅ 完整沙箱VM | ❌ 无 | ⚠️ 有限 | ❌ 无 |
 | **数据主权** | ✅ 自部署 | ❌ 仅云端 | ⚠️ 多样 | ⚠️ 多样 | ✅ 自部署 |
-| **开源** | ✅ MIT许可 | ❌ 闭源 | ⚠️ 多样 | ⚠️ 多样 | ✅ 多样 |
+| **开源** | ✅ Apache 2.0 | ❌ 闭源 | ⚠️ 多样 | ⚠️ 多样 | ✅ 多样 |
 
 ---
 
@@ -534,7 +534,7 @@ git push origin feature/amazing-feature
 
 ## 📄 许可证
 
-本项目根据MIT许可证授权 - 详见[LICENSE](LICENSE)文件。
+本项目根据Apache License 2.0授权 - 详见[LICENSE](LICENSE)文件。
 
 ---
 

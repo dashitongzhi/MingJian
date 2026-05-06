@@ -10,7 +10,7 @@
 
 ---
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
@@ -137,7 +137,7 @@
 | **ナレッジグラフ** | ✅ 埋め込み対応 | ❌ なし | ❌ なし | ❌ なし | ❌ なし |
 | **コード実行** | ⚠️ 計画中 | ✅ フルサンドボックスVM | ❌ なし | ⚠️ 限定的 | ❌ なし |
 | **データ主権** | ✅ セルフホスト | ❌ クラウドのみ | ⚠️ 多様 | ⚠️ 多様 | ✅ セルフホスト |
-| **オープンソース** | ✅ MITライセンス | ❌ クローズドソース | ⚠️ 多様 | ⚠️ 多様 | ✅ 多様 |
+| **オープンソース** | ✅ Apache 2.0 | ❌ クローズドソース | ⚠️ 多様 | ⚠️ 多様 | ✅ 多様 |
 
 ---
 
@@ -537,7 +537,7 @@ git push origin feature/amazing-feature
 
 ## 📄 ライセンス
 
-このプロジェクトはMITライセンスの下でライセンスされています - 詳細は[LICENSE](LICENSE)をご覧ください。
+このプロジェクトはApache License 2.0の下でライセンスされています - 詳細は[LICENSE](LICENSE)をご覧ください。
 
 ---
 

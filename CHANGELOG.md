@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Why Choose 明鉴" section in README
 - Roadmap and Technical Highlights sections
 - Mermaid architecture diagram
-- MIT License
+- Apache License 2.0
 - Contributing guide
 
 ## [0.5.0] - 2026-04-30

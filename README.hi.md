@@ -10,7 +10,7 @@
 
 ---
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
@@ -137,7 +137,7 @@
 | **ज्ञान ग्राफ़** | ✅ एम्बेडिंग-समर्थित | ❌ कोई नहीं | ❌ कोई नहीं | ❌ कोई नहीं | ❌ कोई नहीं |
 | **कोड निष्पादन** | ⚠️ योजनाबद्ध | ✅ पूर्ण सैंडबॉक्स VM | ❌ कोई नहीं | ⚠️ सीमित | ❌ कोई नहीं |
 | **डेटा संप्रभुता** | ✅ स्व-होस्टेड | ❌ केवल क्लाउड | ⚠️ भिन्न | ⚠️ भिन्न | ✅ स्व-होस्टेड |
-| **ओपन सोर्स** | ✅ MIT लाइसेंस | ❌ बंद स्रोत | ⚠️ भिन्न | ⚠️ भिन्न | ✅ विभिन्न |
+| **ओपन सोर्स** | ✅ Apache 2.0 | ❌ बंद स्रोत | ⚠️ भिन्न | ⚠️ भिन्न | ✅ विभिन्न |
 
 ---
 
@@ -536,7 +536,7 @@ git push origin feature/amazing-feature
 
 ## 📄 लाइसेंस
 
-यह प्रोजेक्ट MIT लाइसेंस के तहत लाइसेंस प्राप्त है - विवरण के लिए [LICENSE](LICENSE) देखें।
+यह प्रोजेक्ट Apache License 2.0 के तहत लाइसेंस प्राप्त है - विवरण के लिए [LICENSE](LICENSE) देखें।
 
 ---
 

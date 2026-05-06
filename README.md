@@ -10,7 +10,7 @@
 
 ---
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
@@ -139,7 +139,7 @@ Inspired by **Mixture of Experts (MoE)** architecture: core agents are always ac
 | **Knowledge Graph** | ✅ Embedding-backed | ❌ None | ❌ None | ❌ None | ❌ None |
 | **Code Execution** | ⚠️ Planned | ✅ Full sandbox VM | ❌ None | ⚠️ Limited | ❌ None |
 | **Data Sovereignty** | ✅ Self-hosted | ❌ Cloud only | ⚠️ Varies | ⚠️ Varies | ✅ Self-hosted |
-| **Open Source** | ✅ MIT License | ❌ Closed source | ⚠️ Varies | ⚠️ Varies | ✅ Various |
+| **Open Source** | ✅ Apache 2.0 | ❌ Closed source | ⚠️ Varies | ⚠️ Varies | ✅ Various |
 
 ---
 
@@ -538,7 +538,7 @@ git push origin feature/amazing-feature
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ---
 

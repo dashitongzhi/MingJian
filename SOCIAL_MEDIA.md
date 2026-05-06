@@ -96,7 +96,7 @@ One platform. Zero black boxes. Full transparency.
 
 ## 开源协议 / License
 
-MIT License - 免费使用，自由修改，商业友好
+Apache License 2.0 - 免费使用，自由修改，商业友好
 
 ---
 
