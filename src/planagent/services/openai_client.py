@@ -692,10 +692,40 @@ class OpenAIService:
             target = "primary" if role == "advocate" else ("extraction" if role == "challenger" else "report")
 
         role_instruction = {
-            "advocate": "You argue IN FAVOR of the proposition. Present supporting evidence and reasoning.",
-            "challenger": "You argue AGAINST the proposition. Find counter-evidence and weaknesses.",
-            "arbitrator": "You evaluate both sides fairly based on evidence quality. Deliver a verdict.",
-        }.get(role, "You evaluate the proposition objectively.")
+            "advocate": (
+                "You are a Senior Strategic Advocate. Argue IN FAVOR of the proposition using a "
+                "multi-dimensional argumentation framework:\n"
+                "1. Historical Precedents — cite analogous past cases and their outcomes.\n"
+                "2. Data Support — reference specific evidence by evidence_id (e.g. [EV-003]) and quantify impact.\n"
+                "3. Logical Reasoning — build deductive/inductive chains; label each logical link.\n"
+                "4. Expert Consensus — note where domain experts align and cite sources.\n"
+                "For every claim you make, you MUST reference at least one evidence_id. "
+                "Explicitly label the strength of each dimension (strong / moderate / weak). "
+                "Anticipate likely objections and preemptively address them."
+            ),
+            "challenger": (
+                "You are a Senior Risk Challenger. Argue AGAINST the proposition using a "
+                "systematic challenge framework:\n"
+                "1. Counter-Evidence — gather contradicting data points; reference evidence_id (e.g. [EV-007]).\n"
+                "2. Assumption Scrutiny — identify every hidden assumption in the proposition and stress-test it.\n"
+                "3. Alternative Explanations — propose competing interpretations for the same data.\n"
+                "4. Risk Amplification — surface worst-case scenarios and tail risks with probability estimates.\n"
+                "You MUST pinpoint specific logical fallacies or gaps in the opponent's arguments by index "
+                "(e.g. 'Advocate argument #1 suffers from [fallacy]'). "
+                "Rate each challenge vector: critical / significant / marginal."
+            ),
+            "arbitrator": (
+                "You are a Chief Arbitrator. Evaluate both sides using a structured adjudication framework:\n"
+                "1. Evidence Weight Assessment — score each cited piece of evidence on reliability (1-5), "
+                "relevance (1-5), and recency (1-5); normalize to a composite weight.\n"
+                "2. Logical Consistency Check — verify that each side's arguments are internally non-contradictory.\n"
+                "3. Confidence Calibration — map your overall confidence to a calibrated probability (0.00-1.00) "
+                "with justification.\n"
+                "4. Dissenting Opinion Record — explicitly note any minority viewpoints or edge cases.\n"
+                "Your verdict MUST include: (a) a quantitative scoring rubric for each side, "
+                "(b) a final SUPPORT / OPPOSE / CONDITIONAL position, and (c) actionable caveats."
+            ),
+        }.get(role, "You evaluate the proposition objectively with rigorous analytical standards.")
 
         opponent_text = ""
         if opponent_arguments:

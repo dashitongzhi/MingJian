@@ -429,6 +429,114 @@ class DebateVoteRead(APIModel):
     created_at: datetime
 
 
+# ── Debate Interrupt Models ──────────────────────────────────────────────────
+
+
+class DebateInterruptCreate(APIModel):
+    """用户在辩论中途提交的插话/补充信息"""
+    message: str = Field(min_length=1, description="用户插话的内容")
+    interrupt_type: str = Field(
+        default="general",
+        pattern="^(supplementary_info|direction_correction|new_evidence|general)$",
+        description="插话类型：补充信息/修正方向/新证据/通用",
+    )
+
+
+class DebateInterruptRead(APIModel):
+    """辩论插话记录"""
+    id: str
+    debate_session_id: str
+    message: str
+    interrupt_type: str
+    injected_at_round: int | None = None
+    status: str
+    created_at: datetime
+
+
+# ── Debate Replay Models ─────────────────────────────────────────────────────
+
+
+class DebateReplayRead(APIModel):
+    """完整回放数据（按时间顺序 + 按轮次两种视图）"""
+    debate_id: str
+    topic: str
+    trigger_type: str
+    status: str
+    target_type: str
+    target_id: str | None = None
+    total_rounds: int = 0
+    rounds_by_number: dict[str, list[dict[str, Any]]] = Field(
+        default_factory=dict,
+        description="按轮次编号分组的辩论数据（key 为轮次编号字符串）",
+    )
+    timeline: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="按时间顺序排列的所有发言",
+    )
+    verdict: DebateVerdictRead | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DebateRoundDetailRead(APIModel):
+    """单轮辩论详情"""
+    debate_id: str
+    topic: str
+    round_number: int
+    speeches: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="本轮所有发言（role, position, confidence, arguments, rebuttals, concessions）",
+    )
+    created_at: datetime
+
+
+class DebateTimelineRead(APIModel):
+    """辩论时间线"""
+    debate_id: str
+    topic: str
+    event_count: int = 0
+    events: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="按时间排序的发言事件",
+    )
+    verdict_event: dict[str, Any] | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+
+
+class DebateComparisonRead(APIModel):
+    """对比两场辩论"""
+    debate_1: dict[str, Any] = Field(default_factory=dict)
+    debate_2: dict[str, Any] = Field(default_factory=dict)
+    differences: dict[str, Any] = Field(
+        default_factory=dict,
+        description="两场辩论之间的差异统计",
+    )
+
+
+class DebateReplaySummaryRead(APIModel):
+    """辩论摘要（包含关键转折点）"""
+    debate_id: str
+    topic: str
+    trigger_type: str
+    status: str
+    total_rounds: int = 0
+    verdict: str | None = None
+    verdict_confidence: float | None = None
+    winning_arguments: list[str] = Field(default_factory=list)
+    conclusion_summary: str | None = None
+    minority_opinion: str | None = None
+    round_summaries: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="每轮摘要",
+    )
+    turning_points: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="关键转折点（信心大幅变动、让步等）",
+    )
+    created_at: datetime
+
+
 class RuleReloadResponse(APIModel):
     domains: list[str]
     rules_loaded: int

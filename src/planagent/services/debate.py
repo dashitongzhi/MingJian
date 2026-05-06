@@ -14,6 +14,7 @@ from planagent.domain.enums import ClaimStatus, EventTopic
 from planagent.domain.models import (
     Claim,
     CompanyProfile,
+    DebateInterruptRecord,
     DebateRoundRecord,
     DebateSessionRecord,
     DebateVerdictRecord,
@@ -258,6 +259,18 @@ class DebateService:
             "confidence": verdict.confidence,
         }
         session.add(EventArchive(topic=EventTopic.DEBATE_COMPLETED.value, payload=completed_payload))
+
+        # 立场自动修订检查
+        revision_records = await self.check_and_apply_revisions(
+            session=session,
+            debate_id=debate_session.id,
+            rounds=assessment.rounds,
+        )
+        if revision_records:
+            completed_payload["revisions"] = [
+                {"role": r["role"], "confidence_drop": r["confidence_drop"]}
+                for r in revision_records
+            ]
 
         await session.commit()
         await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
@@ -629,6 +642,66 @@ class DebateService:
                 )
             ).all()
         }
+
+    @staticmethod
+    async def get_pending_interrupts(
+        session: AsyncSession,
+        debate_id: str,
+    ) -> list[DebateInterruptRecord]:
+        """获取辩论的待注入插话记录（PENDING 状态）"""
+        return list(
+            (
+                await session.scalars(
+                    select(DebateInterruptRecord)
+                    .where(
+                        DebateInterruptRecord.debate_session_id == debate_id,
+                        DebateInterruptRecord.status == "PENDING",
+                    )
+                    .order_by(DebateInterruptRecord.created_at.asc())
+                )
+            ).all()
+        )
+
+    @staticmethod
+    def format_interrupts_for_context(
+        interrupts: list[DebateInterruptRecord],
+    ) -> str | None:
+        """将待注入的插话格式化为辩论 context 文本"""
+        if not interrupts:
+            return None
+        lines = ["[用户插话 - 以下内容来自用户在辩论中途提交的补充信息]"]
+        for intr in interrupts:
+            type_label = {
+                "supplementary_info": "补充信息",
+                "direction_correction": "修正方向",
+                "new_evidence": "新证据",
+                "general": "通用插话",
+            }.get(intr.interrupt_type, "通用插话")
+            lines.append(f"  [{type_label}] {intr.message}")
+        return "\n".join(lines)
+
+    @staticmethod
+    async def mark_interrupts_injected(
+        session: AsyncSession,
+        debate_id: str,
+        round_number: int,
+    ) -> int:
+        """将 PENDING 状态的插话标记为 INJECTED，返回处理数量"""
+        pending = list(
+            (
+                await session.scalars(
+                    select(DebateInterruptRecord)
+                    .where(
+                        DebateInterruptRecord.debate_session_id == debate_id,
+                        DebateInterruptRecord.status == "PENDING",
+                    )
+                )
+            ).all()
+        )
+        for intr in pending:
+            intr.status = "INJECTED"
+            intr.injected_at_round = round_number
+        return len(pending)
 
     async def _prepare_stream_llm_debate(
         self,
@@ -2828,4 +2901,332 @@ class DebateService:
         return 0
 
     def _clamp(self, value: float, minimum: float, maximum: float) -> float:
-        return round(max(minimum, min(maximum, float(value))), 2)
+        return max(minimum, min(maximum, value))
+
+    # ── 自主触发辩论 (Auto-Trigger Debate) ──────────────────────
+
+    @staticmethod
+    def auto_detect_disagreement(
+        agent_assessments: list[dict[str, Any]],
+        confidence_threshold: float = 0.30,
+    ) -> dict[str, Any]:
+        """分析各 Agent 的初始评估，检测是否需要自动触发辩论。
+
+        触发条件：
+        1. 置信度差异 > confidence_threshold（默认30%）
+        2. 立场对立（SUPPORT vs OPPOSE）
+
+        Args:
+            agent_assessments: 每个 Agent 的评估结果列表，格式:
+                [{"role": str, "position": str, "confidence": float, "arguments": list}]
+            confidence_threshold: 置信度差异阈值（默认0.30）
+
+        Returns:
+            {
+                "should_trigger": bool,
+                "trigger_reasons": list[str],
+                "confidence_spread": float,
+                "position_conflicts": list[dict],
+                "disagreement_details": dict,
+            }
+        """
+        if len(agent_assessments) < 2:
+            return {
+                "should_trigger": False,
+                "trigger_reasons": [],
+                "confidence_spread": 0.0,
+                "position_conflicts": [],
+                "disagreement_details": {},
+            }
+
+        trigger_reasons: list[str] = []
+        position_conflicts: list[dict[str, Any]] = []
+
+        # 1. 置信度差异检测
+        confidences = [a.get("confidence", 0.5) for a in agent_assessments]
+        confidence_spread = max(confidences) - min(confidences) if confidences else 0.0
+
+        if confidence_spread > confidence_threshold:
+            trigger_reasons.append(
+                f"置信度差异 {confidence_spread:.1%} 超过阈值 {confidence_threshold:.0%}"
+            )
+
+        # 2. 立场对立检测
+        support_agents = [
+            a for a in agent_assessments
+            if a.get("position", "").upper() == "SUPPORT"
+        ]
+        oppose_agents = [
+            a for a in agent_assessments
+            if a.get("position", "").upper() == "OPPOSE"
+        ]
+
+        if support_agents and oppose_agents:
+            trigger_reasons.append(
+                f"立场对立：{len(support_agents)}个SUPPORT vs {len(oppose_agents)}个OPPOSE"
+            )
+            position_conflicts = [
+                {
+                    "support": [a["role"] for a in support_agents],
+                    "oppose": [a["role"] for a in oppose_agents],
+                    "support_avg_confidence": (
+                        sum(a.get("confidence", 0.5) for a in support_agents) / len(support_agents)
+                    ),
+                    "oppose_avg_confidence": (
+                        sum(a.get("confidence", 0.5) for a in oppose_agents) / len(oppose_agents)
+                    ),
+                }
+            ]
+
+        # 3. 跨域矛盾检测：同一领域不同角色的结论差异
+        disagreement_details: dict[str, Any] = {
+            "agent_positions": [
+                {
+                    "role": a.get("role", "unknown"),
+                    "position": a.get("position", "CONDITIONAL"),
+                    "confidence": a.get("confidence", 0.5),
+                    "key_argument": (
+                        a.get("arguments", [{}])[0].get("claim", "")
+                        if a.get("arguments") else ""
+                    ),
+                }
+                for a in agent_assessments
+            ],
+        }
+
+        should_trigger = len(trigger_reasons) > 0
+
+        return {
+            "should_trigger": should_trigger,
+            "trigger_reasons": trigger_reasons,
+            "confidence_spread": confidence_spread,
+            "position_conflicts": position_conflicts,
+            "disagreement_details": disagreement_details,
+        }
+
+    async def check_and_trigger_auto_debate(
+        self,
+        session: AsyncSession,
+        run_id: str,
+        topic: str,
+        agent_assessments: list[dict[str, Any]],
+        context_lines: list[str] | None = None,
+    ) -> dict[str, Any] | None:
+        """检测分歧并自动触发辩论。
+
+        如果检测到分歧，自动创建一个辩论会话并发布事件。
+        返回辩论结果或 None（如果没有分歧）。
+        """
+        detection = self.auto_detect_disagreement(agent_assessments)
+
+        if not detection["should_trigger"]:
+            return None
+
+        # 发布自动触发事件
+        trigger_event_payload = {
+            "run_id": run_id,
+            "topic": topic,
+            "trigger_reasons": detection["trigger_reasons"],
+            "confidence_spread": detection["confidence_spread"],
+            "position_conflicts": detection["position_conflicts"],
+        }
+        session.add(
+            EventArchive(topic=EventTopic.DEBATE_AUTO_TRIGGER.value, payload=trigger_event_payload)
+        )
+
+        # 构造辩论请求
+        payload = DebateTriggerRequest(
+            run_id=run_id,
+            topic=f"[自动触发] {topic}",
+            trigger_type="auto_conflict_detection",
+            target_type="run",
+            context_lines=[
+                *(context_lines or []),
+                f"自动触发原因：{'; '.join(detection['trigger_reasons'])}",
+                f"置信度分布：{detection['disagreement_details']}",
+            ],
+        )
+
+        # 执行辩论
+        debate_result = await self.trigger_debate(session, payload)
+        await self.event_bus.publish(EventTopic.DEBATE_AUTO_TRIGGER.value, trigger_event_payload)
+
+        return {
+            "debate": debate_result,
+            "detection": detection,
+        }
+
+    # ── 立场自动修订 (Position Revision) ─────────────────────────
+
+    @staticmethod
+    def detect_overturned_arguments(
+        rounds: list[dict[str, Any]],
+        overturn_threshold: float = 0.3,
+    ) -> list[dict[str, Any]]:
+        """分析辩论轮次，检测被有效推翻的论点。
+
+        被推翻的判定标准：
+        1. 某 Agent 在修订轮中的置信度显著下降（> overturn_threshold）
+        2. 某 Agent 明确放弃（❌放弃）了之前的论点
+        3. 某 Agent 的立场从 SUPPORT 变为 OPPOSE/CONDITIONAL（或反之）
+
+        Args:
+            rounds: 辩论轮次列表
+            overturn_threshold: 置信度下降阈值
+
+        Returns:
+            被推翻的论点列表，每项包含:
+            [{"role": str, "original_confidence": float, "revised_confidence": float,
+              "overturned_claims": list[str], "revision_needed": bool}]
+        """
+        if not rounds:
+            return []
+
+        # 按角色分组轮次
+        rounds_by_role: dict[str, list[dict[str, Any]]] = {}
+        for r in rounds:
+            role = r.get("role", "unknown")
+            rounds_by_role.setdefault(role, []).append(r)
+
+        overturned: list[dict[str, Any]] = []
+
+        for role, role_rounds in rounds_by_role.items():
+            if len(role_rounds) < 2:
+                continue
+
+            # 按轮次排序
+            role_rounds.sort(key=lambda x: x.get("round_number", 0))
+            first_round = role_rounds[0]
+            last_round = role_rounds[-1]
+
+            first_conf = float(first_round.get("confidence", 0.5))
+            last_conf = float(last_round.get("confidence", 0.5))
+            conf_drop = first_conf - last_conf
+
+            # 检测置信度显著下降
+            confidence_overturned = conf_drop > overturn_threshold
+
+            # 检测明确放弃的论点
+            overturned_claims: list[str] = []
+            for concession in last_round.get("concessions", []):
+                reason = concession.get("reason", "")
+                if reason:
+                    overturned_claims.append(reason)
+
+            # 检测立场翻转
+            first_position = first_round.get("position", "CONDITIONAL").upper()
+            last_position = last_round.get("position", "CONDITIONAL").upper()
+            position_flipped = (
+                (first_position == "SUPPORT" and last_position == "OPPOSE")
+                or (first_position == "OPPOSE" and last_position == "SUPPORT")
+            )
+
+            if confidence_overturned or overturned_claims or position_flipped:
+                overturned.append({
+                    "role": role,
+                    "original_confidence": first_conf,
+                    "revised_confidence": last_conf,
+                    "confidence_drop": conf_drop,
+                    "position_flipped": position_flipped,
+                    "original_position": first_position,
+                    "revised_position": last_position,
+                    "overturned_claims": overturned_claims,
+                    "revision_needed": True,
+                })
+
+        return overturned
+
+    def generate_revision_prompt(
+        self,
+        role: str,
+        original_position: str,
+        revised_position: str,
+        overturned_claims: list[str],
+        confidence_drop: float,
+    ) -> str:
+        """为被推翻的 Agent 生成修订提示。
+
+        该提示在下一轮辩论中注入，要求 Agent 重新评估。
+        """
+        claims_text = "\n".join(f"- {c}" for c in overturned_claims) if overturned_claims else "（无明确放弃记录）"
+
+        return (
+            f"【立场修订通知】\n"
+            f"你（{role}）在之前的辩论中被有效推翻：\n"
+            f"- 原始立场: {original_position} → 修订后: {revised_position}\n"
+            f"- 置信度变化: {confidence_drop:.1%} 下降\n"
+            f"- 被推翻/放弃的论点:\n{claims_text}\n\n"
+            f"请执行以下修订操作：\n"
+            f"1. 重新审视你的核心论点，评估哪些仍然成立\n"
+            f"2. 对被推翻的论点，要么提供新的反驳证据，要么正式承认并解释原因\n"
+            f"3. 补充新的证据或推理来支撑仍然成立的部分\n"
+            f"4. 明确更新你的置信度和立场\n"
+            f"5. 如果确实需要改变立场，请诚实地做出调整\n\n"
+            f"你的目标不是固守，而是在压力测试中让分析更加精确可靠。"
+        )
+
+    async def check_and_apply_revisions(
+        self,
+        session: AsyncSession,
+        debate_id: str,
+        rounds: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """在辩论完成后检查是否需要立场修订，生成修订记录。
+
+        修订记录保存到辩论历史中（EventArchive）。
+        返回修订记录列表。
+        """
+        overturned = self.detect_overturned_arguments(rounds)
+
+        if not overturned:
+            return []
+
+        revision_records: list[dict[str, Any]] = []
+
+        for item in overturned:
+            revision_prompt = self.generate_revision_prompt(
+                role=item["role"],
+                original_position=item["original_position"],
+                revised_position=item["revised_position"],
+                overturned_claims=item["overturned_claims"],
+                confidence_drop=item["confidence_drop"],
+            )
+
+            revision_record = {
+                "debate_id": debate_id,
+                "role": item["role"],
+                "original_confidence": item["original_confidence"],
+                "revised_confidence": item["revised_confidence"],
+                "confidence_drop": item["confidence_drop"],
+                "position_flipped": item["position_flipped"],
+                "original_position": item["original_position"],
+                "revised_position": item["revised_position"],
+                "overturned_claims": item["overturned_claims"],
+                "revision_prompt": revision_prompt,
+            }
+            revision_records.append(revision_record)
+
+            # 保存修订事件到事件归档
+            session.add(
+                EventArchive(
+                    topic=EventTopic.DEBATE_REVISION.value,
+                    payload={
+                        "debate_id": debate_id,
+                        "role": item["role"],
+                        "confidence_drop": item["confidence_drop"],
+                        "position_flipped": item["position_flipped"],
+                        "overturned_claims_count": len(item["overturned_claims"]),
+                    },
+                )
+            )
+
+        await self.event_bus.publish(
+            EventTopic.DEBATE_REVISION.value,
+            {
+                "debate_id": debate_id,
+                "revisions_count": len(revision_records),
+                "revised_roles": [r["role"] for r in revision_records],
+            },
+        )
+
+        return revision_records

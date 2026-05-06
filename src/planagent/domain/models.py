@@ -635,6 +635,7 @@ class DebateSessionRecord(Base):
         uselist=False,
     )
     votes: Mapped[list["DebateVote"]] = relationship(back_populates="debate_session")
+    interrupts: Mapped[list["DebateInterruptRecord"]] = relationship(back_populates="debate_session")
 
 
 class DebateRoundRecord(Base):
@@ -711,6 +712,38 @@ class DebateVote(Base):
     )
 
     debate_session: Mapped[DebateSessionRecord] = relationship(back_populates="votes")
+
+
+class DebateInterruptRecord(Base):
+    __tablename__ = "debate_interrupts"
+    __table_args__ = (
+        CheckConstraint(
+            "interrupt_type IN ('supplementary_info', 'direction_correction', 'new_evidence', 'general')",
+            name="ck_debate_interrupts_type",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING', 'INJECTED', 'IGNORED')",
+            name="ck_debate_interrupts_status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    debate_session_id: Mapped[str] = mapped_column(
+        ForeignKey("debate_sessions.id"), nullable=False, index=True
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    interrupt_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="general"
+    )
+    injected_at_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    debate_session: Mapped[DebateSessionRecord] = relationship(
+        back_populates="interrupts"
+    )
 
 
 class StrategicSession(Base):

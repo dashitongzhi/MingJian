@@ -295,14 +295,16 @@ def test_public_source_providers_participate_in_fetch(monkeypatch) -> None:
             )
         ]
 
-    monkeypatch.setattr(service, "_fetch_google_news", fake_google)
-    monkeypatch.setattr(service, "_fetch_reddit", fake_reddit)
-    monkeypatch.setattr(service, "_fetch_hacker_news", fake_hn)
-    monkeypatch.setattr(service, "_fetch_github_repositories", fake_github)
-    monkeypatch.setattr(service, "_fetch_configured_rss", fake_rss)
-    monkeypatch.setattr(service, "_fetch_gdelt_documents", fake_gdelt)
-    monkeypatch.setattr(service, "_fetch_weather_context", fake_weather)
-    monkeypatch.setattr(service, "_fetch_aviation_context", fake_aviation)
+    # Patch provider fetch methods via the registry
+    registry = service.source_registry
+    monkeypatch.setattr(registry.get("google_news"), "fetch", fake_google)
+    monkeypatch.setattr(registry.get("reddit"), "fetch", fake_reddit)
+    monkeypatch.setattr(registry.get("hacker_news"), "fetch", fake_hn)
+    monkeypatch.setattr(registry.get("github"), "fetch", fake_github)
+    monkeypatch.setattr(registry.get("rss"), "fetch", fake_rss)
+    monkeypatch.setattr(registry.get("gdelt"), "fetch", fake_gdelt)
+    monkeypatch.setattr(registry.get("weather"), "fetch", fake_weather)
+    monkeypatch.setattr(registry.get("aviation"), "fetch", fake_aviation)
 
     import asyncio
 

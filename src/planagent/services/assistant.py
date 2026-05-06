@@ -80,6 +80,11 @@ _RISK_KEYWORDS = {
     "downside", "volatile", "volatility", "uncertain", "uncertainty",
     "concern", "concerns", "warning", "caution", "cautionary",
     "challenge", "challenges", "headwind", "headwinds",
+    # Chinese risk keywords
+    "风险", "威胁", "危险", "损失", "下降", "衰退", "延迟", "中断",
+    "波动", "不确定", "担忧", "警告", "挑战", "困境", "危机", "隐患",
+    "制裁", "冲突", "战争", "对抗", "恶化", "下滑", "萎缩", "动荡",
+    "陷阱", "瓶颈", "短板", "漏洞", "软肋",
 }
 _OPPORTUNITY_KEYWORDS = {
     "opportunity", "opportunities", "growth", "growing", "grow",
@@ -87,6 +92,10 @@ _OPPORTUNITY_KEYWORDS = {
     "upside", "bullish", "optimistic", "positive", "strength", "strong",
     "launch", "launched", "expand", "expanding", "momentum",
     "catalyst", "catalysts", "tailwind", "tailwinds",
+    # Chinese opportunity keywords
+    "机遇", "机会", "增长", "提升", "改善", "突破", "创新", "发展",
+    "扩张", "优势", "潜力", "红利", "赋能", "升级", "转型", "跃迁",
+    "利好", "提振", "提振", "升温", "向好", "回暖", "复苏", "加速",
 }
 _UNCERTAINTY_KEYWORDS = {
     "uncertain", "uncertainty", "unclear", "ambiguous", "mixed",
@@ -94,7 +103,17 @@ _UNCERTAINTY_KEYWORDS = {
     "debate", "debated", "disputed", "controversial",
     "however", "although", "despite", "nevertheless", "on the other hand",
     "could go either", "high risk high reward", "volatile",
+    # Chinese uncertainty keywords
+    "不确定", "模糊", "矛盾", "分歧", "争议", "两难", "博弈",
+    "然而", "但是", "尽管", "虽然", "另一方面", "高风险高回报",
+    "见仁见智", "众说纷纭", "尚不明朗", "有待观察", "变数",
 }
+
+# Multi-source contradiction: source type diversity threshold
+_SOURCE_TYPE_DIVERSITY_THRESHOLD = 3  # 3+ distinct source types suggests richer data
+# Confidence thresholds
+_LOW_CONFIDENCE_THRESHOLD = 0.55
+_MODERATE_CONFIDENCE_THRESHOLD = 0.65
 
 
 class StrategicAssistantService:
@@ -1178,21 +1197,31 @@ class StrategicAssistantService:
     ) -> DebateSuggestion:
         """Evaluate analysis results for conflicting signals or high uncertainty.
 
-        Detection criteria (any one triggers a suggestion):
-        1) Derived analysis confidence < 60%
+        Enhanced multi-dimensional detection criteria (any one triggers a suggestion):
+        1) Derived analysis confidence below threshold
         2) Multiple panel agents disagree on recommendation stance
-        3) Both risk and opportunity scores are high (>= 0.4 each)
+        3) Both risk and opportunity scores are high (>= 0.35 each)
+        4) Per-finding risk/opportunity co-occurrence in individual findings
+        5) Multi-source contradiction: diverse source types with mixed signals
+        6) Uncertainty keyword density exceeds threshold in summary
         """
         reasons: list[str] = []
         conflicting_signals: list[str] = []
 
-        # --- Criterion 1: derived confidence ---
+        # --- Criterion 1: derived confidence (tiered) ---
         confidence = self._derive_analysis_confidence(analysis)
-        if confidence < 0.60:
+        if confidence < _LOW_CONFIDENCE_THRESHOLD:
             reasons.append(
-                f"Analysis confidence is low ({confidence:.0%}), suggesting the evidence is thin or ambiguous."
+                f"Analysis confidence is critically low ({confidence:.0%}), "
+                f"suggesting the evidence is thin or ambiguous."
             )
             conflicting_signals.append("low_confidence")
+        elif confidence < _MODERATE_CONFIDENCE_THRESHOLD:
+            reasons.append(
+                f"Analysis confidence is moderate ({confidence:.0%}), "
+                f"indicating room for deeper investigation."
+            )
+            conflicting_signals.append("moderate_confidence")
 
         # --- Criterion 2: panel disagreement ---
         if panel_messages:
@@ -1210,13 +1239,40 @@ class StrategicAssistantService:
                 )
                 conflicting_signals.append("low_panel_confidence")
 
-        # --- Criterion 3: high risk + high opportunity ---
+        # --- Criterion 3: high risk + high opportunity (aggregate) ---
         risk_score, opportunity_score = self._compute_risk_opportunity_scores(analysis)
-        if risk_score >= 0.4 and opportunity_score >= 0.4:
+        if risk_score >= 0.35 and opportunity_score >= 0.35:
             reasons.append(
                 f"Both risk signals ({risk_score:.0%}) and opportunity signals ({opportunity_score:.0%}) are strong."
             )
             conflicting_signals.append("risk_opportunity_tension")
+
+        # --- Criterion 4: per-finding risk/opportunity co-occurrence ---
+        finding_conflicts = self._detect_per_finding_conflicts(analysis)
+        if finding_conflicts:
+            reasons.append(
+                f"{len(finding_conflicts)} finding(s) contain both risk and opportunity signals, "
+                f"suggesting mixed assessments."
+            )
+            conflicting_signals.append("finding_level_conflict")
+
+        # --- Criterion 5: multi-source contradiction ---
+        source_contradiction = self._detect_source_contradiction(analysis)
+        if source_contradiction:
+            reasons.append(
+                "Multiple data sources present divergent signals, "
+                "indicating cross-source contradiction."
+            )
+            conflicting_signals.append("source_contradiction")
+
+        # --- Criterion 6: uncertainty keyword density in summary ---
+        uncertainty_density = self._compute_uncertainty_density(analysis)
+        if uncertainty_density >= 0.3:
+            reasons.append(
+                f"Summary contains high uncertainty language density ({uncertainty_density:.0%}), "
+                f"suggesting the situation is fluid or contested."
+            )
+            conflicting_signals.append("high_uncertainty_language")
 
         warranted = len(reasons) > 0
 
@@ -1293,16 +1349,104 @@ class StrategicAssistantService:
         text_pool = " ".join(
             [analysis.summary] + analysis.findings + analysis.recommendations
         ).lower()
+        # Extract both English words and Chinese keywords/phrases
         words = set(re.findall(r"[a-z]+", text_pool))
-        if not words:
-            return 0.0, 0.0
-
+        # For Chinese keywords, do direct substring matching
         risk_hits = len(words & _RISK_KEYWORDS)
+        risk_hits += sum(1 for kw in _RISK_KEYWORDS if len(kw) > 2 and kw in text_pool)
         opp_hits = len(words & _OPPORTUNITY_KEYWORDS)
+        opp_hits += sum(1 for kw in _OPPORTUNITY_KEYWORDS if len(kw) > 2 and kw in text_pool)
+        # Deduplicate: cap at unique keyword matches
+        risk_hits = min(risk_hits, len(_RISK_KEYWORDS))
+        opp_hits = min(opp_hits, len(_OPPORTUNITY_KEYWORDS))
+        if not words:
+            # Still check Chinese keywords even if no Latin words found
+            if risk_hits == 0 and opp_hits == 0:
+                return 0.0, 0.0
         # Normalize: 4+ distinct keyword hits → score 1.0
         risk_score = min(risk_hits / 4.0, 1.0)
         opp_score = min(opp_hits / 4.0, 1.0)
         return risk_score, opp_score
+
+    def _detect_per_finding_conflicts(
+        self, analysis: AnalysisResponse
+    ) -> list[str]:
+        """Detect individual findings that contain both risk and opportunity signals.
+
+        Returns list of finding texts that exhibit internal conflict.
+        """
+        conflicts: list[str] = []
+        for finding in analysis.findings:
+            text_lower = finding.lower()
+            has_risk = any(kw in text_lower for kw in _RISK_KEYWORDS)
+            has_opportunity = any(kw in text_lower for kw in _OPPORTUNITY_KEYWORDS)
+            if has_risk and has_opportunity:
+                conflicts.append(finding)
+        return conflicts
+
+    def _detect_source_contradiction(
+        self, analysis: AnalysisResponse
+    ) -> bool:
+        """Detect multi-source contradiction signals.
+
+        Returns True if:
+        - Source type diversity is high (>= _SOURCE_TYPE_DIVERSITY_THRESHOLD)
+          AND findings contain mixed risk/opportunity signals
+        - OR sources themselves contain contradictory keywords
+        """
+        if not analysis.sources:
+            return False
+
+        # Check source type diversity
+        source_types = {s.source_type for s in analysis.sources}
+        type_diversity = len(source_types)
+
+        # Check if sources have mixed signals in their summaries
+        source_risk_count = 0
+        source_opp_count = 0
+        for source in analysis.sources:
+            src_lower = source.summary.lower()
+            if any(kw in src_lower for kw in _RISK_KEYWORDS):
+                source_risk_count += 1
+            if any(kw in src_lower for kw in _OPPORTUNITY_KEYWORDS):
+                source_opp_count += 1
+
+        # Contradiction: diverse sources with both risk and opportunity signals
+        has_mixed_source_signals = source_risk_count > 0 and source_opp_count > 0
+        if type_diversity >= _SOURCE_TYPE_DIVERSITY_THRESHOLD and has_mixed_source_signals:
+            return True
+
+        # Also flag if many sources disagree in direction
+        if source_risk_count >= 2 and source_opp_count >= 2:
+            return True
+
+        return False
+
+    def _compute_uncertainty_density(
+        self, analysis: AnalysisResponse
+    ) -> float:
+        """Compute the density of uncertainty keywords in the summary.
+
+        Returns a value in [0.0, 1.0] representing the proportion of
+        uncertainty-related language.
+        """
+        summary_lower = analysis.summary.lower()
+        if not summary_lower:
+            return 0.0
+
+        # Count uncertainty keyword occurrences (both English word match and Chinese substring)
+        words = set(re.findall(r"[a-z]+", summary_lower))
+        uncertainty_hits = len(words & _UNCERTAINTY_KEYWORDS)
+        uncertainty_hits += sum(
+            1 for kw in _UNCERTAINTY_KEYWORDS if len(kw) > 2 and kw in summary_lower
+        )
+
+        # Normalize: use total word count as denominator
+        total_words = len(words) + len(re.findall(r"[\u4e00-\u9fff]+", summary_lower))
+        if total_words == 0:
+            return 0.0
+
+        return min(uncertainty_hits / max(total_words * 0.1, 1.0), 1.0)
 
     def _default_actor_template(self, market: str) -> str:
         normalized = market.strip().lower()

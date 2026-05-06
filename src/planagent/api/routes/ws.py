@@ -18,6 +18,7 @@ router = APIRouter()
 NOTIFICATION_TOPICS = [
     EventTopic.SOURCE_CHANGED.value,
     EventTopic.DEBATE_COMPLETED.value,
+    EventTopic.DEBATE_INTERRUPTED.value,
     EventTopic.PREDICTION_VERSION_CREATED.value,
     EventTopic.SIMULATION_COMPLETED.value,
     "session.updated",
@@ -95,6 +96,18 @@ async def _notification_for_event(event: ConsumedEvent) -> dict[str, str] | None
             action_url = f"/debate?id={debate_id}"
         elif session_id:
             action_url = f"/assistant?session={session_id}"
+    elif event.topic == EventTopic.DEBATE_INTERRUPTED.value:
+        debate_id = _string_value(payload.get("debate_id"))
+        interrupt_type = _string_value(payload.get("interrupt_type")) or "general"
+        type_label = {
+            "supplementary_info": "补充信息",
+            "direction_correction": "修正方向",
+            "new_evidence": "新证据",
+        }.get(interrupt_type, "用户插话")
+        title = "Debate interrupted"
+        body = f"{type_label}: {_string_value(payload.get('message_preview')) or 'User submitted input during debate.'}"
+        if debate_id:
+            action_url = f"/debate?id={debate_id}"
     elif event.topic == EventTopic.PREDICTION_VERSION_CREATED.value:
         version_number = _string_value(payload.get("version_number"))
         title = "Prediction updated"
