@@ -128,6 +128,9 @@ class Settings(BaseSettings):
     sql_echo: bool = False
     rules_dir: Path = Field(default=Path("rules"))
 
+    # MCP Server 配置
+    mcp_enabled: bool = False
+
     @model_validator(mode="before")
     @classmethod
     def collect_flat_openai_fields(cls, data: object) -> object:

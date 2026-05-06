@@ -29,6 +29,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Users,
+  Layers,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -86,6 +87,11 @@ const NAV_ITEMS = [
     labelKey: "nav.agents",
     href: "/agents",
     icon: <Users size={16} />,
+  },
+  {
+    labelKey: "nav.batch",
+    href: "/batch",
+    icon: <Layers size={16} />,
   },
 ];
 

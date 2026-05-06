@@ -1229,3 +1229,82 @@ class SourceChangeRecordRead(APIModel):
     claim_ids: list
     prediction_revision_job_ids: list
     created_at: datetime
+
+
+# ── 批量任务 API 模型 ────────────────────────────────────────────────────────
+
+
+class BatchProposalInput(APIModel):
+    """单个方案输入"""
+
+    title: str = Field(min_length=1, max_length=255, description="方案标题")
+    description: str = Field(min_length=1, description="方案详细描述")
+
+
+class BatchTaskSubmitRequest(APIModel):
+    """批量任务提交请求"""
+
+    title: str = Field(min_length=1, max_length=255, description="批量任务标题")
+    decision_point: str = Field(min_length=1, description="决策点描述")
+    proposals: list[BatchProposalInput] = Field(min_length=1, description="方案列表")
+    trigger_type: str = Field(default="manual", description="触发类型")
+    tenant_id: str | None = None
+    preset_id: str | None = None
+
+
+class BatchSubTaskRead(APIModel):
+    """批量子任务读取"""
+
+    id: str
+    batch_id: str
+    index: int
+    proposal_title: str
+    proposal_description: str
+    topic: str
+    status: str
+    debate_id: str | None = None
+    simulation_run_id: str | None = None
+    verdict: str | None = None
+    confidence: float | None = None
+    result_summary: str | None = None
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+
+class BatchTaskRead(APIModel):
+    """批量任务读取"""
+
+    id: str
+    title: str
+    decision_point: str
+    trigger_type: str
+    status: str
+    total_tasks: int
+    completed_tasks: int
+    failed_tasks: int
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+
+class BatchTaskDetailRead(APIModel):
+    """批量任务详情（含子任务列表）"""
+
+    id: str
+    title: str
+    decision_point: str
+    trigger_type: str
+    status: str
+    total_tasks: int
+    completed_tasks: int
+    failed_tasks: int
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    sub_tasks: list[BatchSubTaskRead] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None

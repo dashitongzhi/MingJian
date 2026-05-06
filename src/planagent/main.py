@@ -47,6 +47,13 @@ def create_app() -> FastAPI:
     )
     app.include_router(router)
     app.include_router(websocket_router)
+
+    # 条件性注册 MCP Server 路由
+    if settings.mcp_enabled:
+        from planagent.mcp.server import router as mcp_router
+
+        app.include_router(mcp_router, tags=["MCP Server"])
+
     return app
 
 

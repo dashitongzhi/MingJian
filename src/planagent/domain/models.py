@@ -24,6 +24,8 @@ except ImportError:  # pragma: no cover – SQLite / no-pgvector envs
     Vector = None  # type: ignore[assignment,misc]
 
 from planagent.domain.enums import (
+    BatchSubTaskStatus,
+    BatchTaskStatus,
     ClaimStatus,
     ExecutionMode,
     IngestRunStatus,
@@ -1249,3 +1251,77 @@ class PredictionCalibrationContext(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+
+
+class BatchTask(Base):
+    """批量任务——支持一次性提交多个方案并行辩论"""
+
+    __tablename__ = "batch_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    decision_point: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger_type: Mapped[str] = mapped_column(
+        String(64), default="manual", nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(24),
+        default=BatchTaskStatus.PENDING.value,
+        nullable=False,
+        index=True,
+    )
+    total_tasks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completed_tasks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_tasks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    configuration: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    sub_tasks: Mapped[list["BatchSubTask"]] = relationship(back_populates="batch_task")
+
+
+class BatchSubTask(Base):
+    """批量子任务——每个方案对应的辩论子任务"""
+
+    __tablename__ = "batch_sub_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    batch_id: Mapped[str] = mapped_column(
+        ForeignKey("batch_tasks.id"), nullable=False, index=True
+    )
+    index: Mapped[int] = mapped_column(Integer, nullable=False)
+    proposal_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    proposal_description: Mapped[str] = mapped_column(Text, nullable=False)
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(24),
+        default=BatchSubTaskStatus.PENDING.value,
+        nullable=False,
+        index=True,
+    )
+    debate_id: Mapped[str | None] = mapped_column(
+        ForeignKey("debate_sessions.id"), nullable=True
+    )
+    simulation_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("simulation_runs.id"), nullable=True
+    )
+    verdict: Mapped[str | None] = mapped_column(String(32))
+    confidence: Mapped[float | None] = mapped_column(Float)
+    result_summary: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    batch_task: Mapped["BatchTask"] = relationship(back_populates="sub_tasks")

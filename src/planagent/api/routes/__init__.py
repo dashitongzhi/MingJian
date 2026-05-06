@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from planagent.api.routes.analysis import router as analysis_router
 from planagent.api.routes.agents import router as agents_router
+from planagent.api.routes.batch import router as batch_router
 from planagent.api.routes.debate_votes import router as debate_votes_router
 from planagent.api.routes.debate_replay import router as debate_replay_router
 from planagent.api.routes.debate_interrupt import router as debate_interrupt_router
@@ -17,10 +18,12 @@ from planagent.api.routes.providers import router as providers_router
 from planagent.api.routes.sources import router as sources_router
 from planagent.api.routes.custom_sources import router as custom_sources_router
 from planagent.api.routes.custom_agents import router as custom_agents_router
+from planagent.api.routes.model_adapter import router as model_adapter_router
 
 router = APIRouter()
 router.include_router(analysis_router, tags=["Analysis & Assistant"])
 router.include_router(agents_router)
+router.include_router(batch_router)
 router.include_router(debate_votes_router)
 router.include_router(debate_replay_router, tags=["Debate Replay"])
 router.include_router(debate_interrupt_router, tags=["Debate Interrupts"])
@@ -34,3 +37,4 @@ router.include_router(providers_router, tags=["Providers"])
 router.include_router(sources_router)
 router.include_router(custom_sources_router)
 router.include_router(custom_agents_router)
+router.include_router(model_adapter_router)

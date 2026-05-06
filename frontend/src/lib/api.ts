@@ -356,3 +356,70 @@ export const fetchDebateInterrupts = (debateId: string) =>
 
 export const fetchDebateReplay = (debateId: string) =>
   fetch_<DebateReplay>(`/debates/${debateId}/replay`);
+
+// ── 批量任务 API ──────────────────────────────────────────────────────────────
+
+export interface BatchProposalInput {
+  title: string;
+  description: string;
+}
+
+export interface BatchSubTask {
+  id: string;
+  batch_id: string;
+  index: number;
+  proposal_title: string;
+  proposal_description: string;
+  topic: string;
+  status: string;
+  debate_id: string | null;
+  simulation_run_id: string | null;
+  verdict: string | null;
+  confidence: number | null;
+  result_summary: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface BatchTask {
+  id: string;
+  title: string;
+  decision_point: string;
+  trigger_type: string;
+  status: string;
+  total_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  tenant_id: string | null;
+  preset_id: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface BatchTaskDetail extends BatchTask {
+  sub_tasks: BatchSubTask[];
+}
+
+export const submitBatchTask = (data: {
+  title: string;
+  decision_point: string;
+  proposals: BatchProposalInput[];
+  trigger_type?: string;
+  tenant_id?: string | null;
+  preset_id?: string | null;
+}) => fetch_<BatchTaskDetail>("/batch/submit", { method: "POST", body: JSON.stringify(data) });
+
+export const fetchBatchTask = (batchId: string) =>
+  fetch_<BatchTask>(`/batch/${batchId}`);
+
+export const fetchBatchSubTasks = (batchId: string) =>
+  fetch_<BatchSubTask[]>(`/batch/${batchId}/tasks`);
+
+export const cancelBatchTask = (batchId: string) =>
+  fetch_<BatchTask>(`/batch/${batchId}/cancel`, { method: "POST" });
+
+export const fetchBatchTasks = (limit = 20) =>
+  fetch_<BatchTask[]>(`/batch?limit=${limit}`);
