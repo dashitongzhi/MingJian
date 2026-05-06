@@ -147,7 +147,10 @@ export interface AgentInfo {
   recommended_models?: string[];
 }
 
-export const fetchAllAgents = () => fetch_<AgentInfo[]>("/agents");
+export const fetchAllAgents = async (): Promise<AgentInfo[]> => {
+  const resp = await fetch_<AgentInfo[]>("/agents/all");
+  return Array.isArray(resp) ? resp : [];
+};
 export const createCustomAgent = (data: { name: string; name_en: string; icon: string; description: string; priority?: number; recommended_models?: string[] }) =>
   fetch_<AgentInfo>("/agents/custom", { method: "POST", body: JSON.stringify(data) });
 export const updateCustomAgent = (key: string, data: { name?: string; name_en?: string; icon?: string; description?: string; priority?: number }) =>
