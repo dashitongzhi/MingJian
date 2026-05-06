@@ -16,6 +16,7 @@ from planagent.api.routes.prediction import router as prediction_router
 from planagent.api.routes.providers import router as providers_router
 from planagent.api.routes.sources import router as sources_router
 from planagent.api.routes.custom_sources import router as custom_sources_router
+from planagent.api.routes.custom_agents import router as custom_agents_router
 
 router = APIRouter()
 router.include_router(analysis_router, tags=["Analysis & Assistant"])
@@ -32,3 +33,4 @@ router.include_router(prediction_router)
 router.include_router(providers_router, tags=["Providers"])
 router.include_router(sources_router)
 router.include_router(custom_sources_router)
+router.include_router(custom_agents_router)

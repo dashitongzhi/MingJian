@@ -77,23 +77,26 @@ export const fetchSourceReputations = () => fetch_<SourceReputation[]>("/sources
 
 // ── Custom Sources ──────────────────────────────────────────
 export interface CustomSource {
-  id: string;
-  name: string;
-  source_type: string;
-  endpoint_url: string;
-  config: Record<string, unknown> | null;
+  key: string;
+  label: string;
+  type: string;
+  url: string;
   enabled: boolean;
-  created_at: string;
-  updated_at: string | null;
+  default_limit?: number;
+  agent_name?: string;
+  agent_icon?: string;
+  has_auth?: boolean;
+  item_path?: string;
+  field_map?: Record<string, unknown>;
 }
 
 export const fetchCustomSources = () => fetch_<CustomSource[]>("/sources/custom");
-export const createCustomSource = (data: { name: string; source_type: string; endpoint_url: string; config?: Record<string, unknown> }) =>
+export const createCustomSource = (data: { key: string; label: string; type: string; url: string; enabled?: boolean; item_path?: string; field_map?: Record<string, string> }) =>
   fetch_<CustomSource>("/sources/custom", { method: "POST", body: JSON.stringify(data) });
-export const updateCustomSource = (id: string, data: { name?: string; source_type?: string; endpoint_url?: string; config?: Record<string, unknown> }) =>
-  fetch_<CustomSource>(`/sources/custom/${id}`, { method: "PUT", body: JSON.stringify(data) });
-export const deleteCustomSource = (id: string) =>
-  fetch_<unknown>(`/sources/custom/${id}`, { method: "DELETE" });
+export const updateCustomSource = (key: string, data: { label?: string; type?: string; url?: string; enabled?: boolean; item_path?: string; field_map?: Record<string, string> }) =>
+  fetch_<CustomSource>(`/sources/custom/${key}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteCustomSource = (key: string) =>
+  fetch_<unknown>(`/sources/custom/${key}`, { method: "DELETE" });
 export const fetchWatchRules = () => fetch_<WatchRule[]>("/admin/watch-rules");
 export const fetchQueueHealth = () => fetch_<RuntimeQueueHealth>("/admin/runtime/queues");
 export const createUserDecision = (data: { session_id: string; decision: UserDecisionValue; notes?: string | null }) => (
@@ -131,6 +134,26 @@ export const configureAgents = (keys: ApiKeyInput[]) =>
 export const setAgentModel = (role: string, model: string) =>
   fetch_<AgentRegistryStatus>("/agents/model", { method: "POST", body: JSON.stringify({ role, model }) });
 export const resetAgents = () => fetch_<AgentRegistryStatus>("/agents/reset", { method: "POST" });
+
+// ── Custom Agents (role management) ───────────────────────────
+export interface AgentInfo {
+  role_key: string;
+  name: string;
+  name_en: string;
+  icon: string;
+  description: string;
+  is_custom: boolean;
+  priority: number;
+  recommended_models?: string[];
+}
+
+export const fetchAllAgents = () => fetch_<AgentInfo[]>("/agents");
+export const createCustomAgent = (data: { name: string; name_en: string; icon: string; description: string; priority?: number; recommended_models?: string[] }) =>
+  fetch_<AgentInfo>("/agents/custom", { method: "POST", body: JSON.stringify(data) });
+export const updateCustomAgent = (key: string, data: { name?: string; name_en?: string; icon?: string; description?: string; priority?: number }) =>
+  fetch_<AgentInfo>(`/agents/custom/${key}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteCustomAgent = (key: string) =>
+  fetch_<unknown>(`/agents/custom/${key}`, { method: "DELETE" });
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;

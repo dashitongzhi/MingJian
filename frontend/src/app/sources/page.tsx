@@ -16,7 +16,6 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   Plus,
@@ -88,11 +87,7 @@ function EmptyState({
 const SOURCE_TYPES = [
   "rss",
   "api",
-  "scraper",
-  "webhook",
-  "database",
-  "file",
-  "other",
+  "json_feed",
 ];
 
 // ── Reputation Columns ─────────────────────────────────────────────────
@@ -168,17 +163,17 @@ function reputationColumns(
 // ── Source Form ─────────────────────────────────────────────────────────
 
 interface SourceFormData {
-  name: string;
-  source_type: string;
-  endpoint_url: string;
-  config: string;
+  key: string;
+  label: string;
+  type: string;
+  url: string;
 }
 
 const emptyForm: SourceFormData = {
-  name: "",
-  source_type: "rss",
-  endpoint_url: "",
-  config: "",
+  key: "",
+  label: "",
+  type: "rss",
+  url: "",
 };
 
 function SourceForm({
@@ -186,56 +181,59 @@ function SourceForm({
   onSubmit,
   onCancel,
   submitLabel,
+  isEdit,
   t,
 }: {
   initial?: SourceFormData;
   onSubmit: (data: {
-    name: string;
-    source_type: string;
-    endpoint_url: string;
-    config?: Record<string, unknown>;
+    key: string;
+    label: string;
+    type: string;
+    url: string;
   }) => void;
   onCancel: () => void;
   submitLabel: string;
+  isEdit?: boolean;
   t: (key: string) => string;
 }) {
   const [form, setForm] = useState<SourceFormData>(initial || emptyForm);
-  const [configError, setConfigError] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.endpoint_url.trim()) return;
-
-    let config: Record<string, unknown> | undefined;
-    if (form.config.trim()) {
-      try {
-        config = JSON.parse(form.config);
-        setConfigError(false);
-      } catch {
-        setConfigError(true);
-        return;
-      }
-    }
+    if (!form.label.trim() || !form.url.trim() || (!isEdit && !form.key.trim())) return;
 
     onSubmit({
-      name: form.name.trim(),
-      source_type: form.source_type,
-      endpoint_url: form.endpoint_url.trim(),
-      config,
+      key: form.key.trim(),
+      label: form.label.trim(),
+      type: form.type,
+      url: form.url.trim(),
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
+        {!isEdit && (
+          <div>
+            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+              {t("sources.sourceKey")}
+            </label>
+            <Input
+              placeholder="my_source_key"
+              value={form.key}
+              onChange={(e) => setForm({ ...form, key: e.target.value.replace(/[^a-z0-9_]/g, "") })}
+              required
+            />
+          </div>
+        )}
         <div>
           <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
             {t("sources.sourceName")}
           </label>
           <Input
             placeholder={t("sources.namePlaceholder")}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            value={form.label}
+            onChange={(e) => setForm({ ...form, label: e.target.value })}
             required
           />
         </div>
@@ -245,8 +243,8 @@ function SourceForm({
           </label>
           <select
             className="h-8 w-full rounded-lg border border-[var(--input)] bg-[var(--background)] px-2.5 text-[13px] outline-none focus-visible:border-ring"
-            value={form.source_type}
-            onChange={(e) => setForm({ ...form, source_type: e.target.value })}
+            value={form.type}
+            onChange={(e) => setForm({ ...form, type: e.target.value })}
           >
             {SOURCE_TYPES.map((st) => (
               <option key={st} value={st}>
@@ -263,32 +261,10 @@ function SourceForm({
         </label>
         <Input
           placeholder={t("sources.endpointPlaceholder")}
-          value={form.endpoint_url}
-          onChange={(e) => setForm({ ...form, endpoint_url: e.target.value })}
+          value={form.url}
+          onChange={(e) => setForm({ ...form, url: e.target.value })}
           required
         />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
-          {t("sources.configJson")}
-        </label>
-        <Textarea
-          placeholder={t("sources.configPlaceholder")}
-          value={form.config}
-          onChange={(e) => {
-            setForm({ ...form, config: e.target.value });
-            setConfigError(false);
-          }}
-          className={`font-mono text-[12px] ${configError ? "border-[var(--accent-red)]" : ""}`}
-          rows={3}
-        />
-        {configError && (
-          <p className="mt-1 flex items-center gap-1 text-[11px] text-[var(--accent-red)]">
-            <AlertCircle size={12} />
-            {t("sources.configInvalid")}
-          </p>
-        )}
       </div>
 
       <div className="flex items-center justify-end gap-2 pt-2">
@@ -337,10 +313,10 @@ export default function SourcesPage() {
 
   const handleCreate = useCallback(
     async (data: {
-      name: string;
-      source_type: string;
-      endpoint_url: string;
-      config?: Record<string, unknown>;
+      key: string;
+      label: string;
+      type: string;
+      url: string;
     }) => {
       try {
         await createCustomSource(data);
@@ -356,14 +332,14 @@ export default function SourcesPage() {
 
   const handleUpdate = useCallback(
     async (data: {
-      name: string;
-      source_type: string;
-      endpoint_url: string;
-      config?: Record<string, unknown>;
+      key: string;
+      label: string;
+      type: string;
+      url: string;
     }) => {
       if (!editingSource) return;
       try {
-        await updateCustomSource(editingSource.id, data);
+        await updateCustomSource(editingSource.key, data);
         await mutateSources();
         setEditingSource(null);
         toast.success(t("common.completed"));
@@ -481,16 +457,15 @@ export default function SourcesPage() {
               initial={
                 editingSource
                   ? {
-                      name: editingSource.name,
-                      source_type: editingSource.source_type,
-                      endpoint_url: editingSource.endpoint_url,
-                      config: editingSource.config
-                        ? JSON.stringify(editingSource.config, null, 2)
-                        : "",
+                      key: editingSource.key,
+                      label: editingSource.label,
+                      type: editingSource.type,
+                      url: editingSource.url,
                     }
                   : undefined
               }
               onSubmit={editingSource ? handleUpdate : handleCreate}
+              isEdit={!!editingSource}
               onCancel={() => {
                 setShowForm(false);
                 setEditingSource(null);
@@ -590,7 +565,7 @@ export default function SourcesPage() {
                 <tbody>
                   {customSources.map((source) => (
                     <tr
-                      key={source.id}
+                      key={source.key}
                       className="border-b border-[var(--card-border)]/50 transition-colors hover:bg-[var(--bg-secondary)]/50"
                     >
                       <td className="px-4 py-3 font-medium text-[var(--foreground)]">
@@ -599,22 +574,22 @@ export default function SourcesPage() {
                             size={14}
                             className="shrink-0 text-[var(--muted)]"
                           />
-                          <span className="truncate">{source.name}</span>
+                          <span className="truncate">{source.label}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <span className="rounded bg-[var(--bg-secondary)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted-foreground)]">
-                          {source.source_type}
+                          {source.type}
                         </span>
                       </td>
                       <td className="hidden px-4 py-3 sm:table-cell">
                         <span className="flex items-center gap-1 font-mono text-[12px] text-[var(--muted)]">
                           <span className="max-w-[260px] truncate">
-                            {source.endpoint_url}
+                            {source.url}
                           </span>
-                          {source.endpoint_url.startsWith("http") && (
+                          {source.url.startsWith("http") && (
                             <a
-                              href={source.endpoint_url}
+                              href={source.url}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="shrink-0 text-[var(--accent)] hover:underline"
@@ -661,7 +636,7 @@ export default function SourcesPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={() => setDeletingId(source.id)}
+                            onClick={() => setDeletingId(source.key)}
                             title={t("sources.deleteSource")}
                           >
                             <Trash2 size={14} className="text-[var(--accent-red)]" />

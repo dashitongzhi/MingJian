@@ -872,6 +872,27 @@ class DebateService:
             (4, "arbitrator", "【第4轮·仲裁】首席仲裁官：请基于全部论证历史做出最终裁决。要求：逐条回应各专家核心论点（采纳/拒绝及理由），识别共识点和分歧点，提供条件矩阵和行动建议（推荐/备选/规避方案）。"),
         ]
 
+        # ── Inject custom agents into the round plan ──────────────
+        custom_agents = self._get_custom_agents()
+        for ca in custom_agents:
+            role_key = ca["role_key"]
+            name = ca["name"]
+            icon = ca.get("icon", "🤖")
+            description = ca.get("description", "")
+            priority = ca.get("priority", 2)
+            # Truncate description for instruction
+            desc_brief = description[:200] + ("..." if len(description) > 200 else "")
+            # Round 1: all custom agents provide standpoint
+            round_plan.insert(
+                -1,  # Before arbitrator
+                (1, role_key, f"【第1轮·立论】{icon} {name}：{desc_brief}"),
+            )
+            # Round 3: all custom agents revise
+            round_plan.insert(
+                -1,  # Before arbitrator
+                (3, role_key, f"【第3轮·修订】{icon} {name}：请根据质询反馈修订你的分析。要求：回应其他角色的跨域观点，修正被质疑的论点。"),
+            )
+
         for round_number, role, instruction in round_plan:
             yield DebateStreamEvent(
                 event="debate_round_start",
@@ -1414,6 +1435,9 @@ class DebateService:
             await provider.close()
 
     def _debate_provider_for_role(self, role: str) -> str:
+        # Custom agents default to openai
+        if role.startswith("custom_"):
+            return "openai"
         role_providers = {
             "advocate": self.settings.debate_advocate_provider,
             "strategist": self.settings.debate_advocate_provider,
@@ -1431,6 +1455,14 @@ class DebateService:
         return role_providers.get(role, "openai").strip().lower() or "openai"
 
     # ── Agent Registry 集成 ──────────────────────────────────
+
+    def _get_custom_agents(self) -> list[dict[str, Any]]:
+        """Get custom agent configs from the agent registry or YAML."""
+        try:
+            from planagent.services.agent_registry import load_custom_agent_configs
+            return load_custom_agent_configs()
+        except Exception:
+            return []
 
     def _get_agent_registry_config(self, role: str) -> dict[str, str] | None:
         """从 Agent Registry 获取角色的 provider 配置"""
@@ -1450,6 +1482,12 @@ class DebateService:
             "tech_foresight": "advocate",
             "social_impact": "advocate",
         }
+        # Custom agents use their role_key directly
+        if role.startswith("custom_"):
+            try:
+                return self.agent_registry.get_provider_config(role)
+            except Exception:
+                return None
         agent_role = role_map.get(role)
         if agent_role is None:
             return None
@@ -1765,6 +1803,9 @@ class DebateService:
 
     def _debate_target_for_role(self, role: str) -> str:
         if self.openai_service is None:
+            return "primary"
+        # Custom agents default to primary target
+        if role.startswith("custom_"):
             return "primary"
         role_targets = {
             "advocate": ("debate_advocate", "primary"),
