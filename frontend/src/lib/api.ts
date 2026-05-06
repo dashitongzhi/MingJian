@@ -74,6 +74,26 @@ export const fetchKnowledgeGraph = (limit = 100) => fetch_<{ nodes: Array<{ node
 export const searchKnowledge = (q: string) => fetch_<Array<{ node_id: string; label: string; score: number }>>(`/knowledge/search?q=${encodeURIComponent(q)}`);
 export const fetchScoreboard = () => fetch_<PredictionScoreboard>("/hypotheses/scoreboard");
 export const fetchSourceReputations = () => fetch_<SourceReputation[]>("/sources/reputation");
+
+// ── Custom Sources ──────────────────────────────────────────
+export interface CustomSource {
+  id: string;
+  name: string;
+  source_type: string;
+  endpoint_url: string;
+  config: Record<string, unknown> | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export const fetchCustomSources = () => fetch_<CustomSource[]>("/sources/custom");
+export const createCustomSource = (data: { name: string; source_type: string; endpoint_url: string; config?: Record<string, unknown> }) =>
+  fetch_<CustomSource>("/sources/custom", { method: "POST", body: JSON.stringify(data) });
+export const updateCustomSource = (id: string, data: { name?: string; source_type?: string; endpoint_url?: string; config?: Record<string, unknown> }) =>
+  fetch_<CustomSource>(`/sources/custom/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteCustomSource = (id: string) =>
+  fetch_<unknown>(`/sources/custom/${id}`, { method: "DELETE" });
 export const fetchWatchRules = () => fetch_<WatchRule[]>("/admin/watch-rules");
 export const fetchQueueHealth = () => fetch_<RuntimeQueueHealth>("/admin/runtime/queues");
 export const createUserDecision = (data: { session_id: string; decision: UserDecisionValue; notes?: string | null }) => (
@@ -268,3 +288,45 @@ export async function streamAssistant(body: Record<string, unknown>, onEvent: (e
 export async function streamDebate(body: Record<string, unknown>, onEvent: (evt: DebateStreamEvent) => void, signal?: AbortSignal): Promise<void> {
   return streamEvents<DebateStreamEvent>("/debates/trigger/stream", body, onEvent, signal);
 }
+
+// ── Debate Interrupt & Replay API ──────────────────────────────────────
+export type InterruptType = "supplementary_info" | "direction_correction" | "new_evidence" | "general";
+
+export interface DebateInterrupt {
+  id: string;
+  debate_id: string;
+  message: string;
+  interrupt_type: InterruptType;
+  created_at: string;
+}
+
+export interface ReplayEvent {
+  event_type: "round_start" | "round_complete" | "interrupt" | "position_change" | "verdict";
+  timestamp: string;
+  round_number: number;
+  role: string;
+  content: string;
+  position?: string;
+  stance?: "support" | "oppose" | "neutral";
+  confidence?: number;
+  interrupt_type?: string;
+}
+
+export interface DebateReplay {
+  debate_id: string;
+  topic: string;
+  status: string;
+  events: ReplayEvent[];
+}
+
+export const postDebateInterrupt = (debateId: string, message: string, interruptType: InterruptType) =>
+  fetch_<DebateInterrupt>(`/debates/${debateId}/interrupt`, {
+    method: "POST",
+    body: JSON.stringify({ message, interrupt_type: interruptType }),
+  });
+
+export const fetchDebateInterrupts = (debateId: string) =>
+  fetch_<DebateInterrupt[]>(`/debates/${debateId}/interrupts`);
+
+export const fetchDebateReplay = (debateId: string) =>
+  fetch_<DebateReplay>(`/debates/${debateId}/replay`);

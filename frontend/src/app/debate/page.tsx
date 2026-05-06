@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { Play, Radio, RefreshCw } from "lucide-react";
-import { createDebateVote, fetchDebateDetail, fetchDebates, fetchDebateVotes, fetchSimulationRuns, streamDebate, type DebateRound, type DebateSummary, type DebateVote, type DebateVerdict } from "@/lib/api";
+import { Play, Radio, RefreshCw, MessageSquarePlus, Clock, History, ChevronDown, ChevronUp } from "lucide-react";
+import { createDebateVote, fetchDebateDetail, fetchDebates, fetchDebateVotes, fetchSimulationRuns, streamDebate, postDebateInterrupt, fetchDebateReplay, type DebateRound, type DebateSummary, type DebateVote, type DebateVerdict, type InterruptType, type ReplayEvent, type DebateReplay } from "@/lib/api";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { toast } from "@/lib/toast";
 import { PriorityBadge } from "@/components/PriorityBadge";
@@ -273,6 +273,313 @@ function StateBlock({ title, description }: { title: string; description?: strin
         {description && <div className="mx-auto mt-2 max-w-md text-sm text-[var(--muted)]">{description}</div>}
       </div>
     </div>
+  );
+}
+
+const INTERRUPT_TYPES: { value: InterruptType; labelKey: string; icon: string }[] = [
+  { value: "supplementary_info", labelKey: "debate.supplementaryInfo", icon: "📋" },
+  { value: "direction_correction", labelKey: "debate.directionCorrection", icon: "🧭" },
+  { value: "new_evidence", labelKey: "debate.newEvidence", icon: "🔍" },
+  { value: "general", labelKey: "debate.generalInterrupt", icon: "💬" },
+];
+
+function DebateInterruptForm({ debateId, onSubmitted }: { debateId: string; onSubmitted: () => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [interruptType, setInterruptType] = useState<InterruptType>("supplementary_info");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!message.trim()) return;
+    setSubmitting(true);
+    try {
+      await postDebateInterrupt(debateId, message.trim(), interruptType);
+      toast.success(t("debate.interruptSuccess"));
+      setMessage("");
+      setSubmitted(true);
+      setOpen(false);
+      onSubmitted();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("debate.interruptFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-3 py-2 text-xs text-[var(--accent)]">
+        <MessageSquarePlus size={14} />
+        {t("debate.alreadyInterrupted")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fadeIn">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="btn btn-primary flex items-center gap-2 py-2 px-4 text-sm"
+        >
+          <MessageSquarePlus size={16} />
+          {t("debate.interrupt")}
+        </button>
+      ) : (
+        <div className="space-y-3 rounded-lg border border-[var(--accent)]/30 bg-[var(--card)] p-4 animate-scaleIn">
+          <div className="section-label !text-[var(--accent)]">{t("debate.interruptType")}</div>
+          <div className="flex flex-wrap gap-2">
+            {INTERRUPT_TYPES.map((it) => (
+              <button
+                key={it.value}
+                type="button"
+                onClick={() => setInterruptType(it.value)}
+                className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors ${
+                  interruptType === it.value
+                    ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "border-[var(--card-border)] text-[var(--muted)] hover:border-[var(--muted)]"
+                }`}
+              >
+                <span>{it.icon}</span>
+                {t(it.labelKey)}
+              </button>
+            ))}
+          </div>
+          <textarea
+            className="w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] resize-none"
+            rows={3}
+            placeholder={t("debate.interruptPlaceholder")}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={submitting}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || !message.trim()}
+              className="btn btn-primary py-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting ? <RefreshCw size={14} className="animate-spin" /> : <MessageSquarePlus size={14} />}
+              {submitting ? t("common.processing") : t("debate.interrupt")}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setMessage(""); }}
+              disabled={submitting}
+              className="rounded-md border border-[var(--card-border)] px-3 py-2 text-xs text-[var(--muted)] transition-colors hover:border-[var(--muted)]"
+            >
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function stanceColor(stance?: string) {
+  if (stance === "support") return "border-l-[var(--accent-green)]";
+  if (stance === "oppose") return "border-l-[var(--accent-red)]";
+  return "border-l-[var(--muted)]";
+}
+
+function stanceLabel(stance: string | undefined, t: (k: string) => string) {
+  if (stance === "support") return t("debate.stanceSupport");
+  if (stance === "oppose") return t("debate.stanceOppose");
+  return t("debate.stanceNeutral");
+}
+
+function stanceBadgeColor(stance?: string) {
+  if (stance === "support") return "bg-[var(--accent-green)]/10 text-[var(--accent-green)]";
+  if (stance === "oppose") return "bg-[var(--accent-red)]/10 text-[var(--accent-red)]";
+  return "bg-[var(--card-hover)] text-[var(--muted)]";
+}
+
+function formatTimestamp(ts: string) {
+  try {
+    return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return ts;
+  }
+}
+
+function ReplayTimeline({ replay }: { replay: DebateReplay }) {
+  const { t } = useTranslation();
+  const [expandedRounds, setExpandedRounds] = useState<Set<number>>(new Set());
+
+  const toggleRound = (rn: number) => {
+    setExpandedRounds((prev) => {
+      const next = new Set(prev);
+      if (next.has(rn)) next.delete(rn);
+      else next.add(rn);
+      return next;
+    });
+  };
+
+  // Group events by round number
+  const grouped = replay.events.reduce<Record<number, ReplayEvent[]>>((acc, evt) => {
+    (acc[evt.round_number] ??= []).push(evt);
+    return acc;
+  }, {});
+
+  const roundNumbers = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+  // Auto-expand all on first render
+  useEffect(() => {
+    setExpandedRounds(new Set(roundNumbers));
+  }, [replay.debate_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (replay.events.length === 0) {
+    return (
+      <div className="py-8 text-center text-sm text-[var(--muted)]">
+        {t("debate.replayError")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {roundNumbers.map((rn) => {
+        const events = grouped[rn];
+        const isExpanded = expandedRounds.has(rn);
+
+        return (
+          <div key={rn} className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleRound(rn)}
+              className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-[var(--card-hover)]"
+            >
+              <div className="flex items-center gap-3">
+                <span className="section-label">{t("debate.roundLabel").replace("{round}", String(rn))}</span>
+                <span className="font-mono text-[11px] text-[var(--muted)]">{events.length} events</span>
+              </div>
+              {isExpanded ? <ChevronUp size={14} className="text-[var(--muted)]" /> : <ChevronDown size={14} className="text-[var(--muted)]" />}
+            </button>
+
+            {isExpanded && (
+              <div className="px-5 pb-5 space-y-3 animate-fadeIn">
+                {events.map((evt, i) => {
+                  const isInterrupt = evt.event_type === "interrupt";
+                  const isPositionChange = evt.event_type === "position_change";
+
+                  return (
+                    <div
+                      key={`${evt.timestamp}-${i}`}
+                      className={`relative border-l-2 pl-4 py-2 ${stanceColor(evt.stance)} ${
+                        isInterrupt ? "border-l-[var(--accent-purple)] bg-[var(--accent-purple-bg)] rounded-r-md pr-3" : ""
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <Clock size={12} className="text-[var(--muted)]" />
+                        <span className="font-mono text-[11px] text-[var(--muted)]">{formatTimestamp(evt.timestamp)}</span>
+                        <span className="text-[11px] text-[var(--muted)]">·</span>
+                        <span className="text-xs font-medium text-[var(--foreground)]">{roleLabel(evt.role)}</span>
+                        {evt.stance && (
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${stanceBadgeColor(evt.stance)}`}>
+                            {stanceLabel(evt.stance, t)}
+                          </span>
+                        )}
+                        {isInterrupt && (
+                          <span className="rounded bg-[var(--accent-purple)]/15 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-purple)]">
+                            {t("debate.interruptEvent")}
+                          </span>
+                        )}
+                        {isPositionChange && (
+                          <span className="rounded bg-[var(--accent)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+                            {t("debate.positionChange")}
+                          </span>
+                        )}
+                        {evt.confidence != null && (
+                          <span className="font-mono text-[10px] text-[var(--muted)]">
+                            {(evt.confidence * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">{evt.content}</p>
+                      {evt.position && isPositionChange && (
+                        <p className="mt-1 text-xs text-[var(--accent)]">→ {evt.position}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DebateReplaySection({ debateId }: { debateId: string }) {
+  const { t } = useTranslation();
+  const [showReplay, setShowReplay] = useState(false);
+  const [replay, setReplay] = useState<DebateReplay | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLoadReplay = async () => {
+    if (replay) {
+      setShowReplay(!showReplay);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchDebateReplay(debateId);
+      setReplay(data);
+      setShowReplay(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("debate.replayError"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <button
+        type="button"
+        onClick={handleLoadReplay}
+        disabled={loading}
+        className="flex items-center gap-2 rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-5 py-3 text-left transition-colors hover:border-[var(--muted)] w-full"
+      >
+        <History size={16} className="text-[var(--accent)]" />
+        <span className="heading-section">{t("debate.viewReplay")}</span>
+        {loading && <RefreshCw size={14} className="animate-spin text-[var(--muted)]" />}
+        <span className="ml-auto">
+          {showReplay ? <ChevronUp size={14} className="text-[var(--muted)]" /> : <ChevronDown size={14} className="text-[var(--muted)]" />}
+        </span>
+      </button>
+
+      {error && (
+        <div className="border-l border-[var(--accent-red)] pl-3 text-sm text-[var(--accent-red)]">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex items-center justify-center py-8 text-sm text-[var(--muted)]">
+          <RefreshCw size={14} className="animate-spin mr-2" />
+          {t("debate.replayLoading")}
+        </div>
+      )}
+
+      {showReplay && replay && (
+        <div className="animate-fadeIn">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="heading-section">{t("debate.replay")}</h3>
+            <span className="font-mono text-xs text-[var(--muted)]">{replay.events.length} events</span>
+          </div>
+          <ReplayTimeline replay={replay} />
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -565,6 +872,11 @@ function DebatePageInner() {
               <LiveProgressBar value={Math.min(95, Math.max(8, liveRounds.length * 25))} />
             </div>
           )}
+          {liveStatus === "in_progress" && liveDebateId && (
+            <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4">
+              <DebateInterruptForm debateId={liveDebateId} onSubmitted={() => undefined} />
+            </div>
+          )}
           <div className="space-y-4">
             {liveRounds.map((round, index) => (
               <DebateRoundBlock
@@ -708,6 +1020,11 @@ function DebatePageInner() {
                   ))}
               </div>
             </details>
+          )}
+
+          {/* Debate Replay for completed debates */}
+          {debate.status === "COMPLETED" && (
+            <DebateReplaySection debateId={debate.id} />
           )}
         </div>
       ) : (

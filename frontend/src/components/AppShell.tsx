@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Shield,
   Building2,
+  Database,
   Menu,
   X,
   Bell,
@@ -74,6 +75,11 @@ const NAV_ITEMS = [
     labelKey: "nav.providers",
     href: "/providers",
     icon: <Building2 size={16} />,
+  },
+  {
+    labelKey: "nav.sources",
+    href: "/sources",
+    icon: <Database size={16} />,
   },
 ];
 
