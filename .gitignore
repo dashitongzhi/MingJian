@@ -60,3 +60,4 @@ current-workspace-chat-history.md
 # PPT build artifacts
 workspace/
 *.pptx
+.venv312/
