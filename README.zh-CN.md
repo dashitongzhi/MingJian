@@ -392,12 +392,15 @@ npm run dev
 ### 开发依赖
 
  包名 | 版本 | 用途 |
-------|------|------|
- **pytest** | 8.4+ | 测试框架 |
- **pytest-asyncio** | 1.1+ | 异步测试支持 |
- **Ruff** | 0.12+ | Python代码检查 |
- **ESLint** | 9+ | JavaScript代码检查 |
- **Prettier** | 3+ | 代码格式化 |
+|------|------|------|
+| **pytest** | 8.4+ | 测试框架 |
+| **pytest-asyncio** | 1.1+ | 异步测试支持 |
+| **Ruff** | 0.12+ | Python代码检查 |
+| **ESLint** | 9+ | JavaScript代码检查 |
+| **Prettier** | 3+ | 代码格式化 |
+| **Vitest** | ^4.1.5 | 单元测试框架 |
+| **@testing-library/react** | ^16.x | React组件测试 |
+| **@testing-library/jest-dom** | ^6.x | Jest自定义匹配器 |
 
 ---
 
@@ -450,51 +453,95 @@ graph TB
 
 ## 📁 项目结构
 
+**后端结构：**
+
 ```
-planagent/
-├── src/planagent/           # Python后端
-│   ├── api/                 # FastAPI路由
-│   ├── core/                # 数据库、配置
-│   ├── models/              # SQLAlchemy模型
-│   ├── services/            # 业务逻辑
-│   ├── engine/              # 模拟引擎
-│   ├── rules/               # YAML规则
-│   └── worker/              # 后台任务
-├── frontend/                # Next.js前端
-│   ├── src/app/             # React页面
-│   ├── src/lib/             # API客户端
-│   └── public/              # 静态资源
-├── migrations/              # 数据库迁移
-├── tests/                   # 测试文件
-├── docs/                    # 文档
-├── examples/                # 示例场景
-├── .env.example             # 环境变量模板
-├── docker-compose.yml       # Docker配置
-├── pyproject.toml           # Python项目配置
-└── package.json             # Node.js项目配置
+src/planagent/
+├── config/              # 配置包（原 config.py 527行 → 4个文件）
+│   ├── __init__.py
+│   ├── base.py          # 核心配置（数据库、Redis、Minio）
+│   ├── openai.py        # 动态OpenAI目标解析
+│   └── main.py          # 组合式Settings类
+├── services/
+│   ├── debate/          # 辩论包（原 debate.py 3273行 → 7个模块）
+│   │   ├── prompts.py   # Agent角色提示词与轮次规划
+│   │   ├── rounds.py    # 轮次执行逻辑
+│   │   ├── llm.py       # LLM调用与重试
+│   │   ├── adjudication.py # 裁决与建议生成
+│   │   ├── revisions.py # 立场修订追踪
+│   │   └── triggers.py  # 自动触发逻辑
+│   ├── simulation/      # 推演包（原 simulation.py 2281行 → 6个模块）
+│   │   ├── engine.py    # 核心推演引擎
+│   │   ├── scenarios.py # 场景生成
+│   │   ├── impact.py    # 影响评估与评分
+│   │   ├── report.py    # 报告生成
+│   │   └── domain_packs.py # 领域包管理
+│   └── ...
+├── db.py                # 数据库层（已清理，仅用Alembic迁移）
+└── ...
+```
+
+**前端结构：**
+
+```
+frontend/src/
+├── app/
+│   ├── assistant/       # AI助手（原1665行页面 → 5个子组件）
+│   │   ├── page.tsx     # 精简入口
+│   │   ├── ChatPanel.tsx
+│   │   ├── ProcessPanel.tsx
+│   │   ├── SourcePanel.tsx
+│   │   ├── DebatePanel.tsx
+│   │   └── hooks.ts
+│   ├── debate/          # 辩论视图（原1091行页面 → 4个子组件）
+│   │   ├── page.tsx     # 精简入口
+│   │   ├── RoundTimeline.tsx
+│   │   ├── AgentCard.tsx
+│   │   └── utils.ts
+│   └── ...
+├── __tests__/           # Vitest测试套件
+│   ├── components/      # 组件测试
+│   ├── api/             # API层测试
+│   └── lib/             # 工具函数测试
+└── vitest.config.ts
 ```
 
 ---
 
 ## 🧪 运行测试
 
-```bash
-# 运行所有测试
-pytest
+**后端测试 (pytest)**
+- 运行所有单元测试（92个，<1秒）: `python -m pytest tests/unit/ -v`
+- 运行集成测试: `python -m pytest tests/ -v`
 
-# 运行带覆盖率
-pytest --cov=planagent
+**前端测试 (Vitest)**
+- `cd frontend && npm test`
+- `cd frontend && npm run test:watch`
 
-# 运行特定测试
-pytest tests/test_debate.py
+**压力测试**
+- 7维压力测试（需要后端运行）: `python tests/stress_test.py`
 
-# 运行带详细输出
-pytest -v
+**最新结果：**
+- ✅ 后端：92个单元测试通过（0.26秒）
+- ✅ 前端：16个组件测试通过（0.55秒）
+- ✅ 压力测试：112通过，0失败，2警告
+- 🔥 并发：20用户，844 RPS，P50=1ms，零500错误
 
-# 运行前端测试
-cd frontend
-npm test
-```
+---
+
+## 📊 质量与性能
+
+ 指标 | 数值 |
+|------|------|
+| 后端单元测试 | 92个通过 |
+| 前端组件测试 | 16个通过 |
+| 压力测试通过率 | 112/114 (98.2%) |
+| 并发负载（20用户）| 844 RPS，零500错误 |
+| 响应时间 P50 | 1ms |
+| 响应时间 P95 | 11ms |
+| API端点测试数 | 82 |
+| 最大后端文件 | ~900行（原3273行）|
+| 最大前端页面 | ~550行（原1665行）|
 
 ---
 

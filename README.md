@@ -402,6 +402,9 @@ npm run dev
 | **Ruff** | 0.12+ | Python linter |
 | **ESLint** | 9+ | JavaScript linter |
 | **Prettier** | 3+ | Code formatter |
+| **vitest** | ^4.1.5 | Unit testing framework |
+| **@testing-library/react** | ^16.x | React component testing |
+| **@testing-library/jest-dom** | ^6.x | Custom Jest matchers |
 
 ---
 
@@ -454,51 +457,104 @@ graph TB
 
 ## 📁 Project Structure
 
+**Backend:**
 ```
-planagent/
-├── src/planagent/           # Python backend
-│   ├── api/                 # FastAPI routes
-│   ├── core/                # Database, config
-│   ├── models/              # SQLAlchemy models
-│   ├── services/            # Business logic
-│   ├── engine/              # Simulation engine
-│   ├── rules/               # YAML rules
-│   └── worker/              # Background tasks
-├── frontend/                # Next.js frontend
-│   ├── src/app/             # React pages
-│   ├── src/lib/             # API client
-│   └── public/              # Static assets
-├── migrations/              # Database migrations
-├── tests/                   # Test files
-├── docs/                    # Documentation
-├── examples/                # Example scenarios
-├── .env.example             # Environment template
-├── docker-compose.yml       # Docker configuration
-├── pyproject.toml           # Python project config
-└── package.json             # Node.js project config
+src/planagent/
+├── config/              # Settings package (was config.py 527 lines → 4 files)
+│   ├── __init__.py
+│   ├── base.py          # Core settings (DB, Redis, Minio)
+│   ├── openai.py        # Dynamic OpenAI target resolution
+│   └── main.py          # Composed Settings class
+├── services/
+│   ├── debate/          # Debate package (was debate.py 3273 lines → 7 modules)
+│   │   ├── prompts.py   # Agent role prompts & round plans
+│   │   ├── rounds.py    # Round execution logic
+│   │   ├── llm.py       # LLM calls & retry
+│   │   ├── adjudication.py # Verdict & recommendations
+│   │   ├── revisions.py # Stance revision tracking
+│   │   └── triggers.py  # Auto-trigger logic
+│   ├── simulation/      # Simulation package (was simulation.py 2281 lines → 6 modules)
+│   │   ├── engine.py    # Core simulation engine
+│   │   ├── scenarios.py # Scenario generation
+│   │   ├── impact.py    # Impact assessment & scoring
+│   │   ├── report.py    # Report generation
+│   │   └── domain_packs.py # Domain pack management
+│   └── ...              # Other services
+├── db.py                # Database layer (cleaned, Alembic-only migrations)
+└── ...
+```
+
+**Frontend:**
+```
+frontend/src/
+├── app/
+│   ├── assistant/       # AI Assistant (was 1665-line page → 5 subcomponents)
+│   │   ├── page.tsx     # Thin wrapper
+│   │   ├── ChatPanel.tsx
+│   │   ├── ProcessPanel.tsx
+│   │   ├── SourcePanel.tsx
+│   │   ├── DebatePanel.tsx
+│   │   └── hooks.ts
+│   ├── debate/          # Debate view (was 1091-line page → 4 subcomponents)
+│   │   ├── page.tsx     # Thin wrapper
+│   │   ├── RoundTimeline.tsx
+│   │   ├── AgentCard.tsx
+│   │   └── utils.ts
+│   └── ...
+├── __tests__/           # Vitest test suite
+│   ├── components/      # Component tests
+│   ├── api/             # API layer tests
+│   └── lib/             # Utility tests
+└── vitest.config.ts
 ```
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Testing
 
+### Backend Tests (pytest)
 ```bash
-# Run all tests
-pytest
+# Run all unit tests (92 tests, <1s)
+python -m pytest tests/unit/ -v
 
-# Run with coverage
-pytest --cov=planagent
-
-# Run specific tests
-pytest tests/test_debate.py
-
-# Run with verbose output
-pytest -v
-
-# Run frontend tests
-cd frontend
-npm test
+# Run integration tests
+python -m pytest tests/ -v
 ```
+
+### Frontend Tests (Vitest)
+```bash
+cd frontend
+npm test          # Run once
+npm run test:watch  # Watch mode
+```
+
+### Stress Test
+```bash
+# 7-dimension stress test (requires running backend)
+python tests/stress_test.py
+```
+
+**Latest Results:**
+- ✅ Backend: 92 unit tests passing (0.26s)
+- ✅ Frontend: 16 component tests passing (0.55s)
+- ✅ Stress Test: 112 pass, 0 fail, 2 warnings
+- 🔥 Concurrent: 20 users, 844 RPS, P50=1ms, zero 500 errors
+
+---
+
+## 📊 Quality & Performance
+
+| Metric | Value |
+|--------|-------|
+| Backend Unit Tests | 92 passing |
+| Frontend Component Tests | 16 passing |
+| Stress Test Pass Rate | 112/114 (98.2%) |
+| Concurrent Load (20 users) | 844 RPS, zero 500 errors |
+| Response Time P50 | 1ms |
+| Response Time P95 | 11ms |
+| API Endpoints Tested | 82 |
+| Max File Size (backend) | ~900 lines (down from 3273) |
+| Max Page Size (frontend) | ~550 lines (down from 1665) |
 
 ---
 
