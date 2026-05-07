@@ -365,7 +365,7 @@ export default function SourcesPage() {
   );
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-8">
+    <div className="mx-auto max-w-[1500px] flex flex-col gap-6 pb-8">
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div>
         <div className="section-label">{t("sources.title")}</div>
@@ -375,7 +375,7 @@ export default function SourcesPage() {
 
       {/* ── Reputation Scores ──────────────────────────────────────── */}
       <section className="animate-fadeIn">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="heading-section">{t("sources.reputation")}</h2>
             <p className="mt-1 text-[13px] text-[var(--muted)]">
@@ -383,7 +383,7 @@ export default function SourcesPage() {
             </p>
           </div>
         </div>
-        <div className="divider-subtle mb-5" />
+        <div className="divider-subtle mb-4" />
 
         {repLoading && <SkeletonRows count={8} />}
         {repError && (
@@ -414,7 +414,7 @@ export default function SourcesPage() {
 
       {/* ── Custom Sources ─────────────────────────────────────────── */}
       <section className="animate-fadeIn">
-        <div className="mb-5 flex items-center justify-between gap-4">
+        <div className="mb-4 flex items-center justify-between gap-4">
           <div>
             <h2 className="heading-section">{t("sources.customSources")}</h2>
           </div>
@@ -431,7 +431,7 @@ export default function SourcesPage() {
             </Button>
           )}
         </div>
-        <div className="divider-subtle mb-5" />
+        <div className="divider-subtle mb-4" />
 
         {/* Inline form for create / edit */}
         {(showForm || editingSource) && (
@@ -541,23 +541,23 @@ export default function SourcesPage() {
           !csError &&
           customSources &&
           customSources.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-[var(--card-border)]">
+            <div className="table-container overflow-x-auto rounded-lg border border-[var(--card-border)]">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--card-border)] bg-[var(--bg-secondary)]">
-                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                       {t("sources.sourceName")}
                     </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                       {t("sources.sourceType")}
                     </th>
-                    <th className="hidden px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)] sm:table-cell">
+                    <th className="hidden whitespace-nowrap px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)] sm:table-cell">
                       {t("sources.endpointUrl")}
                     </th>
-                    <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+                    <th className="whitespace-nowrap px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                       {t("common.status")}
                     </th>
-                    <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
+                    <th className="whitespace-nowrap px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]">
                       {/* Actions */}
                     </th>
                   </tr>
@@ -584,7 +584,7 @@ export default function SourcesPage() {
                       </td>
                       <td className="hidden px-4 py-3 sm:table-cell">
                         <span className="flex items-center gap-1 font-mono text-[12px] text-[var(--muted)]">
-                          <span className="max-w-[260px] truncate">
+                          <span className="cell-url max-w-[320px] truncate">
                             {source.url}
                           </span>
                           {source.url.startsWith("http") && (
@@ -622,9 +622,8 @@ export default function SourcesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
+                          <button
+                            className="btn-action"
                             onClick={() => {
                               setEditingSource(source);
                               setShowForm(false);
@@ -632,15 +631,14 @@ export default function SourcesPage() {
                             title={t("sources.editSource")}
                           >
                             <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
+                          </button>
+                          <button
+                            className="btn-action btn-action-destructive"
                             onClick={() => setDeletingId(source.key)}
                             title={t("sources.deleteSource")}
                           >
-                            <Trash2 size={14} className="text-[var(--accent-red)]" />
-                          </Button>
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </td>
                     </tr>

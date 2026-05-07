@@ -36,8 +36,8 @@ function DashboardSkeleton() {
         </div>
         <SkeletonLine className="hidden h-16 w-16 rounded md:block" />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
           <SkeletonLine className="h-4 w-36" />
           <SkeletonLine className="mt-5 h-12 w-32" />
           <div className="mt-8 grid grid-cols-6 gap-1">
@@ -47,7 +47,7 @@ function DashboardSkeleton() {
           </div>
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
+          <div key={i} className="min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5">
             <SkeletonLine className="h-4 w-28" />
             <SkeletonLine className="mt-5 h-10 w-24" />
             <SkeletonLine className="mt-8 h-2 w-full" />
@@ -88,7 +88,7 @@ function MetricPanel({
 }) {
   return (
     <section
-      className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6"
+      className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5"
     >
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-2.5">
@@ -244,9 +244,9 @@ export default function DashboardPage() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-6 pb-8">
       {/* ── Hero Header ──────────────────────────────────────────────────────── */}
-      <header className="pb-4">
+      <header className="pb-4 mb-6">
         <TextReveal>
           <div>
             <div className="flex items-center gap-3 mb-4">
@@ -270,7 +270,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Overview Metrics ─────────────────────────────────────────────────── */}
-      <StaggerContainer className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" staggerDelay={0.06}>
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" staggerDelay={0.06}>
         <StaggerItem className="min-w-0">
           <MetricPanel
             large
@@ -334,7 +334,7 @@ export default function DashboardPage() {
       {/* ── Quick Actions & Sessions ─────────────────────────────────────────── */}
       <StaggerContainer className="grid grid-cols-1 gap-4 lg:grid-cols-3" staggerDelay={0.06}>
         <StaggerItem className="min-w-0">
-          <section className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
+          <section className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 hover:bg-[var(--card-hover)] transition-colors">
             <h2 className="mb-1 heading-section text-balance">{t("dashboard.quickActions")}</h2>
             <div className="mt-4">
               <QuickAction
@@ -392,13 +392,14 @@ export default function DashboardPage() {
         </StaggerItem>
 
         <StaggerItem className="min-w-0">
-          <section className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-6">
+          <section className="h-full min-h-[270px] rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 hover:bg-[var(--card-hover)] transition-colors">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="heading-section text-balance">{t("dashboard.recentSessions")}</h2>
               <Zap size={16} className="text-[var(--accent)]/60" />
             </div>
 
             {sessions && sessions.length > 0 ? (
+              <div className="overflow-x-auto">
               <DataTable
                 columns={sessionColumns}
                 data={sessions.slice(0, 10)}
@@ -407,6 +408,7 @@ export default function DashboardPage() {
                 pageSize={5}
                 onRowClick={(s) => window.location.assign(`/assistant?session=${s.id}`)}
               />
+              </div>
             ) : (
               <EmptySessions title={t("dashboard.noSessions")} description={t("dashboard.noSessionsDescription")} />
             )}

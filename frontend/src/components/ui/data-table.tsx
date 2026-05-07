@@ -62,11 +62,11 @@ export function DataTable<TData, TValue>({
             placeholder={searchPlaceholder}
             value={(table.getColumn(searchColumn)?.getFilterValue() as string) ?? ""}
             onChange={(e) => table.getColumn(searchColumn)?.setFilterValue(e.target.value)}
-            className="max-w-sm"
+            className="max-w-sm rounded-lg border border-[var(--card-border)] bg-[var(--card)] px-3 py-2 text-sm"
           />
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-[var(--card-border)]">
+      <div className="table-container overflow-x-auto rounded-lg border border-[var(--card-border)]">
         <table className="w-full text-sm">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -74,7 +74,7 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]"
+                    className="whitespace-nowrap px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--muted)]"
                   >
                     {header.isPlaceholder ? null : (
                       <button
@@ -124,7 +124,7 @@ export function DataTable<TData, TValue>({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between px-1">
+      <div className="flex items-center justify-between mt-4 px-1">
         <div className="text-xs text-[var(--muted)]">
           共 {table.getFilteredRowModel().rows.length} 条记录
         </div>

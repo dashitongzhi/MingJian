@@ -932,3 +932,240 @@ a {
     --sidebar-width: 220px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE UTILITIES — Added for mobile/tablet/desktop adaptation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Container with responsive padding */
+.page-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 0 16px;
+  }
+}
+
+/* Responsive grid for metric cards */
+.metric-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1200px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive 2-column layout */
+.layout-2col {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 1024px) {
+  .layout-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Responsive 3-column layout */
+.layout-3col {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+@media (max-width: 1200px) {
+  .layout-3col {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout-3col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Table improvements */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+}
+
+.table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table-container th {
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+
+.table-container td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--foreground);
+  vertical-align: middle;
+}
+
+.table-container tr:last-child td {
+  border-bottom: none;
+}
+
+.table-container tr:hover td {
+  background: var(--card-hover);
+}
+
+/* URL cell — truncate long URLs */
+.cell-url {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .cell-url {
+    max-width: 180px;
+  }
+}
+
+/* Action buttons in table rows */
+.cell-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action:hover {
+  background: var(--card-hover);
+  color: var(--foreground);
+  border-color: var(--foreground);
+}
+
+.btn-action-destructive:hover {
+  background: var(--accent-red-bg);
+  color: var(--accent-red);
+  border-color: var(--accent-red);
+}
+
+/* Section spacing */
+.section-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Card with consistent padding */
+.card-section {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+@media (max-width: 768px) {
+  .card-section {
+    padding: 16px;
+  }
+}
+
+/* Improved badge */
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.badge-status-success {
+  background: var(--accent-green-bg);
+  color: var(--accent-green);
+}
+
+.badge-status-warning {
+  background: var(--accent-amber-bg);
+  color: var(--accent-amber);
+}
+
+.badge-status-error {
+  background: var(--accent-red-bg);
+  color: var(--accent-red);
+}
+
+/* Prevent horizontal overflow globally */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Mobile sidebar overlay */
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    z-index: 40;
+  }
+}
+
+/* Responsive typography */
+@media (max-width: 640px) {
+  .heading-display {
+    font-size: 1.5rem;
+  }
+
+  .heading-section {
+    font-size: 0.875rem;
+  }
+}

@@ -5,8 +5,10 @@ import { DebateSkeleton, DebateWorkspace } from "./RoundTimeline";
 
 export default function DebatePage() {
   return (
-    <Suspense fallback={<DebateSkeleton />}>
-      <DebateWorkspace />
-    </Suspense>
+    <div className="flex flex-col gap-6 pb-8">
+      <Suspense fallback={<DebateSkeleton />}>
+        <DebateWorkspace />
+      </Suspense>
+    </div>
   );
 }

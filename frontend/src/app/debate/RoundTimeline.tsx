@@ -510,7 +510,7 @@ export function DebateWorkspace() {
     <div className="mx-auto max-w-[1450px] space-y-8">
       {/* ── Page Header ── */}
       <div className="grid gap-6 lg:grid-cols-[1fr_460px]">
-        <div>
+        <div className="mb-6">
           <div className="section-label">{t("debate.title")}</div>
           <h1 className="heading-display mt-3">{t("debate.subtitle")}</h1>
         </div>
@@ -524,7 +524,7 @@ export function DebateWorkspace() {
               </h2>
               {liveStatus === "in_progress" && <span className="badge badge-warning">LIVE</span>}
             </div>
-            <div className="grid gap-3 sm:grid-cols-[96px_1fr]">
+            <div className="grid gap-4 sm:grid-cols-[96px_1fr]">
               <select
                 value={liveTargetType}
                 onChange={(event) => setLiveTargetType(event.target.value as "run" | "claim")}
@@ -543,7 +543,7 @@ export function DebateWorkspace() {
               />
             </div>
             <input
-              className="mt-3 w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)]"
+              className="mt-4 w-full rounded-md border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted)]"
               placeholder="辩论主题"
               value={liveTopic}
               disabled={liveStatus === "in_progress"}
@@ -553,7 +553,7 @@ export function DebateWorkspace() {
               type="button"
               onClick={handleStartLiveDebate}
               disabled={liveStatus === "in_progress"}
-              className="btn btn-primary mt-3 w-full justify-center py-3 text-base"
+              className="btn btn-primary mt-4 w-full justify-center py-3 text-base"
             >
               {liveStatus === "in_progress" ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} />}
               {liveStatus === "in_progress" ? "辩论进行中" : "发起实时辩论"}
@@ -781,7 +781,7 @@ export function DebateWorkspace() {
               <span className="font-mono text-xs text-[var(--muted)]">{debateList?.length || 0} {t("debate.total") || "份报告"}</span>
             </div>
             {debateList && debateList.length > 0 ? (
-              <div className="space-y-3">
+              <div className="divide-y divide-[var(--card-border)]">
                 {liveStatus === "in_progress" && (
                   <div className="rounded-lg border border-[var(--accent)]/40 bg-[var(--card)] p-5 text-left animate-fadeIn">
                     <div className="mb-3 flex items-center justify-between gap-4">
@@ -798,7 +798,7 @@ export function DebateWorkspace() {
                   <button
                     key={d.debate_id}
                     onClick={() => { setQId(d.debate_id); setInputId(d.debate_id); }}
-                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-5 text-left transition-colors duration-150 hover:border-[var(--muted)]"
+                    className="w-full rounded-lg border border-[var(--card-border)] bg-[var(--card)] py-3 px-3 text-left transition-colors duration-150 hover:border-[var(--muted)] hover:bg-[var(--card-hover)]"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
@@ -816,7 +816,7 @@ export function DebateWorkspace() {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         {d.confidence != null && (
-                          <span className="font-mono text-xs text-[var(--muted)]">
+                          <span className="font-mono text-sm font-medium text-[var(--muted)]">
                             {(d.confidence * 100).toFixed(0)}%
                           </span>
                         )}
