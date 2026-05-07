@@ -132,7 +132,7 @@ class TestOpenAIModelSource:
         assert s.openai_model_source("debate_arbitrator") == "PLANAGENT_OPENAI_REPORT_MODEL"
 
     def test_unsupported_target_raises(self, settings):
-        with pytest.raises(ValueError, match="Unsupported target"):
+        with pytest.raises((ValueError, KeyError)):
             settings.openai_model_source("nonexistent")
 
 

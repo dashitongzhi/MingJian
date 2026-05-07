@@ -6,7 +6,7 @@ import type { DebateMessage, ProcessStep } from "@/components/ProcessVisualizer"
 import { SkeletonLine } from "@/components/ui/status";
 import type { SourceSearchState } from "./hooks";
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+export function EmptyState({ title, description }: { title: string; description: string }) {
   return (
     <div className="flex min-h-[320px] items-center divider-subtle">
       <div className="max-w-md py-12">
@@ -17,7 +17,7 @@ function EmptyState({ title, description }: { title: string; description: string
   );
 }
 
-function StreamingSkeleton({ label }: { label: string }) {
+export function StreamingSkeleton({ label }: { label: string }) {
   return (
     <div className="divider-subtle py-5 motion-safe:animate-[fadeIn_0.25s_ease-out]">
       <div className="mb-4 flex items-center gap-3 text-xs text-[var(--accent)]">
@@ -33,7 +33,7 @@ function StreamingSkeleton({ label }: { label: string }) {
   );
 }
 
-function RichText({ text }: { text: string }) {
+export function RichText({ text }: { text: string }) {
   const segments: Array<{ type: "text" | "code"; content: string }> = [];
   const regex = /```[\w-]*\n?([\s\S]*?)```/g;
   let lastIndex = 0;
@@ -170,7 +170,7 @@ function SourceSearchProgress({ sources }: { sources: SourceSearchState[] }) {
   );
 }
 
-function ProcessTimeline({
+export function ProcessTimeline({
   steps,
   debateMessages,
   sourceSearches,

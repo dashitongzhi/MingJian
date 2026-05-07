@@ -1,8 +1,9 @@
 from functools import lru_cache
 
 from .main import Settings
+from .openai import OpenAIConfig, OpenAITargetConfig
 
-__all__ = ["Settings", "get_settings", "reset_settings_cache"]
+__all__ = ["Settings", "get_settings", "reset_settings_cache", "OpenAIConfig", "OpenAITargetConfig"]
 
 
 @lru_cache

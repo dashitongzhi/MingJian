@@ -46,7 +46,7 @@ export function SourcePanel({ sources, streaming }: { sources: { title: string; 
   return <EmptyState title={t("assistant.noSources")} description={t("assistant.noSourcesDescription")} />;
 }
 
-function SessionDetailPanel({ detail, onBack }: { detail: StrategicSessionDetail; onBack: () => void }) {
+export function SessionDetailPanel({ detail, onBack }: { detail: StrategicSessionDetail; onBack: () => void }) {
   const { t } = useTranslation();
   const { session, daily_briefs, recent_runs } = detail;
 
@@ -297,7 +297,7 @@ function ResultVerdictBadge({ verdict }: { verdict: string }) {
   return <span className={`badge uppercase text-sm ${colors[verdict] || "badge"}`}>{verdict}</span>;
 }
 
-function ResultSection({
+export function ResultSection({
   result,
   onExport,
   onReanalyze,
