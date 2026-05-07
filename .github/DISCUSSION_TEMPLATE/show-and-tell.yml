@@ -1,0 +1,17 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share what you've built with MingJian! Show off your analysis, simulations, or integrations.
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you build?
+      placeholder: Describe your project or use case
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How does it use MingJian?
+      placeholder: Which features did you use?

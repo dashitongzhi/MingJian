@@ -1,0 +1,9 @@
+# Default owner for everything
+* @dashitongzhi
+
+# Backend
+/src/planagent/ @dashitongzhi
+/tests/ @dashitongzhi
+
+# Frontend
+/frontend/ @dashitongzhi
