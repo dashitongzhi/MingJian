@@ -19,8 +19,13 @@
   --card-hover: #f5f6f8;
   --card-border: #e2e4e8;
   --card-foreground: #1a1a2e;
+  --card-border-hover: #d0d3d8;
   --popover: #ffffff;
   --popover-foreground: #1a1a2e;
+
+  /* Surface ladder (secondary background for nested panels) */
+  --bg-secondary: #f1f3f5;
+  --surface-elevated: #ffffff;
 
   /* Brand accent — warm amber (明鉴 identity) */
   --accent: #d4940a;
@@ -38,6 +43,11 @@
   --accent-red-bg: rgba(220, 38, 38, 0.06);
   --accent-amber: #ca8a04;
   --accent-amber-bg: rgba(202, 138, 4, 0.08);
+
+  /* Semantic blue — used for process stages and agent activity */
+  --accent-blue: #2563eb;
+  --accent-blue-bg: rgba(37, 99, 235, 0.08);
+
   /* Backward compat aliases */
   --accent-yellow: var(--accent-amber);
   --accent-yellow-bg: var(--accent-amber-bg);
@@ -94,9 +104,14 @@
   --card: #0c0c0e;
   --card-hover: #121214;
   --card-border: #1e1e22;
+  --card-border-hover: #2a2a30;
   --card-foreground: #f0f0f0;
   --popover: #0c0c0e;
   --popover-foreground: #f0f0f0;
+
+  /* Surface ladder */
+  --bg-secondary: #0f1011;
+  --surface-elevated: #141416;
 
   /* Brand accent — warm amber (明鉴 strategic identity) */
   --accent: #e5a00c;
@@ -114,6 +129,11 @@
   --accent-red-bg: rgba(248, 113, 113, 0.08);
   --accent-amber: #fbbf24;
   --accent-amber-bg: rgba(251, 191, 36, 0.08);
+
+  /* Semantic blue */
+  --accent-blue: #60a5fa;
+  --accent-blue-bg: rgba(96, 165, 250, 0.08);
+
   /* Backward compat aliases */
   --accent-yellow: var(--accent-amber);
   --accent-yellow-bg: var(--accent-amber-bg);
@@ -208,6 +228,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* Smooth theme transitions — background, text, and border colors */
+  transition: background-color 0.3s ease, color 0.15s ease, border-color 0.2s ease;
 }
 
 body {
@@ -441,7 +463,7 @@ a {
 }
 
 .card:hover {
-  border-color: #26262b;
+  border-color: var(--card-border-hover);
 }
 
 /* Tier 2: Glass — sidebar and header only */
@@ -505,24 +527,24 @@ a {
 .dark .liquid-glass {
   background: linear-gradient(
     135deg,
-    rgba(127, 159, 144, 0.04) 0%,
+    color-mix(in srgb, var(--accent) 4%, transparent) 0%,
     rgba(255, 255, 255, 0.01) 50%,
-    rgba(127, 159, 144, 0.02) 100%
+    color-mix(in srgb, var(--accent) 2%, transparent) 100%
   );
   backdrop-filter: blur(20px) saturate(1.8);
   -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border: 1px solid rgba(127, 159, 144, 0.08);
+  border: 1px solid color-mix(in srgb, var(--accent) 8%, transparent);
   border-radius: var(--radius);
 }
 
 .dark .liquid-glass:hover {
   background: linear-gradient(
     135deg,
-    rgba(127, 159, 144, 0.1) 0%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 0%,
     rgba(255, 255, 255, 0.03) 50%,
-    rgba(127, 159, 144, 0.06) 100%
+    color-mix(in srgb, var(--accent) 6%, transparent) 100%
   );
-  border-color: rgba(127, 159, 144, 0.15);
+  border-color: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* Iridescent shimmer overlay — hover accent sweep */
@@ -533,11 +555,11 @@ a {
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    rgba(127, 159, 144, 0.1) 0%,
-    rgba(160, 200, 180, 0.05) 25%,
-    rgba(180, 220, 200, 0.08) 50%,
-    rgba(140, 180, 160, 0.05) 75%,
-    rgba(127, 159, 144, 0.1) 100%
+    color-mix(in srgb, var(--accent) 10%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 5%, transparent) 25%,
+    color-mix(in srgb, var(--accent) 8%, transparent) 50%,
+    color-mix(in srgb, var(--accent) 5%, transparent) 75%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 100%
   );
   background-size: 200% 200%;
   animation: iridescent-shift 8s ease-in-out infinite;
@@ -620,9 +642,9 @@ a {
   font-weight: 500;
   letter-spacing: 0.02em;
   border-radius: 9999px;
-  background: rgba(127, 159, 144, 0.1);
+  background: var(--accent-amber-bg);
   color: var(--accent);
-  border: 1px solid rgba(127, 159, 144, 0.15);
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -668,7 +690,7 @@ a {
 .btn-ghost:hover {
   background: var(--card);
   color: var(--foreground);
-  border-color: #26262b;
+  border-color: var(--card-border-hover);
 }
 
 .btn-sm {
@@ -697,7 +719,7 @@ a {
 
 .input:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px rgba(127, 159, 144, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 10%, transparent);
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */
@@ -862,11 +884,11 @@ a {
   transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Ambient glow — soft sage shadow */
+/* Ambient glow — soft accent shadow */
 .ambient-glow {
   box-shadow:
-    0 0 40px -8px rgba(127, 159, 144, 0.15),
-    0 0 80px -16px rgba(127, 159, 144, 0.08);
+    0 0 40px -8px color-mix(in srgb, var(--accent) 15%, transparent),
+    0 0 80px -16px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* Magnetic hover — subtle lift */
@@ -937,71 +959,6 @@ a {
    RESPONSIVE UTILITIES — Added for mobile/tablet/desktop adaptation
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Container with responsive padding */
-.page-container {
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-@media (max-width: 768px) {
-  .page-container {
-    padding: 0 16px;
-  }
-}
-
-/* Responsive grid for metric cards */
-.metric-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(4, 1fr);
-}
-
-@media (max-width: 1200px) {
-  .metric-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 640px) {
-  .metric-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Responsive 2-column layout */
-.layout-2col {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: 1fr 1fr;
-}
-
-@media (max-width: 1024px) {
-  .layout-2col {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Responsive 3-column layout */
-.layout-3col {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-@media (max-width: 1200px) {
-  .layout-3col {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .layout-3col {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Table improvements */
 .table-container {
   width: 100%;
@@ -1059,105 +1016,6 @@ a {
   }
 }
 
-/* Action buttons in table rows */
-.cell-actions {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-  white-space: nowrap;
-}
-
-.btn-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 6px;
-  border: 1px solid var(--card-border);
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.btn-action:hover {
-  background: var(--card-hover);
-  color: var(--foreground);
-  border-color: var(--foreground);
-}
-
-.btn-action-destructive:hover {
-  background: var(--accent-red-bg);
-  color: var(--accent-red);
-  border-color: var(--accent-red);
-}
-
-/* Section spacing */
-.section-gap {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* Card with consistent padding */
-.card-section {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  padding: 24px;
-}
-
-@media (max-width: 768px) {
-  .card-section {
-    padding: 16px;
-  }
-}
-
-/* Improved badge */
-.badge-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  border-radius: 9999px;
-  white-space: nowrap;
-}
-
-.badge-status-success {
-  background: var(--accent-green-bg);
-  color: var(--accent-green);
-}
-
-.badge-status-warning {
-  background: var(--accent-amber-bg);
-  color: var(--accent-amber);
-}
-
-.badge-status-error {
-  background: var(--accent-red-bg);
-  color: var(--accent-red);
-}
-
-/* Prevent horizontal overflow globally */
-html, body {
-  overflow-x: hidden;
-  max-width: 100vw;
-}
-
-/* Mobile sidebar overlay */
-@media (max-width: 768px) {
-  .sidebar-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--overlay);
-    z-index: 40;
-  }
-}
 
 /* Responsive typography */
 @media (max-width: 640px) {

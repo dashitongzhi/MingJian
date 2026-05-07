@@ -442,15 +442,18 @@ export default function SourcesPage() {
                   ? t("sources.editSource")
                   : t("sources.addSource")}
               </div>
-              <button
-                className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-[var(--muted)] hover:text-[var(--foreground)]"
                 onClick={() => {
                   setShowForm(false);
                   setEditingSource(null);
                 }}
               >
                 <X size={16} />
-              </button>
+              </Button>
             </div>
             <div className="divider-subtle mb-4" />
             <SourceForm
@@ -622,8 +625,9 @@ export default function SourcesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            className="btn-action"
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
                             onClick={() => {
                               setEditingSource(source);
                               setShowForm(false);
@@ -631,14 +635,15 @@ export default function SourcesPage() {
                             title={t("sources.editSource")}
                           >
                             <Pencil size={14} />
-                          </button>
-                          <button
-                            className="btn-action btn-action-destructive"
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon-xs"
                             onClick={() => setDeletingId(source.key)}
                             title={t("sources.deleteSource")}
                           >
-                            <Trash2 size={14} />
-                          </button>
+                            <Trash2 size={14} className="text-[var(--accent-red)]" />
+                          </Button>
                         </div>
                       </td>
                     </tr>
