@@ -21,7 +21,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        database = get_database(settings.database_url)
+        database = get_database()
         await database.init_models()
         app.state.event_bus = build_event_bus(settings)
         app.state.rule_registry = get_rule_registry(settings.rules_dir)

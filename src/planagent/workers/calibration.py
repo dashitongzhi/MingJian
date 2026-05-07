@@ -63,7 +63,7 @@ class CalibrationWorker(Worker):
         self.worker_instance_id = self.description.worker_id
 
     async def run_once(self) -> dict[str, object]:
-        database = get_database(self.settings.database_url)
+        database = get_database()
         errors: list[str] = []
         async with database.session() as session:
             verified, verify_errors = await self._verify_pending_hypotheses(session)

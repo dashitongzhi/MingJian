@@ -203,7 +203,7 @@ async def _record_dead_letter(
     exc: Exception,
 ) -> None:
     settings = get_settings()
-    database = get_database(settings.database_url)
+    database = get_database()
     await database.ensure_initialized()
     async with database.session() as session:
         session.add(

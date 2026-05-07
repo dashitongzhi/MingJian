@@ -48,7 +48,7 @@ async def _run_sub_task_debate(
     from planagent.services.openai_client import OpenAIService
 
     settings = get_settings()
-    database = get_database(settings.database_url)
+    database = get_database()
 
     async with database.session() as session:
         try:

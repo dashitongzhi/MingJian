@@ -52,7 +52,7 @@ class PredictionRevisionWorker(Worker):
 
     async def run_once(self) -> dict[str, object]:
         """每轮执行：先消费事件触发 enqueue，再处理 job 队列。"""
-        database = get_database(self.settings.database_url)
+        database = get_database()
         errors: list[str] = []
         async with database.session() as session:
             enqueued, event_errors = await self._consume_revision_events(session)

@@ -39,7 +39,7 @@ class GraphWorker(Worker):
         self.worker_instance_id = self.description.worker_id
 
     async def run_once(self) -> dict[str, object]:
-        database = get_database(self.settings.database_url)
+        database = get_database()
         errors: list[str] = []
         async with database.session() as session:
             evidence_count, ev_errors = await self._upsert_evidence_claim_graph(session)

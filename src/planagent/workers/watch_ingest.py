@@ -55,7 +55,7 @@ class WatchIngestWorker(Worker):
         self.debate_service = DebateService(settings, event_bus, openai_service)
 
     async def run_once(self) -> dict[str, object]:
-        database = get_database(self.settings.database_url)
+        database = get_database()
         async with database.session() as session:
             claimed_rules = await self._claim_due_rules(
                 session,

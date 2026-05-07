@@ -35,7 +35,7 @@ class SimulationWorker(Worker):
         self.service = SimulationService(settings, event_bus, rule_registry, openai_service)
 
     async def run_once(self) -> dict[str, object]:
-        database = get_database(self.settings.database_url)
+        database = get_database()
         async with database.session() as session:
             processed_runs = await self.service.process_queued_runs(
                 session,

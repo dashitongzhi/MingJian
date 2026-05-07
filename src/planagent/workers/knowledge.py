@@ -55,7 +55,7 @@ class KnowledgeWorker(Worker):
         self.weighting_service = EvidenceWeightingService(settings)
 
     async def run_once(self) -> dict[str, object]:
-        database = get_database(self.settings.database_url)
+        database = get_database()
         errors: list[str] = []
         async with database.session() as session:
             processed_items, completed_runs = await self.service.process_pending_knowledge(
