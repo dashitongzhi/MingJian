@@ -1,0 +1,133 @@
+# PR Auto-Review — 使用Hermes Agent自动审查PR
+# 当PR创建或更新时，自动触发代码审查
+
+name: PR Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  auto-review:
+    runs-on: ubuntu-latest
+    if: "!github.event.pull_request.draft"
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Get PR info
+        id: pr-info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+
+            const changedFiles = files.map(f => f.filename);
+            const additions = files.reduce((sum, f) => sum + f.additions, 0);
+            const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
+
+            core.setOutput('title', pr.title);
+            core.setOutput('body', pr.body || '');
+            core.setOutput('changed_files', changedFiles.join(', '));
+            core.setOutput('additions', additions);
+            core.setOutput('deletions', deletions);
+            core.setOutput('pr_number', pr.number);
+
+      - name: Analyze changes
+        id: analyze
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '${{ steps.pr-info.outputs.title }}';
+            const changedFiles = '${{ steps.pr-info.outputs.changed_files }}'.split(', ');
+            const additions = parseInt('${{ steps.pr-info.outputs.additions }}');
+            const deletions = parseInt('${{ steps.pr-info.outputs.deletions }}');
+
+            const issues = [];
+            const suggestions = [];
+
+            // Check for large PRs
+            if (additions + deletions > 500) {
+              issues.push('⚠️ **大型PR** — 考虑拆分为更小的PR');
+            }
+
+            // Check for test coverage
+            const hasTestChanges = changedFiles.some(f => f.includes('test'));
+            const hasSourceChanges = changedFiles.some(f => f.includes('src/'));
+            if (hasSourceChanges && !hasTestChanges) {
+              issues.push('⚠️ **缺少测试** — 源代码变更但没有测试更新');
+            }
+
+            // Check for config changes
+            const hasConfigChanges = changedFiles.some(f =>
+              f.includes('config') || f.includes('.env') || f.includes('docker-compose'));
+            if (hasConfigChanges) {
+              issues.push('⚠️ **配置变更** — 请确认环境变量和部署配置已更新');
+            }
+
+            // Check for migration changes
+            const hasMigrationChanges = changedFiles.some(f => f.includes('migration'));
+            if (hasMigrationChanges) {
+              issues.push('⚠️ **数据库迁移** — 请确认迁移脚本已测试');
+            }
+
+            // Check for security-sensitive changes
+            const hasSecurityChanges = changedFiles.some(f =>
+              f.includes('auth') || f.includes('security') || f.includes('token'));
+            if (hasSecurityChanges) {
+              issues.push('🔒 **安全相关变更** — 请特别注意安全审查');
+            }
+
+            // Module detection
+            const modules = new Set();
+            if (changedFiles.some(f => f.includes('debate'))) modules.add('辩论系统');
+            if (changedFiles.some(f => f.includes('simulation'))) modules.add('推演引擎');
+            if (changedFiles.some(f => f.includes('worker'))) modules.add('Worker');
+            if (changedFiles.some(f => f.includes('api/routes'))) modules.add('API路由');
+            if (changedFiles.some(f => f.includes('frontend'))) modules.add('前端');
+
+            core.setOutput('issues', issues.join('\n'));
+            core.setOutput('modules', Array.from(modules).join(', '));
+            core.setOutput('has_issues', issues.length > 0 ? 'true' : 'false');
+
+      - name: Post review comment
+        if: steps.analyze.outputs.has_issues == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.pr-info.outputs.pr_number }};
+            const issues = `${{ steps.analyze.outputs.issues }}`;
+            const modules = `${{ steps.analyze.outputs.modules }}`;
+            const additions = ${{ steps.pr-info.outputs.additions }};
+            const deletions = ${{ steps.pr-info.outputs.deletions }};
+
+            let body = `## 🤖 自动审查报告\n\n`;
+            body += `**PR规模**: +${additions} / -${deletions} 行\n`;
+            if (modules) {
+              body += `**涉及模块**: ${modules}\n`;
+            }
+            body += `\n### ⚠️ 注意事项\n\n`;
+            body += issues;
+            body += `\n\n---\n`;
+            body += `*此审查由GitHub Actions自动生成，请人工确认*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });

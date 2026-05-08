@@ -1,0 +1,30 @@
+# Copilot Code Review — 自动触发Copilot审查PR
+# GitHub Copilot会自动审查PR中的代码变更，提供改进建议
+
+name: Copilot Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  copilot-review:
+    runs-on: ubuntu-latest
+    if: "!github.event.pull_request.draft"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Trigger Copilot Review
+        uses: github/copilot-code-review-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Copilot will automatically review the PR diff
+          # and post comments with suggestions

@@ -1,0 +1,68 @@
+# Discussion Monitor — 监控Discussions并自动响应
+# 当有新Discussion时自动添加欢迎评论和标签
+
+name: Discussion Monitor
+
+on:
+  discussion:
+    types: [created]
+
+permissions:
+  discussions: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Welcome new discussion
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const discussion = context.payload.discussion;
+            const category = discussion.category.name.toLowerCase();
+            const title = discussion.title.toLowerCase();
+
+            let comment = `欢迎参与明鉴讨论！🎉\n\n`;
+
+            // Category-specific responses
+            if (category.includes('q&a') || category.includes('question') || category.includes('问答')) {
+              comment += `**问答** — 社区成员会尽快回答您的问题。\n\n`;
+              comment += `💡 **建议**：\n`;
+              comment += `- 搜索已有Issue和Discussion看是否已有答案\n`;
+              comment += `- 提供详细的上下文和环境信息\n`;
+              comment += `- 附上相关代码或错误日志\n\n`;
+            } else if (category.includes('idea') || category.includes('feature') || category.includes('建议')) {
+              comment += `**功能建议** — 感谢您的创意！\n\n`;
+              comment += `💡 **建议**：\n`;
+              comment += `- 说明使用场景和解决的问题\n`;
+              comment += `- 描述期望的行为\n`;
+              comment += `- 如果可能，提供设计草图或示例\n\n`;
+            } else if (category.includes('show') || category.includes('展示')) {
+              comment += `**展示** — 期待看到您的成果！\n\n`;
+              comment += `🎉 欢迎分享：\n`;
+              comment += `- 使用明鉴的经验\n`;
+              comment += `- 自定义配置和扩展\n`;
+              comment += `- 实际应用案例\n\n`;
+            }
+
+            comment += `---\n`;
+            comment += `📊 **明鉴相关资源**：\n`;
+            comment += `- [文档](https://github.com/dashitongzhi/MingJian/tree/master/docs)\n`;
+            comment += `- [API参考](https://github.com/dashitongzhi/MingJian#api)\n`;
+            comment += `- [贡献指南](https://github.com/dashitongzhi/MingJian/blob/master/CONTRIBUTING.md)\n\n`;
+            comment += `*此消息由GitHub Actions自动发送*`;
+
+            // Add comment to discussion
+            await github.rest.graphql({
+              query: `
+                mutation($discussionId: ID!, $body: String!) {
+                  addDiscussionComment(input: {discussionId: $discussionId, body: $body}) {
+                    comment {
+                      id
+                    }
+                  }
+                }
+              `,
+              discussionId: discussion.node_id,
+              body: comment
+            });

@@ -1,0 +1,111 @@
+# Issue Triage — 自动分类和响应Issues
+# 使用GitHub Copilot自动分析issue内容并添加标签
+
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-label based on content
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const labels = [];
+
+            // Bug detection
+            if (title.includes('bug') || title.includes('error') || title.includes('fix') ||
+                body.includes('bug') || body.includes('error') || body.includes('crash') ||
+                body.includes('traceback') || body.includes('exception')) {
+              labels.push('bug');
+            }
+
+            // Feature detection
+            if (title.includes('feat') || title.includes('feature') || title.includes('add') ||
+                title.includes('enhance') || body.includes('feature request') ||
+                body.includes('would like')) {
+              labels.push('enhancement');
+            }
+
+            // Documentation
+            if (title.includes('doc') || title.includes('readme') || body.includes('documentation')) {
+              labels.push('documentation');
+            }
+
+            // Priority detection
+            if (title.includes('critical') || title.includes('urgent') || title.includes('p0') ||
+                body.includes('critical') || body.includes('blocking')) {
+              labels.push('priority: high');
+            }
+
+            // Module detection
+            if (body.includes('debate') || title.includes('debate')) {
+              labels.push('module: debate');
+            }
+            if (body.includes('simulation') || title.includes('simulation') || title.includes('推演')) {
+              labels.push('module: simulation');
+            }
+            if (body.includes('frontend') || title.includes('ui') || title.includes('dashboard')) {
+              labels.push('module: frontend');
+            }
+            if (body.includes('api') || title.includes('endpoint')) {
+              labels.push('module: api');
+            }
+            if (body.includes('worker') || title.includes('worker')) {
+              labels.push('module: workers');
+            }
+
+            // Chinese content detection
+            if (/[\u4e00-\u9fff]/.test(title + body)) {
+              labels.push('lang: zh');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labels
+              });
+              console.log(`Added labels: ${labels.join(', ')}`);
+            }
+
+      - name: Welcome comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const isBug = issue.title.toLowerCase().includes('bug') ||
+                          (issue.body || '').toLowerCase().includes('bug');
+
+            let comment = `感谢提交Issue！🙏\n\n`;
+            comment += `**明鉴团队会尽快处理。**\n\n`;
+
+            if (isBug) {
+              comment += `🐛 **Bug报告** — 请确保包含以下信息：\n`;
+              comment += `- 复现步骤\n`;
+              comment += `- 期望行为 vs 实际行为\n`;
+              comment += `- 错误日志/截图\n`;
+              comment += `- 环境信息（OS、Python版本等）\n\n`;
+            }
+
+            comment += `---\n`;
+            comment += `*此消息由GitHub Actions自动发送*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
