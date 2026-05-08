@@ -19,6 +19,9 @@ from planagent.api.routes.sources import router as sources_router
 from planagent.api.routes.custom_sources import router as custom_sources_router
 from planagent.api.routes.custom_agents import router as custom_agents_router
 from planagent.api.routes.model_adapter import router as model_adapter_router
+from planagent.api.routes.auth import router as auth_router
+from planagent.api.routes.export import router as export_router
+from planagent.api.routes.notifications import router as notifications_router
 
 router = APIRouter()
 router.include_router(analysis_router, tags=["Analysis & Assistant"])
@@ -38,3 +41,6 @@ router.include_router(sources_router)
 router.include_router(custom_sources_router)
 router.include_router(custom_agents_router)
 router.include_router(model_adapter_router)
+router.include_router(auth_router)
+router.include_router(export_router)
+router.include_router(notifications_router)

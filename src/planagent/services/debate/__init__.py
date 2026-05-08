@@ -277,6 +277,8 @@ class DebateService(
                     trigger_type=payload.trigger_type,
                     context=preparation.context,
                     evidence_ids=preparation.llm_evidence_ids,
+                    debate_mode=getattr(payload, "debate_mode", "full") or "full",
+                    domain_id=getattr(payload, "domain_id", None),
                 ):
                     if stream_event.event == "debate_round_start":
                         yield self._stream_event(

@@ -1,186 +1,182 @@
-x-env-common: &env-common
-  HTTP_PROXY: ""
-  HTTPS_PROXY: ""
-  http_proxy: ""
-  https_proxy: ""
-  NO_PROXY: ""
-  no_proxy: ""
-  PLANAGENT_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-planagent}:${POSTGRES_PASSWORD:-planagent}@postgres:5432/${POSTGRES_DB:-planagent}
-  PLANAGENT_REDIS_URL: redis://redis:6379/0
-  PLANAGENT_EVENT_BUS_BACKEND: redis
-  PLANAGENT_MINIO_ENDPOINT: minio:9000
-  PLANAGENT_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-planagent}
-  PLANAGENT_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-planagent123}
+# PlanAgent Docker Compose — Full stack with workers
+# Usage: docker compose up -d
 
-x-logging: &default-logging
-  driver: json-file
-  options:
-    max-size: "10m"
-    max-file: "3"
+version: "3.9"
 
 services:
+  # ── Database ───────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
+    container_name: planagent-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-planagent}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planagent}
-      POSTGRES_DB: ${POSTGRES_DB:-planagent}
+      POSTGRES_USER: planagent
+      POSTGRES_PASSWORD: planagent
+      POSTGRES_DB: planagent
     ports:
-      - "127.0.0.1:5432:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planagent} -d ${POSTGRES_DB:-planagent}"]
+      test: ["CMD-SHELL", "pg_isready -U planagent"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 5
 
+  # ── Redis ──────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    container_name: planagent-redis
     ports:
-      - "127.0.0.1:6379:6379"
+      - "6379:6379"
     volumes:
       - redisdata:/data
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    logging: *default-logging
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 5
 
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-planagent}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-planagent123}
-    ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
-    volumes:
-      - miniodata:/data
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  migrate:
-    image: planagent-api:latest
+  # ── API Server ─────────────────────────────────────────────
+  api:
     build:
       context: .
-      target: api
-    command: ["alembic", "upgrade", "head"]
-    env_file:
-      - .env
-    environment: *env-common
-    logging: *default-logging
+      dockerfile: Dockerfile
+    container_name: planagent-api
+    command: uvicorn planagent.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
-
-  api:
-    image: planagent-api:latest
-    build:
-      context: .
-      target: api
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8000:8000"
-    env_file:
-      - .env
-    environment: *env-common
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    logging: *default-logging
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
       redis:
         condition: service_healthy
-      minio:
-        condition: service_healthy
     volumes:
-      - ./rules:/app/rules:ro
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import json, sys, urllib.request; data = json.load(urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5)); sys.exit(0 if data.get('status') == 'ok' else 1)\""]
-      interval: 30s
-      timeout: 5s
-      start_period: 30s
-      retries: 3
+      - ./exports:/app/exports
 
-  worker:
+  # ── Workers ────────────────────────────────────────────────
+  worker-ingest:
     build:
       context: .
-      target: worker
-    restart: unless-stopped
-    stop_grace_period: 15s
-    env_file:
-      - .env
-    environment: *env-common
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    logging: *default-logging
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    volumes:
-      - ./rules:/app/rules:ro
-    healthcheck:
-      test: ["CMD-SHELL", "for p in /proc/[0-9]*/cmdline; do tr '\\0' ' ' < \"$$p\" 2>/dev/null | grep -q '[p]lanagent-worker' && exit 0; done; exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  frontend:
-    build:
-      context: ./frontend
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:3001:3000"
+      dockerfile: Dockerfile
+    container_name: planagent-worker-ingest
+    command: python -m planagent.worker_cli ingest-worker
+    env_file: .env
     environment:
-      BACKEND_API_URL: http://api:8000
-      NEXT_PUBLIC_API_URL: /api
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-    logging: *default-logging
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
     depends_on:
-      api:
+      postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"const http = require('http'); const h = require('os').hostname(); http.get('http://' + h + ':3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
-      interval: 30s
-      timeout: 5s
-      start_period: 30s
-      retries: 3
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-knowledge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-knowledge
+    command: python -m planagent.worker_cli knowledge-worker
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-simulation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-simulation
+    command: python -m planagent.worker_cli simulation-worker
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-report:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-report
+    command: python -m planagent.worker_cli report-worker
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-watch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-watch
+    command: python -m planagent.worker_cli watch-ingest-worker
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-strategic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-strategic
+    command: python -m planagent.worker_cli strategic-watch-worker
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-prediction:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-prediction
+    command: python -m planagent.worker_cli prediction-revision-worker
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
-  miniodata:

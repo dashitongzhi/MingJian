@@ -13,6 +13,9 @@ from planagent.config import get_settings
 from planagent.db import get_database
 from planagent.events.bus import build_event_bus
 from planagent.services.openai_client import OpenAIService
+from planagent.services.auth import AuthService, AuthConfig
+from planagent.services.notification import NotificationService, NotificationConfig
+from planagent.services.export import ExportService
 from planagent.simulation.rules import get_rule_registry
 
 
@@ -26,9 +29,30 @@ def create_app() -> FastAPI:
         app.state.event_bus = build_event_bus(settings)
         app.state.rule_registry = get_rule_registry(settings.rules_dir)
         app.state.openai_service = OpenAIService(settings)
+
+        # Auth service
+        auth_config = AuthConfig(
+            secret_key=getattr(settings, "auth_secret_key", "") or "",
+        )
+        app.state.auth_service = AuthService(auth_config)
+
+        # Notification service
+        notif_config = NotificationConfig(
+            smtp_host=getattr(settings, "smtp_host", None),
+            smtp_port=getattr(settings, "smtp_port", 587),
+            smtp_user=getattr(settings, "smtp_user", None),
+            smtp_password=getattr(settings, "smtp_password", None),
+            webhook_urls=getattr(settings, "webhook_urls", []),
+        )
+        app.state.notification_service = NotificationService(notif_config)
+
+        # Export service
+        app.state.export_service = ExportService(output_dir="exports")
+
         try:
             yield
         finally:
+            await app.state.notification_service.close()
             await app.state.openai_service.close()
             await app.state.event_bus.close()
             await database.dispose()

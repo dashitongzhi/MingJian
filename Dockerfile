@@ -1,43 +1,24 @@
-FROM python:3.12-slim AS base
-
-ARG HTTP_PROXY=""
-ARG HTTPS_PROXY=""
-ARG http_proxy=""
-ARG https_proxy=""
-ARG NO_PROXY=""
-ARG no_proxy=""
-ENV HTTP_PROXY=""
-ENV HTTPS_PROXY=""
-ENV http_proxy=""
-ENV https_proxy=""
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY src ./src
-COPY rules ./rules
-COPY migrations ./migrations
-COPY examples ./examples
-COPY alembic.ini ./
+# System deps for weasyprint (PDF generation)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    libcairo2 \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir .
+# Install Python deps
+COPY pyproject.toml .
+COPY src/ src/
+RUN pip install --no-cache-dir -e ".[all]" 2>/dev/null || pip install --no-cache-dir -e .
 
-RUN groupadd --system appuser \
-    && useradd --system --gid appuser --home-dir /home/appuser --create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /app/source_snapshots \
-    && chown -R appuser:appuser /app/source_snapshots \
-    && chmod -R a+rX /app
+# Create exports directory
+RUN mkdir -p /app/exports
 
-FROM base AS api
+EXPOSE 8000
 
-USER appuser
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=5).read()" || exit 1
-CMD ["planagent-api"]
-
-FROM base AS worker
-
-COPY scripts/start-workers.sh /app/start-workers.sh
-RUN chmod +x /app/start-workers.sh
-
-USER appuser
-CMD ["/app/start-workers.sh"]
+CMD ["uvicorn", "planagent.main:app", "--host", "0.0.0.0", "--port", "8000"]

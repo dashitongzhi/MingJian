@@ -357,6 +357,8 @@ class DebateTriggerRequest(APIModel):
     target_type: Literal["run", "claim", "branch", "report"] = "run"
     target_id: str | None = None
     context_lines: list[str] = Field(default_factory=list)
+    debate_mode: Literal["full", "fast"] = "full"
+    domain_id: str | None = None
 
 
 class DebateRoundRead(APIModel):

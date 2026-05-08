@@ -279,8 +279,98 @@ round_plan = [
 
 def build_round_plan(
     custom_agents: list[dict[str, Any]] | None = None,
+    mode: str = "full",
+    domain_id: str | None = None,
 ) -> list[tuple[int, str, str]]:
+    """Build a round plan with optional fast mode and domain-specific role selection.
+
+    Args:
+        custom_agents: Additional custom agents to include
+        mode: "full" (4 rounds, 7+ roles) or "fast" (2 rounds, 3 roles)
+        domain_id: Domain hint for role selection ("corporate", "military", "auto")
+    """
+    if mode == "fast":
+        return _build_fast_round_plan(custom_agents, domain_id)
+    return _build_full_round_plan(custom_agents, domain_id)
+
+
+def _build_full_round_plan(
+    custom_agents: list[dict[str, Any]] | None = None,
+    domain_id: str | None = None,
+) -> list[tuple[int, str, str]]:
+    """Full 4-round debate with all roles (original behavior)."""
     plan = list(round_plan)
+    _add_custom_agents(plan, custom_agents)
+    return plan
+
+
+def _build_fast_round_plan(
+    custom_agents: list[dict[str, Any]] | None = None,
+    domain_id: str | None = None,
+) -> list[tuple[int, str, str]]:
+    """Fast 2-round debate with 3 key roles — saves ~60% tokens.
+
+    Round 1: advocate + challenger + most relevant expert
+    Round 2: arbitrator
+    """
+    # Select the most relevant expert based on domain
+    domain_experts = {
+        "corporate": "econ_analyst",
+        "military": "military_strategist",
+        "auto": "intel_analyst",
+    }
+    expert = domain_experts.get(domain_id, "intel_analyst") if domain_id else "intel_analyst"
+
+    expert_labels = {
+        "intel_analyst": "情报分析师",
+        "geo_expert": "地缘政治专家",
+        "econ_analyst": "经济分析师",
+        "military_strategist": "军事战略家",
+        "tech_foresight": "技术前瞻者",
+        "social_impact": "社会影响评估师",
+    }
+    expert_label = expert_labels.get(expert, "情报分析师")
+
+    fast_plan = [
+        (1, "advocate", f"【第1轮·立论】战略支持者：请提出支持该命题的核心证据链。要求：至少2条独立论证，每条引用具体数据源。"),
+        (1, expert, f"【第1轮·立论】{expert_label}：请从专业角度评估命题并提供分析。要求：引用具体数据和来源，提供专业判断。"),
+        (2, "challenger", "【第2轮·质询+仲裁】风险挑战者：请对立论进行系统性质疑，然后综合评判。要求：对每条论点给出质疑理由，最终给出综合裁决和建议。"),
+    ]
+
+    # Insert custom agents
+    for ca in custom_agents or []:
+        role_key = ca["role_key"]
+        name = ca["name"]
+        icon = ca.get("icon", "🤖")
+        description = ca.get("description", "")
+        desc_brief = description[:200] + ("..." if len(description) > 200 else "")
+        fast_plan.insert(-1, (1, role_key, f"【第1轮·立论】{icon} {name}：{desc_brief}"))
+
+    return fast_plan
+
+
+def select_roles_for_domain(domain_id: str | None) -> list[str]:
+    """Return the recommended roles for a given domain.
+
+    Used for dynamic role selection — avoids running all 7 roles
+    when only 3-4 are relevant.
+    """
+    # Core roles always included
+    core = ["advocate", "challenger", "arbitrator"]
+
+    domain_roles = {
+        "corporate": core + ["econ_analyst", "tech_foresight", "social_impact"],
+        "military": core + ["geo_expert", "military_strategist", "intel_analyst"],
+        "auto": core + ["intel_analyst", "econ_analyst", "geo_expert"],
+    }
+    return domain_roles.get(domain_id or "auto", list(core) + ["intel_analyst"])
+
+
+def _add_custom_agents(
+    plan: list[tuple[int, str, str]],
+    custom_agents: list[dict[str, Any]] | None,
+) -> None:
+    """Insert custom agents into round 1 and round 3."""
     for ca in custom_agents or []:
         role_key = ca["role_key"]
         name = ca["name"]
@@ -299,4 +389,3 @@ def build_round_plan(
                 f"【第3轮·修订】{icon} {name}：请根据质询反馈修订你的分析。要求：回应其他角色的跨域观点，修正被质疑的论点。",
             ),
         )
-    return plan
