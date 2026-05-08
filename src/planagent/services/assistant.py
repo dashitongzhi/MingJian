@@ -95,7 +95,7 @@ _OPPORTUNITY_KEYWORDS = {
     # Chinese opportunity keywords
     "机遇", "机会", "增长", "提升", "改善", "突破", "创新", "发展",
     "扩张", "优势", "潜力", "红利", "赋能", "升级", "转型", "跃迁",
-    "利好", "提振", "提振", "升温", "向好", "回暖", "复苏", "加速",
+    "利好", "提振", "升温", "向好", "回暖", "复苏", "加速",
 }
 _UNCERTAINTY_KEYWORDS = {
     "uncertain", "uncertainty", "unclear", "ambiguous", "mixed",

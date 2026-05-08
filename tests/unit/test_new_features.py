@@ -114,10 +114,13 @@ class TestAuthService:
         assert tokens is None
 
     def test_default_admin_created(self):
-        """Default admin should exist on fresh service."""
+        """Default admin should exist on fresh service with random password."""
         admin = self.service.get_user_by_username("admin")
         assert admin is not None
         assert admin.role == UserRole.ADMIN
+        # Password should be set (we can verify by authenticating)
+        # Since password is random, just verify admin exists and is active
+        assert admin.is_active is True
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -398,32 +401,28 @@ class TestDebateOptimization:
 
 class TestDecisionFeedbackService:
     def setup_method(self):
-        self.service = DecisionFeedbackService(accuracy_threshold=0.6)
+        self.service = DecisionFeedbackService()
 
     def test_accuracy_report_defaults(self):
         report = AccuracyReport()
         assert report.total_decisions == 0
-        assert report.accuracy_rate == 0.0
-        assert report.calibration_needed is False
+        assert report.verified_outcomes == 0
+        assert report.adopt_count == 0
 
-    def test_accuracy_threshold_config(self):
-        assert self.service.accuracy_threshold == 0.6
-
-    def test_high_accuracy_no_calibration(self):
+    def test_report_counts(self):
         report = AccuracyReport(
             total_decisions=10,
-            verified_outcomes=10,
-            correct_predictions=8,
-            accuracy_rate=0.8,
+            verified_outcomes=7,
+            adopt_count=5,
+            defer_count=2,
+            reject_count=3,
+            has_outcome=7,
         )
-        assert not report.calibration_needed
+        assert report.total_decisions == 10
+        assert report.adopt_count == 5
+        assert report.has_outcome == 7
 
-    def test_low_accuracy_needs_calibration(self):
-        report = AccuracyReport(
-            total_decisions=10,
-            verified_outcomes=10,
-            correct_predictions=3,
-            accuracy_rate=0.3,
-            calibration_needed=True,
-        )
-        assert report.calibration_needed
+    def test_empty_report(self):
+        report = AccuracyReport()
+        assert report.total_decisions == 0
+        assert report.details == []

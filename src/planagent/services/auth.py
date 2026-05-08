@@ -5,8 +5,6 @@ Provides JWT-based auth with role-based access control.
 """
 from __future__ import annotations
 
-import hashlib
-import hmac
 import logging
 import secrets
 import uuid
@@ -88,13 +86,18 @@ class AuthService:
     def _ensure_default_admin(self) -> None:
         """Create a default admin user if none exists."""
         if not self._users:
+            import secrets as _secrets
+            random_password = _secrets.token_urlsafe(16)
             admin = self.create_user(
                 username="admin",
                 email="admin@planagent.local",
-                password="planagent2024",
+                password=random_password,
                 role=UserRole.ADMIN,
             )
-            _logger.info("Default admin user created (username: admin, password: planagent2024)")
+            _logger.warning(
+                "Default admin created — username: admin, password: %s (CHANGE THIS IMMEDIATELY)",
+                random_password,
+            )
 
     # ── User Management ───────────────────────────────────────
 

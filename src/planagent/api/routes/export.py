@@ -156,16 +156,11 @@ async def export_assistant_session(
     else:  # both
         md_content = export_service.export_assistant_result_md(data)
         pdf_bytes = export_service.md_to_pdf(md_content, title=data.get("topic", "Report"))
-
-        # Return as multipart or just PDF with MD sidecar
-        # For simplicity, return the PDF and include MD path in header
-        md_path = export_service.save_markdown(md_content, f"planagent_{session_id[:8]}.md")
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f'attachment; filename="planagent_{session_id[:8]}.pdf"',
-                "X-Markdown-Path": str(md_path),
             },
         )
 

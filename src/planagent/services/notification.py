@@ -9,11 +9,13 @@ import asyncio
 import json
 import logging
 import smtplib
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import StrEnum
+from html import escape as html_escape
 from typing import Any
 
 import httpx
@@ -80,7 +82,7 @@ class NotificationService:
     def __init__(self, config: NotificationConfig | None = None) -> None:
         self.config = config or NotificationConfig()
         self._ws_connections: dict[str, list[Any]] = {}  # user_id -> [websocket connections]
-        self._notification_log: list[Notification] = []
+        self._notification_log: deque[Notification] = deque(maxlen=10000)  # Bounded log
         self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
@@ -217,7 +219,7 @@ class NotificationService:
             raise RuntimeError("SMTP not configured")
 
         # Use asyncio to avoid blocking
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._send_email_sync, notif)
 
     def _send_email_sync(self, notif: Notification) -> None:
@@ -231,13 +233,15 @@ class NotificationService:
         text_part = MIMEText(notif.body, "plain", "utf-8")
         msg.attach(text_part)
 
-        # HTML
+        # HTML (escape user input to prevent XSS)
+        safe_title = html_escape(notif.title)
+        safe_body = html_escape(notif.body).replace("\n", "<br>")
         html_body = f"""
         <html>
         <body style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px;">
-            <h2 style="color: #1a1a2e;">{notif.title}</h2>
+            <h2 style="color: #1a1a2e;">{safe_title}</h2>
             <div style="padding: 15px; background: #f5f5f5; border-radius: 8px; margin: 10px 0;">
-                {notif.body.replace(chr(10), '<br>')}
+                {safe_body}
             </div>
             <p style="color: #666; font-size: 12px;">
                 Sent by PlanAgent at {notif.created_at.isoformat()}<br>

@@ -139,13 +139,12 @@ async def notification_websocket(
     """
     await websocket.accept()
 
-    # Get or create notification service
-    request = websocket.scope.get("app")
-    if not hasattr(request.state if request else None, "notification_service"):
-        # Create a basic service for WebSocket
-        service = NotificationService(NotificationConfig())
+    # Get notification service from app state
+    app = websocket.scope.get("app")
+    if app and hasattr(app.state, "notification_service"):
+        service = app.state.notification_service
     else:
-        service = request.state.notification_service
+        service = NotificationService(NotificationConfig())
 
     service.register_ws(user_id, websocket)
 

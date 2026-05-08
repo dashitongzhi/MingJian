@@ -105,16 +105,17 @@ async def get_decision_accuracy(
     days: int = Query(default=30, ge=1, le=365),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Get prediction accuracy report for decisions."""
-    report = await _feedback_service.compute_accuracy(session, days=days)
+    """Get decision statistics and feedback report."""
+    report = await _feedback_service.get_decision_stats(session, session_id=session_id, days=days)
     return {
         "total_decisions": report.total_decisions,
         "verified_outcomes": report.verified_outcomes,
-        "correct_predictions": report.correct_predictions,
-        "accuracy_rate": round(report.accuracy_rate, 4),
-        "avg_confidence": round(report.avg_confidence, 4),
-        "calibration_needed": report.calibration_needed,
-        "details": report.details[:20],  # Limit for API response
+        "adopt_count": report.adopt_count,
+        "defer_count": report.defer_count,
+        "reject_count": report.reject_count,
+        "need_more_info_count": report.need_more_info_count,
+        "has_outcome": report.has_outcome,
+        "details": report.details[:20],
     }
 
 

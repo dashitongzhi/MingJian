@@ -18,7 +18,7 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     email: str = Field(min_length=5)
     password: str = Field(min_length=6)
-    role: Literal["admin", "analyst", "viewer"] = "analyst"
+    role: Literal["analyst", "viewer"] = "analyst"  # admin only via admin endpoint
 
 
 class LoginRequest(BaseModel):
