@@ -5,7 +5,6 @@ Supports two backends: model-backed X search (via OpenAI) and direct X API.
 
 from __future__ import annotations
 
-from typing import Any
 
 import httpx
 

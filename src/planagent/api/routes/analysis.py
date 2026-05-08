@@ -118,7 +118,7 @@ async def analyze_content_stream(
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
         except Exception as exc:
             _logger.exception("Analysis stream failed")
-            yield f"event: error\n"
+            yield "event: error\n"
             yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -139,7 +139,7 @@ async def debate_stream(
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
         except Exception as exc:
             _logger.exception("Debate stream failed")
-            yield f"event: error\n"
+            yield "event: error\n"
             yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -233,7 +233,7 @@ async def strategic_assistant_stream(
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
         except Exception as exc:
             _logger.exception("Assistant stream failed")
-            yield f"event: error\n"
+            yield "event: error\n"
             yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

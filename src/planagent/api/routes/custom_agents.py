@@ -11,7 +11,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from planagent.services.agent_registry import (
     create_custom_agent,

@@ -242,7 +242,7 @@ async def mcp_sse_endpoint(request: Request) -> StreamingResponse:
 
     session_id = str(uuid.uuid4())
     queue: asyncio.Queue[str] = asyncio.Queue()
-    handler = get_mcp_handler()
+    get_mcp_handler()  # Ensure handler is initialized
 
     # 将队列注册到应用状态，供 messages 端点使用
     if not hasattr(request.app.state, "mcp_queues"):
@@ -334,7 +334,6 @@ async def mcp_streamable_http_endpoint(request: Request) -> StreamingResponse:
     wants_stream = "text/event-stream" in accept
 
     if wants_stream:
-        import asyncio
 
         async def stream_response():
             response = await handler.handle_message(body)

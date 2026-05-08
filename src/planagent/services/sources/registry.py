@@ -8,14 +8,12 @@ Enhanced with:
 
 from __future__ import annotations
 
-import asyncio
 import importlib
 import logging
-import pkgutil
 from typing import Any
 
 from planagent.config import Settings
-from planagent.domain.api import AnalysisRequest, AnalysisSourceRead, AnalysisStepRead
+from planagent.domain.api import AnalysisRequest, AnalysisSourceRead
 from planagent.services.openai_client import OpenAIService
 from planagent.services.sources.base import DataSourceProvider
 

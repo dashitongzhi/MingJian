@@ -806,7 +806,7 @@ class OpenAIService:
                 max_tokens=max_tokens, temperature=0.3, response_format={"type": "json_object"},
             )
             text = response.choices[0].message.content or "{}"
-            parsed = _extract_json_payload(text)
+            parsed = self._extract_json_payload(text)
             return {"model": model, "api_mode": "chat.completions.json"}, parsed if isinstance(parsed, dict) else None
         except Exception:
             return None, None

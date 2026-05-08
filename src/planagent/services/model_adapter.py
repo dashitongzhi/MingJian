@@ -12,11 +12,10 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from planagent.services.agent_registry import AgentRole
 
 logger = logging.getLogger(__name__)
 

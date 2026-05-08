@@ -1,13 +1,10 @@
 """Export API routes — Markdown and PDF export endpoints."""
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +26,6 @@ router = APIRouter(prefix="/export", tags=["Export"])
 
 def _get_export_service(request: Request) -> ExportService:
     if not hasattr(request.app.state, "export_service"):
-        from planagent.config import get_settings
         request.app.state.export_service = ExportService(output_dir="exports")
     return request.app.state.export_service
 

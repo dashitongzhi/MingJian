@@ -143,7 +143,6 @@ class RSSProvider(DataSourceProvider):
 
     @staticmethod
     def _rss_link(item: ET.Element) -> str:
-        import xml.etree.ElementTree as _ET
 
         link = DataSourceProvider.clean_text(item.findtext("link", default=""))
         if link:

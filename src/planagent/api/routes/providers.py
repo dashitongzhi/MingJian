@@ -5,8 +5,8 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin/providers", tags=["Providers"])
 

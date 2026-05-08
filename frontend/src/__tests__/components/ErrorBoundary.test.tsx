@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { toast } from "@/lib/toast";
 
-function BrokenChild() {
+function BrokenChild(): React.ReactNode {
   throw new Error("render failed");
 }
 

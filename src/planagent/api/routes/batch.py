@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from planagent.db import get_session
 from planagent.domain.api import (
@@ -20,7 +18,6 @@ from planagent.domain.enums import BatchSubTaskStatus, BatchTaskStatus
 from planagent.domain.models import (
     BatchSubTask,
     BatchTask,
-    DebateSessionRecord,
     utc_now,
 )
 from planagent.services.debate import DebateService

@@ -88,7 +88,7 @@ class AuthService:
         if not self._users:
             import secrets as _secrets
             random_password = _secrets.token_urlsafe(16)
-            admin = self.create_user(
+            self.create_user(
                 username="admin",
                 email="admin@planagent.local",
                 password=random_password,
