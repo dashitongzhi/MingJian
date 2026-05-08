@@ -168,7 +168,7 @@ class DebateService(
         session.add(verdict)
 
         if (
-            payload.trigger_type in ("pivot_decision", "auto_conflict_detection")
+            payload.trigger_type in ("pivot_decision", "conflict_resolution")
             and payload.run_id is not None
         ):
             latest_decision = (
@@ -343,7 +343,7 @@ class DebateService(
                 session.add(verdict)
 
                 if (
-                    payload.trigger_type in ("pivot_decision", "auto_conflict_detection")
+                    payload.trigger_type in ("pivot_decision", "conflict_resolution")
                     and payload.run_id is not None
                 ):
                     latest_decision = (

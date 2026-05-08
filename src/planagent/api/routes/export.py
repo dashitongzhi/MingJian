@@ -60,7 +60,7 @@ async def export_assistant_session(
         await session.scalars(
             select(StrategicRunSnapshot)
             .where(StrategicRunSnapshot.session_id == session_id)
-            .order_by(StrategicRunSnapshot.created_at.desc())
+            .order_by(StrategicRunSnapshot.generated_at.desc())
             .limit(1)
         )
     ).first()
@@ -70,7 +70,7 @@ async def export_assistant_session(
         await session.scalars(
             select(StrategicBriefRecord)
             .where(StrategicBriefRecord.session_id == session_id)
-            .order_by(StrategicBriefRecord.created_at.desc())
+            .order_by(StrategicBriefRecord.generated_at.desc())
             .limit(1)
         )
     ).first()
@@ -90,7 +90,7 @@ async def export_assistant_session(
         "topic": strategic_session.topic,
         "domain_id": strategic_session.domain_id or "auto",
         "subject_name": strategic_session.subject_name or strategic_session.topic,
-        "generated_at": (snapshot.created_at if snapshot else utc_now()).isoformat(),
+        "generated_at": (snapshot.generated_at if snapshot else utc_now()).isoformat(),
     }
 
     # Add analysis from snapshot

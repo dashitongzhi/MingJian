@@ -138,7 +138,7 @@ class DebateTriggerMixin:
         payload = DebateTriggerRequest(
             run_id=run_id,
             topic=f"[自动触发] {topic}",
-            trigger_type="auto_conflict_detection",
+            trigger_type="conflict_resolution",
             target_type="run",
             context_lines=[
                 *(context_lines or []),

@@ -213,7 +213,7 @@ class StrategicAssistantService:
         # Use the detected suggested topic when debate is warranted.
         if debate_suggestion.warranted:
             debate_topic = debate_suggestion.suggested_topic
-            trigger_type = "auto_conflict_detection"
+            trigger_type = "conflict_resolution"
         else:
             debate_topic = self._debate_topic(domain_id, subject_name)
             trigger_type = "pivot_decision"
