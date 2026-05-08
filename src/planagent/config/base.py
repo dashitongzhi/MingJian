@@ -65,3 +65,17 @@ class BaseAppSettings(BaseSettings):
 
     # MCP Server 配置
     mcp_enabled: bool = False
+
+    # Auth 配置
+    auth_secret_key: str = ""
+
+    # Notification 配置
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "planagent@localhost"
+    webhook_urls: list[str] = Field(default_factory=list)
+
+    # Export 配置
+    export_dir: str = "exports"

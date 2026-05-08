@@ -12,6 +12,7 @@ from planagent.domain.api import (
     UserDecisionStatsRead,
 )
 from planagent.domain.models import StrategicSession, UserDecision, utc_now
+from planagent.services.decision_feedback import DecisionFeedbackService
 
 router = APIRouter(tags=["Decisions"])
 
@@ -91,3 +92,36 @@ async def _require_strategic_session(session: AsyncSession, session_id: str) -> 
     if record is None:
         raise HTTPException(status_code=404, detail="Strategic session not found.")
     return record
+
+
+# ── Decision Feedback Endpoints ───────────────────────────────
+
+_feedback_service = DecisionFeedbackService()
+
+
+@router.get("/decisions/accuracy")
+async def get_decision_accuracy(
+    session_id: str | None = None,
+    days: int = Query(default=30, ge=1, le=365),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Get prediction accuracy report for decisions."""
+    report = await _feedback_service.compute_accuracy(session, days=days)
+    return {
+        "total_decisions": report.total_decisions,
+        "verified_outcomes": report.verified_outcomes,
+        "correct_predictions": report.correct_predictions,
+        "accuracy_rate": round(report.accuracy_rate, 4),
+        "avg_confidence": round(report.avg_confidence, 4),
+        "calibration_needed": report.calibration_needed,
+        "details": report.details[:20],  # Limit for API response
+    }
+
+
+@router.get("/decisions/pending-verifications")
+async def get_pending_verifications(
+    limit: int = Query(default=50, ge=1, le=200),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Get decisions awaiting outcome verification."""
+    return await _feedback_service.get_pending_verifications(session, limit=limit)

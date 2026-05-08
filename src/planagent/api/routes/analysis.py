@@ -28,6 +28,7 @@ from planagent.api.routes._deps import (
     get_assistant_service,
     get_debate_service,
 )
+from planagent.api.routes._auth_middleware import optional_auth
 
 router = APIRouter()
 _CONSOLE_HTML = Path(__file__).resolve().parents[2] / "ui" / "strategic_console.html"
@@ -159,6 +160,7 @@ async def create_strategic_assistant_run(
     payload: StrategicAssistantRequest,
     request: Request,
     session: AsyncSession = Depends(get_session),
+    user: dict | None = Depends(optional_auth),
 ) -> StrategicAssistantResponse:
     service = get_assistant_service(request)
     return await service.run(session, payload)

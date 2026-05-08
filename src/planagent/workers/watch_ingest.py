@@ -19,6 +19,7 @@ from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.change_detection import ChangeDetectionService
 from planagent.services.debate import DebateService
+from planagent.services.notification import NotificationService, NotificationPriority
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.simulation import SimulationService
@@ -44,10 +45,12 @@ class WatchIngestWorker(Worker):
         event_bus: EventBus,
         rule_registry: RuleRegistry,
         openai_service: OpenAIService | None = None,
+        notification_service: NotificationService | None = None,
     ) -> None:
         self.settings = settings
         self.event_bus = event_bus
         self.openai_service = openai_service
+        self.notification_service = notification_service
         self.worker_instance_id = self.description.worker_id
         self.analysis_service = AutomatedAnalysisService(settings, openai_service)
         self.pipeline_service = PhaseOnePipelineService(settings, event_bus, openai_service)
@@ -209,6 +212,17 @@ class WatchIngestWorker(Worker):
                     "significance": change_record.significance,
                 },
             )
+            # Push notification for significant changes
+            if self.notification_service and change_record.significance in ("medium", "high"):
+                try:
+                    await self.notification_service.broadcast(
+                        title=f"📡 源变化检测 [{change_record.significance.upper()}]",
+                        body=f"监控规则「{rule.name}」检测到{change_record.significance}级变化：{change_record.diff_summary or state.source_type}",
+                        priority=NotificationPriority.HIGH if change_record.significance == "high" else NotificationPriority.NORMAL,
+                        metadata={"rule_id": rule.id, "change_id": change_record.id, "significance": change_record.significance},
+                    )
+                except Exception:
+                    logger.debug("Notification broadcast failed (non-critical)")
 
         ingest_run = await self.pipeline_service.create_ingest_run(
             session,
@@ -270,6 +284,23 @@ class WatchIngestWorker(Worker):
                 debate_id = debate.id
 
         await self._mark_poll_success(session, rule)
+
+        # Push notification for re-analysis results
+        if self.notification_service and (debate_id or simulation_run_id):
+            try:
+                parts = []
+                if simulation_run_id:
+                    parts.append("已触发新模拟推演")
+                if debate_id:
+                    parts.append("已触发重新辩论")
+                await self.notification_service.broadcast(
+                    title=f"🔄 监控更新：{rule.name}",
+                    body=f"监控规则「{rule.name}」完成更新——{', '.join(parts)}。请查看最新建议。",
+                    priority=NotificationPriority.HIGH,
+                    metadata={"rule_id": rule.id, "debate_id": debate_id, "simulation_run_id": simulation_run_id},
+                )
+            except Exception:
+                logger.debug("Notification broadcast failed (non-critical)")
 
         return {
             "ingest_run_id": ingest_run.id,
