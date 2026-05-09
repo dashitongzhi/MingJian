@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import secrets
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
@@ -82,7 +83,8 @@ class AuthService:
         self._users: dict[str, User] = {}  # user_id -> User
         self._username_index: dict[str, str] = {}  # username -> user_id
         self._email_index: dict[str, str] = {}  # email -> user_id
-        self._revoked_tokens: set[str] = set()
+        self._revoked_tokens: OrderedDict[str, None] = OrderedDict()  # bounded FIFO
+        self._max_revoked_tokens: int = 10_000
         self._refresh_tokens: dict[str, str] = {}  # refresh_token -> user_id
 
         # Create default admin if no users exist
@@ -180,14 +182,23 @@ class AuthService:
             return None
 
         # Revoke old refresh token
-        self._revoked_tokens.add(refresh_token)
+        self.revoke_token(refresh_token)
         self._refresh_tokens.pop(refresh_token, None)
 
         return self._create_token_pair(user)
 
     def revoke_token(self, token: str) -> None:
-        """Revoke a token."""
-        self._revoked_tokens.add(token)
+        """Revoke a token.
+
+        Evicts the oldest entry when the revoked-token set exceeds
+        ``_max_revoked_tokens`` to prevent unbounded memory growth in
+        long-running services.
+        """
+        if token in self._revoked_tokens:
+            return
+        self._revoked_tokens[token] = None
+        while len(self._revoked_tokens) > self._max_revoked_tokens:
+            self._revoked_tokens.popitem(last=False)
         self._refresh_tokens.pop(token, None)
 
     # ── Token Operations ──────────────────────────────────────
