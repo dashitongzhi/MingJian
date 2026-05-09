@@ -8,6 +8,7 @@ on:
     types: [created]
 
 permissions:
+  contents: read
   discussions: write
 
 jobs:
