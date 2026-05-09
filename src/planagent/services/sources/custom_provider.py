@@ -161,12 +161,14 @@ class CustomSourceProvider(DataSourceProvider):
 
     def get_config(self) -> dict[str, Any]:
         base = super().get_config()
-        base.update({
-            "source_type": self._source_type,
-            "url": self._url,
-            "item_path": self._item_path,
-            "field_map": self._field_map,
-        })
+        base.update(
+            {
+                "source_type": self._source_type,
+                "url": self._url,
+                "item_path": self._item_path,
+                "field_map": self._field_map,
+            }
+        )
         return base
 
     def describe(self) -> dict[str, Any]:
@@ -267,7 +269,7 @@ class CustomSourceProvider(DataSourceProvider):
         query_tokens = set(self.ascii_keywords(query.lower()))
         results: list[AnalysisSourceRead] = []
 
-        for item in items[:limit * 2]:  # fetch more to allow filtering
+        for item in items[: limit * 2]:  # fetch more to allow filtering
             if len(results) >= limit:
                 break
             title = self.clean_text(
@@ -280,11 +282,14 @@ class CustomSourceProvider(DataSourceProvider):
                 or item.findtext("summary", default="")
                 or item.findtext("{http://www.w3.org/2005/Atom}summary", default="")
             )
-            published_at = self.clean_text(
-                item.findtext("pubDate", default="")
-                or item.findtext("published", default="")
-                or item.findtext("{http://www.w3.org/2005/Atom}published", default="")
-            ) or None
+            published_at = (
+                self.clean_text(
+                    item.findtext("pubDate", default="")
+                    or item.findtext("published", default="")
+                    or item.findtext("{http://www.w3.org/2005/Atom}published", default="")
+                )
+                or None
+            )
 
             if query_tokens:
                 haystack = f"{title} {summary}".lower()
@@ -324,14 +329,12 @@ class CustomSourceProvider(DataSourceProvider):
         query_tokens = set(self.ascii_keywords(query.lower()))
         results: list[AnalysisSourceRead] = []
 
-        for item in items[:limit * 2]:
+        for item in items[: limit * 2]:
             if len(results) >= limit:
                 break
             title = self.clean_text(item.get("title") or "")
             url_value = self.clean_text(item.get("url") or item.get("external_url") or "")
-            summary = self.clean_text(
-                item.get("content_text") or item.get("content_html") or ""
-            )
+            summary = self.clean_text(item.get("content_text") or item.get("content_html") or "")
             published_at = self.clean_text(item.get("date_published") or "") or None
 
             if query_tokens:

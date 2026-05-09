@@ -72,7 +72,9 @@ class RuleRegistry:
         domains: list[str] = []
         total = 0
         if self.rules_root.exists():
-            for candidate in sorted(path.name for path in self.rules_root.iterdir() if path.is_dir()):
+            for candidate in sorted(
+                path.name for path in self.rules_root.iterdir() if path.is_dir()
+            ):
                 rules = self.get_rules(candidate)
                 if rules:
                     domains.append(candidate)

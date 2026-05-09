@@ -169,7 +169,9 @@ def test_military_resolution_adds_enemy_response_and_exchange_effects() -> None:
         },
     )
 
-    resolution = service._military.resolve_military_action_outcome(state, selected, claim, enemy_history=[])
+    resolution = service._military.resolve_military_action_outcome(
+        state, selected, claim, enemy_history=[]
+    )
 
     assert resolution.enemy_action_id in {
         "enemy_probe_supply",
@@ -177,8 +179,12 @@ def test_military_resolution_adds_enemy_response_and_exchange_effects() -> None:
         "enemy_press_objective",
     }
     assert resolution.actual_effect != selected.actual_effect
-    assert {"objective_control", "supply_network", "enemy_readiness", "enemy_pressure", "attrition_rate"} <= set(
-        resolution.actual_effect
-    )
+    assert {
+        "objective_control",
+        "supply_network",
+        "enemy_readiness",
+        "enemy_pressure",
+        "attrition_rate",
+    } <= set(resolution.actual_effect)
     assert resolution.fire_balance <= 0.75
     assert resolution.fire_balance >= -0.75

@@ -16,9 +16,7 @@ from .openai import (
     model_source,
 )
 
-_TARGET_FIELD_RE = re.compile(
-    r"^(?:resolved_)?openai_(.+)_(model|api_key|base_url)$"
-)
+_TARGET_FIELD_RE = re.compile(r"^(?:resolved_)?openai_(.+)_(model|api_key|base_url)$")
 
 
 class Settings(BaseAppSettings):

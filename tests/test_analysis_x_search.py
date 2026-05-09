@@ -71,10 +71,14 @@ def test_source_types_request_unconfigured_provider_without_failure() -> None:
         max_source_items={"xiaohongshu": 2},
     )
 
-    bundle = asyncio.run(service._fetch_related_sources(payload, "enterprise AI agent adoption", "corporate"))
+    bundle = asyncio.run(
+        service._fetch_related_sources(payload, "enterprise AI agent adoption", "corporate")
+    )
 
     assert bundle.sources == []
-    assert any(step.stage == "source_skip" and "Xiaohongshu" in step.message for step in bundle.steps)
+    assert any(
+        step.stage == "source_skip" and "Xiaohongshu" in step.message for step in bundle.steps
+    )
 
 
 def test_source_types_override_legacy_include_flags() -> None:
@@ -100,8 +104,14 @@ def test_source_types_override_legacy_include_flags() -> None:
         max_source_items={"linux_do": 1},
     )
 
-    bundle = asyncio.run(service._fetch_related_sources(payload, "agent deployment reliability", "corporate"))
+    bundle = asyncio.run(
+        service._fetch_related_sources(payload, "agent deployment reliability", "corporate")
+    )
 
     assert len(bundle.sources) == 1
     assert bundle.sources[0].source_type == "linux_do_discourse"
-    assert all("Google News" not in step.message for step in bundle.steps if step.stage == "source_complete")
+    assert all(
+        "Google News" not in step.message
+        for step in bundle.steps
+        if step.stage == "source_complete"
+    )

@@ -14,7 +14,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import Settings
-from planagent.domain.api import AnalysisRequest, AnalysisResponse, AnalysisSourceRead, AnalysisStepRead
+from planagent.domain.api import (
+    AnalysisRequest,
+    AnalysisResponse,
+    AnalysisSourceRead,
+    AnalysisStepRead,
+)
 from planagent.domain.models import SourceHealth, utc_now
 from planagent.services.openai_client import OpenAIService
 from planagent.services.sources.registry import SourceRegistry
@@ -87,20 +92,24 @@ class AutomatedAnalysisService:
 
             fetch_bundle: SourceFetchBundle | None = None
             try:
-                async for fetch_item in self._fetch_related_sources_with_events(payload, query, domain_id):
+                async for fetch_item in self._fetch_related_sources_with_events(
+                    payload, query, domain_id
+                ):
                     if isinstance(fetch_item, AnalysisEvent):
                         yield fetch_item
                     else:
                         fetch_bundle = fetch_item
             except Exception as exc:
                 logger.warning("Source fetching with events failed: %s", exc)
-                fetch_bundle = SourceFetchBundle(sources=[], steps=[
-                    self._step("fetch_error", "Source fetching failed.", str(exc)[:240])
-                ])
+                fetch_bundle = SourceFetchBundle(
+                    sources=[],
+                    steps=[self._step("fetch_error", "Source fetching failed.", str(exc)[:240])],
+                )
             if fetch_bundle is None:
-                fetch_bundle = SourceFetchBundle(sources=[], steps=[
-                    self._step("fetch_error", "Source fetching returned no result.", None)
-                ])
+                fetch_bundle = SourceFetchBundle(
+                    sources=[],
+                    steps=[self._step("fetch_error", "Source fetching returned no result.", None)],
+                )
             sources = fetch_bundle.sources
             for provider_step in fetch_bundle.steps:
                 reasoning_steps.append(provider_step)
@@ -170,9 +179,12 @@ class AutomatedAnalysisService:
                     yield fetch_task.result()
                 except Exception as exc:
                     logger.warning("Source fetch task failed: %s", exc)
-                    yield SourceFetchBundle(sources=[], steps=[
-                        self._step("fetch_error", "Source fetching failed.", str(exc)[:240])
-                    ])
+                    yield SourceFetchBundle(
+                        sources=[],
+                        steps=[
+                            self._step("fetch_error", "Source fetching failed.", str(exc)[:240])
+                        ],
+                    )
                 return
 
     async def _build_analysis(
@@ -328,7 +340,9 @@ class AutomatedAnalysisService:
 
         fetch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for (index, adapter, limit), provider_results in zip(fetch_requests, fetch_results, strict=True):
+        for (index, adapter, limit), provider_results in zip(
+            fetch_requests, fetch_results, strict=True
+        ):
             provider_label = adapter.label
             if isinstance(provider_results, Exception):
                 error_detail = (
@@ -367,12 +381,10 @@ class AutomatedAnalysisService:
                 if len(items_preview) < 3:
                     items_preview.append(source.title)
 
-            steps_by_adapter[index] = (
-                self._step(
-                    "source_complete",
-                    f"Collected {added} item(s) from {provider_label}.",
-                    f"Requested {limit}; deduped total is now {len(results)}.",
-                )
+            steps_by_adapter[index] = self._step(
+                "source_complete",
+                f"Collected {added} item(s) from {provider_label}.",
+                f"Requested {limit}; deduped total is now {len(results)}.",
             )
             await emit(
                 "source_complete",
@@ -397,7 +409,9 @@ class AutomatedAnalysisService:
         record.last_success_at = utc_now()
         record.updated_at = utc_now()
 
-    async def record_source_failure(self, session: AsyncSession, source_type: str, error: str) -> None:
+    async def record_source_failure(
+        self, session: AsyncSession, source_type: str, error: str
+    ) -> None:
         record = await self._get_source_health(session, source_type)
         record.consecutive_failures += 1
         record.status = (
@@ -425,9 +439,14 @@ class AutomatedAnalysisService:
         if payload.domain_id != "auto":
             return payload.domain_id
         lowered = payload.content.lower()
-        if any(keyword in lowered for keyword in ["brigade", "drone", "strike", "theater", "supply line"]):
+        if any(
+            keyword in lowered
+            for keyword in ["brigade", "drone", "strike", "theater", "supply line"]
+        ):
             return "military"
-        if any(keyword in lowered for keyword in ["company", "startup", "gpu", "market", "product"]):
+        if any(
+            keyword in lowered for keyword in ["company", "startup", "gpu", "market", "product"]
+        ):
             return "corporate"
         return "general"
 
@@ -458,7 +477,9 @@ class AutomatedAnalysisService:
             findings.append(self._clean_text(content)[:180])
         return findings[:5]
 
-    def _heuristic_recommendations(self, domain_id: str, sources: list[AnalysisSourceRead]) -> list[str]:
+    def _heuristic_recommendations(
+        self, domain_id: str, sources: list[AnalysisSourceRead]
+    ) -> list[str]:
         if domain_id == "military":
             return [
                 "Re-check logistics and threat signals before committing additional maneuver.",
@@ -470,7 +491,9 @@ class AutomatedAnalysisService:
                 "Map the reported changes to product, pricing, and runway impact before acting.",
             ]
         if sources:
-            return ["Review the top repeated themes and decide whether they change the working assessment."]
+            return [
+                "Review the top repeated themes and decide whether they change the working assessment."
+            ]
         return ["Provide a narrower topic or enable auto-fetch to improve coverage."]
 
     def _clean_text(self, value: str) -> str:
@@ -481,7 +504,11 @@ class AutomatedAnalysisService:
     def _step(self, stage: str, message: str, detail: str | None = None) -> AnalysisStepRead:
         return AnalysisStepRead(stage=stage, message=message, detail=detail)
 
-    def _event(self, event: str, payload: AnalysisStepRead | AnalysisSourceRead | AnalysisResponse | dict[str, Any]) -> AnalysisEvent:
+    def _event(
+        self,
+        event: str,
+        payload: AnalysisStepRead | AnalysisSourceRead | AnalysisResponse | dict[str, Any],
+    ) -> AnalysisEvent:
         if isinstance(payload, dict):
             return AnalysisEvent(event=event, payload=payload)
         return AnalysisEvent(event=event, payload=payload.model_dump(mode="json"))

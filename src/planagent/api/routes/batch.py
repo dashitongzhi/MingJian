@@ -169,9 +169,7 @@ async def submit_batch_task(
 
     sub_tasks: list[BatchSubTask] = []
     for idx, proposal in enumerate(payload.proposals):
-        topic = (
-            f"评估方案「{proposal.title}」对于决策点「{payload.decision_point}」的可行性"
-        )
+        topic = f"评估方案「{proposal.title}」对于决策点「{payload.decision_point}」的可行性"
         sub_task = BatchSubTask(
             batch_id=batch.id,
             index=idx,
@@ -231,9 +229,7 @@ async def get_batch_sub_tasks(
         raise HTTPException(status_code=404, detail="批量任务不存在。")
 
     query = (
-        select(BatchSubTask)
-        .where(BatchSubTask.batch_id == batch_id)
-        .order_by(BatchSubTask.index)
+        select(BatchSubTask).where(BatchSubTask.batch_id == batch_id).order_by(BatchSubTask.index)
     )
     sub_tasks = list((await session.scalars(query)).all())
     return [BatchSubTaskRead.model_validate(st) for st in sub_tasks]
@@ -290,9 +286,7 @@ async def list_batch_tasks(
 # ── 辅助 ─────────────────────────────────────────────────────────
 
 
-def _build_detail_read(
-    batch: BatchTask, sub_tasks: list[BatchSubTask]
-) -> BatchTaskDetailRead:
+def _build_detail_read(batch: BatchTask, sub_tasks: list[BatchSubTask]) -> BatchTaskDetailRead:
     return BatchTaskDetailRead(
         id=batch.id,
         title=batch.title,

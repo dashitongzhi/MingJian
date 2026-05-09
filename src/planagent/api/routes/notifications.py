@@ -1,4 +1,5 @@
 """Notification API routes — WebSocket and REST notification endpoints."""
+
 from __future__ import annotations
 
 import json
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 # ── Request Models ────────────────────────────────────────────
 
+
 class SendNotificationRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     user_id: str
@@ -37,9 +39,11 @@ class BroadcastRequest(BaseModel):
 
 # ── Dependency ────────────────────────────────────────────────
 
+
 def _get_notification_service(request: Request) -> NotificationService:
     if not hasattr(request.app.state, "notification_service"):
         from planagent.config import get_settings
+
         settings = get_settings()
         config = NotificationConfig(
             smtp_host=getattr(settings, "smtp_host", None),
@@ -54,6 +58,7 @@ def _get_notification_service(request: Request) -> NotificationService:
 
 
 # ── REST Endpoints ────────────────────────────────────────────
+
 
 @router.post("/send")
 async def send_notification(
@@ -126,6 +131,7 @@ async def get_notification_stats(request: Request) -> dict[str, Any]:
 
 
 # ── WebSocket Endpoint ────────────────────────────────────────
+
 
 @router.websocket("/ws/{user_id}")
 async def notification_websocket(

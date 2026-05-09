@@ -1,4 +1,5 @@
 """Export API routes — Markdown and PDF export endpoints."""
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -31,6 +32,7 @@ def _get_export_service(request: Request) -> ExportService:
 
 
 # ── Export Assistant Result ───────────────────────────────────
+
 
 @router.get("/assistant/session/{session_id}")
 async def export_assistant_session(
@@ -163,6 +165,7 @@ async def export_assistant_session(
 
 # ── Export Debate ─────────────────────────────────────────────
 
+
 @router.get("/debate/{session_id}")
 async def export_debate(
     session_id: str,
@@ -205,21 +208,18 @@ async def export_debate(
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="debate_{session_id[:8]}.pdf"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="debate_{session_id[:8]}.pdf"'},
         )
     else:
         return Response(
             content=md_content.encode("utf-8"),
             media_type="text/markdown; charset=utf-8",
-            headers={
-                "Content-Disposition": f'attachment; filename="debate_{session_id[:8]}.md"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="debate_{session_id[:8]}.md"'},
         )
 
 
 # ── Export Simulation Report ─────────────────────────────────
+
 
 @router.get("/simulation/{run_id}")
 async def export_simulation(
@@ -269,21 +269,18 @@ async def export_simulation(
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="simulation_{run_id[:8]}.pdf"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="simulation_{run_id[:8]}.pdf"'},
         )
     else:
         return Response(
             content=md_content.encode("utf-8"),
             media_type="text/markdown; charset=utf-8",
-            headers={
-                "Content-Disposition": f'attachment; filename="simulation_{run_id[:8]}.md"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="simulation_{run_id[:8]}.md"'},
         )
 
 
 # ── Export via POST (arbitrary data) ─────────────────────────
+
 
 @router.post("/custom")
 async def export_custom(

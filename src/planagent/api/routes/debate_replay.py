@@ -27,6 +27,7 @@ def _get_replay_service(request: Request) -> DebateReplayService:
 
 # ── GET /debates/{debate_id}/replay ──────────────────────────────────────────
 
+
 @router.get(
     "/debates/{debate_id}/replay",
     response_model=DebateReplayRead,
@@ -45,6 +46,7 @@ async def get_debate_replay(
 
 
 # ── GET /debates/{debate_id}/replay/rounds/{round_number} ───────────────────
+
 
 @router.get(
     "/debates/{debate_id}/replay/rounds/{round_number}",
@@ -66,6 +68,7 @@ async def get_round_replay(
 
 # ── GET /debates/{debate_id}/timeline ────────────────────────────────────────
 
+
 @router.get(
     "/debates/{debate_id}/timeline",
     response_model=DebateTimelineRead,
@@ -84,6 +87,7 @@ async def get_debate_timeline(
 
 
 # ── GET /debates/compare ─────────────────────────────────────────────────────
+
 
 @router.get(
     "/debates/compare",
@@ -104,6 +108,7 @@ async def compare_debates(
 
 
 # ── GET /debates/{debate_id}/summary ─────────────────────────────────────────
+
 
 @router.get(
     "/debates/{debate_id}/summary",

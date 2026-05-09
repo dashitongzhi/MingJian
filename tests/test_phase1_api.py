@@ -57,7 +57,9 @@ def disable_openai(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
-def test_inline_ingest_creates_review_queue_and_promotes_claims(monkeypatch, tmp_path: Path) -> None:
+def test_inline_ingest_creates_review_queue_and_promotes_claims(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-test.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -126,7 +128,9 @@ def test_inline_ingest_creates_review_queue_and_promotes_claims(monkeypatch, tmp
         assert len(signal_response.json()["items"]) == 1
 
 
-def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, tmp_path: Path) -> None:
+def test_queued_ingest_flows_through_ingest_and_knowledge_workers(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-queued.db"
     database_url = build_database_url(database_path)
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", database_url)
@@ -175,10 +179,19 @@ def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, t
         database = get_database(database_url)
         async with database.session() as session:
             run = await session.get(IngestRun, ingest_run["id"])
-            evidence_count = int((await session.scalar(select(func.count()).select_from(EvidenceItem))) or 0)
+            evidence_count = int(
+                (await session.scalar(select(func.count()).select_from(EvidenceItem))) or 0
+            )
             claim_count = int((await session.scalar(select(func.count()).select_from(Claim))) or 0)
-            review_count = int((await session.scalar(select(func.count()).select_from(ReviewItem))) or 0)
-            return (run.status if run is not None else None, evidence_count, claim_count, review_count)
+            review_count = int(
+                (await session.scalar(select(func.count()).select_from(ReviewItem))) or 0
+            )
+            return (
+                run.status if run is not None else None,
+                evidence_count,
+                claim_count,
+                review_count,
+            )
 
     status, evidence_count, claim_count, review_count = asyncio.run(load_counts())
     assert status == "PROCESSING"
@@ -190,7 +203,12 @@ def test_queued_ingest_flows_through_ingest_and_knowledge_workers(monkeypatch, t
     assert knowledge_result["processed_items"] == 1
     assert knowledge_result["completed_runs"] == 1
     all_topics = []
-    for topic in ["raw.ingested", "evidence.created", "claim.review_requested", "knowledge.extracted"]:
+    for topic in [
+        "raw.ingested",
+        "evidence.created",
+        "claim.review_requested",
+        "knowledge.extracted",
+    ]:
         all_topics.extend([e.topic for e in event_bus._events.get(topic, [])])
     assert all_topics == [
         "raw.ingested",
@@ -246,8 +264,12 @@ def test_graph_worker_persists_evidence_claim_graph(monkeypatch, tmp_path: Path)
     async def load_graph_counts() -> tuple[int, int, int]:
         database = get_database(database_url)
         async with database.session() as session:
-            node_count = int((await session.scalar(select(func.count()).select_from(KnowledgeGraphNode))) or 0)
-            edge_count = int((await session.scalar(select(func.count()).select_from(KnowledgeGraphEdge))) or 0)
+            node_count = int(
+                (await session.scalar(select(func.count()).select_from(KnowledgeGraphNode))) or 0
+            )
+            edge_count = int(
+                (await session.scalar(select(func.count()).select_from(KnowledgeGraphEdge))) or 0
+            )
             embedded_count = int(
                 (
                     await session.scalar(
@@ -282,7 +304,9 @@ def test_graph_worker_persists_evidence_claim_graph(monkeypatch, tmp_path: Path)
         assert search_results[0]["score"] > 0
 
 
-def test_review_worker_auto_rejects_conflicting_claim_with_accepted_context(monkeypatch, tmp_path: Path) -> None:
+def test_review_worker_auto_rejects_conflicting_claim_with_accepted_context(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-review-worker.db"
     database_url = build_database_url(database_path)
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", database_url)
@@ -338,7 +362,9 @@ def test_review_worker_auto_rejects_conflicting_claim_with_accepted_context(monk
     assert review_result["debated_items"] == 1
     assert review_result["auto_rejected"] == 1
     assert review_result["auto_accepted"] == 0
-    assert [e.topic for e in event_bus._events.get("debate.triggered", [])] + [e.topic for e in event_bus._events.get("debate.completed", [])] == [
+    assert [e.topic for e in event_bus._events.get("debate.triggered", [])] + [
+        e.topic for e in event_bus._events.get("debate.completed", [])
+    ] == [
         "debate.triggered",
         "debate.completed",
     ]
@@ -347,13 +373,17 @@ def test_review_worker_auto_rejects_conflicting_claim_with_accepted_context(monk
         database = get_database(database_url)
         async with database.session() as session:
             review_item = (
-                await session.scalars(select(ReviewItem).order_by(ReviewItem.created_at.desc()).limit(1))
+                await session.scalars(
+                    select(ReviewItem).order_by(ReviewItem.created_at.desc()).limit(1)
+                )
             ).first()
-            claim = await session.get(Claim, review_item.claim_id if review_item is not None else "")
-            debate_count = int((await session.scalar(select(func.count()).select_from(DebateSessionRecord))) or 0)
-            latest_verdict = (
-                await session.scalars(select(DebateVerdictRecord).limit(1))
-            ).first()
+            claim = await session.get(
+                Claim, review_item.claim_id if review_item is not None else ""
+            )
+            debate_count = int(
+                (await session.scalar(select(func.count()).select_from(DebateSessionRecord))) or 0
+            )
+            latest_verdict = (await session.scalars(select(DebateVerdictRecord).limit(1))).first()
             return (
                 review_item.status if review_item is not None else None,
                 claim.status if claim is not None else None,
@@ -368,7 +398,9 @@ def test_review_worker_auto_rejects_conflicting_claim_with_accepted_context(monk
     assert verdict == "REJECTED"
 
 
-def test_review_worker_auto_accepts_corroborated_claim_without_conflict(monkeypatch, tmp_path: Path) -> None:
+def test_review_worker_auto_accepts_corroborated_claim_without_conflict(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-review-worker-accept.db"
     database_url = build_database_url(database_path)
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", database_url)
@@ -424,7 +456,11 @@ def test_review_worker_auto_accepts_corroborated_claim_without_conflict(monkeypa
     assert review_result["debated_items"] == 1
     assert review_result["auto_accepted"] == 1
     assert review_result["auto_rejected"] == 0
-    topics = [e.topic for e in event_bus._events.get("debate.triggered", [])] + [e.topic for e in event_bus._events.get("debate.completed", [])] + [e.topic for e in event_bus._events.get("evidence.created", [])]
+    topics = (
+        [e.topic for e in event_bus._events.get("debate.triggered", [])]
+        + [e.topic for e in event_bus._events.get("debate.completed", [])]
+        + [e.topic for e in event_bus._events.get("evidence.created", [])]
+    )
     assert topics == [
         "debate.triggered",
         "debate.completed",
@@ -435,13 +471,17 @@ def test_review_worker_auto_accepts_corroborated_claim_without_conflict(monkeypa
         database = get_database(database_url)
         async with database.session() as session:
             review_item = (
-                await session.scalars(select(ReviewItem).order_by(ReviewItem.created_at.desc()).limit(1))
+                await session.scalars(
+                    select(ReviewItem).order_by(ReviewItem.created_at.desc()).limit(1)
+                )
             ).first()
-            claim = await session.get(Claim, review_item.claim_id if review_item is not None else "")
-            debate_count = int((await session.scalar(select(func.count()).select_from(DebateSessionRecord))) or 0)
-            latest_verdict = (
-                await session.scalars(select(DebateVerdictRecord).limit(1))
-            ).first()
+            claim = await session.get(
+                Claim, review_item.claim_id if review_item is not None else ""
+            )
+            debate_count = int(
+                (await session.scalar(select(func.count()).select_from(DebateSessionRecord))) or 0
+            )
+            latest_verdict = (await session.scalars(select(DebateVerdictRecord).limit(1))).first()
             return (
                 review_item.status if review_item is not None else None,
                 claim.status if claim is not None else None,
@@ -525,7 +565,10 @@ def test_openai_status_reports_target_level_inheritance(monkeypatch, tmp_path: P
     assert payload["base_url_sources"]["x_search"] == "PLANAGENT_OPENAI_EXTRACTION_BASE_URL"
     assert payload["api_key_sources"]["report"] == "unset"
     assert payload["target_diagnostics"]["extraction"]["configured"] is True
-    assert payload["target_diagnostics"]["extraction"]["resolved_model"] == "gemini-3.1-pro-preview-search"
+    assert (
+        payload["target_diagnostics"]["extraction"]["resolved_model"]
+        == "gemini-3.1-pro-preview-search"
+    )
     assert payload["target_diagnostics"]["x_search"]["base_url"] == "https://extract.example/v1"
 
 
@@ -770,4 +813,7 @@ def test_pipeline_uses_extraction_target_without_primary() -> None:
     assert len(candidates) == 1
     assert candidates[0].statement == "Acme reduced model training cost by 22 percent."
     assert candidates[0].kind == "signal"
-    assert candidates[0].reasoning == "openai_responses:The sentence directly states the cost reduction."
+    assert (
+        candidates[0].reasoning
+        == "openai_responses:The sentence directly states the cost reduction."
+    )

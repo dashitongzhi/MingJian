@@ -151,7 +151,9 @@ async def strategic_console():
         return FileResponse(str(_CONSOLE_HTML), media_type="text/html")
     return JSONResponse(
         status_code=404,
-        content={"detail": "Strategic console UI not yet available. Use the frontend at :3001 instead."},
+        content={
+            "detail": "Strategic console UI not yet available. Use the frontend at :3001 instead."
+        },
     )
 
 
@@ -185,7 +187,9 @@ async def list_strategic_sessions(
     session: AsyncSession = Depends(get_session),
 ) -> list[StrategicSessionRead]:
     service = get_assistant_service(request)
-    return await service.list_sessions(session, tenant_id=tenant_id, preset_id=preset_id, limit=limit)
+    return await service.list_sessions(
+        session, tenant_id=tenant_id, preset_id=preset_id, limit=limit
+    )
 
 
 @router.get("/assistant/sessions/{session_id}", response_model=StrategicSessionDetailRead)

@@ -68,7 +68,10 @@ class RSSProvider(DataSourceProvider):
         return [r.model_dump() for r in results]
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         feed_urls = self._feed_urls(domain_id)
         if limit <= 0 or not feed_urls:
@@ -83,7 +86,9 @@ class RSSProvider(DataSourceProvider):
                 response = await client.get(feed_url, headers={"User-Agent": "PlanAgent/0.1"})
                 response.raise_for_status()
                 root = ET.fromstring(response.text)
-                for item in root.findall(".//item") + root.findall(".//{http://www.w3.org/2005/Atom}entry"):
+                for item in root.findall(".//item") + root.findall(
+                    ".//{http://www.w3.org/2005/Atom}entry"
+                ):
                     if len(results) >= limit:
                         break
                     title = self.clean_text(
@@ -96,13 +101,18 @@ class RSSProvider(DataSourceProvider):
                         or item.findtext("summary", default="")
                         or item.findtext("{http://www.w3.org/2005/Atom}summary", default="")
                     )
-                    published_at = self.clean_text(
-                        item.findtext("pubDate", default="")
-                        or item.findtext("published", default="")
-                        or item.findtext("{http://www.w3.org/2005/Atom}published", default="")
-                    ) or None
+                    published_at = (
+                        self.clean_text(
+                            item.findtext("pubDate", default="")
+                            or item.findtext("published", default="")
+                            or item.findtext("{http://www.w3.org/2005/Atom}published", default="")
+                        )
+                        or None
+                    )
                     haystack = f"{title} {summary}".lower()
-                    if query_tokens and not any(token.lower() in haystack for token in query_tokens):
+                    if query_tokens and not any(
+                        token.lower() in haystack for token in query_tokens
+                    ):
                         continue
                     if not title or not link:
                         continue
@@ -125,9 +135,7 @@ class RSSProvider(DataSourceProvider):
 
     def _feed_urls(self, domain_id: str) -> list[str]:
         configured = [
-            item.strip()
-            for item in self.settings.additional_rss_feeds.split(",")
-            if item.strip()
+            item.strip() for item in self.settings.additional_rss_feeds.split(",") if item.strip()
         ]
         defaults: dict[str, list[str]] = {
             "corporate": [

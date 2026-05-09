@@ -129,7 +129,9 @@ async def create_scenario_run(
     )
 
 
-@router.post("/runs/{run_id}/scenario-search", response_model=list[ScenarioRunRead], status_code=201)
+@router.post(
+    "/runs/{run_id}/scenario-search", response_model=list[ScenarioRunRead], status_code=201
+)
 async def create_scenario_search(
     run_id: str,
     payload: ScenarioSearchRequest,
@@ -147,7 +149,10 @@ async def create_scenario_search(
         fork_step = max(1, min(baseline.tick_count, 1 + index))
         probability = ["high", "medium-high", "medium", "medium-low", "low"][min(index, 4)]
         assumptions = [
-            *(payload.assumptions or ["Automatic beam-search branch generated from baseline thresholds."]),
+            *(
+                payload.assumptions
+                or ["Automatic beam-search branch generated from baseline thresholds."]
+            ),
             f"branch_candidate={index + 1}",
             f"search_depth={payload.depth}",
         ]
@@ -212,7 +217,9 @@ async def get_run_workbench(
         scenario_compare = await simulation_service.build_scenario_compare(session, run_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return workbench.model_copy(update={"scenario_compare": ScenarioCompareRead(**scenario_compare)})
+    return workbench.model_copy(
+        update={"scenario_compare": ScenarioCompareRead(**scenario_compare)}
+    )
 
 
 @router.get("/runs/{run_id}/scenario-compare", response_model=ScenarioCompareRead)
@@ -317,9 +324,15 @@ async def get_replay_package(
             {"tick": item.tick, "actor_id": item.actor_id, "state": item.state}
             for item in snapshots
         ],
-        "decisions": [DecisionRecordModel.model_validate(item).model_dump(mode="json") for item in decisions],
-        "external_shocks": [ExternalShockModel.model_validate(item).model_dump(mode="json") for item in shocks],
-        "reports": [GeneratedReportModel.model_validate(item).model_dump(mode="json") for item in reports],
+        "decisions": [
+            DecisionRecordModel.model_validate(item).model_dump(mode="json") for item in decisions
+        ],
+        "external_shocks": [
+            ExternalShockModel.model_validate(item).model_dump(mode="json") for item in shocks
+        ],
+        "reports": [
+            GeneratedReportModel.model_validate(item).model_dump(mode="json") for item in reports
+        ],
     }
     record = ScenarioReplayPackageRecord(
         run_id=run.id,
@@ -330,7 +343,9 @@ async def get_replay_package(
     session.add(record)
     await session.commit()
     await session.refresh(record)
-    return ReplayPackageRead(run_id=run.id, domain_id=run.domain_id, package=package, created_at=record.created_at)
+    return ReplayPackageRead(
+        run_id=run.id, domain_id=run.domain_id, package=package, created_at=record.created_at
+    )
 
 
 @router.get("/companies/{company_id}/reports/latest", response_model=GeneratedReportModel)
@@ -367,9 +382,13 @@ async def get_run_startup_kpis(
     )
     start_state = state_snapshots[0].state if state_snapshots else {}
     final_state = state_snapshots[-1].state if state_snapshots else {}
-    kpi_pack = build_startup_kpi_pack(run, start_state, final_state, run.summary.get("matched_rules", []))
+    kpi_pack = build_startup_kpi_pack(
+        run, start_state, final_state, run.summary.get("matched_rules", [])
+    )
     if kpi_pack is None:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} does not expose a startup KPI pack.")
+        raise HTTPException(
+            status_code=404, detail=f"Run {run_id} does not expose a startup KPI pack."
+        )
     return kpi_pack
 
 
@@ -382,7 +401,9 @@ async def get_military_report(
     service = get_simulation_service(request)
     report = await service.latest_military_report(session, scenario_id)
     if report is None:
-        raise HTTPException(status_code=404, detail=f"No report found for military scenario {scenario_id}.")
+        raise HTTPException(
+            status_code=404, detail=f"No report found for military scenario {scenario_id}."
+        )
     return GeneratedReportModel.model_validate(report)
 
 

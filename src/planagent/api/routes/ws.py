@@ -122,7 +122,11 @@ async def _notification_for_event(event: ConsumedEvent) -> dict[str, str] | None
         run_id = _string_value(payload.get("simulation_run_id"))
         scenario = _string_value(payload.get("scenario_name"))
         title = "Simulation completed"
-        body = f"Simulation {scenario + ' ' if scenario else ''}has completed." if run_id else "A simulation has completed."
+        body = (
+            f"Simulation {scenario + ' ' if scenario else ''}has completed."
+            if run_id
+            else "A simulation has completed."
+        )
         if session_id:
             action_url = f"/assistant?session={session_id}"
     elif event.topic == "session.updated":

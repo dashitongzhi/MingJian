@@ -14,17 +14,56 @@ from planagent.workers.base import Worker, WorkerDescription
 
 _TOKEN_RE = __import__("re").compile(r"[a-z0-9]+")
 _CLAIM_DIRECTION_POSITIVE = {
-    "increase", "increased", "improve", "improved", "grow", "grew",
-    "gain", "gained", "ship", "shipped", "launch", "launched",
-    "deploy", "deployed", "restore", "restored", "rise", "rose",
-    "support", "supported", "open", "opened",
+    "increase",
+    "increased",
+    "improve",
+    "improved",
+    "grow",
+    "grew",
+    "gain",
+    "gained",
+    "ship",
+    "shipped",
+    "launch",
+    "launched",
+    "deploy",
+    "deployed",
+    "restore",
+    "restored",
+    "rise",
+    "rose",
+    "support",
+    "supported",
+    "open",
+    "opened",
 }
 _CLAIM_DIRECTION_NEGATIVE = {
-    "decrease", "decreased", "decline", "declined", "drop", "dropped",
-    "fall", "fell", "delay", "delayed", "cancel", "canceled",
-    "block", "blocked", "disrupt", "disrupted", "reduce", "reduced",
-    "damage", "damaged", "loss", "losses", "reject", "rejected",
-    "withdraw", "withdrew",
+    "decrease",
+    "decreased",
+    "decline",
+    "declined",
+    "drop",
+    "dropped",
+    "fall",
+    "fell",
+    "delay",
+    "delayed",
+    "cancel",
+    "canceled",
+    "block",
+    "blocked",
+    "disrupt",
+    "disrupted",
+    "reduce",
+    "reduced",
+    "damage",
+    "damaged",
+    "loss",
+    "losses",
+    "reject",
+    "rejected",
+    "withdraw",
+    "withdrew",
 }
 
 
@@ -77,10 +116,12 @@ class KnowledgeWorker(Worker):
                 await session.scalars(
                     select(Claim)
                     .where(
-                        Claim.status.in_([
-                            ClaimStatus.ACCEPTED.value,
-                            ClaimStatus.PENDING_REVIEW.value,
-                        ]),
+                        Claim.status.in_(
+                            [
+                                ClaimStatus.ACCEPTED.value,
+                                ClaimStatus.PENDING_REVIEW.value,
+                            ]
+                        ),
                     )
                     .order_by(Claim.updated_at.desc())
                     .limit(20)
@@ -105,10 +146,12 @@ class KnowledgeWorker(Worker):
                             .where(
                                 Claim.id != claim.id,
                                 Claim.evidence_item_id != claim.evidence_item_id,
-                                Claim.status.in_([
-                                    ClaimStatus.ACCEPTED.value,
-                                    ClaimStatus.PENDING_REVIEW.value,
-                                ]),
+                                Claim.status.in_(
+                                    [
+                                        ClaimStatus.ACCEPTED.value,
+                                        ClaimStatus.PENDING_REVIEW.value,
+                                    ]
+                                ),
                             )
                             .order_by(Claim.updated_at.desc())
                             .limit(50)
@@ -123,27 +166,43 @@ class KnowledgeWorker(Worker):
                 max_conflict_confidence = 0.0
 
                 for candidate in candidates:
-                    similarity = self._claim_similarity(base_tokens, self._claim_tokens(candidate.statement))
-                    subject_match = normalize_text(candidate.subject).lower() == normalize_text(claim.subject).lower()
+                    similarity = self._claim_similarity(
+                        base_tokens, self._claim_tokens(candidate.statement)
+                    )
+                    subject_match = (
+                        normalize_text(candidate.subject).lower()
+                        == normalize_text(claim.subject).lower()
+                    )
                     threshold = 0.2 if subject_match else 0.3
                     if similarity < threshold:
                         continue
 
                     candidate_direction = self._claim_direction(candidate.statement)
-                    if base_direction != 0 and candidate_direction != 0 and base_direction != candidate_direction:
+                    if (
+                        base_direction != 0
+                        and candidate_direction != 0
+                        and base_direction != candidate_direction
+                    ):
                         conflicting_count += 1
-                        max_conflict_confidence = max(max_conflict_confidence, float(candidate.confidence))
+                        max_conflict_confidence = max(
+                            max_conflict_confidence, float(candidate.confidence)
+                        )
                     else:
                         supportive_count += 1
-                        max_support_confidence = max(max_support_confidence, float(candidate.confidence))
+                        max_support_confidence = max(
+                            max_support_confidence, float(candidate.confidence)
+                        )
 
                 if supportive_count == 0 and conflicting_count == 0:
                     continue
 
                 old_confidence = float(claim.confidence)
                 new_confidence = self._recalculate_confidence(
-                    old_confidence, supportive_count, conflicting_count,
-                    max_support_confidence, max_conflict_confidence,
+                    old_confidence,
+                    supportive_count,
+                    conflicting_count,
+                    max_support_confidence,
+                    max_conflict_confidence,
                 )
                 evidence = await session.get(EvidenceItem, claim.evidence_item_id)
                 if evidence is not None:
@@ -160,7 +219,10 @@ class KnowledgeWorker(Worker):
                 old_status = claim.status
                 claim.confidence = new_confidence
 
-                if new_confidence >= self.settings.accepted_claim_confidence and old_status != ClaimStatus.ACCEPTED.value:
+                if (
+                    new_confidence >= self.settings.accepted_claim_confidence
+                    and old_status != ClaimStatus.ACCEPTED.value
+                ):
                     claim.status = ClaimStatus.ACCEPTED.value
                     claim.requires_review = False
                 elif (
@@ -204,11 +266,7 @@ class KnowledgeWorker(Worker):
 
     def _claim_tokens(self, statement: str) -> set[str]:
         normalized = normalize_text(statement).lower()
-        return {
-            token
-            for token in _TOKEN_RE.findall(normalized)
-            if len(token) > 2
-        }
+        return {token for token in _TOKEN_RE.findall(normalized) if len(token) > 2}
 
     def _claim_similarity(self, base_tokens: set[str], candidate_tokens: set[str]) -> float:
         if not base_tokens or not candidate_tokens:

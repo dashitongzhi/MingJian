@@ -14,7 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import Settings
 from planagent.domain.api import IngestRunCreate, ReviewDecisionRequest, SourceSeedInput
-from planagent.domain.enums import ClaimStatus, EventTopic, ExecutionMode, IngestRunStatus, ReviewItemStatus
+from planagent.domain.enums import (
+    ClaimStatus,
+    EventTopic,
+    ExecutionMode,
+    IngestRunStatus,
+    ReviewItemStatus,
+)
 from planagent.domain.models import (
     Claim,
     EventArchive,
@@ -93,11 +99,18 @@ def estimate_claim_confidence(evidence_confidence: float, sentence: str) -> floa
 
 def classify_claim(statement: str) -> tuple[str | None, str]:
     lowered = statement.lower()
-    if any(keyword in lowered for keyword in ["launch", "release", "ship", "strike", "deploy", "announce"]):
+    if any(
+        keyword in lowered
+        for keyword in ["launch", "release", "ship", "strike", "deploy", "announce"]
+    ):
         return "event", "notable_action"
-    if any(keyword in lowered for keyword in ["increase", "decrease", "rise", "drop", "percent", "%"]):
+    if any(
+        keyword in lowered for keyword in ["increase", "decrease", "rise", "drop", "percent", "%"]
+    ):
         return "signal", "metric_shift"
-    if any(keyword in lowered for keyword in ["trend", "momentum", "adoption", "growing", "declining"]):
+    if any(
+        keyword in lowered for keyword in ["trend", "momentum", "adoption", "growing", "declining"]
+    ):
         return "trend", "trajectory"
     return None, "unclassified"
 
@@ -187,8 +200,13 @@ class PhaseOnePipelineService:
 
         for run in runs:
             try:
-                items = [SourceSeedInput.model_validate(item) for item in run.request_payload.get("items", [])]
-                await self._stage_run_items(session=session, run=run, items=items, emitted_events=emitted_events)
+                items = [
+                    SourceSeedInput.model_validate(item)
+                    for item in run.request_payload.get("items", [])
+                ]
+                await self._stage_run_items(
+                    session=session, run=run, items=items, emitted_events=emitted_events
+                )
                 run.last_error = None
                 processed += 1
             except Exception as exc:
@@ -466,7 +484,9 @@ class PhaseOnePipelineService:
             "published_at": raw.published_at.isoformat() if raw.published_at else None,
             "source_metadata": raw.source_metadata,
         }
-        encoded = __import__("json").dumps(content, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        encoded = (
+            __import__("json").dumps(content, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        )
         digest = hashlib.sha256(encoded).hexdigest()
         storage_backend = self.settings.source_snapshot_backend.lower()
         storage_uri = self._archive_snapshot_bytes(raw.id, encoded, storage_backend)
@@ -595,7 +615,9 @@ class PhaseOnePipelineService:
             },
         )
 
-        summary_text, claim_candidates = await self._extract_claim_candidates(item, evidence_confidence)
+        summary_text, claim_candidates = await self._extract_claim_candidates(
+            item, evidence_confidence
+        )
         evidence.summary = summary_text
         await session.flush()
 
@@ -874,7 +896,10 @@ class PhaseOnePipelineService:
                             IngestRun.status == IngestRunStatus.PENDING.value,
                             and_(
                                 IngestRun.status == IngestRunStatus.PROCESSING.value,
-                                or_(IngestRun.lease_expires_at.is_(None), IngestRun.lease_expires_at < now),
+                                or_(
+                                    IngestRun.lease_expires_at.is_(None),
+                                    IngestRun.lease_expires_at < now,
+                                ),
                             ),
                         )
                     )
@@ -893,7 +918,10 @@ class PhaseOnePipelineService:
                         IngestRun.status == IngestRunStatus.PENDING.value,
                         and_(
                             IngestRun.status == IngestRunStatus.PROCESSING.value,
-                            or_(IngestRun.lease_expires_at.is_(None), IngestRun.lease_expires_at < now),
+                            or_(
+                                IngestRun.lease_expires_at.is_(None),
+                                IngestRun.lease_expires_at < now,
+                            ),
                         ),
                     ),
                 )
@@ -932,7 +960,10 @@ class PhaseOnePipelineService:
                             RawSourceItem.knowledge_status == "PENDING",
                             and_(
                                 RawSourceItem.knowledge_status == "PROCESSING",
-                                or_(RawSourceItem.lease_expires_at.is_(None), RawSourceItem.lease_expires_at < now),
+                                or_(
+                                    RawSourceItem.lease_expires_at.is_(None),
+                                    RawSourceItem.lease_expires_at < now,
+                                ),
                             ),
                         ),
                     )
@@ -951,7 +982,10 @@ class PhaseOnePipelineService:
                         RawSourceItem.knowledge_status == "PENDING",
                         and_(
                             RawSourceItem.knowledge_status == "PROCESSING",
-                            or_(RawSourceItem.lease_expires_at.is_(None), RawSourceItem.lease_expires_at < now),
+                            or_(
+                                RawSourceItem.lease_expires_at.is_(None),
+                                RawSourceItem.lease_expires_at < now,
+                            ),
                         ),
                     ),
                 )

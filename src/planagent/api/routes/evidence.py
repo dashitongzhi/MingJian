@@ -91,12 +91,8 @@ async def list_evidence(
         query = query.where(EvidenceItem.tenant_id == tenant_id)
     if preset_id:
         query = query.where(EvidenceItem.preset_id == preset_id)
-    total = await session.scalar(
-        select(func.count()).select_from(query.order_by(None).subquery())
-    )
-    evidence = list(
-        (await session.scalars(query.limit(limit).offset(offset))).all()
-    )
+    total = await session.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
+    evidence = list((await session.scalars(query.limit(limit).offset(offset))).all())
     return EvidencePage(
         items=[EvidenceItemModel.model_validate(item) for item in evidence],
         total=total or 0,
@@ -121,9 +117,7 @@ async def list_claims(
         query = query.where(Claim.tenant_id == tenant_id)
     if preset_id:
         query = query.where(Claim.preset_id == preset_id)
-    total = await session.scalar(
-        select(func.count()).select_from(query.order_by(None).subquery())
-    )
+    total = await session.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     claims = list((await session.scalars(query.limit(limit).offset(offset))).all())
     return ClaimPage(
         items=[ClaimModel.model_validate(claim) for claim in claims],
@@ -146,9 +140,7 @@ async def list_signals(
         query = query.where(Signal.tenant_id == tenant_id)
     if preset_id:
         query = query.where(Signal.preset_id == preset_id)
-    total = await session.scalar(
-        select(func.count()).select_from(query.order_by(None).subquery())
-    )
+    total = await session.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     signals = list((await session.scalars(query.limit(limit).offset(offset))).all())
     return SignalPage(
         items=[SignalModel.model_validate(item) for item in signals],
@@ -171,9 +163,7 @@ async def list_events(
         query = query.where(EventRecord.tenant_id == tenant_id)
     if preset_id:
         query = query.where(EventRecord.preset_id == preset_id)
-    total = await session.scalar(
-        select(func.count()).select_from(query.order_by(None).subquery())
-    )
+    total = await session.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     events = list((await session.scalars(query.limit(limit).offset(offset))).all())
     return EventPage(
         items=[EventModel.model_validate(item) for item in events],
@@ -196,9 +186,7 @@ async def list_trends(
         query = query.where(Trend.tenant_id == tenant_id)
     if preset_id:
         query = query.where(Trend.preset_id == preset_id)
-    total = await session.scalar(
-        select(func.count()).select_from(query.order_by(None).subquery())
-    )
+    total = await session.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     trends = list((await session.scalars(query.limit(limit).offset(offset))).all())
     return TrendPage(
         items=[TrendModel.model_validate(item) for item in trends],

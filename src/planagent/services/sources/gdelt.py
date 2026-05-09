@@ -65,7 +65,10 @@ class GDELTProvider(DataSourceProvider):
         return [r.model_dump() for r in results]
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         if limit <= 0:
             return []
@@ -113,7 +116,9 @@ class GDELTProvider(DataSourceProvider):
     def _gdelt_query(self, query: str, domain_id: str) -> str:
         base_query = self._platform_query(query, domain_id)
         if domain_id == "military":
-            return f"({base_query}) (military OR defense OR maritime OR aviation OR weather OR OSINT)"
+            return (
+                f"({base_query}) (military OR defense OR maritime OR aviation OR weather OR OSINT)"
+            )
         if domain_id == "corporate":
             return f"({base_query}) (company OR startup OR market OR product OR funding)"
         return base_query

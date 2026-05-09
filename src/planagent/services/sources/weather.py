@@ -20,7 +20,10 @@ class WeatherProvider(DataSourceProvider):
     task_desc = "正在获取气象数据"
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         if limit <= 0 or domain_id != "military":
             return []

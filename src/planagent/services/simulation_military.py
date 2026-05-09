@@ -81,7 +81,8 @@ class MilitaryCombatResolver:
             objective_delta=round(combined_effect.get("objective_control", 0.0), 4),
             supply_delta=round(combined_effect.get("supply_network", 0.0), 4),
             recovery_delta=round(
-                combined_effect.get("recovery_capacity", 0.0) - combined_effect.get("attrition_rate", 0.0),
+                combined_effect.get("recovery_capacity", 0.0)
+                - combined_effect.get("attrition_rate", 0.0),
                 4,
             ),
         )
@@ -114,13 +115,18 @@ class MilitaryCombatResolver:
             )
 
         if (
-            any(keyword in lowered for keyword in ["supply", "bridge", "convoy", "corridor", "port"])
+            any(
+                keyword in lowered for keyword in ["supply", "bridge", "convoy", "corridor", "port"]
+            )
             or float(state.get("logistics_throughput", 1.0)) < 0.82
             or float(state.get("supply_network", 0.84)) < 0.78
         ):
             supply_gap = max(
                 0.0,
-                max(0.82 - float(state.get("logistics_throughput", 1.0)), 0.78 - float(state.get("supply_network", 0.84))),
+                max(
+                    0.82 - float(state.get("logistics_throughput", 1.0)),
+                    0.78 - float(state.get("supply_network", 0.84)),
+                ),
             )
             add_candidate(
                 "enemy_probe_supply",
@@ -142,7 +148,10 @@ class MilitaryCombatResolver:
         ):
             air_gap = max(
                 0.0,
-                max(0.84 - float(state.get("air_defense", 1.0)), float(state.get("civilian_risk", 0.25)) - 0.42),
+                max(
+                    0.84 - float(state.get("air_defense", 1.0)),
+                    float(state.get("civilian_risk", 0.25)) - 0.42,
+                ),
             )
             add_candidate(
                 "enemy_fire_raid",
@@ -165,7 +174,10 @@ class MilitaryCombatResolver:
         ):
             c2_gap = max(
                 0.0,
-                max(0.8 - float(state.get("command_cohesion", 1.0)), 0.76 - float(state.get("ew_control", 1.0))),
+                max(
+                    0.8 - float(state.get("command_cohesion", 1.0)),
+                    0.76 - float(state.get("ew_control", 1.0)),
+                ),
             )
             add_candidate(
                 "enemy_jam_c2",
@@ -181,7 +193,10 @@ class MilitaryCombatResolver:
             )
 
         if (
-            any(keyword in lowered for keyword in ["crossing", "objective", "district", "axis", "sector"])
+            any(
+                keyword in lowered
+                for keyword in ["crossing", "objective", "district", "axis", "sector"]
+            )
             or float(state.get("objective_control", 0.5)) < 0.54
         ):
             objective_gap = max(0.0, 0.54 - float(state.get("objective_control", 0.5)))
@@ -319,7 +334,11 @@ class MilitaryCombatResolver:
             - (float(state.get("enemy_pressure", 0.66)) * 0.08)
         )
         recovery_gain = max(0.0, recovery_window - 0.32)
-        repair_bonus = 0.03 if friendly_action_id in {"commit_reserves", "rotate_and_repair", "open_supply_line"} else 0.0
+        repair_bonus = (
+            0.03
+            if friendly_action_id in {"commit_reserves", "rotate_and_repair", "open_supply_line"}
+            else 0.0
+        )
         recovery_capacity_delta = 0.0
         if friendly_action_id in {"commit_reserves", "rotate_and_repair"}:
             recovery_capacity_delta += 0.02
@@ -328,10 +347,13 @@ class MilitaryCombatResolver:
         return _clean_effects(
             {
                 "readiness": (recovery_gain * 0.05) + repair_bonus,
-                "attrition_rate": -(recovery_gain * 0.06) - (0.03 if friendly_action_id == "rotate_and_repair" else 0.0),
+                "attrition_rate": -(recovery_gain * 0.06)
+                - (0.03 if friendly_action_id == "rotate_and_repair" else 0.0),
                 "recovery_capacity": recovery_capacity_delta,
                 "enemy_pressure": -(recovery_gain * 0.03),
-                "objective_control": (0.02 * recovery_gain) if friendly_action_id == "secure_objective" else 0.0,
+                "objective_control": (0.02 * recovery_gain)
+                if friendly_action_id == "secure_objective"
+                else 0.0,
             }
         )
 
@@ -390,7 +412,11 @@ class MilitaryCombatResolver:
                 contested_asset_ids.append(asset.id)
             for neighbor_name in connected_to:
                 neighbor = assets_by_name[neighbor_name]
-                edge_type = "route_link" if asset.asset_type in {"supply_hub", "supply_route", "bridge"} else "support_link"
+                edge_type = (
+                    "route_link"
+                    if asset.asset_type in {"supply_hub", "supply_route", "bridge"}
+                    else "support_link"
+                )
                 edge_key = tuple(sorted((asset.id, neighbor.id)) + [edge_type])
                 if edge_key in edge_keys:
                     continue
@@ -415,7 +441,13 @@ class MilitaryCombatResolver:
                         "interdiction_risk": _route_interdiction_risk(asset.asset_type, state),
                     }
                 )
-            if asset.asset_type in {"objective_zone", "civilian_area", "command_post", "staging_area", "isr_node"}:
+            if asset.asset_type in {
+                "objective_zone",
+                "civilian_area",
+                "command_post",
+                "staging_area",
+                "isr_node",
+            }:
                 objective_nodes.append(
                     {
                         "asset_id": asset.id,
@@ -430,12 +462,18 @@ class MilitaryCombatResolver:
 
         critical_route = min(
             route_nodes,
-            key=lambda item: (item["route_health"] - item["interdiction_risk"], item["route_health"]),
+            key=lambda item: (
+                item["route_health"] - item["interdiction_risk"],
+                item["route_health"],
+            ),
             default=None,
         )
         critical_objective = min(
             objective_nodes,
-            key=lambda item: (item["control_score"] - item["pressure_score"], item["control_score"]),
+            key=lambda item: (
+                item["control_score"] - item["pressure_score"],
+                item["control_score"],
+            ),
             default=None,
         )
         return {
@@ -451,7 +489,9 @@ class MilitaryCombatResolver:
             "objectives": objective_nodes,
             "edges": edges,
             "critical_route_id": critical_route["asset_id"] if critical_route is not None else None,
-            "critical_objective_id": critical_objective["asset_id"] if critical_objective is not None else None,
+            "critical_objective_id": critical_objective["asset_id"]
+            if critical_objective is not None
+            else None,
             "contested_asset_ids": contested_asset_ids,
         }
 
@@ -480,7 +520,8 @@ class MilitaryCombatResolver:
         units = templates.get(actor_template, templates["brigade"])
         target_lookup = {
             node["asset_type"]: node["name"]
-            for node in objective_network.get("objectives", []) + objective_network.get("routes", [])
+            for node in objective_network.get("objectives", [])
+            + objective_network.get("routes", [])
         }
         pressure_band = _band_label(float(state.get("enemy_pressure", 0.66)), high=0.7, low=0.52)
         readiness_band = _band_label(float(state.get("enemy_readiness", 0.82)), high=0.8, low=0.66)
@@ -526,22 +567,38 @@ class MilitaryCombatResolver:
             "enemy_fire_raid": {
                 "focus": "fire strikes and air pressure",
                 "target_asset_types": ["civilian_area", "objective_zone", "air_defense_site"],
-                "likely_next_actions": ["enemy_fire_raid", "enemy_press_objective", "enemy_probe_supply"],
+                "likely_next_actions": [
+                    "enemy_fire_raid",
+                    "enemy_press_objective",
+                    "enemy_probe_supply",
+                ],
             },
             "enemy_jam_c2": {
                 "focus": "command-loop disruption",
                 "target_asset_types": ["command_post", "isr_node"],
-                "likely_next_actions": ["enemy_jam_c2", "enemy_probe_supply", "enemy_press_objective"],
+                "likely_next_actions": [
+                    "enemy_jam_c2",
+                    "enemy_probe_supply",
+                    "enemy_press_objective",
+                ],
             },
             "enemy_press_objective": {
                 "focus": "objective seizure",
                 "target_asset_types": ["objective_zone", "staging_area", "civilian_area"],
-                "likely_next_actions": ["enemy_press_objective", "enemy_fire_raid", "enemy_probe_supply"],
+                "likely_next_actions": [
+                    "enemy_press_objective",
+                    "enemy_fire_raid",
+                    "enemy_probe_supply",
+                ],
             },
             "enemy_regroup": {
                 "focus": "combat regeneration",
                 "target_asset_types": ["staging_area", "command_post"],
-                "likely_next_actions": ["enemy_regroup", "enemy_press_objective", "enemy_fire_raid"],
+                "likely_next_actions": [
+                    "enemy_regroup",
+                    "enemy_press_objective",
+                    "enemy_fire_raid",
+                ],
             },
         }
         selected_profile = action_focus.get(
@@ -549,17 +606,21 @@ class MilitaryCombatResolver:
             {
                 "focus": "positional pressure",
                 "target_asset_types": ["objective_zone", "supply_route"],
-                "likely_next_actions": ["enemy_press_objective", "enemy_probe_supply", "enemy_fire_raid"],
+                "likely_next_actions": [
+                    "enemy_press_objective",
+                    "enemy_probe_supply",
+                    "enemy_fire_raid",
+                ],
             },
         )
         target_asset_ids = [
             node["asset_id"]
-            for node in objective_network.get("objectives", []) + objective_network.get("routes", [])
+            for node in objective_network.get("objectives", [])
+            + objective_network.get("routes", [])
             if node["asset_type"] in selected_profile["target_asset_types"]
         ]
-        critical_axis = (
-            objective_network.get("critical_objective_id")
-            or objective_network.get("critical_route_id")
+        critical_axis = objective_network.get("critical_objective_id") or objective_network.get(
+            "critical_route_id"
         )
         readiness_band = _band_label(float(state.get("enemy_readiness", 0.82)), high=0.8, low=0.66)
         pressure_band = _band_label(float(state.get("enemy_pressure", 0.66)), high=0.7, low=0.52)
@@ -599,9 +660,7 @@ def _merge_effects(*effects: dict[str, float]) -> dict[str, float]:
 
 def _clean_effects(effect: dict[str, float]) -> dict[str, float]:
     return {
-        key: round(float(value), 4)
-        for key, value in effect.items()
-        if abs(float(value)) >= 0.0001
+        key: round(float(value), 4) for key, value in effect.items() if abs(float(value)) >= 0.0001
     }
 
 
@@ -609,7 +668,10 @@ def _operational_asset_status(
     asset: GeoAssetRecord,
     state: dict[str, float],
 ) -> str:
-    if asset.asset_type in {"supply_hub", "bridge"} and float(state.get("logistics_throughput", 1.0)) < 0.8:
+    if (
+        asset.asset_type in {"supply_hub", "bridge"}
+        and float(state.get("logistics_throughput", 1.0)) < 0.8
+    ):
         return "contested"
     if asset.asset_type == "supply_route" and float(state.get("supply_network", 0.84)) < 0.78:
         return "contested"
@@ -617,7 +679,10 @@ def _operational_asset_status(
         return "contested"
     if asset.asset_type == "civilian_area" and float(state.get("civilian_risk", 0.0)) > 0.55:
         return "at_risk"
-    if asset.asset_type in {"air_defense_site", "command_post"} and float(state.get("air_defense", 1.0)) < 0.85:
+    if (
+        asset.asset_type in {"air_defense_site", "command_post"}
+        and float(state.get("air_defense", 1.0)) < 0.85
+    ):
         return "degraded"
     return "active"
 

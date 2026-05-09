@@ -25,13 +25,15 @@ logger = logging.getLogger(__name__)
 
 class ModelTier(str, Enum):
     """模型能力等级"""
-    BASIC = "basic"           # 基础模型 (如 gpt-3.5-turbo, deepseek-chat)
-    STANDARD = "standard"     # 标准模型 (如 gpt-4o-mini, claude-haiku)
-    ADVANCED = "advanced"     # 高级模型 (如 gpt-4o, claude-sonnet-4, gemini-2.5-pro)
+
+    BASIC = "basic"  # 基础模型 (如 gpt-3.5-turbo, deepseek-chat)
+    STANDARD = "standard"  # 标准模型 (如 gpt-4o-mini, claude-haiku)
+    ADVANCED = "advanced"  # 高级模型 (如 gpt-4o, claude-sonnet-4, gemini-2.5-pro)
 
 
 class DomainStrength(str, Enum):
     """模型专注领域"""
+
     GENERAL = "general"
     REASONING = "reasoning"
     CREATIVE = "creative"
@@ -42,32 +44,35 @@ class DomainStrength(str, Enum):
 @dataclass(frozen=True)
 class ModelCapabilities:
     """模型能力评估结果"""
+
     model_id: str
     tier: ModelTier
-    context_window: int          # 上下文窗口大小
-    max_output_tokens: int       # 最大输出token数
-    reasoning_score: float       # 推理能力评分 0-1
+    context_window: int  # 上下文窗口大小
+    max_output_tokens: int  # 最大输出token数
+    reasoning_score: float  # 推理能力评分 0-1
     domain_strength: DomainStrength
-    supports_json: bool          # 是否原生支持JSON模式
+    supports_json: bool  # 是否原生支持JSON模式
     supports_function_calling: bool
-    estimated_latency_ms: int    # 预估延迟
-    detail: str = ""             # 评估说明
+    estimated_latency_ms: int  # 预估延迟
+    detail: str = ""  # 评估说明
 
 
 @dataclass(frozen=True)
 class DebateAdaptation:
     """辩论参数自适应结果"""
-    max_output_tokens: int       # 每轮最大输出token
-    total_rounds: int            # 辩论总轮次
-    max_arguments: int           # 每轮最大论证数
+
+    max_output_tokens: int  # 每轮最大输出token
+    total_rounds: int  # 辩论总轮次
+    max_arguments: int  # 每轮最大论证数
     agent_filter: list[str] | None = None  # 建议启用的Agent角色
-    skip_agents: list[str] | None = None   # 建议跳过的Agent角色
+    skip_agents: list[str] | None = None  # 建议跳过的Agent角色
     detail: str = ""
 
 
 @dataclass
 class ModelSettings:
     """用户自定义模型设置（覆盖自动检测）"""
+
     tier: ModelTier | None = None
     max_output_tokens: int | None = None
     total_rounds: int | None = None
@@ -274,24 +279,168 @@ _DEFAULT_CAPABILITIES: dict[str, Any] = {
 # 模型名称模式匹配（用于未直接注册的模型变体）
 _MODEL_PATTERNS: list[tuple[str, dict[str, Any]]] = [
     # gpt-4o-2024-xx-xx 等变体
-    (r"gpt-4o", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.92, "context_window": 128000, "max_output_tokens": 16384}),
-    (r"gpt-4-turbo", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.88, "context_window": 128000, "max_output_tokens": 4096}),
-    (r"gpt-4[^o]", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.85, "context_window": 8192, "max_output_tokens": 4096}),
-    (r"gpt-3\.5", {"tier": ModelTier.BASIC, "reasoning_score": 0.55, "context_window": 16385, "max_output_tokens": 4096}),
-    (r"o1[-_]", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.97, "context_window": 200000, "max_output_tokens": 100000}),
-    (r"o3[-_]", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.97, "context_window": 200000, "max_output_tokens": 100000}),
-    (r"claude.*opus", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.96, "context_window": 200000, "max_output_tokens": 32000}),
-    (r"claude.*sonnet", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.94, "context_window": 200000, "max_output_tokens": 8192}),
-    (r"claude.*haiku", {"tier": ModelTier.STANDARD, "reasoning_score": 0.80, "context_window": 200000, "max_output_tokens": 8192}),
-    (r"gemini.*pro", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.93, "context_window": 1000000, "max_output_tokens": 65536}),
-    (r"gemini.*flash", {"tier": ModelTier.STANDARD, "reasoning_score": 0.82, "context_window": 1000000, "max_output_tokens": 65536}),
-    (r"deepseek.*reason", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.90, "context_window": 64000, "max_output_tokens": 8192}),
-    (r"deepseek", {"tier": ModelTier.STANDARD, "reasoning_score": 0.75, "context_window": 64000, "max_output_tokens": 8192}),
-    (r"qwen.*max", {"tier": ModelTier.ADVANCED, "reasoning_score": 0.85, "context_window": 32000, "max_output_tokens": 8192}),
-    (r"qwen", {"tier": ModelTier.STANDARD, "reasoning_score": 0.78, "context_window": 131072, "max_output_tokens": 8192}),
-    (r"mimo", {"tier": ModelTier.STANDARD, "reasoning_score": 0.82, "context_window": 128000, "max_output_tokens": 16384}),
-    (r"llama", {"tier": ModelTier.BASIC, "reasoning_score": 0.60, "context_window": 8192, "max_output_tokens": 4096}),
-    (r"mistral", {"tier": ModelTier.STANDARD, "reasoning_score": 0.72, "context_window": 32000, "max_output_tokens": 8192}),
+    (
+        r"gpt-4o",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.92,
+            "context_window": 128000,
+            "max_output_tokens": 16384,
+        },
+    ),
+    (
+        r"gpt-4-turbo",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.88,
+            "context_window": 128000,
+            "max_output_tokens": 4096,
+        },
+    ),
+    (
+        r"gpt-4[^o]",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.85,
+            "context_window": 8192,
+            "max_output_tokens": 4096,
+        },
+    ),
+    (
+        r"gpt-3\.5",
+        {
+            "tier": ModelTier.BASIC,
+            "reasoning_score": 0.55,
+            "context_window": 16385,
+            "max_output_tokens": 4096,
+        },
+    ),
+    (
+        r"o1[-_]",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.97,
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+        },
+    ),
+    (
+        r"o3[-_]",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.97,
+            "context_window": 200000,
+            "max_output_tokens": 100000,
+        },
+    ),
+    (
+        r"claude.*opus",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.96,
+            "context_window": 200000,
+            "max_output_tokens": 32000,
+        },
+    ),
+    (
+        r"claude.*sonnet",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.94,
+            "context_window": 200000,
+            "max_output_tokens": 8192,
+        },
+    ),
+    (
+        r"claude.*haiku",
+        {
+            "tier": ModelTier.STANDARD,
+            "reasoning_score": 0.80,
+            "context_window": 200000,
+            "max_output_tokens": 8192,
+        },
+    ),
+    (
+        r"gemini.*pro",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.93,
+            "context_window": 1000000,
+            "max_output_tokens": 65536,
+        },
+    ),
+    (
+        r"gemini.*flash",
+        {
+            "tier": ModelTier.STANDARD,
+            "reasoning_score": 0.82,
+            "context_window": 1000000,
+            "max_output_tokens": 65536,
+        },
+    ),
+    (
+        r"deepseek.*reason",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.90,
+            "context_window": 64000,
+            "max_output_tokens": 8192,
+        },
+    ),
+    (
+        r"deepseek",
+        {
+            "tier": ModelTier.STANDARD,
+            "reasoning_score": 0.75,
+            "context_window": 64000,
+            "max_output_tokens": 8192,
+        },
+    ),
+    (
+        r"qwen.*max",
+        {
+            "tier": ModelTier.ADVANCED,
+            "reasoning_score": 0.85,
+            "context_window": 32000,
+            "max_output_tokens": 8192,
+        },
+    ),
+    (
+        r"qwen",
+        {
+            "tier": ModelTier.STANDARD,
+            "reasoning_score": 0.78,
+            "context_window": 131072,
+            "max_output_tokens": 8192,
+        },
+    ),
+    (
+        r"mimo",
+        {
+            "tier": ModelTier.STANDARD,
+            "reasoning_score": 0.82,
+            "context_window": 128000,
+            "max_output_tokens": 16384,
+        },
+    ),
+    (
+        r"llama",
+        {
+            "tier": ModelTier.BASIC,
+            "reasoning_score": 0.60,
+            "context_window": 8192,
+            "max_output_tokens": 4096,
+        },
+    ),
+    (
+        r"mistral",
+        {
+            "tier": ModelTier.STANDARD,
+            "reasoning_score": 0.72,
+            "context_window": 32000,
+            "max_output_tokens": 8192,
+        },
+    ),
 ]
 
 
@@ -457,8 +606,12 @@ class ModelAdapterService:
             if total_rounds <= 3:
                 # 简化模式：只保留核心角色
                 skip_agents = [
-                    "intel_analyst", "geo_expert", "econ_analyst",
-                    "military_strategist", "tech_foresight", "social_impact",
+                    "intel_analyst",
+                    "geo_expert",
+                    "econ_analyst",
+                    "military_strategist",
+                    "tech_foresight",
+                    "social_impact",
                 ]
 
         # 构建说明
@@ -632,14 +785,16 @@ class ModelAdapterService:
         """返回所有已知模型的概要信息"""
         result = []
         for model_id, data in sorted(_MODEL_DB.items()):
-            result.append({
-                "model_id": model_id,
-                "tier": data["tier"].value,
-                "context_window": data["context_window"],
-                "max_output_tokens": data["max_output_tokens"],
-                "reasoning_score": data["reasoning_score"],
-                "domain_strength": data["domain_strength"].value,
-            })
+            result.append(
+                {
+                    "model_id": model_id,
+                    "tier": data["tier"].value,
+                    "context_window": data["context_window"],
+                    "max_output_tokens": data["max_output_tokens"],
+                    "reasoning_score": data["reasoning_score"],
+                    "domain_strength": data["domain_strength"].value,
+                }
+            )
         return result
 
 

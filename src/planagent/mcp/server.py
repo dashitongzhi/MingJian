@@ -465,8 +465,12 @@ async def handle_get_debate_status(
             if s.verdict:
                 result["verdict"] = {
                     "verdict": s.verdict.verdict if hasattr(s.verdict, "verdict") else None,
-                    "confidence": s.verdict.confidence if hasattr(s.verdict, "confidence") else None,
-                    "conclusion_summary": s.verdict.conclusion_summary[:200] if hasattr(s.verdict, "conclusion_summary") and s.verdict.conclusion_summary else None,
+                    "confidence": s.verdict.confidence
+                    if hasattr(s.verdict, "confidence")
+                    else None,
+                    "conclusion_summary": s.verdict.conclusion_summary[:200]
+                    if hasattr(s.verdict, "conclusion_summary") and s.verdict.conclusion_summary
+                    else None,
                 }
 
             results.append(result)
@@ -506,32 +510,33 @@ async def handle_get_decision_result(
             )
             records = list((await session.scalars(query)).all())
             for rec in records:
-                results["decisions"].append({
-                    "id": rec.id,
-                    "tick": rec.tick,
-                    "actor_id": rec.actor_id,
-                    "action_id": rec.action_id,
-                    "why_selected": rec.why_selected,
-                    "decision_method": rec.decision_method,
-                    "expected_effect": rec.expected_effect,
-                })
+                results["decisions"].append(
+                    {
+                        "id": rec.id,
+                        "tick": rec.tick,
+                        "actor_id": rec.actor_id,
+                        "action_id": rec.action_id,
+                        "why_selected": rec.why_selected,
+                        "decision_method": rec.decision_method,
+                        "expected_effect": rec.expected_effect,
+                    }
+                )
 
         # 查询辩论裁决
         if debate_id:
-            query = (
-                select(DebateVerdictRecord)
-                .where(DebateVerdictRecord.debate_id == debate_id)
-            )
+            query = select(DebateVerdictRecord).where(DebateVerdictRecord.debate_id == debate_id)
             verdicts = list((await session.scalars(query)).all())
             for v in verdicts:
-                results["verdicts"].append({
-                    "id": v.id,
-                    "verdict": v.verdict,
-                    "confidence": v.confidence,
-                    "conclusion_summary": v.conclusion_summary,
-                    "rounds_completed": v.rounds_completed,
-                    "created_at": v.created_at.isoformat() if v.created_at else None,
-                })
+                results["verdicts"].append(
+                    {
+                        "id": v.id,
+                        "verdict": v.verdict,
+                        "confidence": v.confidence,
+                        "conclusion_summary": v.conclusion_summary,
+                        "rounds_completed": v.rounds_completed,
+                        "created_at": v.created_at.isoformat() if v.created_at else None,
+                    }
+                )
 
         # 查询用户决策
         if session_id:
@@ -543,13 +548,15 @@ async def handle_get_decision_result(
             )
             user_decisions = list((await session.scalars(query)).all())
             for d in user_decisions:
-                results["user_decisions"].append({
-                    "id": d.id,
-                    "decision": d.decision,
-                    "notes": d.notes,
-                    "outcome": d.outcome,
-                    "created_at": d.created_at.isoformat() if d.created_at else None,
-                })
+                results["user_decisions"].append(
+                    {
+                        "id": d.id,
+                        "decision": d.decision,
+                        "notes": d.notes,
+                        "outcome": d.outcome,
+                        "created_at": d.created_at.isoformat() if d.created_at else None,
+                    }
+                )
 
         # 如果请求的是辩论裁决且未提供 debate_id，尝试用 run_id 查找
         if run_id and not results["verdicts"]:
@@ -561,12 +568,20 @@ async def handle_get_decision_result(
             )
             debate = (await session.scalars(debate_query)).first()
             if debate and debate.verdict:
-                results["verdicts"].append({
-                    "debate_id": debate.id,
-                    "verdict": debate.verdict.verdict if hasattr(debate.verdict, "verdict") else None,
-                    "confidence": debate.verdict.confidence if hasattr(debate.verdict, "confidence") else None,
-                    "conclusion_summary": debate.verdict.conclusion_summary if hasattr(debate.verdict, "conclusion_summary") else None,
-                })
+                results["verdicts"].append(
+                    {
+                        "debate_id": debate.id,
+                        "verdict": debate.verdict.verdict
+                        if hasattr(debate.verdict, "verdict")
+                        else None,
+                        "confidence": debate.verdict.confidence
+                        if hasattr(debate.verdict, "confidence")
+                        else None,
+                        "conclusion_summary": debate.verdict.conclusion_summary
+                        if hasattr(debate.verdict, "conclusion_summary")
+                        else None,
+                    }
+                )
 
         total = sum(len(v) if isinstance(v, list) else 0 for v in results.values())
         results["total"] = total
@@ -606,13 +621,10 @@ async def handle_list_sources(
     # 从数据库获取数据源统计
     db = get_database()
     async with db.session() as session:
-        stats_query = (
-            select(
-                RawSourceItem.source_type,
-                func.count(RawSourceItem.id).label("count"),
-            )
-            .group_by(RawSourceItem.source_type)
-        )
+        stats_query = select(
+            RawSourceItem.source_type,
+            func.count(RawSourceItem.id).label("count"),
+        ).group_by(RawSourceItem.source_type)
         rows = (await session.execute(stats_query)).all()
         source_counts = {row[0]: row[1] for row in rows}
 
@@ -669,9 +681,7 @@ async def handle_query_knowledge(
     db = get_database()
     async with db.session() as session:
         # 搜索节点 — 按 label 模糊匹配
-        node_query = select(KnowledgeGraphNode).where(
-            KnowledgeGraphNode.label.ilike(f"%{query}%")
-        )
+        node_query = select(KnowledgeGraphNode).where(KnowledgeGraphNode.label.ilike(f"%{query}%"))
         if node_type:
             node_query = node_query.where(KnowledgeGraphNode.node_type == node_type)
         node_query = node_query.limit(limit)
@@ -682,32 +692,40 @@ async def handle_query_knowledge(
         node_keys: set[str] = set()
         for node in nodes:
             node_keys.add(node.node_key)
-            node_results.append({
-                "node_key": node.node_key,
-                "label": node.label,
-                "node_type": node.node_type,
-                "source_table": node.source_table,
-                "source_id": node.source_id,
-                "metadata": node.node_metadata,
-            })
+            node_results.append(
+                {
+                    "node_key": node.node_key,
+                    "label": node.label,
+                    "node_type": node.node_type,
+                    "source_table": node.source_table,
+                    "source_id": node.source_id,
+                    "metadata": node.node_metadata,
+                }
+            )
 
         # 搜索关联边
         edge_results: list[dict[str, Any]] = []
         if include_edges and node_keys:
-            edge_query = select(KnowledgeGraphEdge).where(
-                or_(
-                    KnowledgeGraphEdge.source_node_key.in_(list(node_keys)),
-                    KnowledgeGraphEdge.target_node_key.in_(list(node_keys)),
+            edge_query = (
+                select(KnowledgeGraphEdge)
+                .where(
+                    or_(
+                        KnowledgeGraphEdge.source_node_key.in_(list(node_keys)),
+                        KnowledgeGraphEdge.target_node_key.in_(list(node_keys)),
+                    )
                 )
-            ).limit(limit * 3)
+                .limit(limit * 3)
+            )
             edges = list((await session.scalars(edge_query)).all())
             for edge in edges:
-                edge_results.append({
-                    "source": edge.source_node_key,
-                    "target": edge.target_node_key,
-                    "relation": edge.relation_type,
-                    "metadata": edge.edge_metadata,
-                })
+                edge_results.append(
+                    {
+                        "source": edge.source_node_key,
+                        "target": edge.target_node_key,
+                        "relation": edge.relation_type,
+                        "metadata": edge.edge_metadata,
+                    }
+                )
 
         return {
             "query": query,

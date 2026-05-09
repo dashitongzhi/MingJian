@@ -142,7 +142,12 @@ def test_build_assessment_from_llm_rounds() -> None:
             "position": "SUPPORT",
             "confidence": 0.8,
             "arguments": [
-                {"claim": "strong support", "evidence_ids": ["ev-1"], "reasoning": "test", "strength": "STRONG"},
+                {
+                    "claim": "strong support",
+                    "evidence_ids": ["ev-1"],
+                    "reasoning": "test",
+                    "strength": "STRONG",
+                },
             ],
             "rebuttals": [],
             "concessions": [],
@@ -153,7 +158,12 @@ def test_build_assessment_from_llm_rounds() -> None:
             "position": "OPPOSE",
             "confidence": 0.4,
             "arguments": [
-                {"claim": "weak challenge", "evidence_ids": ["ev-1"], "reasoning": "test", "strength": "MODERATE"},
+                {
+                    "claim": "weak challenge",
+                    "evidence_ids": ["ev-1"],
+                    "reasoning": "test",
+                    "strength": "MODERATE",
+                },
             ],
             "rebuttals": [],
             "concessions": [],
@@ -164,14 +174,21 @@ def test_build_assessment_from_llm_rounds() -> None:
             "position": "SUPPORT",
             "confidence": 0.85,
             "arguments": [
-                {"claim": "advocate wins", "evidence_ids": ["ev-1"], "reasoning": "test", "strength": "STRONG"},
+                {
+                    "claim": "advocate wins",
+                    "evidence_ids": ["ev-1"],
+                    "reasoning": "test",
+                    "strength": "STRONG",
+                },
             ],
             "rebuttals": [],
             "concessions": [],
         },
     ]
     assessment = service._build_assessment_from_llm_rounds(
-        rounds, ["ev-1"], payload,
+        rounds,
+        ["ev-1"],
+        payload,
     )
     assert assessment.verdict == "ACCEPTED"
     assert assessment.support_confidence == 0.8
@@ -190,7 +207,11 @@ class RoleRoutingOpenAIStub:
     async def generate_debate_position(self, **kwargs) -> DebatePositionPayload:
         self.targets.append(kwargs["target"])
         role = kwargs["role"]
-        position = "CONDITIONAL" if role == "arbitrator" else ("SUPPORT" if role == "advocate" else "OPPOSE")
+        position = (
+            "CONDITIONAL"
+            if role == "arbitrator"
+            else ("SUPPORT" if role == "advocate" else "OPPOSE")
+        )
         return DebatePositionPayload(
             position=position,
             confidence=0.75,
@@ -237,6 +258,7 @@ def anyio_backend():
 @pytest.fixture
 async def client():
     from planagent.main import app
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -259,6 +281,7 @@ async def test_decision_options_and_hypotheses_flow(client) -> None:
 
     # Wait briefly for inline execution to complete and options to generate
     import asyncio as aio
+
     await aio.sleep(0.1)
 
     # List decision options

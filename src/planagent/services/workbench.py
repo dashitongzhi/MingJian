@@ -34,7 +34,11 @@ from planagent.domain.models import (
     SimulationRun,
     StateSnapshotRecord,
 )
-from planagent.services.startup import build_startup_kpi_pack, resolve_run_preset_id, resolve_run_tenant_id
+from planagent.services.startup import (
+    build_startup_kpi_pack,
+    resolve_run_preset_id,
+    resolve_run_tenant_id,
+)
 
 
 class WorkbenchService:
@@ -207,8 +211,7 @@ class WorkbenchService:
             evidence_items = list(
                 (
                     await session.scalars(
-                        select(EvidenceItem)
-                        .where(EvidenceItem.id.in_(evidence_ids))
+                        select(EvidenceItem).where(EvidenceItem.id.in_(evidence_ids))
                     )
                 ).all()
             )
@@ -299,16 +302,22 @@ class WorkbenchService:
                 overlays={},
             )
 
-        geo_map = (latest_report.sections.get("geo_map") if latest_report is not None else None) or {}
+        geo_map = (
+            latest_report.sections.get("geo_map") if latest_report is not None else None
+        ) or {}
         return GeoMapRead(
             mode="geo",
             theater=geo_map.get("theater") or run.configuration.get("theater"),
             assets=geo_map.get("assets", []),
-            network=latest_report.sections.get("objective_network", {}) if latest_report is not None else {},
+            network=latest_report.sections.get("objective_network", {})
+            if latest_report is not None
+            else {},
             overlays=(
                 {
                     "enemy_posture": latest_report.sections.get("enemy_posture", {}),
-                    "enemy_order_of_battle": latest_report.sections.get("enemy_order_of_battle", []),
+                    "enemy_order_of_battle": latest_report.sections.get(
+                        "enemy_order_of_battle", []
+                    ),
                     "combat_exchange": latest_report.sections.get("combat_exchange", []),
                 }
                 if latest_report is not None
@@ -330,7 +339,9 @@ class WorkbenchService:
                 baseline_run = parent_run
             branch = (
                 await session.scalars(
-                    select(ScenarioBranchRecord).where(ScenarioBranchRecord.run_id == run.id).limit(1)
+                    select(ScenarioBranchRecord)
+                    .where(ScenarioBranchRecord.run_id == run.id)
+                    .limit(1)
                 )
             ).first()
             active_branch_id = branch.id if branch is not None else None

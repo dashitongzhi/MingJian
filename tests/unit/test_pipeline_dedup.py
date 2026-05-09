@@ -13,6 +13,7 @@ from planagent.services.pipeline import build_dedupe_key
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_item(**overrides) -> SourceSeedInput:
     defaults = dict(
         source_type="rss",
@@ -28,6 +29,7 @@ def _make_item(**overrides) -> SourceSeedInput:
 # Determinism
 # ---------------------------------------------------------------------------
 
+
 class TestDedupeKeyDeterminism:
     def test_same_input_produces_same_key(self):
         item = _make_item()
@@ -42,6 +44,7 @@ class TestDedupeKeyDeterminism:
 # ---------------------------------------------------------------------------
 # Different content → different keys
 # ---------------------------------------------------------------------------
+
 
 class TestDedupeKeyUniqueness:
     def test_different_url_gives_different_key(self):
@@ -63,6 +66,7 @@ class TestDedupeKeyUniqueness:
 # ---------------------------------------------------------------------------
 # Normalisation invariants
 # ---------------------------------------------------------------------------
+
 
 class TestDedupeKeyNormalization:
     def test_url_trailing_slash_ignored(self):
@@ -112,6 +116,7 @@ class TestDedupeKeyNormalization:
 # SHA256 correctness
 # ---------------------------------------------------------------------------
 
+
 class TestDedupeKeySHA256Correctness:
     def test_matches_manual_sha256(self):
         item = _make_item(
@@ -128,6 +133,7 @@ class TestDedupeKeySHA256Correctness:
 # ---------------------------------------------------------------------------
 # Concurrent determinism
 # ---------------------------------------------------------------------------
+
 
 class TestDedupeKeyConcurrency:
     def test_concurrent_calls_produce_same_key(self):

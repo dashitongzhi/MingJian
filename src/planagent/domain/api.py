@@ -6,7 +6,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from planagent.domain.enums import ExecutionMode, IngestRunStatus, ReviewItemStatus, SimulationRunStatus
+from planagent.domain.enums import (
+    ExecutionMode,
+    IngestRunStatus,
+    ReviewItemStatus,
+    SimulationRunStatus,
+)
 from planagent.domain.types import GeneratedReportModel
 
 
@@ -436,6 +441,7 @@ class DebateVoteRead(APIModel):
 
 class DebateInterruptCreate(APIModel):
     """用户在辩论中途提交的插话/补充信息"""
+
     message: str = Field(min_length=1, description="用户插话的内容")
     interrupt_type: str = Field(
         default="general",
@@ -446,6 +452,7 @@ class DebateInterruptCreate(APIModel):
 
 class DebateInterruptRead(APIModel):
     """辩论插话记录"""
+
     id: str
     debate_session_id: str
     message: str
@@ -460,6 +467,7 @@ class DebateInterruptRead(APIModel):
 
 class DebateReplayRead(APIModel):
     """完整回放数据（按时间顺序 + 按轮次两种视图）"""
+
     debate_id: str
     topic: str
     trigger_type: str
@@ -482,6 +490,7 @@ class DebateReplayRead(APIModel):
 
 class DebateRoundDetailRead(APIModel):
     """单轮辩论详情"""
+
     debate_id: str
     topic: str
     round_number: int
@@ -494,6 +503,7 @@ class DebateRoundDetailRead(APIModel):
 
 class DebateTimelineRead(APIModel):
     """辩论时间线"""
+
     debate_id: str
     topic: str
     event_count: int = 0
@@ -508,6 +518,7 @@ class DebateTimelineRead(APIModel):
 
 class DebateComparisonRead(APIModel):
     """对比两场辩论"""
+
     debate_1: dict[str, Any] = Field(default_factory=dict)
     debate_2: dict[str, Any] = Field(default_factory=dict)
     differences: dict[str, Any] = Field(
@@ -518,6 +529,7 @@ class DebateComparisonRead(APIModel):
 
 class DebateReplaySummaryRead(APIModel):
     """辩论摘要（包含关键转折点）"""
+
     debate_id: str
     topic: str
     trigger_type: str
@@ -850,7 +862,15 @@ class WatchRuleCreate(APIModel):
     domain_id: Literal["corporate", "military"]
     query: str = Field(min_length=1)
     source_types: list[str] = Field(
-        default_factory=lambda: ["google_news", "reddit", "hacker_news", "github", "rss", "gdelt", "aviation"]
+        default_factory=lambda: [
+            "google_news",
+            "reddit",
+            "hacker_news",
+            "github",
+            "rss",
+            "gdelt",
+            "aviation",
+        ]
     )
     keywords: list[str] = Field(default_factory=list)
     exclude_keywords: list[str] = Field(default_factory=list)

@@ -1,4 +1,5 @@
 """Provider configuration API — manage model providers, API keys, and connection testing."""
+
 from __future__ import annotations
 
 import time
@@ -144,29 +145,33 @@ async def list_configured() -> list[dict[str, Any]]:
     for preset in PROVIDER_PRESETS:
         pid = preset["id"]
         config = _configured_providers.get(pid, {})
-        result.append({
-            **preset,
-            "configured": bool(config.get("api_key")),
-            "api_key_set": bool(config.get("api_key")),
-            "active_model": config.get("model") or "",
-            "enabled": config.get("enabled", True),
-        })
+        result.append(
+            {
+                **preset,
+                "configured": bool(config.get("api_key")),
+                "api_key_set": bool(config.get("api_key")),
+                "active_model": config.get("model") or "",
+                "enabled": config.get("enabled", True),
+            }
+        )
     # Add custom providers
     for pid, config in _configured_providers.items():
         if pid not in {p["id"] for p in PROVIDER_PRESETS}:
-            result.append({
-                "id": pid,
-                "name": config.get("name") or pid,
-                "base_url": config.get("base_url", ""),
-                "api_format": config.get("api_format", "openai"),
-                "models": [],
-                "configured": bool(config.get("api_key")),
-                "api_key_set": bool(config.get("api_key")),
-                "active_model": config.get("model", ""),
-                "enabled": config.get("enabled", True),
-                "color": "#888",
-                "custom": True,
-            })
+            result.append(
+                {
+                    "id": pid,
+                    "name": config.get("name") or pid,
+                    "base_url": config.get("base_url", ""),
+                    "api_format": config.get("api_format", "openai"),
+                    "models": [],
+                    "configured": bool(config.get("api_key")),
+                    "api_key_set": bool(config.get("api_key")),
+                    "active_model": config.get("model", ""),
+                    "enabled": config.get("enabled", True),
+                    "color": "#888",
+                    "custom": True,
+                }
+            )
     return result
 
 

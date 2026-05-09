@@ -46,15 +46,15 @@ _ROLE_PRIORITY: list[AgentRole] = [
 
 # 每个角色的推荐模型
 _RECOMMENDED_MODELS: dict[AgentRole, list[str]] = {
-    AgentRole.ADVOCATE:           ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro", "deepseek-chat"],
-    AgentRole.CHALLENGER:         ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro", "deepseek-chat"],
-    AgentRole.ARBITRATOR:         ["gpt-4o", "gemini-2.5-pro", "claude-sonnet-4", "deepseek-chat"],
-    AgentRole.EVIDENCE_ASSESSOR:  ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
-    AgentRole.GEOPOLITICAL:       ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro"],
-    AgentRole.ECONOMIC:           ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
-    AgentRole.MILITARY:           ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
-    AgentRole.TECH:               ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro"],
-    AgentRole.SOCIAL:             ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
+    AgentRole.ADVOCATE: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro", "deepseek-chat"],
+    AgentRole.CHALLENGER: ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro", "deepseek-chat"],
+    AgentRole.ARBITRATOR: ["gpt-4o", "gemini-2.5-pro", "claude-sonnet-4", "deepseek-chat"],
+    AgentRole.EVIDENCE_ASSESSOR: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
+    AgentRole.GEOPOLITICAL: ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro"],
+    AgentRole.ECONOMIC: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
+    AgentRole.MILITARY: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
+    AgentRole.TECH: ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro"],
+    AgentRole.SOCIAL: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
 }
 
 
@@ -444,6 +444,7 @@ DEFAULT_AGENTS: list[AgentConfig] = [
 
 # ── Custom Agents Persistence ─────────────────────────────────────
 
+
 def _custom_agents_config_path() -> Path:
     """Resolve the custom agents config file path."""
     return _DEFAULT_CONFIG_DIR / _CUSTOM_AGENTS_FILE
@@ -671,7 +672,7 @@ class AgentRegistry:
 
         self._spare_keys = []
         agents = self.get_all_agents()  # 按优先级排序
-        core = [a for a in agents if a.priority == 1]       # 3 个
+        core = [a for a in agents if a.priority == 1]  # 3 个
         perspective = [a for a in agents if a.priority == 2]  # 6 个
 
         n = len(keys)
@@ -744,7 +745,9 @@ class AgentRegistry:
                     "description": a.description,
                     "recommended_models": a.recommended_models,
                     "model_override": a.model_override,
-                    "effective_model": a.model_override or a.model or (a.recommended_models[0] if a.recommended_models else ""),
+                    "effective_model": a.model_override
+                    or a.model
+                    or (a.recommended_models[0] if a.recommended_models else ""),
                     "has_key": bool(a.api_key),
                     "priority": a.priority,
                     "is_custom": a.is_custom,

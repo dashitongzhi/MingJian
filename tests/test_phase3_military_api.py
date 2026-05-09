@@ -92,9 +92,13 @@ def test_military_simulation_branch_and_report_flow(monkeypatch, tmp_path: Path)
             trace[0]["actual_effect"]
         )
         final_state = baseline_run["summary"]["final_state"]
-        assert {"objective_control", "supply_network", "recovery_capacity", "enemy_readiness", "enemy_pressure"} <= set(
-            final_state
-        )
+        assert {
+            "objective_control",
+            "supply_network",
+            "recovery_capacity",
+            "enemy_readiness",
+            "enemy_pressure",
+        } <= set(final_state)
         assert baseline_run["summary"]["military_tick_summaries"]
         assert baseline_run["summary"]["military_tick_summaries"][0]["enemy_action_id"]
         assert baseline_run["summary"]["enemy_posture"]["focus"]
@@ -143,7 +147,9 @@ def test_military_simulation_branch_and_report_flow(monkeypatch, tmp_path: Path)
         assert branch["parent_run_id"] == baseline_run["id"]
         assert branch["report_id"]
         assert branch["probability_band"] == "medium-high"
-        assert branch["decision_deltas"] == ["Protect civilian zones before any additional maneuver."]
+        assert branch["decision_deltas"] == [
+            "Protect civilian zones before any additional maneuver."
+        ]
         assert branch["kpi_trajectory"]
 
         branch_geo_response = client.get(f"/runs/{branch['run_id']}/geo-assets")
@@ -157,7 +163,9 @@ def test_military_simulation_branch_and_report_flow(monkeypatch, tmp_path: Path)
         assert compare_payload["baseline_run_id"] == baseline_run["id"]
         assert compare_payload["branch_count"] == 1
         assert compare_payload["branches"][0]["branch_id"] == branch["branch_id"]
-        assert {"civilian_risk", "objective_control", "enemy_pressure", "attrition_rate"} <= set(compare_payload["metric_names"])
+        assert {"civilian_risk", "objective_control", "enemy_pressure", "attrition_rate"} <= set(
+            compare_payload["metric_names"]
+        )
 
         report_response = client.get(f"/military/scenarios/{branch['branch_id']}/reports/latest")
         assert report_response.status_code == 200
@@ -199,7 +207,11 @@ def test_military_report_uses_report_target_when_configured(monkeypatch, tmp_pat
     monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_API_KEY", "report-key")
     monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_BASE_URL", "https://report.example/v1")
 
-    monkeypatch.setattr(OpenAIService, "_build_client", lambda self, api_key, base_url: DummyAsyncClient() if api_key else None)
+    monkeypatch.setattr(
+        OpenAIService,
+        "_build_client",
+        lambda self, api_key, base_url: DummyAsyncClient() if api_key else None,
+    )
 
     async def fake_enhance_military_report(
         self,
@@ -279,7 +291,10 @@ def test_military_report_uses_report_target_when_configured(monkeypatch, tmp_pat
         assert report_response.status_code == 200
         report = report_response.json()
 
-    assert report["summary"] == "Model narrative says readiness recovered while civilian risk stayed visible."
+    assert (
+        report["summary"]
+        == "Model narrative says readiness recovered while civilian risk stayed visible."
+    )
     assert report["sections"]["strategy_recommendations"] == [
         "Keep supply restoration paired with corridor protection.",
         "Preserve ISR coverage on civilian approaches.",

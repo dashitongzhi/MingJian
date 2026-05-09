@@ -42,7 +42,9 @@ class ReportService:
         if company is None:
             raise LookupError(f"Company {simulation_run.company_id} was not found.")
 
-        decision_records, state_snapshots = await self._load_run_materials(session, simulation_run.id)
+        decision_records, state_snapshots = await self._load_run_materials(
+            session, simulation_run.id
+        )
         scenario_branch = (
             await session.scalars(
                 select(ScenarioBranchRecord).where(ScenarioBranchRecord.run_id == simulation_run.id)
@@ -135,15 +137,21 @@ class ReportService:
             "scenario_tree": {
                 "baseline_only": scenario_branch is None and not child_branches,
                 "branch_id": scenario_branch.id if scenario_branch is not None else None,
-                "parent_run_id": scenario_branch.parent_run_id if scenario_branch is not None else None,
+                "parent_run_id": scenario_branch.parent_run_id
+                if scenario_branch is not None
+                else None,
                 "child_branch_ids": [branch.id for branch in child_branches],
             },
             "decision_chain": self._build_decision_chain(decision_records),
             "leading_indicators": leading_indicators,
-            "scenario_compare": scenario_branch.kpi_trajectory if scenario_branch is not None else [],
+            "scenario_compare": scenario_branch.kpi_trajectory
+            if scenario_branch is not None
+            else [],
             "strategy_recommendations": recommendations,
             "why_this_happened": why_this_happened,
-            "startup_kpi_pack": startup_kpi_pack.model_dump() if startup_kpi_pack is not None else None,
+            "startup_kpi_pack": startup_kpi_pack.model_dump()
+            if startup_kpi_pack is not None
+            else None,
         }
 
         report = GeneratedReport(
@@ -170,7 +178,9 @@ class ReportService:
         if force is None:
             raise LookupError(f"Force {simulation_run.force_id} was not found.")
 
-        decision_records, state_snapshots = await self._load_run_materials(session, simulation_run.id)
+        decision_records, state_snapshots = await self._load_run_materials(
+            session, simulation_run.id
+        )
         scenario_branch = (
             await session.scalars(
                 select(ScenarioBranchRecord).where(ScenarioBranchRecord.run_id == simulation_run.id)
@@ -282,7 +292,9 @@ class ReportService:
             ]
             if isinstance(value, (int, float)) and value > 0
         ]
-        confidence = round(sum(confidence_values) / len(confidence_values), 4) if confidence_values else 0.5
+        confidence = (
+            round(sum(confidence_values) / len(confidence_values), 4) if confidence_values else 0.5
+        )
         assumptions = list(scenario_branch.assumptions if scenario_branch is not None else [])
         if not assumptions:
             assumptions = [
@@ -290,7 +302,9 @@ class ReportService:
                 "All outputs are simulation-only and require analyst review before operational use.",
             ]
         military_audit = {
-            "military_use_mode": simulation_run.military_use_mode or simulation_run.configuration.get("military_use_mode") or "full_domain",
+            "military_use_mode": simulation_run.military_use_mode
+            or simulation_run.configuration.get("military_use_mode")
+            or "full_domain",
             "simulation_only": True,
             "evidence_ids": evidence_ids,
             "confidence": confidence,
@@ -312,7 +326,9 @@ class ReportService:
                 leading_indicators=leading_indicators,
                 matched_rules=matched_rules,
                 external_shocks=shock_payloads,
-                scenario_assumptions=scenario_branch.assumptions if scenario_branch is not None else None,
+                scenario_assumptions=scenario_branch.assumptions
+                if scenario_branch is not None
+                else None,
             )
             if enhancement is not None:
                 summary = enhancement.executive_summary
@@ -375,17 +391,23 @@ class ReportService:
             "scenario_tree": {
                 "baseline_only": scenario_branch is None,
                 "branch_id": scenario_branch.id if scenario_branch is not None else None,
-                "parent_run_id": scenario_branch.parent_run_id if scenario_branch is not None else None,
+                "parent_run_id": scenario_branch.parent_run_id
+                if scenario_branch is not None
+                else None,
                 "child_branch_ids": [branch.id for branch in child_branches],
             },
             "decision_chain": self._build_decision_chain(decision_records),
             "leading_indicators": leading_indicators,
-            "scenario_compare": scenario_branch.kpi_trajectory if scenario_branch is not None else [],
+            "scenario_compare": scenario_branch.kpi_trajectory
+            if scenario_branch is not None
+            else [],
             "external_shocks": shock_payloads,
             "audit": military_audit,
             "strategy_recommendations": recommendations,
             "why_this_happened": why_this_happened,
-            "startup_kpi_pack": startup_kpi_pack.model_dump() if startup_kpi_pack is not None else None,
+            "startup_kpi_pack": startup_kpi_pack.model_dump()
+            if startup_kpi_pack is not None
+            else None,
         }
 
         report = GeneratedReport(
@@ -446,7 +468,9 @@ class ReportService:
                 )
         return indicators
 
-    def _build_decision_chain(self, decision_records: list[DecisionRecordRecord]) -> list[dict[str, object]]:
+    def _build_decision_chain(
+        self, decision_records: list[DecisionRecordRecord]
+    ) -> list[dict[str, object]]:
         return [
             {
                 "tick": record.tick,
@@ -471,47 +495,90 @@ class ReportService:
     def _build_company_recommendations(self, final_state: dict) -> list[str]:
         recommendations: list[str] = []
         if float(final_state.get("infra_cost_index", 1.0)) > 1.1:
-            recommendations.append("Reduce infrastructure concentration risk before scaling the next release.")
+            recommendations.append(
+                "Reduce infrastructure concentration risk before scaling the next release."
+            )
         if float(final_state.get("runway_weeks", 52)) < 40:
             recommendations.append("Preserve cash and revisit hiring until runway stabilizes.")
         if float(final_state.get("gross_margin", 0.62)) < 0.58:
-            recommendations.append("Repair gross margin before layering on more custom delivery work.")
+            recommendations.append(
+                "Repair gross margin before layering on more custom delivery work."
+            )
         if float(final_state.get("brand_index", 1.0)) < 0.9:
-            recommendations.append("Rebuild trust around one workflow with explicit quality and ROI commitments.")
+            recommendations.append(
+                "Rebuild trust around one workflow with explicit quality and ROI commitments."
+            )
         if float(final_state.get("market_share", 0.05)) < 0.03:
-            recommendations.append("Avoid broad platform positioning and narrow into a vertical wedge with higher urgency.")
+            recommendations.append(
+                "Avoid broad platform positioning and narrow into a vertical wedge with higher urgency."
+            )
         if float(final_state.get("pipeline", 1.0)) < 0.85:
-            recommendations.append("Rebuild qualified pipeline inside one wedge instead of widening top-of-funnel spend.")
+            recommendations.append(
+                "Rebuild qualified pipeline inside one wedge instead of widening top-of-funnel spend."
+            )
         if float(final_state.get("support_load", 0.35)) > 0.55:
-            recommendations.append("Reduce deployment complexity before adding more live customers to the queue.")
+            recommendations.append(
+                "Reduce deployment complexity before adding more live customers to the queue."
+            )
         if float(final_state.get("reliability_debt", 0.28)) > 0.4:
-            recommendations.append("Schedule a reliability reset to shrink incident debt before the next launch cycle.")
-        if float(final_state.get("nrr", 1.02)) < 1.0 or float(final_state.get("churn_risk", 0.12)) > 0.18:
-            recommendations.append("Shift the next cycle toward renewals and expansion quality, not just new logo growth.")
+            recommendations.append(
+                "Schedule a reliability reset to shrink incident debt before the next launch cycle."
+            )
+        if (
+            float(final_state.get("nrr", 1.02)) < 1.0
+            or float(final_state.get("churn_risk", 0.12)) > 0.18
+        ):
+            recommendations.append(
+                "Shift the next cycle toward renewals and expansion quality, not just new logo growth."
+            )
         if float(final_state.get("delivery_velocity", 1.0)) < 0.95:
-            recommendations.append("Recover delivery velocity with scoped releases and operational cleanup.")
+            recommendations.append(
+                "Recover delivery velocity with scoped releases and operational cleanup."
+            )
         if not recommendations:
-            recommendations.append("Maintain the current pace and monitor for fresh external shocks.")
+            recommendations.append(
+                "Maintain the current pace and monitor for fresh external shocks."
+            )
         return recommendations
 
     def _build_military_recommendations(self, final_state: dict) -> list[str]:
         recommendations: list[str] = []
         if float(final_state.get("logistics_throughput", 1.0)) < 0.8:
-            recommendations.append("Restore logistics resilience before committing additional maneuver.")
+            recommendations.append(
+                "Restore logistics resilience before committing additional maneuver."
+            )
         if float(final_state.get("supply_network", 0.84)) < 0.76:
-            recommendations.append("Stabilize the route network and corridor control before extending the line of advance.")
+            recommendations.append(
+                "Stabilize the route network and corridor control before extending the line of advance."
+            )
         if float(final_state.get("objective_control", 0.5)) < 0.5:
-            recommendations.append("Re-secure the decisive objective because positional control is slipping.")
+            recommendations.append(
+                "Re-secure the decisive objective because positional control is slipping."
+            )
         if float(final_state.get("air_defense", 1.0)) < 0.85:
-            recommendations.append("Rebalance air defense coverage before accepting higher drone exposure.")
-        if float(final_state.get("enemy_readiness", 0.82)) > 0.8 or float(final_state.get("enemy_pressure", 0.66)) > 0.68:
-            recommendations.append("Suppress enemy fires and command loops before taking on additional exposure.")
-        if float(final_state.get("recovery_capacity", 0.68)) < 0.6 or float(final_state.get("attrition_rate", 0.18)) > 0.26:
-            recommendations.append("Rotate and repair combat elements before attrition outruns recovery.")
+            recommendations.append(
+                "Rebalance air defense coverage before accepting higher drone exposure."
+            )
+        if (
+            float(final_state.get("enemy_readiness", 0.82)) > 0.8
+            or float(final_state.get("enemy_pressure", 0.66)) > 0.68
+        ):
+            recommendations.append(
+                "Suppress enemy fires and command loops before taking on additional exposure."
+            )
+        if (
+            float(final_state.get("recovery_capacity", 0.68)) < 0.6
+            or float(final_state.get("attrition_rate", 0.18)) > 0.26
+        ):
+            recommendations.append(
+                "Rotate and repair combat elements before attrition outruns recovery."
+            )
         if float(final_state.get("civilian_risk", 0.0)) > 0.55:
             recommendations.append("Increase civilian protection measures before expanding fires.")
         if float(final_state.get("escalation_index", 0.0)) > 0.75:
             recommendations.append("Shift to a lower-visibility posture to slow escalation.")
         if not recommendations:
-            recommendations.append("Hold the current posture and keep ISR focused on early warning.")
+            recommendations.append(
+                "Hold the current posture and keep ISR focused on early warning."
+            )
         return recommendations

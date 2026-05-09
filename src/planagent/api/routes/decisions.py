@@ -80,10 +80,7 @@ async def get_user_decision_stats(
     counts = {decision: 0 for decision in _DECISION_VALUES}
     counts.update({str(decision): int(count) for decision, count in rows})
     total = sum(counts.values())
-    ratios = {
-        decision: (counts[decision] / total if total else 0.0)
-        for decision in _RATIO_VALUES
-    }
+    ratios = {decision: (counts[decision] / total if total else 0.0) for decision in _RATIO_VALUES}
     return UserDecisionStatsRead(total=total, counts=counts, ratios=ratios)
 
 

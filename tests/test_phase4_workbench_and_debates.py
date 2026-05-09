@@ -56,7 +56,7 @@ def test_workbench_and_debate_flow(monkeypatch, tmp_path: Path) -> None:
                 "source_url": "https://example.com/blue-shield-brief",
                 "title": "",
                 "content_text": "Blue Shield Brigade saw pressure.",
-            }
+            },
         ],
     }
     simulation_payload = {
@@ -84,7 +84,9 @@ def test_workbench_and_debate_flow(monkeypatch, tmp_path: Path) -> None:
                 "topic": "Should Blue Shield keep prioritizing supply-line restoration?",
                 "trigger_type": "pivot_decision",
                 "target_type": "run",
-                "context_lines": ["Prioritize readiness recovery without losing civilian protection."],
+                "context_lines": [
+                    "Prioritize readiness recovery without losing civilian protection."
+                ],
             },
         )
         assert debate_response.status_code == 201

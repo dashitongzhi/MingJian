@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from planagent.simulation.domain_packs import DomainPack, registry
-from planagent.simulation.specs import ActionSpec, ActorTemplate, EntityTypeSpec, EventTypeSpec, StateFieldSpec
+from planagent.simulation.specs import (
+    ActionSpec,
+    ActorTemplate,
+    EntityTypeSpec,
+    EventTypeSpec,
+    StateFieldSpec,
+)
 
 
 class MilitaryDomainPack(DomainPack):
@@ -26,11 +32,19 @@ class MilitaryDomainPack(DomainPack):
             StateFieldSpec("ew_control", "Electronic warfare control.", 1.0),
             StateFieldSpec("air_defense", "Air and counter-drone coverage.", 1.0),
             StateFieldSpec("logistics_throughput", "Available logistics throughput.", 1.0),
-            StateFieldSpec("supply_network", "Integrity of routes, depots, and corridors feeding the fight.", 0.84),
+            StateFieldSpec(
+                "supply_network",
+                "Integrity of routes, depots, and corridors feeding the fight.",
+                0.84,
+            ),
             StateFieldSpec("mobility", "Freedom of maneuver.", 1.0),
             StateFieldSpec("command_cohesion", "Command and control coherence.", 1.0),
-            StateFieldSpec("objective_control", "Control over the decisive objective network.", 0.5),
-            StateFieldSpec("recovery_capacity", "Ability to repair damage and rotate degraded elements.", 0.68),
+            StateFieldSpec(
+                "objective_control", "Control over the decisive objective network.", 0.5
+            ),
+            StateFieldSpec(
+                "recovery_capacity", "Ability to repair damage and rotate degraded elements.", 0.68
+            ),
             StateFieldSpec("civilian_risk", "Civilian exposure risk.", 0.25),
             StateFieldSpec("escalation_index", "Current escalation pressure.", 0.3),
             StateFieldSpec("ally_support", "External support confidence.", 0.7),
@@ -46,14 +60,22 @@ class MilitaryDomainPack(DomainPack):
             ActionSpec("redeploy", "Reposition forces to a new area."),
             ActionSpec("fortify", "Increase protection around a critical asset."),
             ActionSpec("increase_isr", "Improve reconnaissance and targeting awareness."),
-            ActionSpec("rebalance_air_defense", "Shift air defense coverage to the threatened axis."),
+            ActionSpec(
+                "rebalance_air_defense", "Shift air defense coverage to the threatened axis."
+            ),
             ActionSpec("open_supply_line", "Restore or create logistics access."),
             ActionSpec("commit_reserves", "Commit reserve units to stabilize the front."),
             ActionSpec("protect_civilians", "Reduce exposure around civilian areas."),
             ActionSpec("deescalate_posture", "Reduce visible posture to manage escalation."),
-            ActionSpec("secure_objective", "Stabilize the decisive objective and its approach corridors."),
-            ActionSpec("suppress_enemy_fires", "Disrupt enemy fires and command loops before they mass."),
-            ActionSpec("rotate_and_repair", "Rotate degraded elements and rebuild combat effectiveness."),
+            ActionSpec(
+                "secure_objective", "Stabilize the decisive objective and its approach corridors."
+            ),
+            ActionSpec(
+                "suppress_enemy_fires", "Disrupt enemy fires and command loops before they mass."
+            ),
+            ActionSpec(
+                "rotate_and_repair", "Rotate degraded elements and rebuild combat effectiveness."
+            ),
         ]
 
     @property
@@ -62,7 +84,9 @@ class MilitaryDomainPack(DomainPack):
             EventTypeSpec("supply_disruption", "A logistics path was interrupted."),
             EventTypeSpec("weather_window", "Weather changed operational constraints."),
             EventTypeSpec("drone_swarm", "Drone activity changed the local threat picture."),
-            EventTypeSpec("electronic_attack", "Electronic or cyber pressure disrupted command systems."),
+            EventTypeSpec(
+                "electronic_attack", "Electronic or cyber pressure disrupted command systems."
+            ),
         ]
 
     @property

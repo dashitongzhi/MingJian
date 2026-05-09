@@ -33,4 +33,3 @@ class EventTypeSpec:
 class ActorTemplate:
     actor_type: str
     default_state: dict[str, Any] = field(default_factory=dict)
-

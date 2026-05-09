@@ -6,7 +6,11 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from planagent.domain.api import QueueHealthBucketRead, ReviewQueueReasonRead, RuntimeQueueHealthRead
+from planagent.domain.api import (
+    QueueHealthBucketRead,
+    ReviewQueueReasonRead,
+    RuntimeQueueHealthRead,
+)
 from planagent.domain.enums import IngestRunStatus, ReviewItemStatus, SimulationRunStatus
 from planagent.domain.models import (
     DeadLetterEvent,
@@ -69,7 +73,8 @@ class RuntimeMonitorService:
             dead_letter_count=dead_letter_count,
             degraded_sources=degraded_sources,
             backpressure_active=any(
-                bucket.pending + bucket.reclaimable > self.backpressure_pending_threshold for bucket in queues
+                bucket.pending + bucket.reclaimable > self.backpressure_pending_threshold
+                for bucket in queues
             ),
         )
 
@@ -83,30 +88,44 @@ class RuntimeMonitorService:
         filters = self._optional_filters(IngestRun, tenant_id, preset_id)
         pending = await self._count(
             session,
-            select(func.count()).select_from(IngestRun).where(*filters, IngestRun.status == IngestRunStatus.PENDING.value),
+            select(func.count())
+            .select_from(IngestRun)
+            .where(*filters, IngestRun.status == IngestRunStatus.PENDING.value),
         )
         processing = await self._count(
             session,
-            select(func.count()).select_from(IngestRun).where(
+            select(func.count())
+            .select_from(IngestRun)
+            .where(
                 *filters,
                 IngestRun.status == IngestRunStatus.PROCESSING.value,
-                or_(IngestRun.lease_owner.is_(None), IngestRun.lease_expires_at.is_(None), IngestRun.lease_expires_at >= now),
+                or_(
+                    IngestRun.lease_owner.is_(None),
+                    IngestRun.lease_expires_at.is_(None),
+                    IngestRun.lease_expires_at >= now,
+                ),
             ),
         )
         completed = await self._count(
             session,
-            select(func.count()).select_from(IngestRun).where(
+            select(func.count())
+            .select_from(IngestRun)
+            .where(
                 *filters,
                 IngestRun.status == IngestRunStatus.COMPLETED.value,
             ),
         )
         failed = await self._count(
             session,
-            select(func.count()).select_from(IngestRun).where(*filters, IngestRun.status == IngestRunStatus.FAILED.value),
+            select(func.count())
+            .select_from(IngestRun)
+            .where(*filters, IngestRun.status == IngestRunStatus.FAILED.value),
         )
         reclaimable = await self._count(
             session,
-            select(func.count()).select_from(IngestRun).where(
+            select(func.count())
+            .select_from(IngestRun)
+            .where(
                 *filters,
                 IngestRun.status == IngestRunStatus.PROCESSING.value,
                 IngestRun.lease_owner.is_not(None),
@@ -133,27 +152,41 @@ class RuntimeMonitorService:
         filters = self._optional_filters(RawSourceItem, tenant_id, preset_id)
         pending = await self._count(
             session,
-            select(func.count()).select_from(RawSourceItem).where(*filters, RawSourceItem.knowledge_status == "PENDING"),
+            select(func.count())
+            .select_from(RawSourceItem)
+            .where(*filters, RawSourceItem.knowledge_status == "PENDING"),
         )
         processing = await self._count(
             session,
-            select(func.count()).select_from(RawSourceItem).where(
+            select(func.count())
+            .select_from(RawSourceItem)
+            .where(
                 *filters,
                 RawSourceItem.knowledge_status == "PROCESSING",
-                or_(RawSourceItem.lease_owner.is_(None), RawSourceItem.lease_expires_at.is_(None), RawSourceItem.lease_expires_at >= now),
+                or_(
+                    RawSourceItem.lease_owner.is_(None),
+                    RawSourceItem.lease_expires_at.is_(None),
+                    RawSourceItem.lease_expires_at >= now,
+                ),
             ),
         )
         completed = await self._count(
             session,
-            select(func.count()).select_from(RawSourceItem).where(*filters, RawSourceItem.knowledge_status == "COMPLETED"),
+            select(func.count())
+            .select_from(RawSourceItem)
+            .where(*filters, RawSourceItem.knowledge_status == "COMPLETED"),
         )
         failed = await self._count(
             session,
-            select(func.count()).select_from(RawSourceItem).where(*filters, RawSourceItem.knowledge_status == "FAILED"),
+            select(func.count())
+            .select_from(RawSourceItem)
+            .where(*filters, RawSourceItem.knowledge_status == "FAILED"),
         )
         reclaimable = await self._count(
             session,
-            select(func.count()).select_from(RawSourceItem).where(
+            select(func.count())
+            .select_from(RawSourceItem)
+            .where(
                 *filters,
                 RawSourceItem.knowledge_status == "PROCESSING",
                 RawSourceItem.lease_owner.is_not(None),
@@ -180,7 +213,9 @@ class RuntimeMonitorService:
         filters = self._optional_filters(ReviewItem, tenant_id, preset_id)
         pending = await self._count(
             session,
-            select(func.count()).select_from(ReviewItem).where(
+            select(func.count())
+            .select_from(ReviewItem)
+            .where(
                 *filters,
                 ReviewItem.status == ReviewItemStatus.PENDING.value,
                 ReviewItem.lease_owner.is_(None),
@@ -188,7 +223,9 @@ class RuntimeMonitorService:
         )
         processing = await self._count(
             session,
-            select(func.count()).select_from(ReviewItem).where(
+            select(func.count())
+            .select_from(ReviewItem)
+            .where(
                 *filters,
                 ReviewItem.status == ReviewItemStatus.PENDING.value,
                 ReviewItem.lease_owner.is_not(None),
@@ -197,14 +234,20 @@ class RuntimeMonitorService:
         )
         completed = await self._count(
             session,
-            select(func.count()).select_from(ReviewItem).where(
+            select(func.count())
+            .select_from(ReviewItem)
+            .where(
                 *filters,
-                ReviewItem.status.in_([ReviewItemStatus.ACCEPTED.value, ReviewItemStatus.REJECTED.value]),
+                ReviewItem.status.in_(
+                    [ReviewItemStatus.ACCEPTED.value, ReviewItemStatus.REJECTED.value]
+                ),
             ),
         )
         reclaimable = await self._count(
             session,
-            select(func.count()).select_from(ReviewItem).where(
+            select(func.count())
+            .select_from(ReviewItem)
+            .where(
                 *filters,
                 ReviewItem.status == ReviewItemStatus.PENDING.value,
                 ReviewItem.lease_owner.is_not(None),
@@ -231,36 +274,50 @@ class RuntimeMonitorService:
         filters = self._optional_filters(SimulationRun, tenant_id, preset_id)
         pending = await self._count(
             session,
-            select(func.count()).select_from(SimulationRun).where(
+            select(func.count())
+            .select_from(SimulationRun)
+            .where(
                 *filters,
                 SimulationRun.status == SimulationRunStatus.PENDING.value,
             ),
         )
         processing = await self._count(
             session,
-            select(func.count()).select_from(SimulationRun).where(
+            select(func.count())
+            .select_from(SimulationRun)
+            .where(
                 *filters,
                 SimulationRun.status == SimulationRunStatus.PROCESSING.value,
-                or_(SimulationRun.lease_owner.is_(None), SimulationRun.lease_expires_at.is_(None), SimulationRun.lease_expires_at >= now),
+                or_(
+                    SimulationRun.lease_owner.is_(None),
+                    SimulationRun.lease_expires_at.is_(None),
+                    SimulationRun.lease_expires_at >= now,
+                ),
             ),
         )
         completed = await self._count(
             session,
-            select(func.count()).select_from(SimulationRun).where(
+            select(func.count())
+            .select_from(SimulationRun)
+            .where(
                 *filters,
                 SimulationRun.status == SimulationRunStatus.COMPLETED.value,
             ),
         )
         failed = await self._count(
             session,
-            select(func.count()).select_from(SimulationRun).where(
+            select(func.count())
+            .select_from(SimulationRun)
+            .where(
                 *filters,
                 SimulationRun.status == SimulationRunStatus.FAILED.value,
             ),
         )
         reclaimable = await self._count(
             session,
-            select(func.count()).select_from(SimulationRun).where(
+            select(func.count())
+            .select_from(SimulationRun)
+            .where(
                 *filters,
                 SimulationRun.status == SimulationRunStatus.PROCESSING.value,
                 SimulationRun.lease_owner.is_not(None),

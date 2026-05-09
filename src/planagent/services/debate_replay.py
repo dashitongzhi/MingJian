@@ -33,6 +33,7 @@ from planagent.domain.models import (
 @dataclass(frozen=True)
 class _RoundEntry:
     """Internal helper for a single round entry in the replay timeline."""
+
     round_number: int
     role: str
     position: str
@@ -49,18 +50,14 @@ class DebateReplayService:
     # ── helpers ────────────────────────────────────────────────────────────
 
     @staticmethod
-    async def _get_session_or_raise(
-        session: AsyncSession, debate_id: str
-    ) -> DebateSessionRecord:
+    async def _get_session_or_raise(session: AsyncSession, debate_id: str) -> DebateSessionRecord:
         debate = await session.get(DebateSessionRecord, debate_id)
         if debate is None:
             raise LookupError(f"Debate {debate_id} was not found.")
         return debate
 
     @staticmethod
-    async def _load_rounds(
-        session: AsyncSession, debate_id: str
-    ) -> list[DebateRoundRecord]:
+    async def _load_rounds(session: AsyncSession, debate_id: str) -> list[DebateRoundRecord]:
         return list(
             (
                 await session.scalars(
@@ -75,9 +72,7 @@ class DebateReplayService:
         )
 
     @staticmethod
-    async def _load_verdict(
-        session: AsyncSession, debate_id: str
-    ) -> DebateVerdictRecord | None:
+    async def _load_verdict(session: AsyncSession, debate_id: str) -> DebateVerdictRecord | None:
         return await session.get(DebateVerdictRecord, debate_id)
 
     @staticmethod
@@ -131,9 +126,7 @@ class DebateReplayService:
 
     # ── get_replay ─────────────────────────────────────────────────────────
 
-    async def get_replay(
-        self, session: AsyncSession, debate_id: str
-    ) -> DebateReplayRead:
+    async def get_replay(self, session: AsyncSession, debate_id: str) -> DebateReplayRead:
         """获取辩论回放数据，按时间顺序组织（包含插话事件）"""
         debate = await self._get_session_or_raise(session, debate_id)
         rounds = await self._load_rounds(session, debate_id)
@@ -160,28 +153,32 @@ class DebateReplayService:
         timeline: list[dict[str, Any]] = []
 
         for r in rounds:
-            timeline.append({
-                "event_type": "speech",
-                "round_number": r.round_number,
-                "role": r.role,
-                "position": r.position,
-                "confidence": r.confidence,
-                "arguments": r.arguments or [],
-                "rebuttals": r.rebuttals or [],
-                "concessions": r.concessions or [],
-                "timestamp": r.created_at.isoformat(),
-            })
+            timeline.append(
+                {
+                    "event_type": "speech",
+                    "round_number": r.round_number,
+                    "role": r.role,
+                    "position": r.position,
+                    "confidence": r.confidence,
+                    "arguments": r.arguments or [],
+                    "rebuttals": r.rebuttals or [],
+                    "concessions": r.concessions or [],
+                    "timestamp": r.created_at.isoformat(),
+                }
+            )
 
         for intr in interrupts:
-            timeline.append({
-                "event_type": "interrupt",
-                "interrupt_id": intr.id,
-                "interrupt_type": intr.interrupt_type,
-                "message": intr.message,
-                "injected_at_round": intr.injected_at_round,
-                "status": intr.status,
-                "timestamp": intr.created_at.isoformat(),
-            })
+            timeline.append(
+                {
+                    "event_type": "interrupt",
+                    "interrupt_id": intr.id,
+                    "interrupt_type": intr.interrupt_type,
+                    "message": intr.message,
+                    "injected_at_round": intr.injected_at_round,
+                    "status": intr.status,
+                    "timestamp": intr.created_at.isoformat(),
+                }
+            )
 
         timeline.sort(key=lambda x: x["timestamp"])
 
@@ -211,9 +208,7 @@ class DebateReplayService:
 
         round_records = [r for r in rounds if r.round_number == round_number]
         if not round_records:
-            raise LookupError(
-                f"Round {round_number} not found in debate {debate_id}."
-            )
+            raise LookupError(f"Round {round_number} not found in debate {debate_id}.")
 
         entries = [self._round_to_entry(r) for r in round_records]
 
@@ -248,27 +243,31 @@ class DebateReplayService:
 
         events: list[dict[str, Any]] = []
         for r in rounds:
-            events.append({
-                "event_type": "speech",
-                "round_number": r.round_number,
-                "role": r.role,
-                "position": r.position,
-                "confidence": r.confidence,
-                "timestamp": r.created_at.isoformat(),
-                "argument_count": len(r.arguments or []),
-                "rebuttal_count": len(r.rebuttals or []),
-                "concession_count": len(r.concessions or []),
-            })
+            events.append(
+                {
+                    "event_type": "speech",
+                    "round_number": r.round_number,
+                    "role": r.role,
+                    "position": r.position,
+                    "confidence": r.confidence,
+                    "timestamp": r.created_at.isoformat(),
+                    "argument_count": len(r.arguments or []),
+                    "rebuttal_count": len(r.rebuttals or []),
+                    "concession_count": len(r.concessions or []),
+                }
+            )
 
         for intr in interrupts:
-            events.append({
-                "event_type": "interrupt",
-                "interrupt_id": intr.id,
-                "interrupt_type": intr.interrupt_type,
-                "message": intr.message,
-                "status": intr.status,
-                "timestamp": intr.created_at.isoformat(),
-            })
+            events.append(
+                {
+                    "event_type": "interrupt",
+                    "interrupt_id": intr.id,
+                    "interrupt_type": intr.interrupt_type,
+                    "message": intr.message,
+                    "status": intr.status,
+                    "timestamp": intr.created_at.isoformat(),
+                }
+            )
 
         # Sort by timestamp
         events.sort(key=lambda e: e["timestamp"])
@@ -358,9 +357,7 @@ class DebateReplayService:
             debate_2=debate2_summary,
             differences={
                 "round_count_diff": _round_count(rounds1) - _round_count(rounds2),
-                "confidence_diff": round(
-                    _avg_confidence(rounds1) - _avg_confidence(rounds2), 4
-                ),
+                "confidence_diff": round(_avg_confidence(rounds1) - _avg_confidence(rounds2), 4),
                 "arguments_diff": _total_arguments(rounds1) - _total_arguments(rounds2),
                 "rebuttals_diff": _total_rebuttals(rounds1) - _total_rebuttals(rounds2),
                 "concessions_diff": _total_concessions(rounds1) - _total_concessions(rounds2),
@@ -373,9 +370,7 @@ class DebateReplayService:
 
     # ── summary ────────────────────────────────────────────────────────────
 
-    async def get_summary(
-        self, session: AsyncSession, debate_id: str
-    ) -> DebateReplaySummaryRead:
+    async def get_summary(self, session: AsyncSession, debate_id: str) -> DebateReplaySummaryRead:
         """辩论摘要（包含关键转折点）"""
         debate = await self._get_session_or_raise(session, debate_id)
         rounds = await self._load_rounds(session, debate_id)
@@ -389,15 +384,17 @@ class DebateReplayService:
 
         for rnd_num in sorted(rounds_by_number.keys()):
             recs = rounds_by_number[rnd_num]
-            round_summaries.append({
-                "round_number": rnd_num,
-                "roles": [r.role for r in recs],
-                "positions": {r.role: r.position for r in recs},
-                "confidences": {r.role: r.confidence for r in recs},
-                "argument_count": sum(len(r.arguments or []) for r in recs),
-                "rebuttal_count": sum(len(r.rebuttals or []) for r in recs),
-                "concession_count": sum(len(r.concessions or []) for r in recs),
-            })
+            round_summaries.append(
+                {
+                    "round_number": rnd_num,
+                    "roles": [r.role for r in recs],
+                    "positions": {r.role: r.position for r in recs},
+                    "confidences": {r.role: r.confidence for r in recs},
+                    "argument_count": sum(len(r.arguments or []) for r in recs),
+                    "rebuttal_count": sum(len(r.rebuttals or []) for r in recs),
+                    "concession_count": sum(len(r.concessions or []) for r in recs),
+                }
+            )
 
         # Detect key turning points:
         # 1. Significant confidence drops between consecutive rounds
@@ -414,36 +411,38 @@ class DebateReplayService:
 
             # Check for confidence drops per role
             for curr_r in curr_recs:
-                prev_r = next(
-                    (p for p in prev_recs if p.role == curr_r.role), None
-                )
+                prev_r = next((p for p in prev_recs if p.role == curr_r.role), None)
                 if prev_r is not None:
                     delta = curr_r.confidence - prev_r.confidence
                     if abs(delta) >= 0.15:
-                        turning_points.append({
-                            "type": "confidence_shift",
-                            "round_number": curr_num,
-                            "role": curr_r.role,
-                            "previous_confidence": prev_r.confidence,
-                            "current_confidence": curr_r.confidence,
-                            "delta": round(delta, 4),
-                            "description": (
-                                f"{curr_r.role} confidence "
-                                f"{'dropped' if delta < 0 else 'rose'} "
-                                f"from {prev_r.confidence:.2f} to {curr_r.confidence:.2f}"
-                            ),
-                        })
+                        turning_points.append(
+                            {
+                                "type": "confidence_shift",
+                                "round_number": curr_num,
+                                "role": curr_r.role,
+                                "previous_confidence": prev_r.confidence,
+                                "current_confidence": curr_r.confidence,
+                                "delta": round(delta, 4),
+                                "description": (
+                                    f"{curr_r.role} confidence "
+                                    f"{'dropped' if delta < 0 else 'rose'} "
+                                    f"from {prev_r.confidence:.2f} to {curr_r.confidence:.2f}"
+                                ),
+                            }
+                        )
 
             # Check for concessions
             for curr_r in curr_recs:
                 if curr_r.concessions:
-                    turning_points.append({
-                        "type": "concession",
-                        "round_number": curr_num,
-                        "role": curr_r.role,
-                        "concessions": curr_r.concessions,
-                        "description": f"{curr_r.role} made {len(curr_r.concessions)} concession(s)",
-                    })
+                    turning_points.append(
+                        {
+                            "type": "concession",
+                            "round_number": curr_num,
+                            "role": curr_r.role,
+                            "concessions": curr_r.concessions,
+                            "description": f"{curr_r.role} made {len(curr_r.concessions)} concession(s)",
+                        }
+                    )
 
         # Sort turning points by round
         turning_points.sort(key=lambda tp: tp["round_number"])

@@ -14,9 +14,7 @@ class EvidenceWeightingService:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    async def get_source_trust(
-        self, session: AsyncSession, source_url: str
-    ) -> float:
+    async def get_source_trust(self, session: AsyncSession, source_url: str) -> float:
         """获取来源的可信度分数"""
         from planagent.domain.models import SourceTrustScore
 
@@ -46,9 +44,7 @@ class EvidenceWeightingService:
         adjustment = 0.5 + 0.5 * trust
         return min(1.0, claim_confidence * adjustment)
 
-    async def get_evidence_context(
-        self, session: AsyncSession, evidence_ids: list[str]
-    ) -> str:
+    async def get_evidence_context(self, session: AsyncSession, evidence_ids: list[str]) -> str:
         """为推演生成带可信度标注的证据上下文"""
         from planagent.domain.models import EvidenceItem
 

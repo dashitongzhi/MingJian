@@ -96,7 +96,9 @@ def test_corporate_simulation_generates_trace_and_report(monkeypatch, tmp_path: 
         assert rules_payload["rules_loaded"] >= 4
 
 
-def test_agent_startup_simulation_handles_platform_pressure_and_roi_signals(monkeypatch, tmp_path: Path) -> None:
+def test_agent_startup_simulation_handles_platform_pressure_and_roi_signals(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-agent-startup.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -286,7 +288,9 @@ def test_corporate_scenario_branch_compare_and_report_flow(monkeypatch, tmp_path
                 "fork_step": 2,
                 "tick_count": 2,
                 "assumptions": ["Support queue keeps growing while renewals get harder."],
-                "decision_deltas": ["Prioritize renewals and service quality over new deployment volume."],
+                "decision_deltas": [
+                    "Prioritize renewals and service quality over new deployment volume."
+                ],
                 "state_overrides": {
                     "support_load": 0.66,
                     "reliability_debt": 0.52,
@@ -319,7 +323,9 @@ def test_corporate_scenario_branch_compare_and_report_flow(monkeypatch, tmp_path
         assert compare_payload["branches"][0]["recommendation_summary"]
         assert compare_payload["branches"][0]["key_deltas"]
         assert compare_payload["branches"][0]["debate_suggestion"]["target_type"] == "branch"
-        assert compare_payload["branches"][0]["debate_suggestion"]["target_id"] == branch["branch_id"]
+        assert (
+            compare_payload["branches"][0]["debate_suggestion"]["target_id"] == branch["branch_id"]
+        )
         assert {"support_load", "nrr", "churn_risk"} <= set(compare_payload["metric_names"])
 
         report_response = client.get(f"/scenarios/{branch['branch_id']}/reports/latest")
@@ -350,8 +356,14 @@ def test_corporate_scenario_branch_compare_and_report_flow(monkeypatch, tmp_path
         baseline_workbench = baseline_workbench_response.json()
         assert baseline_workbench["scenario_compare"]["baseline_run_id"] == baseline_run["id"]
         assert baseline_workbench["scenario_compare"]["branch_count"] == 1
-        assert baseline_workbench["scenario_compare"]["branches"][0]["branch_id"] == branch["branch_id"]
-        assert baseline_workbench["scenario_compare"]["branches"][0]["debate_suggestion"]["target_id"] == branch["branch_id"]
+        assert (
+            baseline_workbench["scenario_compare"]["branches"][0]["branch_id"]
+            == branch["branch_id"]
+        )
+        assert (
+            baseline_workbench["scenario_compare"]["branches"][0]["debate_suggestion"]["target_id"]
+            == branch["branch_id"]
+        )
 
         branch_workbench_response = client.get(f"/runs/{branch['run_id']}/workbench")
         assert branch_workbench_response.status_code == 200
@@ -407,7 +419,9 @@ def test_corporate_scenario_branch_compare_and_report_flow(monkeypatch, tmp_path
         assert [item["id"] for item in jarvis_list_response.json()] == [jarvis["id"]]
 
 
-def test_startup_tenant_isolation_keeps_reports_and_claims_separate(monkeypatch, tmp_path: Path) -> None:
+def test_startup_tenant_isolation_keeps_reports_and_claims_separate(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-agent-startup-tenants.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -513,7 +527,12 @@ def test_startup_tenant_isolation_keeps_reports_and_claims_separate(monkeypatch,
 
         startup_claims = client.get(
             "/claims",
-            params={"tenant_id": "startup-lab", "preset_id": "agent_startup", "limit": 2, "offset": 0},
+            params={
+                "tenant_id": "startup-lab",
+                "preset_id": "agent_startup",
+                "limit": 2,
+                "offset": 0,
+            },
         )
         assert startup_claims.status_code == 200
         startup_claim_payload = startup_claims.json()
@@ -532,7 +551,12 @@ def test_startup_tenant_isolation_keeps_reports_and_claims_separate(monkeypatch,
 
         startup_evidence = client.get(
             "/evidence",
-            params={"tenant_id": "startup-lab", "preset_id": "agent_startup", "limit": 5, "offset": 0},
+            params={
+                "tenant_id": "startup-lab",
+                "preset_id": "agent_startup",
+                "limit": 5,
+                "offset": 0,
+            },
         )
         assert startup_evidence.status_code == 200
         assert startup_evidence.json()["items"]
@@ -540,7 +564,9 @@ def test_startup_tenant_isolation_keeps_reports_and_claims_separate(monkeypatch,
         assert {item["preset_id"] for item in startup_evidence.json()["items"]} == {"agent_startup"}
 
 
-def test_agent_startup_preset_api_runs_examples_and_returns_kpis(monkeypatch, tmp_path: Path) -> None:
+def test_agent_startup_preset_api_runs_examples_and_returns_kpis(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-agent-startup-preset.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")

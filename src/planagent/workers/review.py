@@ -8,7 +8,13 @@ from planagent.config import Settings
 from planagent.db import get_database
 from planagent.domain.api import DebateTriggerRequest, ReviewDecisionRequest
 from planagent.domain.enums import ClaimStatus, EventTopic, ReviewItemStatus
-from planagent.domain.models import Claim, DebateSessionRecord, DebateVerdictRecord, ReviewItem, utc_now
+from planagent.domain.models import (
+    Claim,
+    DebateSessionRecord,
+    DebateVerdictRecord,
+    ReviewItem,
+    utc_now,
+)
 from planagent.events.bus import EventBus
 from planagent.services.debate import DebateService
 from planagent.services.openai_client import OpenAIService
@@ -88,13 +94,16 @@ class ReviewWorker(Worker):
                         continue
                     if existing_verdict is not None:
                         manual_queue += 1
-                        self._release_review_item(review_item, f"existing_debate_verdict={existing_verdict}")
+                        self._release_review_item(
+                            review_item, f"existing_debate_verdict={existing_verdict}"
+                        )
                         continue
 
                     relations = await self.debate_service.find_claim_relations(session, claim)
                     has_conflict = bool(relations.conflicting_claims)
                     has_accepted_support = any(
-                        related.status == ClaimStatus.ACCEPTED.value for related in relations.supportive_claims
+                        related.status == ClaimStatus.ACCEPTED.value
+                        for related in relations.supportive_claims
                     )
                     has_accepted_conflict = any(
                         related.status == ClaimStatus.ACCEPTED.value
@@ -102,19 +111,16 @@ class ReviewWorker(Worker):
                     )
                     if has_accepted_conflict:
                         trigger_type = "conflict_resolution"
-                        context_line = (
-                            "Auto-triggered by review-worker because accepted conflicting evidence was found."
-                        )
+                        context_line = "Auto-triggered by review-worker because accepted conflicting evidence was found."
                     elif has_accepted_support and not has_conflict:
                         trigger_type = "evidence_assessment"
-                        context_line = (
-                            "Auto-triggered by review-worker because accepted corroborating evidence was found."
-                        )
-                    elif claim.confidence >= 0.62 or review_item.processing_attempts >= self.settings.worker_max_attempts:
+                        context_line = "Auto-triggered by review-worker because accepted corroborating evidence was found."
+                    elif (
+                        claim.confidence >= 0.62
+                        or review_item.processing_attempts >= self.settings.worker_max_attempts
+                    ):
                         trigger_type = "evidence_assessment"
-                        context_line = (
-                            "Auto-triggered by review-worker for a high-confidence or repeatedly deferred gray-zone claim."
-                        )
+                        context_line = "Auto-triggered by review-worker for a high-confidence or repeatedly deferred gray-zone claim."
                     else:
                         manual_queue += 1
                         self._release_review_item(review_item, None)
@@ -155,7 +161,9 @@ class ReviewWorker(Worker):
                         auto_rejected += 1
                     else:
                         manual_queue += 1
-                        self._release_review_item(review_item, f"debate_verdict={verdict or 'pending'}")
+                        self._release_review_item(
+                            review_item, f"debate_verdict={verdict or 'pending'}"
+                        )
                 except Exception as exc:
                     manual_queue += 1
                     self._release_review_item(
@@ -232,7 +240,9 @@ class ReviewWorker(Worker):
                 .join(DebateSessionRecord, DebateSessionRecord.id == DebateVerdictRecord.debate_id)
                 .where(
                     DebateSessionRecord.claim_id == claim_id,
-                    DebateSessionRecord.trigger_type.in_(["conflict_resolution", "evidence_assessment"]),
+                    DebateSessionRecord.trigger_type.in_(
+                        ["conflict_resolution", "evidence_assessment"]
+                    ),
                 )
                 .order_by(DebateSessionRecord.created_at.desc())
                 .limit(1)

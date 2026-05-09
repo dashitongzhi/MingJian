@@ -63,6 +63,7 @@ class AssistantEvent:
 @dataclass(frozen=True)
 class DebateSuggestion:
     """Result of conflict detection over an analysis response."""
+
     warranted: bool
     confidence: float
     reasons: list[str]
@@ -72,41 +73,167 @@ class DebateSuggestion:
     opportunity_score: float = 0.0
 
 
- # Heuristic keywords used to detect tension in findings / recommendations.
+# Heuristic keywords used to detect tension in findings / recommendations.
 _RISK_KEYWORDS = {
-    "risk", "risks", "risky", "threat", "threats", "danger", "dangerous",
-    "loss", "losses", "decline", "declining", "drop", "fall", "fell",
-    "delay", "delayed", "cancel", "canceled", "disrupt", "disrupted",
-    "downside", "volatile", "volatility", "uncertain", "uncertainty",
-    "concern", "concerns", "warning", "caution", "cautionary",
-    "challenge", "challenges", "headwind", "headwinds",
+    "risk",
+    "risks",
+    "risky",
+    "threat",
+    "threats",
+    "danger",
+    "dangerous",
+    "loss",
+    "losses",
+    "decline",
+    "declining",
+    "drop",
+    "fall",
+    "fell",
+    "delay",
+    "delayed",
+    "cancel",
+    "canceled",
+    "disrupt",
+    "disrupted",
+    "downside",
+    "volatile",
+    "volatility",
+    "uncertain",
+    "uncertainty",
+    "concern",
+    "concerns",
+    "warning",
+    "caution",
+    "cautionary",
+    "challenge",
+    "challenges",
+    "headwind",
+    "headwinds",
     # Chinese risk keywords
-    "风险", "威胁", "危险", "损失", "下降", "衰退", "延迟", "中断",
-    "波动", "不确定", "担忧", "警告", "挑战", "困境", "危机", "隐患",
-    "制裁", "冲突", "战争", "对抗", "恶化", "下滑", "萎缩", "动荡",
-    "陷阱", "瓶颈", "短板", "漏洞", "软肋",
+    "风险",
+    "威胁",
+    "危险",
+    "损失",
+    "下降",
+    "衰退",
+    "延迟",
+    "中断",
+    "波动",
+    "不确定",
+    "担忧",
+    "警告",
+    "挑战",
+    "困境",
+    "危机",
+    "隐患",
+    "制裁",
+    "冲突",
+    "战争",
+    "对抗",
+    "恶化",
+    "下滑",
+    "萎缩",
+    "动荡",
+    "陷阱",
+    "瓶颈",
+    "短板",
+    "漏洞",
+    "软肋",
 }
 _OPPORTUNITY_KEYWORDS = {
-    "opportunity", "opportunities", "growth", "growing", "grow",
-    "increase", "increased", "improve", "improved", "gain", "gains",
-    "upside", "bullish", "optimistic", "positive", "strength", "strong",
-    "launch", "launched", "expand", "expanding", "momentum",
-    "catalyst", "catalysts", "tailwind", "tailwinds",
+    "opportunity",
+    "opportunities",
+    "growth",
+    "growing",
+    "grow",
+    "increase",
+    "increased",
+    "improve",
+    "improved",
+    "gain",
+    "gains",
+    "upside",
+    "bullish",
+    "optimistic",
+    "positive",
+    "strength",
+    "strong",
+    "launch",
+    "launched",
+    "expand",
+    "expanding",
+    "momentum",
+    "catalyst",
+    "catalysts",
+    "tailwind",
+    "tailwinds",
     # Chinese opportunity keywords
-    "机遇", "机会", "增长", "提升", "改善", "突破", "创新", "发展",
-    "扩张", "优势", "潜力", "红利", "赋能", "升级", "转型", "跃迁",
-    "利好", "提振", "升温", "向好", "回暖", "复苏", "加速",
+    "机遇",
+    "机会",
+    "增长",
+    "提升",
+    "改善",
+    "突破",
+    "创新",
+    "发展",
+    "扩张",
+    "优势",
+    "潜力",
+    "红利",
+    "赋能",
+    "升级",
+    "转型",
+    "跃迁",
+    "利好",
+    "提振",
+    "升温",
+    "向好",
+    "回暖",
+    "复苏",
+    "加速",
 }
 _UNCERTAINTY_KEYWORDS = {
-    "uncertain", "uncertainty", "unclear", "ambiguous", "mixed",
-    "conflicting", "conflict", "diverge", "divergent", "contested",
-    "debate", "debated", "disputed", "controversial",
-    "however", "although", "despite", "nevertheless", "on the other hand",
-    "could go either", "high risk high reward", "volatile",
+    "uncertain",
+    "uncertainty",
+    "unclear",
+    "ambiguous",
+    "mixed",
+    "conflicting",
+    "conflict",
+    "diverge",
+    "divergent",
+    "contested",
+    "debate",
+    "debated",
+    "disputed",
+    "controversial",
+    "however",
+    "although",
+    "despite",
+    "nevertheless",
+    "on the other hand",
+    "could go either",
+    "high risk high reward",
+    "volatile",
     # Chinese uncertainty keywords
-    "不确定", "模糊", "矛盾", "分歧", "争议", "两难", "博弈",
-    "然而", "但是", "尽管", "虽然", "另一方面", "高风险高回报",
-    "见仁见智", "众说纷纭", "尚不明朗", "有待观察", "变数",
+    "不确定",
+    "模糊",
+    "矛盾",
+    "分歧",
+    "争议",
+    "两难",
+    "博弈",
+    "然而",
+    "但是",
+    "尽管",
+    "虽然",
+    "另一方面",
+    "高风险高回报",
+    "见仁见智",
+    "众说纷纭",
+    "尚不明朗",
+    "有待观察",
+    "变数",
 }
 
 # Multi-source contradiction: source type diversity threshold
@@ -178,22 +305,29 @@ class StrategicAssistantService:
             domain_id=domain_id,
             subject_name=subject_name,
         )
-        yield self._event("debate_suggested", {
-            "warranted": debate_suggestion.warranted,
-            "confidence": round(debate_suggestion.confidence, 4),
-            "reasons": debate_suggestion.reasons,
-            "suggested_topic": debate_suggestion.suggested_topic,
-            "conflicting_signals": debate_suggestion.conflicting_signals,
-            "risk_score": round(debate_suggestion.risk_score, 4),
-            "opportunity_score": round(debate_suggestion.opportunity_score, 4),
-        })
+        yield self._event(
+            "debate_suggested",
+            {
+                "warranted": debate_suggestion.warranted,
+                "confidence": round(debate_suggestion.confidence, 4),
+                "reasons": debate_suggestion.reasons,
+                "suggested_topic": debate_suggestion.suggested_topic,
+                "conflicting_signals": debate_suggestion.conflicting_signals,
+                "risk_score": round(debate_suggestion.risk_score, 4),
+                "opportunity_score": round(debate_suggestion.opportunity_score, 4),
+            },
+        )
 
         ingest_payload = self._build_ingest_payload(payload, analysis_result, subject_name)
         ingest_run = await self.pipeline_service.create_ingest_run(session, ingest_payload)
         yield self._event("ingest_run", {"ingest_run": ingest_run.id, "status": ingest_run.status})
 
-        simulation_payload = self._build_simulation_payload(payload, domain_id, subject_id, subject_name)
-        simulation_run = await self.simulation_service.create_simulation_run(session, simulation_payload)
+        simulation_payload = self._build_simulation_payload(
+            payload, domain_id, subject_id, subject_name
+        )
+        simulation_run = await self.simulation_service.create_simulation_run(
+            session, simulation_payload
+        )
         yield self._event(
             "simulation_run",
             {
@@ -232,7 +366,11 @@ class StrategicAssistantService:
             yield self._event(debate_event.event, debate_event.payload)
             if debate_event.event == "debate_verdict":
                 debate_id = debate_event.payload.get("debate_id")
-        debate = await self.debate_service.get_debate(session, debate_id) if debate_id is not None else None
+        debate = (
+            await self.debate_service.get_debate(session, debate_id)
+            if debate_id is not None
+            else None
+        )
 
         result = None
         try_errors: list[str] = []
@@ -247,14 +385,18 @@ class StrategicAssistantService:
             )
 
         try:
-            latest_report = await self._latest_report(session, domain_id, subject_id, simulation_run.id, payload.tenant_id)
+            latest_report = await self._latest_report(
+                session, domain_id, subject_id, simulation_run.id, payload.tenant_id
+            )
         except Exception as exc:
             _logger.warning("report generation failed", exc_info=True)
             try_errors.append(f"report: {exc}")
             latest_report = None
 
         try:
-            panel_discussion = await self._build_panel_discussion(payload, domain_id, subject_name, analysis_result, latest_report)
+            panel_discussion = await self._build_panel_discussion(
+                payload, domain_id, subject_name, analysis_result, latest_report
+            )
         except Exception as exc:
             _logger.warning("panel discussion failed", exc_info=True)
             try_errors.append(f"panel_discussion: {exc}")
@@ -271,7 +413,9 @@ class StrategicAssistantService:
             analysis=analysis_result,
             ingest_run=ingest_run,
             simulation_run=simulation_run,
-            latest_report=GeneratedReportModel.model_validate(latest_report) if latest_report is not None else None,
+            latest_report=GeneratedReportModel.model_validate(latest_report)
+            if latest_report is not None
+            else None,
             debate=debate,
             workbench=workbench,
             panel_discussion=panel_discussion,
@@ -298,7 +442,9 @@ class StrategicAssistantService:
                 _logger.warning("session rollback failed after persist error", exc_info=True)
 
         try:
-            await self._auto_create_watch_rule(session, payload.topic, domain_id, payload.tick_count)
+            await self._auto_create_watch_rule(
+                session, payload.topic, domain_id, payload.tick_count
+            )
         except Exception:
             _logger.warning("auto watch rule creation failed", exc_info=True)
             try:
@@ -307,11 +453,14 @@ class StrategicAssistantService:
                 _logger.warning("session rollback failed after watch rule error", exc_info=True)
 
         if try_errors:
-            yield self._event("step", {
-                "phase": "post_debate_errors",
-                "message": "; ".join(try_errors),
-                "status": "warning",
-            })
+            yield self._event(
+                "step",
+                {
+                    "phase": "post_debate_errors",
+                    "message": "; ".join(try_errors),
+                    "status": "warning",
+                },
+            )
 
         yield self._event("assistant_result", result.model_dump(mode="json"))
 
@@ -589,7 +738,9 @@ class StrategicAssistantService:
         *,
         force_create: bool = False,
     ) -> StrategicSession | None:
-        should_persist = force_create or payload.session_id is not None or payload.session_name is not None
+        should_persist = (
+            force_create or payload.session_id is not None or payload.session_name is not None
+        )
         if not should_persist:
             return None
 
@@ -706,7 +857,9 @@ class StrategicAssistantService:
             query = query.where(Hypothesis.tenant_id == session_record.tenant_id)
         if session_record.preset_id is not None:
             query = query.where(Hypothesis.preset_id == session_record.preset_id)
-        return list((await session.scalars(query.order_by(Hypothesis.updated_at.desc()).limit(10))).all())
+        return list(
+            (await session.scalars(query.order_by(Hypothesis.updated_at.desc()).limit(10))).all()
+        )
 
     async def _store_run_snapshot(
         self,
@@ -728,10 +881,14 @@ class StrategicAssistantService:
             generated_at=result.generated_at,
         )
         session_record.latest_run_summary = (
-            result.latest_report.summary if result.latest_report is not None else result.analysis.summary
+            result.latest_report.summary
+            if result.latest_report is not None
+            else result.analysis.summary
         )
         session_record.latest_debate_verdict = (
-            result.debate.verdict.verdict if result.debate is not None and result.debate.verdict is not None else None
+            result.debate.verdict.verdict
+            if result.debate is not None and result.debate.verdict is not None
+            else None
         )
         session_record.latest_run_at = result.generated_at
         session.add(snapshot)
@@ -1035,7 +1192,8 @@ class StrategicAssistantService:
             company_name=subject_name,
             market=payload.market or self._default_market(payload.topic),
             tick_count=tick_count,
-            actor_template=payload.actor_template or self._default_actor_template(payload.market or ""),
+            actor_template=payload.actor_template
+            or self._default_actor_template(payload.market or ""),
             tenant_id=payload.tenant_id,
             preset_id=payload.preset_id,
             execution_mode="INLINE",
@@ -1339,9 +1497,7 @@ class StrategicAssistantService:
 
         return max(0.0, min(1.0, score))
 
-    def _compute_risk_opportunity_scores(
-        self, analysis: AnalysisResponse
-    ) -> tuple[float, float]:
+    def _compute_risk_opportunity_scores(self, analysis: AnalysisResponse) -> tuple[float, float]:
         """Scan findings + recommendations for risk and opportunity keyword density.
 
         Returns (risk_score, opportunity_score), each in [0.0, 1.0].
@@ -1368,9 +1524,7 @@ class StrategicAssistantService:
         opp_score = min(opp_hits / 4.0, 1.0)
         return risk_score, opp_score
 
-    def _detect_per_finding_conflicts(
-        self, analysis: AnalysisResponse
-    ) -> list[str]:
+    def _detect_per_finding_conflicts(self, analysis: AnalysisResponse) -> list[str]:
         """Detect individual findings that contain both risk and opportunity signals.
 
         Returns list of finding texts that exhibit internal conflict.
@@ -1384,9 +1538,7 @@ class StrategicAssistantService:
                 conflicts.append(finding)
         return conflicts
 
-    def _detect_source_contradiction(
-        self, analysis: AnalysisResponse
-    ) -> bool:
+    def _detect_source_contradiction(self, analysis: AnalysisResponse) -> bool:
         """Detect multi-source contradiction signals.
 
         Returns True if:
@@ -1422,9 +1574,7 @@ class StrategicAssistantService:
 
         return False
 
-    def _compute_uncertainty_density(
-        self, analysis: AnalysisResponse
-    ) -> float:
+    def _compute_uncertainty_density(self, analysis: AnalysisResponse) -> float:
         """Compute the density of uncertainty keywords in the summary.
 
         Returns a value in [0.0, 1.0] representing the proportion of

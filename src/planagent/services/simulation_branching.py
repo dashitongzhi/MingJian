@@ -139,7 +139,9 @@ def build_scenario_compare_summary(
         return [
             f"No {domain_id} branch clearly beats the baseline yet; use debate to inspect tradeoffs before pivoting."
         ]
-    best_branch = next((branch for branch in branches if branch["branch_id"] == best_branch_id), None)
+    best_branch = next(
+        (branch for branch in branches if branch["branch_id"] == best_branch_id), None
+    )
     if best_branch is None:
         return [f"Branch comparison is available for {len(branches)} scenario(s)."]
     return [

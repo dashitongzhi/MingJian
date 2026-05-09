@@ -1,4 +1,5 @@
 """Auth API routes — JWT authentication endpoints."""
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 # ── Request / Response Models ─────────────────────────────────
+
 
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -49,10 +51,12 @@ class UserInfo(BaseModel):
 
 # ── Dependency ────────────────────────────────────────────────
 
+
 def _get_auth_service(request: Request) -> AuthService:
     if not hasattr(request.app.state, "auth_service"):
         from planagent.config import get_settings
         from planagent.services.auth import AuthConfig
+
         settings = get_settings()
         config = AuthConfig(
             secret_key=getattr(settings, "auth_secret_key", "") or "",
@@ -71,7 +75,9 @@ def get_current_user_payload(
 
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token:
-        raise HTTPException(status_code=401, detail="Invalid Authorization format (expected 'Bearer <token>')")
+        raise HTTPException(
+            status_code=401, detail="Invalid Authorization format (expected 'Bearer <token>')"
+        )
 
     auth_service = _get_auth_service(request)
     payload = auth_service.verify_token(token)
@@ -83,15 +89,20 @@ def get_current_user_payload(
 
 def require_role(required_role: UserRole):
     """Dependency factory for role-based access control."""
-    def _check(request: Request, payload: dict[str, Any] = Depends(get_current_user_payload)) -> dict[str, Any]:
+
+    def _check(
+        request: Request, payload: dict[str, Any] = Depends(get_current_user_payload)
+    ) -> dict[str, Any]:
         auth_service = _get_auth_service(request)
         if not auth_service.check_role(payload, required_role):
             raise HTTPException(status_code=403, detail=f"Requires role: {required_role.value}")
         return payload
+
     return _check
 
 
 # ── Endpoints ─────────────────────────────────────────────────
+
 
 @router.post("/register", response_model=UserInfo, status_code=201)
 async def register(

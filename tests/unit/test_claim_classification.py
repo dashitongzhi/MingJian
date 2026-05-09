@@ -11,6 +11,7 @@ from planagent.services.pipeline import classify_claim
 # Event keywords
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyEvent:
     @pytest.mark.parametrize(
         "statement",
@@ -36,6 +37,7 @@ class TestClassifyEvent:
 # Signal keywords
 # ---------------------------------------------------------------------------
 
+
 class TestClassifySignal:
     @pytest.mark.parametrize(
         "statement",
@@ -57,6 +59,7 @@ class TestClassifySignal:
 # Trend keywords
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyTrend:
     @pytest.mark.parametrize(
         "statement",
@@ -77,6 +80,7 @@ class TestClassifyTrend:
 # Unclassified
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyUnclassified:
     def test_no_matching_keywords(self):
         kind, sub = classify_claim("The weather is pleasant today")
@@ -93,6 +97,7 @@ class TestClassifyUnclassified:
 # Priority / ordering
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyPriority:
     def test_event_beats_signal_when_both_present(self):
         """Event keywords are checked first — a sentence with both should classify as event."""
@@ -108,6 +113,7 @@ class TestClassifyPriority:
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyEdgeCases:
     def test_very_long_text(self):

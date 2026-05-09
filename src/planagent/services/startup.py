@@ -58,7 +58,11 @@ def startup_preset_config(tenant_id: str | None, preset_id: str | None) -> dict[
 def resolve_tenant_id(configuration: dict[str, Any] | None) -> str | None:
     if not configuration:
         return None
-    return normalize_tenant_id(str(configuration.get("tenant_id"))) if configuration.get("tenant_id") else None
+    return (
+        normalize_tenant_id(str(configuration.get("tenant_id")))
+        if configuration.get("tenant_id")
+        else None
+    )
 
 
 def resolve_preset_id(configuration: dict[str, Any] | None) -> str | None:
@@ -69,7 +73,9 @@ def resolve_preset_id(configuration: dict[str, Any] | None) -> str | None:
 
 
 def resolve_run_tenant_id(run: SimulationRun) -> str | None:
-    return normalize_tenant_id(getattr(run, "tenant_id", None)) or resolve_tenant_id(run.configuration)
+    return normalize_tenant_id(getattr(run, "tenant_id", None)) or resolve_tenant_id(
+        run.configuration
+    )
 
 
 def resolve_run_preset_id(run: SimulationRun) -> str | None:
@@ -90,17 +96,25 @@ def build_startup_kpi_pack(
     if not is_agent_startup_run(run):
         return None
 
-    delivery_velocity = float(final_state.get("delivery_velocity", initial_state.get("delivery_velocity", 1.0)))
+    delivery_velocity = float(
+        final_state.get("delivery_velocity", initial_state.get("delivery_velocity", 1.0))
+    )
     runway_weeks = float(final_state.get("runway_weeks", initial_state.get("runway_weeks", 0.0)))
     brand_index = float(final_state.get("brand_index", initial_state.get("brand_index", 0.0)))
     cash = float(final_state.get("cash", initial_state.get("cash", 0.0)))
     pipeline = float(final_state.get("pipeline", initial_state.get("pipeline", 1.0)))
-    active_deployments = float(final_state.get("active_deployments", initial_state.get("active_deployments", 3.0)))
+    active_deployments = float(
+        final_state.get("active_deployments", initial_state.get("active_deployments", 3.0))
+    )
     implementation_capacity = float(
-        final_state.get("implementation_capacity", initial_state.get("implementation_capacity", 3.0))
+        final_state.get(
+            "implementation_capacity", initial_state.get("implementation_capacity", 3.0)
+        )
     )
     support_load = float(final_state.get("support_load", initial_state.get("support_load", 0.35)))
-    reliability_debt = float(final_state.get("reliability_debt", initial_state.get("reliability_debt", 0.28)))
+    reliability_debt = float(
+        final_state.get("reliability_debt", initial_state.get("reliability_debt", 0.28))
+    )
     gross_margin = float(final_state.get("gross_margin", initial_state.get("gross_margin", 0.62)))
     nrr = float(final_state.get("nrr", initial_state.get("nrr", 1.02)))
     churn_risk = float(final_state.get("churn_risk", initial_state.get("churn_risk", 0.12)))
@@ -155,7 +169,11 @@ def build_startup_kpi_pack(
             value=deployment_days,
             unit="days",
             target="<=14 days",
-            status="good" if deployment_days <= 14 else "watch" if deployment_days <= 18 else "risk",
+            status="good"
+            if deployment_days <= 14
+            else "watch"
+            if deployment_days <= 18
+            else "risk",
             insight=(
                 "This estimates how quickly a new enterprise customer can reach first production value "
                 "at the current delivery pace."

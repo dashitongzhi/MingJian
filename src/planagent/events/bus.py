@@ -152,7 +152,7 @@ class RedisStreamEventBus:
                         message_id=message_id,
                         payload=payload if isinstance(payload, dict) else {},
                     )
-        )
+                )
         return events
 
     async def reclaim_pending(

@@ -70,9 +70,7 @@ class GraphWorker(Worker):
         # Batch-load all claims for all evidence items — fixes N+1 per-evidence query
         all_claims = list(
             (
-                await session.scalars(
-                    select(Claim).where(Claim.evidence_item_id.in_(evidence_ids))
-                )
+                await session.scalars(select(Claim).where(Claim.evidence_item_id.in_(evidence_ids)))
             ).all()
         )
         claims_by_evidence: dict[str, list[Claim]] = {}
@@ -85,7 +83,11 @@ class GraphWorker(Worker):
         for claim in all_claims:
             node_keys.add(self._node_key("claim", claim.id))
             edge_triples.add(
-                (self._node_key("evidence", claim.evidence_item_id), self._node_key("claim", claim.id), "supports_claim")
+                (
+                    self._node_key("evidence", claim.evidence_item_id),
+                    self._node_key("claim", claim.id),
+                    "supports_claim",
+                )
             )
 
         existing_nodes = await self._load_existing_nodes(session, node_keys)
@@ -97,28 +99,49 @@ class GraphWorker(Worker):
             try:
                 evidence_key = self._node_key("evidence", evidence.id)
                 self._upsert_node_via_cache(
-                    session, existing_nodes,
-                    node_key=evidence_key, label=evidence.title, node_type="evidence",
-                    tenant_id=evidence.tenant_id, preset_id=evidence.preset_id,
-                    source_table="evidence_items", source_id=evidence.id,
-                    metadata={"confidence": evidence.confidence, "source_url": evidence.source_url, "summary": evidence.summary},
+                    session,
+                    existing_nodes,
+                    node_key=evidence_key,
+                    label=evidence.title,
+                    node_type="evidence",
+                    tenant_id=evidence.tenant_id,
+                    preset_id=evidence.preset_id,
+                    source_table="evidence_items",
+                    source_id=evidence.id,
+                    metadata={
+                        "confidence": evidence.confidence,
+                        "source_url": evidence.source_url,
+                        "summary": evidence.summary,
+                    },
                 )
 
                 for claim in claims_by_evidence.get(evidence.id, []):
                     claim_key = self._node_key("claim", claim.id)
                     self._upsert_node_via_cache(
-                        session, existing_nodes,
-                        node_key=claim_key, label=summarize_text(claim.statement, max_length=160),
+                        session,
+                        existing_nodes,
+                        node_key=claim_key,
+                        label=summarize_text(claim.statement, max_length=160),
                         node_type=f"claim:{claim.kind}",
-                        tenant_id=claim.tenant_id, preset_id=claim.preset_id,
-                        source_table="claims", source_id=claim.id,
-                        metadata={"confidence": claim.confidence, "status": claim.status, "requires_review": claim.requires_review, "reasoning": claim.reasoning},
+                        tenant_id=claim.tenant_id,
+                        preset_id=claim.preset_id,
+                        source_table="claims",
+                        source_id=claim.id,
+                        metadata={
+                            "confidence": claim.confidence,
+                            "status": claim.status,
+                            "requires_review": claim.requires_review,
+                            "reasoning": claim.reasoning,
+                        },
                     )
                     self._upsert_edge_via_cache(
-                        session, existing_edges,
-                        source_node_key=evidence_key, target_node_key=claim_key,
+                        session,
+                        existing_edges,
+                        source_node_key=evidence_key,
+                        target_node_key=claim_key,
                         relation_type="supports_claim",
-                        tenant_id=evidence.tenant_id, preset_id=evidence.preset_id,
+                        tenant_id=evidence.tenant_id,
+                        preset_id=evidence.preset_id,
                         metadata={"claim_status": claim.status},
                     )
                 processed += 1
@@ -156,7 +179,11 @@ class GraphWorker(Worker):
             if claim_id:
                 node_keys.add(self._node_key("claim", claim_id))
                 edge_triples.add(
-                    (self._node_key("claim", claim_id), self._node_key(artifact_type, artifact.id), f"promoted_to_{artifact_type}")
+                    (
+                        self._node_key("claim", claim_id),
+                        self._node_key(artifact_type, artifact.id),
+                        f"promoted_to_{artifact_type}",
+                    )
                 )
 
         existing_nodes = await self._load_existing_nodes(session, node_keys)
@@ -168,19 +195,29 @@ class GraphWorker(Worker):
             try:
                 artifact_key = self._node_key(artifact_type, artifact.id)
                 self._upsert_node_via_cache(
-                    session, existing_nodes,
-                    node_key=artifact_key, label=artifact.title, node_type=artifact_type,
-                    tenant_id=artifact.tenant_id, preset_id=artifact.preset_id,
-                    source_table=table_name, source_id=artifact.id,
-                    metadata={"confidence": artifact.confidence, "artifact_type": getattr(artifact, type_field)},
+                    session,
+                    existing_nodes,
+                    node_key=artifact_key,
+                    label=artifact.title,
+                    node_type=artifact_type,
+                    tenant_id=artifact.tenant_id,
+                    preset_id=artifact.preset_id,
+                    source_table=table_name,
+                    source_id=artifact.id,
+                    metadata={
+                        "confidence": artifact.confidence,
+                        "artifact_type": getattr(artifact, type_field),
+                    },
                 )
                 if claim_id:
                     self._upsert_edge_via_cache(
-                        session, existing_edges,
+                        session,
+                        existing_edges,
                         source_node_key=self._node_key("claim", claim_id),
                         target_node_key=artifact_key,
                         relation_type=f"promoted_to_{artifact_type}",
-                        tenant_id=artifact.tenant_id, preset_id=artifact.preset_id,
+                        tenant_id=artifact.tenant_id,
+                        preset_id=artifact.preset_id,
                         metadata={"confidence": artifact.confidence},
                     )
                 processed += 1
@@ -198,7 +235,9 @@ class GraphWorker(Worker):
         rows = list(
             (
                 await session.scalars(
-                    select(KnowledgeGraphNode).where(KnowledgeGraphNode.node_key.in_(list(node_keys)))
+                    select(KnowledgeGraphNode).where(
+                        KnowledgeGraphNode.node_key.in_(list(node_keys))
+                    )
                 )
             ).all()
         )
@@ -218,12 +257,12 @@ class GraphWorker(Worker):
             & (KnowledgeGraphEdge.relation_type == r)
             for s, t, r in triples
         ]
-        rows = list(
-            (await session.scalars(select(KnowledgeGraphEdge).where(or_(*clauses)))).all()
-        )
+        rows = list((await session.scalars(select(KnowledgeGraphEdge).where(or_(*clauses)))).all())
         result: dict[str, KnowledgeGraphEdge] = {}
         for edge in rows:
-            key = self._edge_cache_key(edge.source_node_key, edge.target_node_key, edge.relation_type)
+            key = self._edge_cache_key(
+                edge.source_node_key, edge.target_node_key, edge.relation_type
+            )
             result[key] = edge
         return result
 
@@ -248,12 +287,17 @@ class GraphWorker(Worker):
         vec = self._embed_text(f"{node_type} {label}", self.settings.graph_embedding_dimensions)
         if node is None:
             node = KnowledgeGraphNode(
-                node_key=node_key, label=normalized_label, node_type=node_type,
-                tenant_id=tenant_id, preset_id=preset_id,
-                source_table=source_table, source_id=source_id,
+                node_key=node_key,
+                label=normalized_label,
+                node_type=node_type,
+                tenant_id=tenant_id,
+                preset_id=preset_id,
+                source_table=source_table,
+                source_id=source_id,
                 embedding=vec,
                 embedding_vector=vec,
-                embedding_model="hashing-v1", node_metadata=metadata,
+                embedding_model="hashing-v1",
+                node_metadata=metadata,
             )
             session.add(node)
             cache[node_key] = node
@@ -288,8 +332,11 @@ class GraphWorker(Worker):
         edge = cache.get(key)
         if edge is None:
             edge = KnowledgeGraphEdge(
-                source_node_key=source_node_key, target_node_key=target_node_key,
-                relation_type=relation_type, tenant_id=tenant_id, preset_id=preset_id,
+                source_node_key=source_node_key,
+                target_node_key=target_node_key,
+                relation_type=relation_type,
+                tenant_id=tenant_id,
+                preset_id=preset_id,
                 edge_metadata=metadata,
             )
             session.add(edge)
@@ -301,7 +348,9 @@ class GraphWorker(Worker):
         edge.edge_metadata = metadata
         return edge
 
-    def _edge_cache_key(self, source_node_key: str, target_node_key: str, relation_type: str) -> str:
+    def _edge_cache_key(
+        self, source_node_key: str, target_node_key: str, relation_type: str
+    ) -> str:
         return f"{source_node_key}->{target_node_key}:{relation_type}"
 
     def _node_key(self, node_type: str, source_id: str) -> str:

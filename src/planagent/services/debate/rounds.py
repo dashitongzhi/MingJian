@@ -145,7 +145,9 @@ class DebateRoundMixin:
         domain_id: str | None = None,
     ) -> AsyncIterator[DebateStreamEvent]:
         completed_rounds: list[dict[str, Any]] = []
-        round_plan = build_round_plan(self._get_custom_agents(), mode=debate_mode, domain_id=domain_id)
+        round_plan = build_round_plan(
+            self._get_custom_agents(), mode=debate_mode, domain_id=domain_id
+        )
 
         for round_number, role, instruction in round_plan:
             yield DebateStreamEvent(

@@ -173,8 +173,16 @@ class DataSourceProvider(ABC):
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Search query"},
-                    "limit": {"type": "integer", "description": "Max results", "default": self.default_limit},
-                    "domain_id": {"type": "string", "description": "Domain context", "default": "general"},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results",
+                        "default": self.default_limit,
+                    },
+                    "domain_id": {
+                        "type": "string",
+                        "description": "Domain context",
+                        "default": "general",
+                    },
                 },
                 "required": ["query"],
             },

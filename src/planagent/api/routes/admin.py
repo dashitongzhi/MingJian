@@ -79,7 +79,11 @@ router = APIRouter()
 
 
 def _get_jarvis(request: Request) -> JarvisOrchestrator:
-    return JarvisOrchestrator(get_settings(), request.app.state.openai_service, getattr(request.app.state, "event_bus", None))
+    return JarvisOrchestrator(
+        get_settings(),
+        request.app.state.openai_service,
+        getattr(request.app.state, "event_bus", None),
+    )
 
 
 @router.post("/jarvis/runs", response_model=JarvisRunRead, status_code=201)
@@ -89,7 +93,13 @@ async def create_jarvis_run(
     session: AsyncSession = Depends(get_session),
 ) -> JarvisRunRead:
     orchestrator = _get_jarvis(request)
-    task = JarvisTask(task_type=payload.target_type, payload={"run_id": payload.run_id, "target_id": payload.target_id}, run_id=payload.run_id, target_id=payload.target_id, profile_id="plan-agent")
+    task = JarvisTask(
+        task_type=payload.target_type,
+        payload={"run_id": payload.run_id, "target_id": payload.target_id},
+        run_id=payload.run_id,
+        target_id=payload.target_id,
+        profile_id="plan-agent",
+    )
     jarvis_result = await orchestrator.orchestrate(task)
     result = jarvis_result.to_dict()
     if payload.run_id is not None:
@@ -97,7 +107,14 @@ async def create_jarvis_run(
         if run is not None:
             result["run_status"] = run.status
             result["run_summary"] = run.summary
-    record = JarvisRunRecord(run_id=payload.run_id, target_type=payload.target_type, target_id=payload.target_id, status=jarvis_result.status, profile_id="plan-agent", result_payload=result)
+    record = JarvisRunRecord(
+        run_id=payload.run_id,
+        target_type=payload.target_type,
+        target_id=payload.target_id,
+        status=jarvis_result.status,
+        profile_id="plan-agent",
+        result_payload=result,
+    )
     session.add(record)
     await session.commit()
     await session.refresh(record)
@@ -110,7 +127,9 @@ async def get_jarvis_profiles(request: Request) -> dict[str, Any]:
 
 
 @router.post("/jarvis/test")
-async def test_jarvis_target(target: str = Query(default="primary"), request: Request = None) -> dict[str, Any]:
+async def test_jarvis_target(
+    target: str = Query(default="primary"), request: Request = None
+) -> dict[str, Any]:
     return await _get_jarvis(request).test_target(target)
 
 
@@ -130,7 +149,9 @@ async def list_jarvis_runs(
 # ── Agent Startup Presets ────────────────────────────────────────────────────
 
 
-@router.post("/presets/agent-startup/runs", response_model=AgentStartupPresetRunRead, status_code=201)
+@router.post(
+    "/presets/agent-startup/runs", response_model=AgentStartupPresetRunRead, status_code=201
+)
 async def create_agent_startup_preset_runs(
     payload: AgentStartupPresetRunCreate,
     request: Request,
@@ -445,7 +466,9 @@ async def trigger_watch_rule(
         analysis = await analysis_service.analyze(analysis_request)
         for step in analysis.reasoning_steps:
             if step.stage == "source_complete":
-                await analysis_service.record_source_success(session, _source_type_from_step(step.message))
+                await analysis_service.record_source_success(
+                    session, _source_type_from_step(step.message)
+                )
             elif step.stage == "source_error":
                 await analysis_service.record_source_failure(
                     session,
@@ -594,7 +617,9 @@ def _source_type_from_step(message: str) -> str:
     return "unknown"
 
 
-def _qualified_watch_sources(rule: WatchRule, sources: list[AnalysisSourceRead]) -> list[AnalysisSourceRead]:
+def _qualified_watch_sources(
+    rule: WatchRule, sources: list[AnalysisSourceRead]
+) -> list[AnalysisSourceRead]:
     qualified: list[AnalysisSourceRead] = []
     for source in sources:
         score = _watch_source_score(rule, source)
@@ -623,7 +648,9 @@ def _watch_source_score(rule: WatchRule, source: AnalysisSourceRead) -> float:
     matched = sum(1 for term in terms if term and term in haystack)
     score = 0.35 + min(matched * 0.18, 0.45)
     engagement = source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
-    if isinstance(engagement, dict) and any(value for value in engagement.values() if isinstance(value, (int, float))):
+    if isinstance(engagement, dict) and any(
+        value for value in engagement.values() if isinstance(value, (int, float))
+    ):
         score += 0.1
     if source.published_at:
         score += 0.1
@@ -638,9 +665,7 @@ async def list_source_health(
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
     records = list(
-        (
-            await session.scalars(select(SourceHealth).order_by(SourceHealth.updated_at.desc()))
-        ).all()
+        (await session.scalars(select(SourceHealth).order_by(SourceHealth.updated_at.desc()))).all()
     )
     return [
         {
@@ -767,19 +792,13 @@ async def hypotheses_scoreboard(
     total = total or 0
 
     confirmed = await session.scalar(
-        select(sa_func.count(Hypothesis.id)).where(
-            Hypothesis.verification_status == "CONFIRMED"
-        )
+        select(sa_func.count(Hypothesis.id)).where(Hypothesis.verification_status == "CONFIRMED")
     )
     refuted = await session.scalar(
-        select(sa_func.count(Hypothesis.id)).where(
-            Hypothesis.verification_status == "REFUTED"
-        )
+        select(sa_func.count(Hypothesis.id)).where(Hypothesis.verification_status == "REFUTED")
     )
     pending = await session.scalar(
-        select(sa_func.count(Hypothesis.id)).where(
-            Hypothesis.verification_status == "PENDING"
-        )
+        select(sa_func.count(Hypothesis.id)).where(Hypothesis.verification_status == "PENDING")
     )
     confirmed = confirmed or 0
     refuted = refuted or 0
@@ -921,7 +940,9 @@ async def compute_calibration(
                 continue
             hit = 1.0 if h.verification_status in {"CONFIRMED", "PARTIAL"} else 0.0
             if h.decision_option_id:
-                option_counts[h.decision_option_id] = option_counts.get(h.decision_option_id, 0.0) + 1.0
+                option_counts[h.decision_option_id] = (
+                    option_counts.get(h.decision_option_id, 0.0) + 1.0
+                )
                 option_hits[h.decision_option_id] = option_hits.get(h.decision_option_id, 0.0) + hit
             for d in decisions_by_run.get(h.run_id, []):
                 for evidence_id in d.evidence_ids or []:

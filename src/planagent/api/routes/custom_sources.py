@@ -54,8 +54,18 @@ class CustomSourceCreate(BaseModel):
     @classmethod
     def key_must_not_be_builtin(cls, v: str) -> str:
         builtin = {
-            "google_news", "reddit", "hacker_news", "github", "rss",
-            "gdelt", "weather", "aviation", "x", "linux_do", "xiaohongshu", "douyin",
+            "google_news",
+            "reddit",
+            "hacker_news",
+            "github",
+            "rss",
+            "gdelt",
+            "weather",
+            "aviation",
+            "x",
+            "linux_do",
+            "xiaohongshu",
+            "douyin",
         }
         if v in builtin:
             raise ValueError(f"Key '{v}' conflicts with a built-in source provider")
@@ -224,6 +234,7 @@ async def test_custom_source(source_key: str) -> CustomSourceTestResult:
 
         start = time.monotonic()
         import asyncio
+
         results = await asyncio.wait_for(
             provider.fetch("test", 3, "general"),
             timeout=30,

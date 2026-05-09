@@ -32,6 +32,7 @@ def _get_event_bus(request: Request) -> EventBus:
 
 # ── POST /debates/{debate_id}/interrupt ──────────────────────────────────────
 
+
 @router.post(
     "/debates/{debate_id}/interrupt",
     response_model=DebateInterruptRead,
@@ -61,7 +62,7 @@ async def interrupt_debate(
         raise HTTPException(
             status_code=409,
             detail=f"Debate {debate_id} is not running (status={debate.status}). "
-                   "Interruptions are only allowed for running debates.",
+            "Interruptions are only allowed for running debates.",
         )
 
     interrupt = DebateInterruptRecord(
@@ -104,6 +105,7 @@ async def interrupt_debate(
 
 # ── GET /debates/{debate_id}/interrupts ───────────────────────────────────────
 
+
 @router.get(
     "/debates/{debate_id}/interrupts",
     response_model=list[DebateInterruptRead],
@@ -133,6 +135,7 @@ async def list_debate_interrupts(
 
 
 # ── GET /debates/{debate_id}/pending-interrupts (internal helper) ────────────
+
 
 @router.get(
     "/debates/{debate_id}/pending-interrupts",

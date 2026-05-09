@@ -1,4 +1,5 @@
 """Tests for new features: Auth, Notification, Export, Debate Optimization, Decision Feedback."""
+
 from __future__ import annotations
 
 import json
@@ -22,6 +23,7 @@ from planagent.services.decision_feedback import DecisionFeedbackService, Accura
 # ═══════════════════════════════════════════════════════════════
 # Auth Service Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestAuthService:
     def setup_method(self):
@@ -84,6 +86,7 @@ class TestAuthService:
         tokens = self.service.authenticate("refresh", "pass123")
         assert tokens is not None
         import time
+
         time.sleep(1.1)  # Ensure different iat (1-second granularity)
         new_tokens = self.service.refresh_access_token(tokens.refresh_token)
         assert new_tokens is not None
@@ -125,6 +128,7 @@ class TestAuthService:
 # ═══════════════════════════════════════════════════════════════
 # Notification Service Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestNotificationService:
     def setup_method(self):
@@ -219,9 +223,11 @@ class TestNotificationService:
 # Export Service Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestExportService:
     def setup_method(self, tmp_path=None):
         import tempfile
+
         self.tmp_dir = tempfile.mkdtemp()
         self.service = ExportService(output_dir=self.tmp_dir)
 
@@ -331,6 +337,7 @@ class TestExportService:
 # Debate Optimization Tests
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestDebateOptimization:
     def test_full_round_plan_default(self):
         """Default should be full 4-round plan."""
@@ -397,6 +404,7 @@ class TestDebateOptimization:
 # ═══════════════════════════════════════════════════════════════
 # Decision Feedback Tests
 # ═══════════════════════════════════════════════════════════════
+
 
 class TestDecisionFeedbackService:
     def setup_method(self):

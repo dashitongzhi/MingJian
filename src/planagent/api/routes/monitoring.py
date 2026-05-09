@@ -44,11 +44,7 @@ async def get_monitoring_dashboard(
 ) -> dict[str, Any]:
     """监测看板：聚合WatchRule健康、变更趋势、修正队列。"""
     rules = list(
-        (
-            await session.scalars(
-                select(WatchRule).order_by(WatchRule.updated_at.desc())
-            )
-        ).all()
+        (await session.scalars(select(WatchRule).order_by(WatchRule.updated_at.desc()))).all()
     )
     watch_rules = []
     for rule in rules:
@@ -65,8 +61,9 @@ async def get_monitoring_dashboard(
         cursor_failure_count = int(
             (
                 await session.scalar(
-                    select(func.coalesce(func.sum(SourceCursorState.consecutive_failures), 0))
-                    .where(SourceCursorState.watch_rule_id == rule.id)
+                    select(
+                        func.coalesce(func.sum(SourceCursorState.consecutive_failures), 0)
+                    ).where(SourceCursorState.watch_rule_id == rule.id)
                 )
             )
             or 0
@@ -100,9 +97,7 @@ async def get_monitoring_dashboard(
     recent_changes = list(
         (
             await session.scalars(
-                select(SourceChangeRecord)
-                .order_by(SourceChangeRecord.created_at.desc())
-                .limit(20)
+                select(SourceChangeRecord).order_by(SourceChangeRecord.created_at.desc()).limit(20)
             )
         ).all()
     )
@@ -119,7 +114,11 @@ async def get_monitoring_dashboard(
                 await session.scalar(
                     select(func.count())
                     .select_from(PredictionBacktestRecord)
-                    .where(PredictionBacktestRecord.verification_status.in_(["CONFIRMED", "REFUTED", "PARTIAL"]))
+                    .where(
+                        PredictionBacktestRecord.verification_status.in_(
+                            ["CONFIRMED", "REFUTED", "PARTIAL"]
+                        )
+                    )
                 )
             )
             or 0
@@ -326,7 +325,9 @@ async def get_prediction_timeline(
         ).all()
     )
     version_ids = [version.id for version in versions]
-    links_by_version: dict[str, list[PredictionEvidenceLink]] = {version_id: [] for version_id in version_ids}
+    links_by_version: dict[str, list[PredictionEvidenceLink]] = {
+        version_id: [] for version_id in version_ids
+    }
     if version_ids:
         links = list(
             (
@@ -412,7 +413,9 @@ async def get_version_diff(
             )
         ).first()
         if previous is None:
-            raise HTTPException(status_code=400, detail="Prediction version has no previous version.")
+            raise HTTPException(
+                status_code=400, detail="Prediction version has no previous version."
+            )
         compare_version_id = previous.id
     await _require_version(session, series_id, compare_version_id)
 
@@ -480,11 +483,7 @@ async def _count_by_status(
     model: type,
     statuses: list[str],
 ) -> dict[str, int]:
-    rows = (
-        await session.execute(
-            select(model.status, func.count()).group_by(model.status)
-        )
-    ).all()
+    rows = (await session.execute(select(model.status, func.count()).group_by(model.status))).all()
     counts = {status.lower(): 0 for status in statuses}
     for status, count in rows:
         if status in statuses:

@@ -68,7 +68,9 @@ def test_analysis_endpoint_returns_reasoned_result(monkeypatch, tmp_path: Path) 
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     disable_openai(monkeypatch)
-    monkeypatch.setattr(AutomatedAnalysisService, "_fetch_related_sources", fake_fetch_related_sources)
+    monkeypatch.setattr(
+        AutomatedAnalysisService, "_fetch_related_sources", fake_fetch_related_sources
+    )
     reset_settings_cache()
     reset_database_cache()
 
@@ -148,12 +150,16 @@ def test_health_ready_reports_degraded_when_redis_ping_fails(monkeypatch, tmp_pa
     }
 
 
-def test_analysis_stream_endpoint_emits_steps_sources_and_result(monkeypatch, tmp_path: Path) -> None:
+def test_analysis_stream_endpoint_emits_steps_sources_and_result(
+    monkeypatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-analysis-stream.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     disable_openai(monkeypatch)
-    monkeypatch.setattr(AutomatedAnalysisService, "_fetch_related_sources", fake_fetch_related_sources)
+    monkeypatch.setattr(
+        AutomatedAnalysisService, "_fetch_related_sources", fake_fetch_related_sources
+    )
     reset_settings_cache()
     reset_database_cache()
 

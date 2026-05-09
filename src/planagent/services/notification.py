@@ -3,6 +3,7 @@
 Addresses the audit gap: WatchRule detects changes but cannot notify users.
 This service provides a unified notification dispatch layer.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -56,6 +57,7 @@ class Notification:
 @dataclass
 class NotificationConfig:
     """Configuration for notification dispatch."""
+
     # Email (SMTP)
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -101,7 +103,11 @@ class NotificationService:
         if user_id not in self._ws_connections:
             self._ws_connections[user_id] = []
         self._ws_connections[user_id].append(websocket)
-        _logger.info("WebSocket registered for user %s (total: %d)", user_id, len(self._ws_connections[user_id]))
+        _logger.info(
+            "WebSocket registered for user %s (total: %d)",
+            user_id,
+            len(self._ws_connections[user_id]),
+        )
 
     def unregister_ws(self, user_id: str, websocket: Any) -> None:
         """Unregister a WebSocket connection."""
@@ -125,6 +131,7 @@ class NotificationService:
     ) -> Notification:
         """Send a notification to a user via the specified channel."""
         import uuid
+
         notif = Notification(
             id=str(uuid.uuid4()),
             user_id=user_id,
@@ -162,11 +169,23 @@ class NotificationService:
         """Send notification via all configured channels."""
         results = []
         if self.config.ws_enabled:
-            results.append(await self.notify(user_id, title, body, NotificationChannel.WEBSOCKET, priority, metadata))
+            results.append(
+                await self.notify(
+                    user_id, title, body, NotificationChannel.WEBSOCKET, priority, metadata
+                )
+            )
         if self.config.smtp_host:
-            results.append(await self.notify(user_id, title, body, NotificationChannel.EMAIL, priority, metadata))
+            results.append(
+                await self.notify(
+                    user_id, title, body, NotificationChannel.EMAIL, priority, metadata
+                )
+            )
         if self.config.webhook_urls:
-            results.append(await self.notify(user_id, title, body, NotificationChannel.WEBHOOK, priority, metadata))
+            results.append(
+                await self.notify(
+                    user_id, title, body, NotificationChannel.WEBHOOK, priority, metadata
+                )
+            )
         return results
 
     async def broadcast(
@@ -179,7 +198,9 @@ class NotificationService:
         """Broadcast to all connected WebSocket users. Returns count of notified users."""
         count = 0
         for user_id in list(self._ws_connections.keys()):
-            await self.notify(user_id, title, body, NotificationChannel.WEBSOCKET, priority, metadata)
+            await self.notify(
+                user_id, title, body, NotificationChannel.WEBSOCKET, priority, metadata
+            )
             count += 1
         return count
 
@@ -192,15 +213,18 @@ class NotificationService:
             _logger.debug("No WebSocket connections for user %s", notif.user_id)
             raise RuntimeError(f"No WebSocket connections for user {notif.user_id}")
 
-        payload = json.dumps({
-            "type": "notification",
-            "id": notif.id,
-            "title": notif.title,
-            "body": notif.body,
-            "priority": notif.priority.value,
-            "metadata": notif.metadata,
-            "created_at": notif.created_at.isoformat(),
-        }, ensure_ascii=False)
+        payload = json.dumps(
+            {
+                "type": "notification",
+                "id": notif.id,
+                "title": notif.title,
+                "body": notif.body,
+                "priority": notif.priority.value,
+                "metadata": notif.metadata,
+                "created_at": notif.created_at.isoformat(),
+            },
+            ensure_ascii=False,
+        )
 
         dead = []
         for ws in connections:
@@ -299,7 +323,8 @@ class NotificationService:
     ) -> list[Notification]:
         """Get notification history for a user."""
         results = [
-            n for n in self._notification_log
+            n
+            for n in self._notification_log
             if n.user_id == user_id and (not undelivered_only or not n.delivered)
         ]
         return results[-limit:]

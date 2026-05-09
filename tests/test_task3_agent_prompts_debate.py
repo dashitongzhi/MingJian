@@ -73,24 +73,35 @@ class TestAgentPrompts:
         }
         for role, prompt in all_prompts.items():
             for section in required_sections:
-                assert section in prompt, (
-                    f"Agent {role} missing section: {section}"
-                )
+                assert section in prompt, f"Agent {role} missing section: {section}"
 
     def test_prompts_reference_other_roles(self):
         """每个 prompt 必须至少引用1个其他角色名。"""
-        role_names = ["ADVOCATE", "CHALLENGER", "ARBITRATOR", "EVIDENCE_ASSESSOR",
-                      "GEOPOLITICAL", "MILITARY", "ECONOMIC", "TECH", "SOCIAL"]
+        role_names = [
+            "ADVOCATE",
+            "CHALLENGER",
+            "ARBITRATOR",
+            "EVIDENCE_ASSESSOR",
+            "GEOPOLITICAL",
+            "MILITARY",
+            "ECONOMIC",
+            "TECH",
+            "SOCIAL",
+        ]
         all_prompts = [
-            ADVOCATE_PROMPT, CHALLENGER_PROMPT, ARBITRATOR_PROMPT,
-            EVIDENCE_ASSESSOR_PROMPT, GEOPOLITICAL_PROMPT, ECONOMIC_PROMPT,
-            MILITARY_PROMPT, TECH_PROMPT, SOCIAL_PROMPT,
+            ADVOCATE_PROMPT,
+            CHALLENGER_PROMPT,
+            ARBITRATOR_PROMPT,
+            EVIDENCE_ASSESSOR_PROMPT,
+            GEOPOLITICAL_PROMPT,
+            ECONOMIC_PROMPT,
+            MILITARY_PROMPT,
+            TECH_PROMPT,
+            SOCIAL_PROMPT,
         ]
         for prompt in all_prompts:
             other_roles_mentioned = sum(1 for name in role_names if name in prompt)
-            assert other_roles_mentioned >= 1, (
-                "Prompt should reference at least 1 other role name"
-            )
+            assert other_roles_mentioned >= 1, "Prompt should reference at least 1 other role name"
 
     def test_registry_agents_use_optimized_prompts(self):
         """AgentRegistry 中的 agent 应使用优化后的 prompt。"""
@@ -229,13 +240,27 @@ class TestPositionRevision:
     def test_detect_confidence_drop(self):
         """检测置信度显著下降。"""
         rounds = [
-            {"role": "advocate", "round_number": 1, "confidence": 0.9,
-             "position": "SUPPORT", "concessions": []},
-            {"role": "challenger", "round_number": 1, "confidence": 0.7,
-             "position": "OPPOSE", "concessions": []},
-            {"role": "advocate", "round_number": 3, "confidence": 0.4,
-             "position": "SUPPORT",
-             "concessions": [{"reason": "Supply chain data was unreliable"}]},
+            {
+                "role": "advocate",
+                "round_number": 1,
+                "confidence": 0.9,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
+            {
+                "role": "challenger",
+                "round_number": 1,
+                "confidence": 0.7,
+                "position": "OPPOSE",
+                "concessions": [],
+            },
+            {
+                "role": "advocate",
+                "round_number": 3,
+                "confidence": 0.4,
+                "position": "SUPPORT",
+                "concessions": [{"reason": "Supply chain data was unreliable"}],
+            },
         ]
         overturned = DebateService.detect_overturned_arguments(rounds)
         assert len(overturned) == 1
@@ -246,10 +271,20 @@ class TestPositionRevision:
     def test_detect_position_flip(self):
         """检测立场翻转。"""
         rounds = [
-            {"role": "advocate", "round_number": 1, "confidence": 0.8,
-             "position": "SUPPORT", "concessions": []},
-            {"role": "advocate", "round_number": 3, "confidence": 0.3,
-             "position": "OPPOSE", "concessions": []},
+            {
+                "role": "advocate",
+                "round_number": 1,
+                "confidence": 0.8,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
+            {
+                "role": "advocate",
+                "round_number": 3,
+                "confidence": 0.3,
+                "position": "OPPOSE",
+                "concessions": [],
+            },
         ]
         overturned = DebateService.detect_overturned_arguments(rounds)
         assert len(overturned) == 1
@@ -260,11 +295,20 @@ class TestPositionRevision:
     def test_detect_explicit_concessions(self):
         """检测明确放弃的论点。"""
         rounds = [
-            {"role": "challenger", "round_number": 1, "confidence": 0.7,
-             "position": "OPPOSE", "concessions": []},
-            {"role": "challenger", "round_number": 3, "confidence": 0.6,
-             "position": "CONDITIONAL",
-             "concessions": [{"reason": "Historical analogy was flawed"}]},
+            {
+                "role": "challenger",
+                "round_number": 1,
+                "confidence": 0.7,
+                "position": "OPPOSE",
+                "concessions": [],
+            },
+            {
+                "role": "challenger",
+                "round_number": 3,
+                "confidence": 0.6,
+                "position": "CONDITIONAL",
+                "concessions": [{"reason": "Historical analogy was flawed"}],
+            },
         ]
         overturned = DebateService.detect_overturned_arguments(rounds)
         assert len(overturned) == 1
@@ -273,10 +317,20 @@ class TestPositionRevision:
     def test_no_overturn_with_stable_confidence(self):
         """置信度稳定时不应标记为被推翻。"""
         rounds = [
-            {"role": "advocate", "round_number": 1, "confidence": 0.7,
-             "position": "SUPPORT", "concessions": []},
-            {"role": "advocate", "round_number": 3, "confidence": 0.65,
-             "position": "SUPPORT", "concessions": []},
+            {
+                "role": "advocate",
+                "round_number": 1,
+                "confidence": 0.7,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
+            {
+                "role": "advocate",
+                "round_number": 3,
+                "confidence": 0.65,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
         ]
         overturned = DebateService.detect_overturned_arguments(rounds)
         assert len(overturned) == 0
@@ -289,8 +343,13 @@ class TestPositionRevision:
     def test_single_round_per_role(self):
         """单轮角色不应被标记为推翻。"""
         rounds = [
-            {"role": "advocate", "round_number": 1, "confidence": 0.8,
-             "position": "SUPPORT", "concessions": []},
+            {
+                "role": "advocate",
+                "round_number": 1,
+                "confidence": 0.8,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
         ]
         overturned = DebateService.detect_overturned_arguments(rounds)
         assert len(overturned) == 0
@@ -298,10 +357,20 @@ class TestPositionRevision:
     def test_custom_threshold(self):
         """自定义推翻阈值。"""
         rounds = [
-            {"role": "advocate", "round_number": 1, "confidence": 0.8,
-             "position": "SUPPORT", "concessions": []},
-            {"role": "advocate", "round_number": 3, "confidence": 0.6,
-             "position": "SUPPORT", "concessions": []},
+            {
+                "role": "advocate",
+                "round_number": 1,
+                "confidence": 0.8,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
+            {
+                "role": "advocate",
+                "round_number": 3,
+                "confidence": 0.6,
+                "position": "SUPPORT",
+                "concessions": [],
+            },
         ]
         # 默认阈值 0.3 不触发
         overturned = DebateService.detect_overturned_arguments(rounds, overturn_threshold=0.3)

@@ -6,6 +6,7 @@ This service closes the loop by:
 2. Computing accuracy metrics
 3. Flagging calibration needs
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +29,7 @@ _logger = logging.getLogger(__name__)
 @dataclass
 class AccuracyReport:
     """Summary of prediction accuracy."""
+
     total_decisions: int = 0
     verified_outcomes: int = 0
     adopt_count: int = 0
@@ -118,15 +120,17 @@ class DecisionFeedbackService:
                 if strategic_session:
                     topic = strategic_session.topic
 
-            enriched.append({
-                "id": r.id,
-                "session_id": r.session_id,
-                "topic": topic,
-                "decision": r.decision,
-                "notes": r.notes,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "days_since": (utc_now() - r.created_at).days if r.created_at else None,
-            })
+            enriched.append(
+                {
+                    "id": r.id,
+                    "session_id": r.session_id,
+                    "topic": topic,
+                    "decision": r.decision,
+                    "notes": r.notes,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "days_since": (utc_now() - r.created_at).days if r.created_at else None,
+                }
+            )
 
         return enriched
 

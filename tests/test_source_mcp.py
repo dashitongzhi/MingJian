@@ -202,9 +202,7 @@ class TestSourceRegistry:
         registry.get("reddit").fetch = AsyncMock(side_effect=Exception("Error"))
         registry.get("google_news").fetch = AsyncMock(side_effect=Exception("Error"))
 
-        results, attempted = await registry.fetch_with_fallback(
-            "hacker_news", "test", 5, "general"
-        )
+        results, attempted = await registry.fetch_with_fallback("hacker_news", "test", 5, "general")
 
         assert results == []
         assert len(attempted) >= 1
@@ -523,7 +521,12 @@ sources:
         settings.custom_sources_dir = str(config_dir)
 
         configs = [
-            {"key": "saved_feed", "label": "Saved Feed", "type": "rss", "url": "https://example.com"},
+            {
+                "key": "saved_feed",
+                "label": "Saved Feed",
+                "type": "rss",
+                "url": "https://example.com",
+            },
         ]
         save_custom_source_configs(settings, configs)
 
@@ -755,12 +758,15 @@ class TestCustomSourceAPI:
         client = TestClient(app)
 
         # Create
-        resp = client.post("/sources/custom", json={
-            "key": "flow_test",
-            "label": "Flow Test",
-            "type": "rss",
-            "url": "https://example.com/feed.xml",
-        })
+        resp = client.post(
+            "/sources/custom",
+            json={
+                "key": "flow_test",
+                "label": "Flow Test",
+                "type": "rss",
+                "url": "https://example.com/feed.xml",
+            },
+        )
         assert resp.status_code == 201
 
         # Read
@@ -769,10 +775,13 @@ class TestCustomSourceAPI:
         assert resp.json()["type"] == "rss"
 
         # Update
-        resp = client.put("/sources/custom/flow_test", json={
-            "label": "Updated Flow Test",
-            "type": "json_feed",
-        })
+        resp = client.put(
+            "/sources/custom/flow_test",
+            json={
+                "label": "Updated Flow Test",
+                "type": "json_feed",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["label"] == "Updated Flow Test"
         assert resp.json()["type"] == "json_feed"

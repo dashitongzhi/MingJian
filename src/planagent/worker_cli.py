@@ -36,7 +36,9 @@ def build_worker(worker_name: str) -> Worker:
         "knowledge-worker": lambda: KnowledgeWorker(settings, event_bus, openai_service),
         "graph-worker": lambda: GraphWorker(settings, event_bus),
         "review-worker": lambda: ReviewWorker(settings, event_bus, openai_service),
-        "simulation-worker": lambda: SimulationWorker(settings, event_bus, rule_registry, openai_service),
+        "simulation-worker": lambda: SimulationWorker(
+            settings, event_bus, rule_registry, openai_service
+        ),
         "report-worker": lambda: ReportWorker(settings, event_bus, rule_registry, openai_service),
         "strategic-watch-worker": lambda: StrategicWatchWorker(
             settings,
@@ -131,7 +133,12 @@ async def _run_stream_worker(
     consumes = list(worker.description.consumes)
     settings = get_settings()
     initial_result = await worker.run_once()
-    print(json.dumps({"worker": worker_name, "triggered_by": ["startup_sweep"], "result": initial_result}, ensure_ascii=True))
+    print(
+        json.dumps(
+            {"worker": worker_name, "triggered_by": ["startup_sweep"], "result": initial_result},
+            ensure_ascii=True,
+        )
+    )
 
     while True:
         events = await event_bus.reclaim_pending(

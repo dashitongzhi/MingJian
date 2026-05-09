@@ -245,12 +245,10 @@ async def list_source_reputations(
                     RawSourceItem.source_type.label("source_type"),
                     RawSourceItem.source_url.label("source_url"),
                     sa_func.count(Claim.id).label("total"),
-                    sa_func.sum(
-                        sa_case((Claim.status == "ACCEPTED", 1), else_=0)
-                    ).label("confirmed"),
-                    sa_func.sum(
-                        sa_case((Claim.status == "REJECTED", 1), else_=0)
-                    ).label("refuted"),
+                    sa_func.sum(sa_case((Claim.status == "ACCEPTED", 1), else_=0)).label(
+                        "confirmed"
+                    ),
+                    sa_func.sum(sa_case((Claim.status == "REJECTED", 1), else_=0)).label("refuted"),
                 )
                 .join(NormalizedItem, RawSourceItem.id == NormalizedItem.raw_source_item_id)
                 .join(EvidenceItem, NormalizedItem.id == EvidenceItem.normalized_item_id)

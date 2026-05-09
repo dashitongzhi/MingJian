@@ -98,7 +98,9 @@ def _create_run_with_debate(client: TestClient) -> tuple[str, dict]:
     assert sim_resp.status_code == 201
     run_id = sim_resp.json()["id"]
 
-    debate = _create_debate(client, run_id, "Should Test Brigade prioritize supply line restoration?")
+    debate = _create_debate(
+        client, run_id, "Should Test Brigade prioritize supply line restoration?"
+    )
     return run_id, debate
 
 
@@ -510,6 +512,7 @@ def test_debate_interrupt_create_validation() -> None:
 
     # Invalid type
     from pydantic import ValidationError
+
     try:
         DebateInterruptCreate(message="Test", interrupt_type="bad_type")
         assert False, "Should have raised ValidationError"

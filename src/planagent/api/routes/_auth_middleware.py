@@ -4,6 +4,7 @@ Unlike the auth routes which require authentication, business endpoints
 use optional auth — they work without a token but attach user context
 when one is provided. This enables gradual adoption.
 """
+
 from __future__ import annotations
 
 import logging

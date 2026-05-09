@@ -19,7 +19,10 @@ class AviationProvider(DataSourceProvider):
     task_desc = "正在获取航空数据"
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         if limit <= 0 or domain_id != "military":
             return []
@@ -46,7 +49,9 @@ class AviationProvider(DataSourceProvider):
             states = []
         aircraft_count = len(states)
         airborne = sum(
-            1 for state in states if isinstance(state, list) and len(state) > 8 and state[8] is False
+            1
+            for state in states
+            if isinstance(state, list) and len(state) > 8 and state[8] is False
         )
         sample_callsigns = [
             self.clean_text(str(state[1]))
@@ -77,9 +82,13 @@ class AviationProvider(DataSourceProvider):
         lowered = query.lower()
         if any(token in lowered for token in ["taiwan", "台海", "台湾", "taipei"]):
             return (21.5, 118.0, 26.5, 123.5, "Taiwan Strait")
-        if any(token in lowered for token in ["odessa", "ukraine", "black sea", "乌克兰", "敖德萨"]):
+        if any(
+            token in lowered for token in ["odessa", "ukraine", "black sea", "乌克兰", "敖德萨"]
+        ):
             return (44.0, 28.0, 49.8, 38.0, "Ukraine and Black Sea")
-        if any(token in lowered for token in ["red sea", "yemen", "hormuz", "红海", "也门", "霍尔木兹"]):
+        if any(
+            token in lowered for token in ["red sea", "yemen", "hormuz", "红海", "也门", "霍尔木兹"]
+        ):
             return (11.0, 32.0, 28.5, 58.5, "Red Sea and Gulf lanes")
         if any(token in lowered for token in ["eastern-sector", "eastern sector"]):
             return (46.0, 31.0, 50.5, 38.5, "Eastern sector")

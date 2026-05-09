@@ -179,9 +179,7 @@ class SourceStateService:
 
     def _normalize_content_hash(self, value: str) -> str:
         normalized = value.strip()
-        if len(normalized) == 64 and all(
-            char in "0123456789abcdefABCDEF" for char in normalized
-        ):
+        if len(normalized) == 64 and all(char in "0123456789abcdefABCDEF" for char in normalized):
             return normalized.lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 

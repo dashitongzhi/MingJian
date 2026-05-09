@@ -206,7 +206,9 @@ class SourceRegistry:
         try:
             from planagent.services.sources.custom_provider import create_custom_providers
 
-            for provider in create_custom_providers(self.settings, openai_service=self.openai_service):
+            for provider in create_custom_providers(
+                self.settings, openai_service=self.openai_service
+            ):
                 self._providers[provider.key] = provider
                 logger.debug("Registered custom source provider: %s", provider.key)
         except ImportError:

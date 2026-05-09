@@ -6,6 +6,7 @@ Provides full report export for:
 - Simulation run reports
 - Analysis results
 """
+
 from __future__ import annotations
 
 import logging
@@ -302,7 +303,9 @@ class ExportService:
             _append("## 数据来源")
             _append("")
             for s in sources:
-                _append(f"- [{s.get('title', 'Untitled')}]({s.get('url', '')}) ({s.get('source_type', '')})")
+                _append(
+                    f"- [{s.get('title', 'Untitled')}]({s.get('url', '')}) ({s.get('source_type', '')})"
+                )
             _append("")
 
         confidence = analysis.get("confidence_score", 0)

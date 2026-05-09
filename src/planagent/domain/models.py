@@ -93,7 +93,9 @@ class RawSourceItem(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     dedupe_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
-    knowledge_status: Mapped[str] = mapped_column(String(24), default="PENDING", nullable=False, index=True)
+    knowledge_status: Mapped[str] = mapped_column(
+        String(24), default="PENDING", nullable=False, index=True
+    )
     lease_owner: Mapped[str | None] = mapped_column(String(120), index=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     processing_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -104,14 +106,18 @@ class RawSourceItem(Base):
     )
 
     ingest_run: Mapped[IngestRun] = relationship(back_populates="raw_items")
-    normalized_item: Mapped["NormalizedItem"] = relationship(back_populates="raw_item", uselist=False)
+    normalized_item: Mapped["NormalizedItem"] = relationship(
+        back_populates="raw_item", uselist=False
+    )
 
 
 class SourceSnapshot(Base):
     __tablename__ = "source_snapshots"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    raw_source_item_id: Mapped[str] = mapped_column(ForeignKey("raw_source_items.id"), nullable=False, index=True)
+    raw_source_item_id: Mapped[str] = mapped_column(
+        ForeignKey("raw_source_items.id"), nullable=False, index=True
+    )
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     storage_backend: Mapped[str] = mapped_column(String(32), default="filesystem", nullable=False)
@@ -151,7 +157,9 @@ class AnalysisCacheRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
 
 
 class NormalizedItem(Base):
@@ -215,7 +223,9 @@ class Claim(Base):
     predicate: Mapped[str] = mapped_column(String(120), nullable=False)
     object_text: Mapped[str] = mapped_column(Text, nullable=False)
     statement: Mapped[str] = mapped_column(Text, nullable=False)
-    kind: Mapped[str] = mapped_column(String(32), default="unclassified", nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(
+        String(32), default="unclassified", nullable=False, index=True
+    )
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     status: Mapped[str] = mapped_column(
         String(32), default=ClaimStatus.PENDING_REVIEW.value, nullable=False
@@ -457,12 +467,20 @@ class SimulationRun(Base):
         back_populates="child_runs",
     )
     child_runs: Mapped[list["SimulationRun"]] = relationship(back_populates="parent_run")
-    state_snapshots: Mapped[list["StateSnapshotRecord"]] = relationship(back_populates="simulation_run")
-    decision_records: Mapped[list["DecisionRecordRecord"]] = relationship(back_populates="simulation_run")
+    state_snapshots: Mapped[list["StateSnapshotRecord"]] = relationship(
+        back_populates="simulation_run"
+    )
+    decision_records: Mapped[list["DecisionRecordRecord"]] = relationship(
+        back_populates="simulation_run"
+    )
     reports: Mapped[list["GeneratedReport"]] = relationship(back_populates="simulation_run")
     geo_assets: Mapped[list["GeoAssetRecord"]] = relationship(back_populates="simulation_run")
-    external_shocks: Mapped[list["ExternalShockRecord"]] = relationship(back_populates="simulation_run")
-    debate_sessions: Mapped[list["DebateSessionRecord"]] = relationship(back_populates="simulation_run")
+    external_shocks: Mapped[list["ExternalShockRecord"]] = relationship(
+        back_populates="simulation_run"
+    )
+    debate_sessions: Mapped[list["DebateSessionRecord"]] = relationship(
+        back_populates="simulation_run"
+    )
     scenario_branch: Mapped[Optional["ScenarioBranchRecord"]] = relationship(
         back_populates="simulation_run",
         uselist=False,
@@ -575,7 +593,9 @@ class ScenarioBranchRecord(Base):
     __tablename__ = "scenario_branches"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    run_id: Mapped[str] = mapped_column(ForeignKey("simulation_runs.id"), nullable=False, unique=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("simulation_runs.id"), nullable=False, unique=True
+    )
     parent_run_id: Mapped[str] = mapped_column(ForeignKey("simulation_runs.id"), nullable=False)
     fork_step: Mapped[int] = mapped_column(Integer, nullable=False)
     assumptions: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
@@ -599,7 +619,9 @@ class ScenarioReplayPackageRecord(Base):
     __tablename__ = "scenario_replay_packages"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    run_id: Mapped[str] = mapped_column(ForeignKey("simulation_runs.id"), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("simulation_runs.id"), nullable=False, index=True
+    )
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     package_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
@@ -637,7 +659,9 @@ class DebateSessionRecord(Base):
         uselist=False,
     )
     votes: Mapped[list["DebateVote"]] = relationship(back_populates="debate_session")
-    interrupts: Mapped[list["DebateInterruptRecord"]] = relationship(back_populates="debate_session")
+    interrupts: Mapped[list["DebateInterruptRecord"]] = relationship(
+        back_populates="debate_session"
+    )
 
 
 class DebateRoundRecord(Base):
@@ -734,18 +758,14 @@ class DebateInterruptRecord(Base):
         ForeignKey("debate_sessions.id"), nullable=False, index=True
     )
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    interrupt_type: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="general"
-    )
+    interrupt_type: Mapped[str] = mapped_column(String(32), nullable=False, default="general")
     injected_at_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
 
-    debate_session: Mapped[DebateSessionRecord] = relationship(
-        back_populates="interrupts"
-    )
+    debate_session: Mapped[DebateSessionRecord] = relationship(back_populates="interrupts")
 
 
 class StrategicSession(Base):
@@ -769,7 +789,9 @@ class StrategicSession(Base):
     refresh_hour_local: Mapped[int] = mapped_column(Integer, default=9, nullable=False)
     next_refresh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     refresh_lease_owner: Mapped[str | None] = mapped_column(String(120), index=True)
-    refresh_lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    refresh_lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
     refresh_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_refresh_error: Mapped[str | None] = mapped_column(Text)
     latest_brief_summary: Mapped[str | None] = mapped_column(Text)
@@ -820,7 +842,9 @@ class StrategicBriefRecord(Base):
     __tablename__ = "strategic_briefs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    session_id: Mapped[str] = mapped_column(ForeignKey("strategic_sessions.id"), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("strategic_sessions.id"), nullable=False, index=True
+    )
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     domain_id: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -838,7 +862,9 @@ class StrategicRunSnapshot(Base):
     __tablename__ = "strategic_run_snapshots"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    session_id: Mapped[str] = mapped_column(ForeignKey("strategic_sessions.id"), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("strategic_sessions.id"), nullable=False, index=True
+    )
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     ingest_run_id: Mapped[str | None] = mapped_column(String(36), index=True)
@@ -937,7 +963,9 @@ class DecisionOption(Base):
     __tablename__ = "decision_options"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True
+    )
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -957,7 +985,9 @@ class Hypothesis(Base):
     __tablename__ = "hypotheses"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), nullable=False, index=True
+    )
     decision_option_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("decision_options.id"), index=True
     )
@@ -991,9 +1021,15 @@ class PredictionSeries(Base):
     domain_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     source_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     source_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    source_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
-    decision_option_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("decision_options.id"), index=True)
-    hypothesis_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("hypotheses.id"), index=True)
+    source_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), index=True
+    )
+    decision_option_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("decision_options.id"), index=True
+    )
+    hypothesis_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("hypotheses.id"), index=True
+    )
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE", nullable=False, index=True)
     current_version_id: Mapped[str | None] = mapped_column(String(36), index=True)
     series_metadata: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
@@ -1015,12 +1051,24 @@ class PredictionVersion(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
-    run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
-    base_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
-    parent_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
-    hypothesis_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("hypotheses.id"), index=True)
-    decision_option_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("decision_options.id"), index=True)
+    series_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_series.id"), nullable=False, index=True
+    )
+    run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), index=True
+    )
+    base_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), index=True
+    )
+    parent_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), index=True
+    )
+    hypothesis_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("hypotheses.id"), index=True
+    )
+    decision_option_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("decision_options.id"), index=True
+    )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     trigger_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     trigger_ref_id: Mapped[str | None] = mapped_column(String(120), index=True)
@@ -1049,15 +1097,21 @@ class PredictionBacktestRecord(Base):
     prediction_version_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True
     )
-    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
-    run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
+    series_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_series.id"), nullable=False, index=True
+    )
+    run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), index=True
+    )
     domain_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     verification_status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     actual_outcome: Mapped[str] = mapped_column(Text, nullable=False)
     score: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
-    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
@@ -1074,13 +1128,25 @@ class PredictionEvidenceLink(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
-    version_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True)
-    prediction_version_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True)
-    evidence_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("evidence_items.id"), index=True)
+    series_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_series.id"), nullable=False, index=True
+    )
+    version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True
+    )
+    prediction_version_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), nullable=False, index=True
+    )
+    evidence_item_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("evidence_items.id"), index=True
+    )
     claim_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("claims.id"), index=True)
-    run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
-    decision_record_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("decision_records.id"), index=True)
+    run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), index=True
+    )
+    decision_record_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("decision_records.id"), index=True
+    )
     link_type: Mapped[str] = mapped_column(String(32), default="supporting", nullable=False)
     impact_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     impact_direction: Mapped[str] = mapped_column(String(32), default="unknown", nullable=False)
@@ -1092,23 +1158,37 @@ class PredictionEvidenceLink(Base):
 
 class PredictionRevisionJob(Base):
     __tablename__ = "prediction_revision_jobs"
-    __table_args__ = (
-        CheckConstraint("attempts >= 0", name="ck_prj_attempts"),
-    )
+    __table_args__ = (CheckConstraint("attempts >= 0", name="ck_prj_attempts"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    series_id: Mapped[str] = mapped_column(String(36), ForeignKey("prediction_series.id"), nullable=False, index=True)
-    base_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
+    series_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("prediction_series.id"), nullable=False, index=True
+    )
+    base_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), index=True
+    )
     claim_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("claims.id"), index=True)
-    trigger_claim_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("claims.id"), index=True)
-    evidence_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("evidence_items.id"), index=True)
-    trigger_evidence_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("evidence_items.id"), index=True)
+    trigger_claim_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("claims.id"), index=True
+    )
+    evidence_item_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("evidence_items.id"), index=True
+    )
+    trigger_evidence_item_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("evidence_items.id"), index=True
+    )
     trigger_topic: Mapped[str | None] = mapped_column(String(128), index=True)
     reason: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False, index=True)
-    revision_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
-    new_run_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("simulation_runs.id"), index=True)
-    new_version_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("prediction_versions.id"), index=True)
+    revision_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), index=True
+    )
+    new_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("simulation_runs.id"), index=True
+    )
+    new_version_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("prediction_versions.id"), index=True
+    )
     lease_owner: Mapped[str | None] = mapped_column(String(120), index=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     processing_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -1126,9 +1206,7 @@ class PredictionRevisionJob(Base):
 
 class SourceCursorState(Base):
     __tablename__ = "source_cursor_states"
-    __table_args__ = (
-        UniqueConstraint("watch_rule_id", "source_type", "source_url_or_query"),
-    )
+    __table_args__ = (UniqueConstraint("watch_rule_id", "source_type", "source_url_or_query"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     watch_rule_id: Mapped[str | None] = mapped_column(
@@ -1263,9 +1341,7 @@ class BatchTask(Base):
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     decision_point: Mapped[str] = mapped_column(Text, nullable=False)
-    trigger_type: Mapped[str] = mapped_column(
-        String(64), default="manual", nullable=False
-    )
+    trigger_type: Mapped[str] = mapped_column(String(64), default="manual", nullable=False)
     status: Mapped[str] = mapped_column(
         String(24),
         default=BatchTaskStatus.PENDING.value,
@@ -1293,9 +1369,7 @@ class BatchSubTask(Base):
     __tablename__ = "batch_sub_tasks"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    batch_id: Mapped[str] = mapped_column(
-        ForeignKey("batch_tasks.id"), nullable=False, index=True
-    )
+    batch_id: Mapped[str] = mapped_column(ForeignKey("batch_tasks.id"), nullable=False, index=True)
     index: Mapped[int] = mapped_column(Integer, nullable=False)
     proposal_title: Mapped[str] = mapped_column(String(255), nullable=False)
     proposal_description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -1306,9 +1380,7 @@ class BatchSubTask(Base):
         nullable=False,
         index=True,
     )
-    debate_id: Mapped[str | None] = mapped_column(
-        ForeignKey("debate_sessions.id"), nullable=True
-    )
+    debate_id: Mapped[str | None] = mapped_column(ForeignKey("debate_sessions.id"), nullable=True)
     simulation_run_id: Mapped[str | None] = mapped_column(
         ForeignKey("simulation_runs.id"), nullable=True
     )

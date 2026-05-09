@@ -34,11 +34,42 @@ _MIN_HYPOTHESES_FOR_CALIBRATION = 3
 _CALIBRATION_WINDOW_DAYS = 90
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _CALIBRATION_STOPWORDS = {
-    "the", "and", "for", "with", "this", "that", "from", "after", "before",
-    "into", "across", "over", "under", "still", "remain", "remained",
-    "during", "through", "their", "there", "about", "will", "would",
-    "could", "should", "may", "might", "has", "have", "been", "was",
-    "were", "are", "is", "be", "being",
+    "the",
+    "and",
+    "for",
+    "with",
+    "this",
+    "that",
+    "from",
+    "after",
+    "before",
+    "into",
+    "across",
+    "over",
+    "under",
+    "still",
+    "remain",
+    "remained",
+    "during",
+    "through",
+    "their",
+    "there",
+    "about",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "has",
+    "have",
+    "been",
+    "was",
+    "were",
+    "are",
+    "is",
+    "be",
+    "being",
 }
 
 
@@ -67,7 +98,9 @@ class CalibrationWorker(Worker):
         errors: list[str] = []
         async with database.session() as session:
             verified, verify_errors = await self._verify_pending_hypotheses(session)
-            verified_predictions, prediction_errors = await self._verify_pending_predictions(session)
+            verified_predictions, prediction_errors = await self._verify_pending_predictions(
+                session
+            )
             rule_accuracy_count = await self._update_rule_accuracies(session)
             source_trust_count = await self._update_source_trust_scores(session)
             if rule_accuracy_count or source_trust_count:
@@ -104,7 +137,9 @@ class CalibrationWorker(Worker):
         for hypo in hypotheses:
             try:
                 horizon_days = _TIME_HORIZON_DAYS.get(hypo.time_horizon, 90)
-                due_at = (hypo.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(days=horizon_days)
+                due_at = (hypo.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(
+                    days=horizon_days
+                )
                 if now < due_at:
                     continue
 
@@ -115,7 +150,9 @@ class CalibrationWorker(Worker):
                     hypo.verified_at = now
                 else:
                     hypo.verification_status = "PARTIAL"
-                    hypo.actual_outcome = "No confirming or refuting evidence found in the target window."
+                    hypo.actual_outcome = (
+                        "No confirming or refuting evidence found in the target window."
+                    )
                     hypo.verified_at = now
                 hypo.updated_at = now
                 verified += 1
@@ -156,7 +193,9 @@ class CalibrationWorker(Worker):
         for version in versions:
             try:
                 horizon_days = _TIME_HORIZON_DAYS.get(version.time_horizon, 90)
-                due_at = (version.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(days=horizon_days)
+                due_at = (version.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(
+                    days=horizon_days
+                )
                 if now < due_at:
                     continue
 
@@ -248,7 +287,9 @@ class CalibrationWorker(Worker):
         version: PredictionVersion,
     ) -> Claim | None:
         horizon_days = _TIME_HORIZON_DAYS.get(version.time_horizon, 90)
-        horizon_start = (version.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(days=horizon_days // 2)
+        horizon_start = (version.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(
+            days=horizon_days // 2
+        )
         version_tokens = self._text_tokens(version.prediction_text)
         if not version_tokens:
             return None
@@ -285,9 +326,13 @@ class CalibrationWorker(Worker):
             return "PARTIAL"
         return "REFUTED"
 
-    async def _find_verification_claim(self, session: AsyncSession, hypo: Hypothesis) -> Claim | None:
+    async def _find_verification_claim(
+        self, session: AsyncSession, hypo: Hypothesis
+    ) -> Claim | None:
         horizon_days = _TIME_HORIZON_DAYS.get(hypo.time_horizon, 90)
-        horizon_start = (hypo.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(days=horizon_days // 2)
+        horizon_start = (hypo.created_at or utc_now()).replace(tzinfo=timezone.utc) + timedelta(
+            days=horizon_days // 2
+        )
         hypo_tokens = self._text_tokens(hypo.prediction)
         if not hypo_tokens:
             return None
@@ -391,7 +436,9 @@ class CalibrationWorker(Worker):
             await session.commit()
         return records
 
-    async def _calc_rule_accuracy(self, session: AsyncSession, hypotheses: list[Hypothesis]) -> dict[str, float]:
+    async def _calc_rule_accuracy(
+        self, session: AsyncSession, hypotheses: list[Hypothesis]
+    ) -> dict[str, float]:
         rule_counts: dict[str, list[str]] = defaultdict(list)
         run_ids = [h.run_id for h in hypotheses if h.run_id]
         if not run_ids:
@@ -551,7 +598,9 @@ class CalibrationWorker(Worker):
             (
                 await session.scalars(
                     select(PredictionBacktestRecord)
-                    .where(PredictionBacktestRecord.verification_status.in_(["CONFIRMED", "REFUTED"]))
+                    .where(
+                        PredictionBacktestRecord.verification_status.in_(["CONFIRMED", "REFUTED"])
+                    )
                     .order_by(PredictionBacktestRecord.verified_at.desc())
                     .limit(200)
                 )

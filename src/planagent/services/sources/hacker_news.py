@@ -71,7 +71,10 @@ class HackerNewsProvider(DataSourceProvider):
         return [r.model_dump() for r in results]
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         search_query = self._platform_query(query, domain_id)
         url = (
@@ -86,9 +89,10 @@ class HackerNewsProvider(DataSourceProvider):
         for hit in payload.get("hits", [])[:limit]:
             title = self.clean_text(hit.get("title") or "")
             url_value = self.clean_text(hit.get("url") or hit.get("story_url") or "")
-            summary = self.clean_text(
-                hit.get("_highlightResult", {}).get("title", {}).get("value", "")
-            ) or title
+            summary = (
+                self.clean_text(hit.get("_highlightResult", {}).get("title", {}).get("value", ""))
+                or title
+            )
             published_at = self.clean_text(hit.get("created_at") or "") or None
             if not title or not url_value:
                 continue

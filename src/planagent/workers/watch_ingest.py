@@ -54,7 +54,9 @@ class WatchIngestWorker(Worker):
         self.worker_instance_id = self.description.worker_id
         self.analysis_service = AutomatedAnalysisService(settings, openai_service)
         self.pipeline_service = PhaseOnePipelineService(settings, event_bus, openai_service)
-        self.simulation_service = SimulationService(settings, event_bus, rule_registry, openai_service)
+        self.simulation_service = SimulationService(
+            settings, event_bus, rule_registry, openai_service
+        )
         self.debate_service = DebateService(settings, event_bus, openai_service)
 
     async def run_once(self) -> dict[str, object]:
@@ -137,7 +139,9 @@ class WatchIngestWorker(Worker):
         analysis = await self.analysis_service.analyze(analysis_request)
         for step in analysis.reasoning_steps:
             if step.stage == "source_complete":
-                await self.analysis_service.record_source_success(session, self._source_type_from_step(step.message))
+                await self.analysis_service.record_source_success(
+                    session, self._source_type_from_step(step.message)
+                )
             elif step.stage == "source_error":
                 await self.analysis_service.record_source_failure(
                     session,
@@ -218,8 +222,14 @@ class WatchIngestWorker(Worker):
                     await self.notification_service.broadcast(
                         title=f"📡 源变化检测 [{change_record.significance.upper()}]",
                         body=f"监控规则「{rule.name}」检测到{change_record.significance}级变化：{change_record.diff_summary or state.source_type}",
-                        priority=NotificationPriority.HIGH if change_record.significance == "high" else NotificationPriority.NORMAL,
-                        metadata={"rule_id": rule.id, "change_id": change_record.id, "significance": change_record.significance},
+                        priority=NotificationPriority.HIGH
+                        if change_record.significance == "high"
+                        else NotificationPriority.NORMAL,
+                        metadata={
+                            "rule_id": rule.id,
+                            "change_id": change_record.id,
+                            "significance": change_record.significance,
+                        },
                     )
                 except Exception:
                     logger.debug("Notification broadcast failed (non-critical)")
@@ -297,7 +307,11 @@ class WatchIngestWorker(Worker):
                     title=f"🔄 监控更新：{rule.name}",
                     body=f"监控规则「{rule.name}」完成更新——{', '.join(parts)}。请查看最新建议。",
                     priority=NotificationPriority.HIGH,
-                    metadata={"rule_id": rule.id, "debate_id": debate_id, "simulation_run_id": simulation_run_id},
+                    metadata={
+                        "rule_id": rule.id,
+                        "debate_id": debate_id,
+                        "simulation_run_id": simulation_run_id,
+                    },
                 )
             except Exception:
                 logger.debug("Notification broadcast failed (non-critical)")
@@ -331,7 +345,9 @@ class WatchIngestWorker(Worker):
                         StrategicSession.tenant_id == rule.tenant_id,
                         StrategicSession.preset_id == rule.preset_id,
                     )
-                    .order_by(StrategicSession.updated_at.desc(), StrategicSession.created_at.desc())
+                    .order_by(
+                        StrategicSession.updated_at.desc(), StrategicSession.created_at.desc()
+                    )
                     .limit(1)
                 )
             ).first()
@@ -418,7 +434,9 @@ class WatchIngestWorker(Worker):
             return False
         if not sources:
             return float(rule.trigger_threshold or 0.0) <= 0.0
-        return max(self._source_score(rule, source) for source in sources) >= float(rule.trigger_threshold or 0.0)
+        return max(self._source_score(rule, source) for source in sources) >= float(
+            rule.trigger_threshold or 0.0
+        )
 
     def _source_score(self, rule: WatchRule, source) -> float:
         haystack = f"{source.title} {source.summary}".lower()
@@ -426,11 +444,17 @@ class WatchIngestWorker(Worker):
             return 0.0
         keywords = [term.lower() for term in (rule.keywords or []) if term]
         entity_tags = [term.lower() for term in (rule.entity_tags or []) if term]
-        terms = keywords or entity_tags or [token.lower() for token in rule.query.split()[:6] if token]
+        terms = (
+            keywords or entity_tags or [token.lower() for token in rule.query.split()[:6] if token]
+        )
         matched = sum(1 for term in terms if term and term in haystack)
         score = 0.35 + min(matched * 0.18, 0.45)
-        engagement = source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
-        if isinstance(engagement, dict) and any(value for value in engagement.values() if isinstance(value, (int, float))):
+        engagement = (
+            source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
+        )
+        if isinstance(engagement, dict) and any(
+            value for value in engagement.values() if isinstance(value, (int, float))
+        ):
             score += 0.1
         if source.published_at:
             score += 0.1

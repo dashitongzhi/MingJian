@@ -248,7 +248,9 @@ class PredictionService:
             )
         )
         return {
-            "probability_delta": self._numeric_delta(old_version.probability, new_version.probability),
+            "probability_delta": self._numeric_delta(
+                old_version.probability, new_version.probability
+            ),
             "confidence_delta": self._numeric_delta(old_version.confidence, new_version.confidence),
             "text_diff": text_diff,
             "status_change": {
@@ -266,14 +268,19 @@ class PredictionService:
         hypothesis: Hypothesis | None,
     ) -> PredictionVersion | None:
         source_type = "decision_option" if option is not None else "hypothesis"
-        source_id = option.id if option is not None else hypothesis.id if hypothesis is not None else None
+        source_id = (
+            option.id if option is not None else hypothesis.id if hypothesis is not None else None
+        )
         if source_id is None:
             return None
 
         existing = (
             await session.scalars(
                 select(PredictionSeries)
-                .where(PredictionSeries.source_type == source_type, PredictionSeries.source_id == source_id)
+                .where(
+                    PredictionSeries.source_type == source_type,
+                    PredictionSeries.source_id == source_id,
+                )
                 .limit(1)
             )
         ).first()
@@ -301,7 +308,8 @@ class PredictionService:
         prediction_text = (
             hypothesis.prediction
             if hypothesis is not None
-            else option.description if option is not None
+            else option.description
+            if option is not None
             else "Prediction unavailable."
         )
         confidence = option.confidence if option is not None else None
@@ -394,7 +402,9 @@ class PredictionService:
                 break
         return claimed
 
-    async def _start_revision_simulation(self, session: AsyncSession, job: PredictionRevisionJob) -> None:
+    async def _start_revision_simulation(
+        self, session: AsyncSession, job: PredictionRevisionJob
+    ) -> None:
         series = await session.get(PredictionSeries, job.series_id)
         if job.base_version_id is None:
             raise LookupError(f"Revision job {job.id} has no base version.")
@@ -441,7 +451,9 @@ class PredictionService:
         job.lease_expires_at = None
         job.updated_at = utc_now()
 
-    async def _finalize_revision_job(self, session: AsyncSession, job: PredictionRevisionJob) -> int:
+    async def _finalize_revision_job(
+        self, session: AsyncSession, job: PredictionRevisionJob
+    ) -> int:
         if job.revision_run_id is None:
             raise LookupError(f"Revision job {job.id} has no revision run.")
         revision_run = await session.get(SimulationRun, job.revision_run_id)
@@ -485,17 +497,24 @@ class PredictionService:
             job.lease_expires_at = None
             return 1
 
-        next_number = int(
-            await session.scalar(
-                select(func.coalesce(func.max(PredictionVersion.version_number), 0)).where(
-                    PredictionVersion.series_id == series.id
+        next_number = (
+            int(
+                await session.scalar(
+                    select(func.coalesce(func.max(PredictionVersion.version_number), 0)).where(
+                        PredictionVersion.series_id == series.id
+                    )
                 )
+                or 0
             )
-            or 0
-        ) + 1
-        prediction_text, confidence, hypothesis_id, option_id, time_horizon = (
-            await self._revision_prediction_text(session, revision_run, base_version)
+            + 1
         )
+        (
+            prediction_text,
+            confidence,
+            hypothesis_id,
+            option_id,
+            time_horizon,
+        ) = await self._revision_prediction_text(session, revision_run, base_version)
 
         await session.execute(
             update(PredictionVersion)
@@ -600,7 +619,13 @@ class PredictionService:
         ).first()
         if option is not None:
             return option.description, option.confidence, None, option.id, base_version.time_horizon
-        return base_version.prediction_text, base_version.confidence, None, None, base_version.time_horizon
+        return (
+            base_version.prediction_text,
+            base_version.confidence,
+            None,
+            None,
+            base_version.time_horizon,
+        )
 
     async def _create_evidence_link(
         self,
@@ -656,14 +681,12 @@ class PredictionService:
 
     async def _version_evidence_ids(self, session: AsyncSession, version_id: str) -> set[str]:
         evidence_ids = (
-            (
-                await session.scalars(
-                    select(PredictionEvidenceLink.evidence_item_id).where(
-                        PredictionEvidenceLink.version_id == version_id
-                    )
+            await session.scalars(
+                select(PredictionEvidenceLink.evidence_item_id).where(
+                    PredictionEvidenceLink.version_id == version_id
                 )
-            ).all()
-        )
+            )
+        ).all()
         return {evidence_id for evidence_id in evidence_ids if evidence_id is not None}
 
     async def _publish_version_created(
@@ -686,7 +709,9 @@ class PredictionService:
             },
         )
 
-    async def _publish_event(self, session: AsyncSession, topic: str, payload: dict[str, Any]) -> None:
+    async def _publish_event(
+        self, session: AsyncSession, topic: str, payload: dict[str, Any]
+    ) -> None:
         session.add(EventArchive(topic=topic, payload=payload))
         await self.event_bus.publish(topic, payload)
 

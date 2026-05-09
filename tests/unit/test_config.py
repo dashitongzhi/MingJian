@@ -12,6 +12,7 @@ from planagent.config import Settings, OpenAIConfig, OpenAITargetConfig
 # Settings construction from env vars
 # ---------------------------------------------------------------------------
 
+
 class TestSettingsFromEnv:
     def test_default_values(self, settings):
         assert settings.app_name == "PlanAgent"
@@ -56,6 +57,7 @@ class TestSettingsFromEnv:
 # Nested OpenAI config via env vars
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAIEnvVarResolution:
     def test_shared_api_key_via_env(self, monkeypatch):
         monkeypatch.setenv("PLANAGENT_OPENAI_SHARED_API_KEY", "sk-shared-test")
@@ -78,6 +80,7 @@ class TestOpenAIEnvVarResolution:
 # ---------------------------------------------------------------------------
 # OpenAI target model resolution (openai_model_source)
 # ---------------------------------------------------------------------------
+
 
 class TestOpenAIModelSource:
     def test_primary_target_returns_primary_env_var(self, settings):
@@ -110,7 +113,9 @@ class TestOpenAIModelSource:
     def test_debate_challenger_with_own_model(self, monkeypatch):
         monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL", "claude-3")
         s = Settings(_env_file=None)
-        assert s.openai_model_source("debate_challenger") == "PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL"
+        assert (
+            s.openai_model_source("debate_challenger") == "PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL"
+        )
 
     def test_debate_challenger_falls_back_to_extraction_then_primary(self, settings):
         # No extraction model → falls to primary
@@ -138,6 +143,7 @@ class TestOpenAIModelSource:
 # ---------------------------------------------------------------------------
 # Resolved OpenAI model / key / base_url chain
 # ---------------------------------------------------------------------------
+
 
 class TestResolvedOpenAIFields:
     def test_primary_model_default(self, settings):
@@ -174,6 +180,7 @@ class TestResolvedOpenAIFields:
 # configured_openai_targets / openai_enabled
 # ---------------------------------------------------------------------------
 
+
 class TestOpenAIEnabled:
     def test_no_keys_disabled(self, settings):
         assert settings.openai_enabled is False
@@ -189,6 +196,7 @@ class TestOpenAIEnabled:
 # ---------------------------------------------------------------------------
 # Nested model defaults
 # ---------------------------------------------------------------------------
+
 
 class TestNestedModelDefaults:
     def test_openai_config_defaults(self):

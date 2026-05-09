@@ -18,7 +18,10 @@ class LinuxDoProvider(DataSourceProvider):
     task_desc = "正在搜索 Linux.do 社区"
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         if limit <= 0:
             return []
@@ -51,9 +54,15 @@ class LinuxDoProvider(DataSourceProvider):
             url_value = f"{base_url}/t/{slug}/{topic_id}" if slug and topic_id else base_url
             if not title or not topic_id:
                 continue
-            published_at = self.clean_text(
-                topic.get("created_at") or post.get("created_at") or topic.get("last_posted_at") or ""
-            ) or None
+            published_at = (
+                self.clean_text(
+                    topic.get("created_at")
+                    or post.get("created_at")
+                    or topic.get("last_posted_at")
+                    or ""
+                )
+                or None
+            )
             results.append(
                 AnalysisSourceRead(
                     source_type="linux_do_discourse",

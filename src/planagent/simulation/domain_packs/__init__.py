@@ -3,7 +3,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from planagent.simulation.specs import ActionSpec, ActorTemplate, EntityTypeSpec, EventTypeSpec, StateFieldSpec
+from planagent.simulation.specs import (
+    ActionSpec,
+    ActorTemplate,
+    EntityTypeSpec,
+    EventTypeSpec,
+    StateFieldSpec,
+)
 
 
 class DomainPack(ABC):
@@ -56,4 +62,3 @@ class DomainPackRegistry:
 
 
 registry = DomainPackRegistry()
-

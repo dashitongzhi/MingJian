@@ -71,7 +71,10 @@ class RedditProvider(DataSourceProvider):
         return [r.model_dump() for r in results]
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         if limit <= 0:
             return []

@@ -22,11 +22,13 @@ router = APIRouter(prefix="/model", tags=["Model Adapter"])
 
 class ModelAssessRequest(BaseModel):
     """模型能力评估请求"""
+
     model_id: str = Field(..., description="模型标识（如 gpt-4o, claude-sonnet-4-20250514）")
 
 
 class ModelCapabilitiesResponse(BaseModel):
     """模型能力评估响应"""
+
     model_id: str
     tier: str
     context_window: int
@@ -41,6 +43,7 @@ class ModelCapabilitiesResponse(BaseModel):
 
 class DebateAdaptationRequest(BaseModel):
     """辩论自适应参数请求"""
+
     advocate_model: str | None = Field(None, description="支持方模型")
     challenger_model: str | None = Field(None, description="挑战方模型")
     arbitrator_model: str | None = Field(None, description="仲裁方模型")
@@ -48,6 +51,7 @@ class DebateAdaptationRequest(BaseModel):
 
 class DebateAdaptationResponse(BaseModel):
     """辩论自适应参数响应"""
+
     max_output_tokens: int
     total_rounds: int
     max_arguments: int
@@ -58,20 +62,27 @@ class DebateAdaptationResponse(BaseModel):
 
 class ModelSettingsUpdate(BaseModel):
     """用户覆盖设置"""
+
     tier_override: str | None = Field(
         None,
         description="覆盖模型等级: basic/standard/advanced，null恢复自动检测",
     )
     max_output_tokens_override: int | None = Field(
-        None, ge=100, le=32000,
+        None,
+        ge=100,
+        le=32000,
         description="覆盖最大输出token，null恢复自动检测",
     )
     total_rounds_override: int | None = Field(
-        None, ge=2, le=7,
+        None,
+        ge=2,
+        le=7,
         description="覆盖辩论轮次，null恢复自动检测",
     )
     max_arguments_override: int | None = Field(
-        None, ge=1, le=5,
+        None,
+        ge=1,
+        le=5,
         description="覆盖每轮论证数，null恢复自动检测",
     )
     enabled_agent_roles: list[str] | None = Field(
@@ -86,6 +97,7 @@ class ModelSettingsUpdate(BaseModel):
 
 class ModelSettingsResponse(BaseModel):
     """设置响应"""
+
     tier_override: str | None = None
     max_output_tokens_override: int | None = None
     total_rounds_override: int | None = None
@@ -96,6 +108,7 @@ class ModelSettingsResponse(BaseModel):
 
 class CapabilitiesOverviewResponse(BaseModel):
     """能力总览响应"""
+
     known_models: list[dict[str, Any]]
     current_settings: dict[str, Any]
     model_count: int

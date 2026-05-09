@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from planagent.simulation.domain_packs import DomainPack, registry
-from planagent.simulation.specs import ActionSpec, ActorTemplate, EntityTypeSpec, EventTypeSpec, StateFieldSpec
+from planagent.simulation.specs import (
+    ActionSpec,
+    ActorTemplate,
+    EntityTypeSpec,
+    EventTypeSpec,
+    StateFieldSpec,
+)
 
 
 class CorporateDomainPack(DomainPack):
@@ -27,7 +33,9 @@ class CorporateDomainPack(DomainPack):
             StateFieldSpec("market_share", "Estimated market share.", 0.05),
             StateFieldSpec("team_morale", "Team morale index.", 1.0),
             StateFieldSpec("pipeline", "Qualified revenue pipeline coverage index.", 1.0),
-            StateFieldSpec("active_deployments", "Current count-adjusted implementation load.", 3.0),
+            StateFieldSpec(
+                "active_deployments", "Current count-adjusted implementation load.", 3.0
+            ),
             StateFieldSpec("implementation_capacity", "Deployment and onboarding capacity.", 3.0),
             StateFieldSpec("support_load", "Customer support and incident load.", 0.35),
             StateFieldSpec("reliability_debt", "Accumulated reliability and quality debt.", 0.28),

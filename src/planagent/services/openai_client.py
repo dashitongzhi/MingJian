@@ -175,7 +175,9 @@ class OpenAIService:
             report_configured=self.clients["report"] is not None,
             configured_targets=configured_targets,
             primary_model=self.settings.openai_primary_model,
-            resolved_primary_model=resolve_openclaw_model_selector(self.settings.openai_primary_model),
+            resolved_primary_model=resolve_openclaw_model_selector(
+                self.settings.openai_primary_model
+            ),
             extraction_model=self.settings.resolved_openai_extraction_model,
             x_search_model=self.settings.resolved_openai_x_search_model,
             report_model=self.settings.resolved_openai_report_model,
@@ -487,7 +489,9 @@ class OpenAIService:
                     response_format={"type": "json_object"},
                 )
                 raw_text = self._extract_chat_text(chat_response)
-                self._record_target_success(target=target, api_mode="chat.completions.json", model=model)
+                self._record_target_success(
+                    target=target, api_mode="chat.completions.json", model=model
+                )
                 return schema.model_validate_json(raw_text)
             except Exception as chat_json_exc:
                 try:
@@ -507,7 +511,9 @@ class OpenAIService:
                         max_tokens=max_output_tokens,
                     )
                     raw_text = self._extract_chat_text(chat_response)
-                    self._record_target_success(target=target, api_mode="chat.completions", model=model)
+                    self._record_target_success(
+                        target=target, api_mode="chat.completions", model=model
+                    )
                     return schema.model_validate_json(self._extract_json_payload(raw_text))
                 except Exception as chat_exc:
                     try:
@@ -646,13 +652,12 @@ class OpenAIService:
             f"- {a['action_id']}: {a.get('description', a['action_id'])}" for a in available_actions
         )
         decisions_text = "\n".join(
-            f"- tick {d.get('tick', '?')}: {d.get('action_id', '?')} — {d.get('why', '')[:120]}" for d in recent_decisions
+            f"- tick {d.get('tick', '?')}: {d.get('action_id', '?')} — {d.get('why', '')[:120]}"
+            for d in recent_decisions
         )
         evidence_text = "\n".join(f"- {e[:200]}" for e in evidence[:5])
         calibration_text = (
-            f"Calibration context:\n{calibration_context[:2000]}\n\n"
-            if calibration_context
-            else ""
+            f"Calibration context:\n{calibration_context[:2000]}\n\n" if calibration_context else ""
         )
         prompt = (
             f"Domain: {domain_id}\n"
@@ -689,7 +694,11 @@ class OpenAIService:
         target: TargetRole | None = None,
     ) -> DebatePositionPayload | None:
         if target is None:
-            target = "primary" if role == "advocate" else ("extraction" if role == "challenger" else "report")
+            target = (
+                "primary"
+                if role == "advocate"
+                else ("extraction" if role == "challenger" else "report")
+            )
 
         role_instruction = {
             "advocate": (
@@ -730,7 +739,8 @@ class OpenAIService:
         opponent_text = ""
         if opponent_arguments:
             opponent_text = "\nOpponent's previous arguments:\n" + "\n".join(
-                f"- {a.get('claim', a.get('counter', str(a)))[:200]}" for a in opponent_arguments[:5]
+                f"- {a.get('claim', a.get('counter', str(a)))[:200]}"
+                for a in opponent_arguments[:5]
             )
 
         own_text = ""
@@ -793,7 +803,11 @@ class OpenAIService:
         return self.is_configured(target)
 
     async def generate_json_for_target(
-        self, target: str, system_prompt: str, user_content: str, max_tokens: int = 1000,
+        self,
+        target: str,
+        system_prompt: str,
+        user_content: str,
+        max_tokens: int = 1000,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         client = self.clients.get(target)
         if client is None:
@@ -802,12 +816,19 @@ class OpenAIService:
         try:
             response = await client.chat.completions.create(
                 model=model,
-                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}],
-                max_tokens=max_tokens, temperature=0.3, response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.3,
+                response_format={"type": "json_object"},
             )
             text = response.choices[0].message.content or "{}"
             parsed = self._extract_json_payload(text)
-            return {"model": model, "api_mode": "chat.completions.json"}, parsed if isinstance(parsed, dict) else None
+            return {"model": model, "api_mode": "chat.completions.json"}, parsed if isinstance(
+                parsed, dict
+            ) else None
         except Exception:
             return None, None
 
@@ -917,7 +938,9 @@ class OpenAIService:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=self.settings.openai_timeout_seconds, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=self.settings.openai_timeout_seconds, follow_redirects=True
+        ) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
         return self._parse_raw_chat_completion(response.text)

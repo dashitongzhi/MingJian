@@ -14,6 +14,7 @@ from planagent.services.pipeline import estimate_evidence_confidence, estimate_c
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _item(**overrides) -> SourceSeedInput:
     defaults = dict(
         source_type="rss",
@@ -29,6 +30,7 @@ def _item(**overrides) -> SourceSeedInput:
 # ===========================================================================
 # estimate_evidence_confidence
 # ===========================================================================
+
 
 class TestEvidenceConfidence:
     def test_max_rich_item_scores_095(self):
@@ -46,17 +48,28 @@ class TestEvidenceConfidence:
     def test_title_bonus(self):
         with_title = _item(title="Real Title", source_url="", published_at=None, content_text="")
         without = _item(title="", source_url="", published_at=None, content_text="")
-        assert estimate_evidence_confidence(with_title) - estimate_evidence_confidence(without) == pytest.approx(0.10)
+        assert estimate_evidence_confidence(with_title) - estimate_evidence_confidence(
+            without
+        ) == pytest.approx(0.10)
 
     def test_url_bonus(self):
         with_url = _item(source_url="https://x.com", title="", published_at=None, content_text="")
         without = _item(source_url="", title="", published_at=None, content_text="")
-        assert estimate_evidence_confidence(with_url) - estimate_evidence_confidence(without) == pytest.approx(0.10)
+        assert estimate_evidence_confidence(with_url) - estimate_evidence_confidence(
+            without
+        ) == pytest.approx(0.10)
 
     def test_published_at_bonus(self):
-        with_date = _item(published_at=datetime(2025, 1, 1, tzinfo=timezone.utc), title="", source_url="", content_text="")
+        with_date = _item(
+            published_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            title="",
+            source_url="",
+            content_text="",
+        )
         without = _item(published_at=None, title="", source_url="", content_text="")
-        assert estimate_evidence_confidence(with_date) - estimate_evidence_confidence(without) == pytest.approx(0.05)
+        assert estimate_evidence_confidence(with_date) - estimate_evidence_confidence(
+            without
+        ) == pytest.approx(0.05)
 
     def test_content_length_scales_linearly(self):
         short = _item(title="", source_url="", published_at=None, content_text="x" * 150)
@@ -68,7 +81,9 @@ class TestEvidenceConfidence:
     def test_content_bonus_capped_at_025(self):
         huge = _item(title="", source_url="", published_at=None, content_text="x" * 5000)
         at_cap = _item(title="", source_url="", published_at=None, content_text="x" * 1500)
-        assert estimate_evidence_confidence(huge) == pytest.approx(estimate_evidence_confidence(at_cap))
+        assert estimate_evidence_confidence(huge) == pytest.approx(
+            estimate_evidence_confidence(at_cap)
+        )
 
     def test_lower_bound_025(self):
         """Empty strings, no bonuses → base 0.45 with tiny content → should stay >= 0.25."""
@@ -85,12 +100,15 @@ class TestEvidenceConfidence:
         for content_len in [0, 1, 100, 500, 1500, 5000]:
             item = _item(content_text="x" * content_len)
             score = estimate_evidence_confidence(item)
-            assert 0.25 <= score <= 0.95, f"Score {score} out of range for content_len={content_len}"
+            assert 0.25 <= score <= 0.95, (
+                f"Score {score} out of range for content_len={content_len}"
+            )
 
 
 # ===========================================================================
 # estimate_claim_confidence
 # ===========================================================================
+
 
 class TestClaimConfidence:
     def test_full_offset_with_long_sentence(self):
@@ -109,8 +127,8 @@ class TestClaimConfidence:
 
     def test_sentence_length_scales_linearly(self):
         ev = 0.80
-        short = estimate_claim_confidence(ev, "x" * 30)   # bonus = 30/240 = 0.125
-        long = estimate_claim_confidence(ev, "x" * 90)    # bonus = 90/240 = 0.375, capped at 0.20
+        short = estimate_claim_confidence(ev, "x" * 30)  # bonus = 30/240 = 0.125
+        long = estimate_claim_confidence(ev, "x" * 90)  # bonus = 90/240 = 0.375, capped at 0.20
         # diff = (0.20 - 0.125) = 0.075
         assert long - short == pytest.approx(0.075, abs=0.005)
 

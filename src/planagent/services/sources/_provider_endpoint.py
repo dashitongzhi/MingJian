@@ -53,12 +53,22 @@ class ProviderEndpointMixin:
         for item in candidates[:limit]:
             if not isinstance(item, dict):
                 continue
-            title = self.clean_text(item.get("title") or item.get("caption") or item.get("text") or "")
-            url_value = self.clean_text(item.get("url") or item.get("link") or item.get("share_url") or "")
-            summary = self.clean_text(
-                item.get("summary") or item.get("description") or item.get("content") or item.get("text") or title
+            title = self.clean_text(
+                item.get("title") or item.get("caption") or item.get("text") or ""
             )
-            published_at = self.clean_text(item.get("published_at") or item.get("created_at") or "") or None
+            url_value = self.clean_text(
+                item.get("url") or item.get("link") or item.get("share_url") or ""
+            )
+            summary = self.clean_text(
+                item.get("summary")
+                or item.get("description")
+                or item.get("content")
+                or item.get("text")
+                or title
+            )
+            published_at = (
+                self.clean_text(item.get("published_at") or item.get("created_at") or "") or None
+            )
             if not title or not url_value:
                 continue
             results.append(

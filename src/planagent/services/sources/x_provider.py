@@ -32,12 +32,16 @@ class XProvider(DataSourceProvider):
         return None
 
     async def fetch(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         # Try model-backed search first
         if self.openai_service is not None and self.openai_service.is_configured("x_search"):
             model_results = await self.openai_service.search_x_posts(
-                self._platform_query(query, domain_id), limit,
+                self._platform_query(query, domain_id),
+                limit,
             )
             if model_results is not None and model_results.posts:
                 results: list[AnalysisSourceRead] = []
@@ -57,7 +61,8 @@ class XProvider(DataSourceProvider):
                             metadata={
                                 "platform": "x",
                                 "provider": "model_backed_x_search",
-                                "raw_published_at": self.clean_text(post.published_at or "") or None,
+                                "raw_published_at": self.clean_text(post.published_at or "")
+                                or None,
                                 "query_used": self._platform_query(query, domain_id),
                             },
                         )
@@ -71,7 +76,10 @@ class XProvider(DataSourceProvider):
         return await self._fetch_x_posts(query, limit, domain_id)
 
     async def _fetch_x_posts(
-        self, query: str, limit: int, domain_id: str,
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
     ) -> list[AnalysisSourceRead]:
         if limit <= 0:
             return []

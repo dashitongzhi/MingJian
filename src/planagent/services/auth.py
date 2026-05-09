@@ -3,6 +3,7 @@
 Addresses the audit gap: all API endpoints are publicly accessible.
 Provides JWT-based auth with role-based access control.
 """
+
 from __future__ import annotations
 
 import logging
@@ -30,6 +31,7 @@ class UserRole(StrEnum):
 @dataclass
 class AuthConfig:
     """Auth configuration."""
+
     secret_key: str = ""  # Auto-generated if empty
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
@@ -40,6 +42,7 @@ class AuthConfig:
 @dataclass
 class User:
     """In-memory user model. In production, this would be a DB model."""
+
     id: str
     username: str
     email: str
@@ -72,7 +75,9 @@ class AuthService:
         self.config = config or AuthConfig()
         if not self.config.secret_key:
             self.config.secret_key = secrets.token_urlsafe(48)
-            _logger.warning("Auth secret_key auto-generated (not persistent across restarts). Set PLANAGENT_AUTH_SECRET_KEY in .env")
+            _logger.warning(
+                "Auth secret_key auto-generated (not persistent across restarts). Set PLANAGENT_AUTH_SECRET_KEY in .env"
+            )
 
         self._users: dict[str, User] = {}  # user_id -> User
         self._username_index: dict[str, str] = {}  # username -> user_id
@@ -87,6 +92,7 @@ class AuthService:
         """Create a default admin user if none exists."""
         if not self._users:
             import secrets as _secrets
+
             random_password = _secrets.token_urlsafe(16)
             self.create_user(
                 username="admin",
@@ -201,7 +207,9 @@ class AuthService:
             "iat": now,
             "exp": now + timedelta(minutes=self.config.access_token_expire_minutes),
         }
-        access_token = jwt.encode(access_payload, self.config.secret_key, algorithm=self.config.algorithm)
+        access_token = jwt.encode(
+            access_payload, self.config.secret_key, algorithm=self.config.algorithm
+        )
 
         # Refresh token
         refresh_payload = {
@@ -211,7 +219,9 @@ class AuthService:
             "iat": now,
             "exp": now + timedelta(days=self.config.refresh_token_expire_days),
         }
-        refresh_token = jwt.encode(refresh_payload, self.config.secret_key, algorithm=self.config.algorithm)
+        refresh_token = jwt.encode(
+            refresh_payload, self.config.secret_key, algorithm=self.config.algorithm
+        )
         self._refresh_tokens[refresh_token] = user.id
 
         return TokenPair(

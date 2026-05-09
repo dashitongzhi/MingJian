@@ -16,6 +16,7 @@ from planagent.config import Settings
 # Settings
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def settings():
     """Minimal Settings constructed without reading .env."""
@@ -87,6 +88,7 @@ def sample_claims():
 # ---------------------------------------------------------------------------
 # Mock external services
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def mock_openai_service():

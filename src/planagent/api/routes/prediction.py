@@ -46,9 +46,7 @@ async def list_predictions(
     records = list((await session.scalars(query.limit(limit * 2))).all())
     if domain_id is not None:
         records = [
-            item
-            for item in records
-            if (item.series_metadata or {}).get("domain_id") == domain_id
+            item for item in records if (item.series_metadata or {}).get("domain_id") == domain_id
         ]
     records = records[:limit]
     return [PredictionSeriesRead.model_validate(item) for item in records]
@@ -142,7 +140,9 @@ async def get_prediction_impact(
     }
 
 
-@router.post("/predictions/{series_id}/reforecast", response_model=PredictionRevisionJobRead, status_code=201)
+@router.post(
+    "/predictions/{series_id}/reforecast", response_model=PredictionRevisionJobRead, status_code=201
+)
 async def trigger_reforecast(
     series_id: str,
     body: RefForecastRequest,
@@ -155,7 +155,9 @@ async def trigger_reforecast(
         raise HTTPException(status_code=400, detail="Prediction series has no base version.")
     job = PredictionRevisionJob(
         series_id=series_id,
-        base_version_id=latest_version.id if latest_version is not None else series.current_version_id,
+        base_version_id=latest_version.id
+        if latest_version is not None
+        else series.current_version_id,
         claim_id=body.trigger_claim_id,
         evidence_item_id=body.trigger_evidence_item_id or "",
         status="PENDING",
@@ -179,7 +181,9 @@ async def trigger_reforecast(
     await session.refresh(job)
 
     ensure_app_services(request)
-    await request.app.state.event_bus.publish(EventTopic.PREDICTION_REVISION_REQUESTED.value, payload)
+    await request.app.state.event_bus.publish(
+        EventTopic.PREDICTION_REVISION_REQUESTED.value, payload
+    )
     return PredictionRevisionJobRead.model_validate(job)
 
 
