@@ -19,7 +19,6 @@ import pytest
 from planagent.domain.api import SourceSeedInput
 from planagent.services.pipeline import (
     build_dedupe_key,
-    classify_claim,
     estimate_claim_confidence,
     estimate_evidence_confidence,
     extract_claim_sentences,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 import jwt
-from datetime import datetime, timedelta, timezone
 
 from planagent.services.auth import AuthConfig, AuthService, UserRole
 

@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -18,12 +18,9 @@ from planagent.config import Settings
 from planagent.services.simulation import SimulationService
 from planagent.services.simulation.impact import (
     ActionCandidate,
-    RuleScore,
-    SelectedAction,
     SimulationImpactMixin,
 )
 from planagent.services.simulation.scenarios import SimulationScenariosMixin
-from pathlib import Path
 
 from planagent.simulation.rules import RuleRegistry
 
@@ -104,7 +101,7 @@ class TestActionCandidate:
             state_adjustment=0.987654321,
             history_penalty=0.000011111,
         )
-        score_str = str(candidate.total_score)
+        str(candidate.total_score)
         # round() 在 Python 中应给出合理精度
         assert isinstance(candidate.total_score, float)
 
