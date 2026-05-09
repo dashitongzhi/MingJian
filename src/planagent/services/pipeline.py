@@ -484,10 +484,10 @@ class PhaseOnePipelineService:
             if result.rowcount == 0:
                 return None
             await session.flush()
-            raw = await session.scalars(
+            raw_result = await session.scalars(
                 select(RawSourceItem).where(RawSourceItem.dedupe_key == dedupe_key)
             )
-            raw = raw.one()
+            raw = raw_result.one()
         else:
             # SQLite: 通过 IntegrityError 兜底实现去重
             raw = RawSourceItem(
