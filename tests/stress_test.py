@@ -45,7 +45,7 @@ def fetch(url, method="GET", data=None, timeout=15):
     except urllib.error.HTTPError as e:
         try:
             body = e.read().decode("utf-8", errors="replace")
-        except:
+        except Exception:
             body = ""
         return e.code, body, (time.time() - start) * 1000
     except Exception as e:
@@ -298,7 +298,7 @@ def test_database_health():
                 count = len(data) if isinstance(data, list) else "ok"
                 record("PASS", f"DB:{path}", f"returned {count}", latency_ms=latency)
                 print(f"  ✅ {path} → 200 (返回 {count}) ({latency:.0f}ms)")
-            except:
+            except Exception:
                 record("PASS", f"DB:{path}", "200 OK", latency_ms=latency)
                 print(f"  ✅ {path} → 200 ({latency:.0f}ms)")
         else:

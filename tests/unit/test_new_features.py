@@ -80,7 +80,7 @@ class TestAuthService:
         assert payload is None
 
     def test_refresh_token(self):
-        user = self.service.create_user("refresh", "refresh@example.com", "pass123")
+        _user = self.service.create_user("refresh", "refresh@example.com", "pass123")
         tokens = self.service.authenticate("refresh", "pass123")
         assert tokens is not None
         import time

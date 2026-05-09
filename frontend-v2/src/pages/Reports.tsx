@@ -16,7 +16,8 @@ type Tab = 'predictions' | 'monitoring' | 'decisions'
 export default function Reports() {
   const [tab, setTab] = useState<Tab>('predictions')
   const { data: predictions, loading, error, reload } = useApi(() => reportApi.listPredictions())
-  const { data: monitoring } = useApi(() => reportApi.getMonitoringDashboard())
+  const { data: monitoringRaw } = useApi(() => reportApi.getMonitoringDashboard())
+  const monitoring = (monitoringRaw || {}) as Record<string, unknown>
   const { data: decisions } = useApi(() => reportApi.listDecisions())
   const { data: decisionStats } = useApi(() => reportApi.getDecisionStats())
 
@@ -108,24 +109,24 @@ export default function Reports() {
             </div>
             {monitoring ? (
               <div className="space-y-4">
-                {monitoring.calibration && (
+                {monitoring.calibration ? (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-400">校准数据</span>
                     <span className="text-sm font-medium text-slate-200">已加载</span>
                   </div>
-                )}
-                {monitoring.predictions && (
+                ) : null}
+                {monitoring.predictions ? (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-400">预测数</span>
                     <span className="text-sm font-medium text-slate-200">{Array.isArray(monitoring.predictions) ? monitoring.predictions.length : '—'}</span>
                   </div>
-                )}
-                {monitoring.watch_rules && (
+                ) : null}
+                {monitoring.watch_rules ? (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-400">监控规则</span>
                     <span className="text-sm font-medium text-slate-200">{Array.isArray(monitoring.watch_rules) ? monitoring.watch_rules.length : '—'}</span>
                   </div>
-                )}
+                ) : null}
               </div>
             ) : (
               <EmptyState icon="📊" title="暂无监测数据" />

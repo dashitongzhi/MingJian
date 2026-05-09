@@ -805,7 +805,7 @@ class TestSourceAdapter:
         from planagent.services.sources.registry import SourceRegistry
 
         registry = SourceRegistry(_make_settings())
-        hn = registry.get("hacker_news")
+        _hn = registry.get("hacker_news")
 
         payload = AnalysisRequest(content="test", source_types=["hacker_news"])
         adapters = registry.build_adapters(payload, "test", "general")
