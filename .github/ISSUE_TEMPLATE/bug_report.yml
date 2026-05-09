@@ -49,6 +49,10 @@ body:
         - Debate System
         - Simulation Engine
         - Data Pipeline
+        - Auth System
+        - MCP Server
+        - Worker
+        - Data Sources
         - Configuration
         - Docker/Deployment
         - Other

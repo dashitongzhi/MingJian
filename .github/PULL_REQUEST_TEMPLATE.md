@@ -14,18 +14,39 @@
 
 <!-- Link related issues: Fixes #123, Closes #456 -->
 
+## Screenshots (for frontend changes)
+
+<!-- If your PR includes UI changes in frontend-v2, please add before/after screenshots or screen recordings.
+     Drag & drop images into this area or paste from clipboard. -->
+
 ## Checklist
 
 - [ ] My code follows the project's coding style
 - [ ] I have added tests that prove my fix/feature works
 - [ ] All new and existing tests pass (`python -m pytest tests/ -v`)
+- [ ] Code is formatted (`ruff format src/ tests/`)
+- [ ] Type-checks pass (`mypy src/planagent/`)
 - [ ] I have updated documentation if needed
 - [ ] I have checked that no existing functionality is broken
+- [ ] Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat:`, `fix:`, `docs:`)
+
+## Local Verification
+
+Before opening this PR, please confirm the following pass locally:
+
+```bash
+# Format check
+ruff format --check src/ tests/
+
+# Type check
+mypy src/planagent/
+
+# Unit tests
+pytest tests/unit/
+```
+
+- [ ] I have run the above checks locally and they all pass
 
 ## Testing
 
 <!-- Describe how you tested your changes -->
-
-## Screenshots (if applicable)
-
-<!-- Add screenshots for UI changes -->
