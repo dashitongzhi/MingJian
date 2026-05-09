@@ -31,6 +31,7 @@ dev = [
   "pytest>=8.4,<9.0",
   "pytest-asyncio>=1.1,<2.0",
   "ruff>=0.12,<1.0",
+  "mypy>=1.15,<2.0",
 ]
 
 [project.scripts]
@@ -51,3 +52,11 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_configs = true
+no_implicit_optional = false
+disable_error_code = ["attr-defined", "union-attr", "arg-type", "misc"]

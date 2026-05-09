@@ -316,7 +316,7 @@ async def mcp_messages_endpoint(
 
 
 @router.post("/mcp")
-async def mcp_streamable_http_endpoint(request: Request) -> StreamingResponse:
+async def mcp_streamable_http_endpoint(request: Request) -> StreamingResponse | dict[str, Any]:
     """MCP Streamable HTTP 传输端点。
 
     单一 POST 端点，请求和响应都在同一个 HTTP 连接中完成。
@@ -450,7 +450,7 @@ async def handle_get_debate_status(
 
         results = []
         for s in sessions:
-            result = {
+            result: dict[str, Any] = {
                 "debate_id": s.id,
                 "topic": s.topic,
                 "status": s.status,
@@ -524,8 +524,10 @@ async def handle_get_decision_result(
 
         # 查询辩论裁决
         if debate_id:
-            query = select(DebateVerdictRecord).where(DebateVerdictRecord.debate_id == debate_id)
-            verdicts = list((await session.scalars(query)).all())
+            verdict_query = select(DebateVerdictRecord).where(
+                DebateVerdictRecord.debate_id == debate_id
+            )
+            verdicts = list((await session.scalars(verdict_query)).all())
             for v in verdicts:
                 results["verdicts"].append(
                     {
@@ -540,13 +542,13 @@ async def handle_get_decision_result(
 
         # 查询用户决策
         if session_id:
-            query = (
+            decision_query = (
                 select(UserDecision)
                 .where(UserDecision.session_id == session_id)
                 .order_by(UserDecision.created_at.desc())
                 .limit(limit)
             )
-            user_decisions = list((await session.scalars(query)).all())
+            user_decisions = list((await session.scalars(decision_query)).all())
             for d in user_decisions:
                 results["user_decisions"].append(
                     {

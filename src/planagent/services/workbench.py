@@ -372,7 +372,7 @@ class WorkbenchService:
                     "run_id": branch.run_id,
                     "branch_id": branch.id,
                     "parent_run_id": branch.parent_run_id,
-                    "fork_step": branch.fork_step,
+                    "fork_step": str(branch.fork_step),
                     "probability_band": branch.probability_band,
                     "active": branch.run_id == run.id,
                 }

@@ -1132,7 +1132,7 @@ class StrategicAssistantService:
         analysis: AnalysisResponse,
         subject_name: str,
     ) -> IngestRunCreate:
-        items = [
+        items: list[dict[str, Any]] = [
             {
                 "source_type": "analyst_note",
                 "source_url": f"https://local.planagent/assistant/{self._slugify(subject_name)}",

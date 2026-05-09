@@ -455,8 +455,8 @@ class ReportService:
         initial_state: dict,
         final_state: dict,
         tracked_keys: list[str],
-    ) -> list[dict[str, float]]:
-        indicators: list[dict[str, float]] = []
+    ) -> list[dict[str, str | float]]:
+        indicators: list[dict[str, str | float]] = []
         for key in tracked_keys:
             if key in initial_state or key in final_state:
                 indicators.append(

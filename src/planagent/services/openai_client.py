@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import httpx
 from openai import AsyncOpenAI
@@ -223,16 +223,19 @@ class OpenAIService:
             f"Title: {normalize_text(title)}\n\n"
             f"Body:\n{normalize_text(body_text)[:5000]}"
         )
-        return await self._parse_structured_output(
-            target=target,
-            schema=EvidenceExtractionPayload,
-            instructions=(
-                "You are a precise evidence extraction system for an analyst workflow. "
-                "Only return grounded claims. Keep summaries compact and factual."
+        return cast(
+            EvidenceExtractionPayload | None,
+            await self._parse_structured_output(
+                target=target,
+                schema=EvidenceExtractionPayload,
+                instructions=(
+                    "You are a precise evidence extraction system for an analyst workflow. "
+                    "Only return grounded claims. Keep summaries compact and factual."
+                ),
+                prompt=prompt,
+                max_output_tokens=1200,
+                error_prefix="evidence_extraction_failed",
             ),
-            prompt=prompt,
-            max_output_tokens=1200,
-            error_prefix="evidence_extraction_failed",
         )
 
     async def enhance_company_report(
@@ -303,16 +306,19 @@ class OpenAIService:
                 "and up to 4 practical recommendations."
             ),
         ]
-        return await self._parse_structured_output(
-            target="report",
-            schema=ReportNarrativePayload,
-            instructions=(
-                "You write evidence-grounded operational summaries. "
-                "Do not invent data that is not present in the prompt."
+        return cast(
+            ReportNarrativePayload | None,
+            await self._parse_structured_output(
+                target="report",
+                schema=ReportNarrativePayload,
+                instructions=(
+                    "You write evidence-grounded operational summaries. "
+                    "Do not invent data that is not present in the prompt."
+                ),
+                prompt="\n".join(prompt_lines),
+                max_output_tokens=900,
+                error_prefix="report_enhancement_failed",
             ),
-            prompt="\n".join(prompt_lines),
-            max_output_tokens=900,
-            error_prefix="report_enhancement_failed",
         )
 
     async def test_connection(
@@ -567,17 +573,20 @@ class OpenAIService:
             "Return a concise analysis summary, up to 5 findings, a short reasoning trace with up to 5 steps, "
             "and up to 4 practical recommendations. Keep everything grounded in the provided sources."
         )
-        return await self._parse_structured_output(
-            target="primary",
-            schema=AnalysisNarrativePayload,
-            instructions=(
-                "You are an evidence-grounded analyst. "
-                "Do not reveal hidden chain-of-thought. "
-                "Return concise reasoning steps that summarize why the conclusion follows from the evidence."
+        return cast(
+            AnalysisNarrativePayload | None,
+            await self._parse_structured_output(
+                target="primary",
+                schema=AnalysisNarrativePayload,
+                instructions=(
+                    "You are an evidence-grounded analyst. "
+                    "Do not reveal hidden chain-of-thought. "
+                    "Return concise reasoning steps that summarize why the conclusion follows from the evidence."
+                ),
+                prompt=prompt,
+                max_output_tokens=1400,
+                error_prefix="analysis_failed",
             ),
-            prompt=prompt,
-            max_output_tokens=1400,
-            error_prefix="analysis_failed",
         )
 
     async def search_x_posts(
@@ -590,17 +599,20 @@ class OpenAIService:
             f"Return up to {limit} recent or relevant posts. "
             "For each item, include a short title, canonical URL, concise summary, and published_at if available."
         )
-        return await self._parse_structured_output(
-            target="x_search",
-            schema=XSearchResultPayload,
-            instructions=(
-                "You can search X directly. "
-                "Return only posts you can ground in the X search results. "
-                "Prefer canonical x.com URLs."
+        return cast(
+            XSearchResultPayload | None,
+            await self._parse_structured_output(
+                target="x_search",
+                schema=XSearchResultPayload,
+                instructions=(
+                    "You can search X directly. "
+                    "Return only posts you can ground in the X search results. "
+                    "Prefer canonical x.com URLs."
+                ),
+                prompt=prompt,
+                max_output_tokens=1400,
+                error_prefix="x_search_failed",
             ),
-            prompt=prompt,
-            max_output_tokens=1400,
-            error_prefix="x_search_failed",
         )
 
     async def generate_panel_perspective(
@@ -625,17 +637,20 @@ class OpenAIService:
             "Return one panel perspective with a stance, a short summary, up to 4 key points, "
             "one recommendation, and a confidence score."
         )
-        return await self._parse_structured_output(
-            target=target,
-            schema=PanelPerspectivePayload,
-            instructions=(
-                "You are one member of a strategic decision panel. "
-                "Stay concise, evidence-grounded, and practical. "
-                "Do not invent data that is not present in the prompt."
+        return cast(
+            PanelPerspectivePayload | None,
+            await self._parse_structured_output(
+                target=target,
+                schema=PanelPerspectivePayload,
+                instructions=(
+                    "You are one member of a strategic decision panel. "
+                    "Stay concise, evidence-grounded, and practical. "
+                    "Do not invent data that is not present in the prompt."
+                ),
+                prompt=prompt,
+                max_output_tokens=900,
+                error_prefix="panel_discussion_failed",
             ),
-            prompt=prompt,
-            max_output_tokens=900,
-            error_prefix="panel_discussion_failed",
         )
 
     async def generate_action_decision(
@@ -670,17 +685,20 @@ class OpenAIService:
             "Return the action_id, a short reasoning for why, "
             "and the expected effect on 2-3 key metrics."
         )
-        return await self._parse_structured_output(
-            target=target,
-            schema=ActionDecisionPayload,
-            instructions=(
-                "You are a strategic decision system for a simulation engine. "
-                "Choose the best action given the current state, history, and evidence. "
-                "Be concise. Only select from the listed available actions."
+        return cast(
+            ActionDecisionPayload | None,
+            await self._parse_structured_output(
+                target=target,
+                schema=ActionDecisionPayload,
+                instructions=(
+                    "You are a strategic decision system for a simulation engine. "
+                    "Choose the best action given the current state, history, and evidence. "
+                    "Be concise. Only select from the listed available actions."
+                ),
+                prompt=prompt,
+                max_output_tokens=500,
+                error_prefix="action_decision_failed",
             ),
-            prompt=prompt,
-            max_output_tokens=500,
-            error_prefix="action_decision_failed",
         )
 
     async def generate_debate_position(
@@ -760,13 +778,16 @@ class OpenAIService:
             "optional rebuttals (target_argument_idx, counter), "
             "and optional concessions (argument_idx, reason)."
         )
-        return await self._parse_structured_output(
-            target=target,
-            schema=DebatePositionPayload,
-            instructions=role_instruction,
-            prompt=prompt,
-            max_output_tokens=1000,
-            error_prefix="debate_position_failed",
+        return cast(
+            DebatePositionPayload | None,
+            await self._parse_structured_output(
+                target=target,
+                schema=DebatePositionPayload,
+                instructions=role_instruction,
+                prompt=prompt,
+                max_output_tokens=1000,
+                error_prefix="debate_position_failed",
+            ),
         )
 
     def _model_for_target(self, target: TargetRole) -> str:
@@ -809,7 +830,7 @@ class OpenAIService:
         user_content: str,
         max_tokens: int = 1000,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-        client = self.clients.get(target)
+        client = self.clients.get(cast(TargetRole, target))
         if client is None:
             return None, None
         model = resolve_openclaw_model_selector(self._model_for_target(target))

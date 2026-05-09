@@ -194,7 +194,7 @@ class DebateService(
                 }
                 await self._ensure_debate_prediction(session, run, verdict, latest_decision)
 
-        completed_payload = {
+        completed_payload: dict[str, Any] = {
             "debate_id": debate_session.id,
             "run_id": payload.run_id,
             "claim_id": payload.claim_id,

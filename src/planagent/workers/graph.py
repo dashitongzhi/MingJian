@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 import math
 import re
 
@@ -153,7 +154,7 @@ class GraphWorker(Worker):
 
     async def _upsert_claim_artifacts(self, session: AsyncSession) -> tuple[int, list[str]]:
         # Collect all artifacts across all three types
-        rows: list[tuple[str, object, str, str, str | None]] = []
+        rows: list[tuple[str, Any, str, str, str | None]] = []
         for artifact_type, model, table_name, type_field in [
             ("signal", Signal, "signals", "signal_type"),
             ("event", EventRecord, "events", "event_type"),
@@ -466,10 +467,10 @@ async def search_nodes_sql(
             for row in rows
         ]
 
-    node_query = select(KnowledgeGraphNode)
+    select_query = select(KnowledgeGraphNode)
     if tenant_id is not None:
-        node_query = node_query.where(KnowledgeGraphNode.tenant_id == tenant_id)
-    nodes = list((await session.scalars(node_query.limit(500))).all())
+        select_query = select_query.where(KnowledgeGraphNode.tenant_id == tenant_id)
+    nodes = list((await session.scalars(select_query.limit(500))).all())
     scored = sorted(
         [
             (cosine_similarity(query_vector, [float(v) for v in (node.embedding or [])]), node)
