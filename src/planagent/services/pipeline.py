@@ -8,7 +8,7 @@ import re
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit, urlunsplit
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +33,7 @@ from planagent.domain.models import (
     Signal,
     SourceSnapshot,
     Trend,
+    generate_id,
     utc_now,
 )
 from planagent.events.bus import EventBus
@@ -376,14 +377,17 @@ class PhaseOnePipelineService:
         summary = dict(run.summary or self._empty_summary())
 
         for item in items:
+            raw = await self._persist_raw_item(
+                session=session,
+                run=run,
+                item=item,
+                emitted_events=emitted_events,
+            )
+            if raw is None:
+                summary["duplicate_items"] += 1
+                continue
             try:
                 async with session.begin_nested():
-                    raw = await self._persist_raw_item(
-                        session=session,
-                        run=run,
-                        item=item,
-                        emitted_events=emitted_events,
-                    )
                     await self._materialize_knowledge_for_raw_item(
                         session=session,
                         run=run,
@@ -394,8 +398,9 @@ class PhaseOnePipelineService:
                     raw.knowledge_status = "COMPLETED"
                     raw.last_error = None
                     raw.processed_at = utc_now()
-            except IntegrityError:
-                summary["duplicate_items"] += 1
+            except Exception:
+                # 知识物化失败时记录错误，不阻塞后续条目
+                summary["failed_items"] += 1
 
         run.summary = summary
         run.status = IngestRunStatus.COMPLETED.value
@@ -415,17 +420,16 @@ class PhaseOnePipelineService:
         staged_items = 0
 
         for item in items:
-            try:
-                async with session.begin_nested():
-                    await self._persist_raw_item(
-                        session=session,
-                        run=run,
-                        item=item,
-                        emitted_events=emitted_events,
-                    )
-                    staged_items += 1
-            except IntegrityError:
+            raw = await self._persist_raw_item(
+                session=session,
+                run=run,
+                item=item,
+                emitted_events=emitted_events,
+            )
+            if raw is None:
                 summary["duplicate_items"] += 1
+            else:
+                staged_items += 1
 
         run.summary = summary
         run.lease_owner = None
@@ -440,28 +444,76 @@ class PhaseOnePipelineService:
         run: IngestRun,
         item: SourceSeedInput,
         emitted_events: list[EventEnvelope],
-    ) -> RawSourceItem:
+    ) -> RawSourceItem | None:
+        """持久化原始数据项，通过去重键避免重复插入。
+
+        PostgreSQL: 使用 INSERT ON CONFLICT DO NOTHING 提升性能。
+        SQLite: 通过 try/except IntegrityError 兼容处理。
+
+        返回 None 表示该条目为重复数据，已跳过。
+        """
         dedupe_key = build_dedupe_key(item)
         tenant_id = normalize_tenant_id(run.request_payload.get("tenant_id"))
-        raw = RawSourceItem(
-            ingest_run_id=run.id,
-            tenant_id=tenant_id,
-            preset_id=run.request_payload.get("preset_id"),
-            source_type=item.source_type,
-            source_url=normalize_url(item.source_url),
-            title=normalize_text(item.title),
-            content_text=normalize_text(item.content_text),
-            published_at=item.published_at,
-            source_metadata={
-                **item.source_metadata,
-                "tenant_id": tenant_id,
-                "preset_id": run.request_payload.get("preset_id"),
-            },
-            dedupe_key=dedupe_key,
-            knowledge_status="PENDING",
-        )
-        session.add(raw)
-        await session.flush()
+
+        # PostgreSQL: 使用 INSERT ON CONFLICT DO NOTHING，避免先 SELECT 再 INSERT 的开销
+        dialect_name = session.bind.dialect.name if session.bind else "sqlite"
+        if dialect_name != "sqlite":
+            stmt = (
+                insert(RawSourceItem)
+                .values(
+                    id=generate_id(),
+                    ingest_run_id=run.id,
+                    tenant_id=tenant_id,
+                    preset_id=run.request_payload.get("preset_id"),
+                    source_type=item.source_type,
+                    source_url=normalize_url(item.source_url),
+                    title=normalize_text(item.title),
+                    content_text=normalize_text(item.content_text),
+                    published_at=item.published_at,
+                    source_metadata={
+                        **item.source_metadata,
+                        "tenant_id": tenant_id,
+                        "preset_id": run.request_payload.get("preset_id"),
+                    },
+                    dedupe_key=dedupe_key,
+                    knowledge_status="PENDING",
+                )
+                .on_conflict_do_nothing(index_elements=["dedupe_key"])
+            )
+            result = await session.execute(stmt)
+            if result.rowcount == 0:
+                return None
+            await session.flush()
+            raw = await session.scalars(
+                select(RawSourceItem).where(RawSourceItem.dedupe_key == dedupe_key)
+            )
+            raw = raw.one()
+        else:
+            # SQLite: 通过 IntegrityError 兜底实现去重
+            raw = RawSourceItem(
+                ingest_run_id=run.id,
+                tenant_id=tenant_id,
+                preset_id=run.request_payload.get("preset_id"),
+                source_type=item.source_type,
+                source_url=normalize_url(item.source_url),
+                title=normalize_text(item.title),
+                content_text=normalize_text(item.content_text),
+                published_at=item.published_at,
+                source_metadata={
+                    **item.source_metadata,
+                    "tenant_id": tenant_id,
+                    "preset_id": run.request_payload.get("preset_id"),
+                },
+                dedupe_key=dedupe_key,
+                knowledge_status="PENDING",
+            )
+            try:
+                session.add(raw)
+                await session.flush()
+            except IntegrityError:
+                await session.rollback()
+                return None
+
         await self._archive_source_snapshot(session, raw)
         self._buffer_event(
             session,

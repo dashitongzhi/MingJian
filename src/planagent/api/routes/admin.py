@@ -18,6 +18,8 @@ from planagent.domain.api import (
     CalibrationComputeRequest,
     CalibrationRead,
     DebateTriggerRequest,
+    EvidenceGraphEdgeRead,
+    EvidenceGraphNodeRead,
     EvidenceGraphRead,
     IngestRunCreate,
     IngestRunRead,
@@ -128,8 +130,9 @@ async def get_jarvis_profiles(request: Request) -> dict[str, Any]:
 
 @router.post("/jarvis/test")
 async def test_jarvis_target(
-    target: str = Query(default="primary"), request: Request = None
+    target: str = Query(default="primary"), request: Request | None = None
 ) -> dict[str, Any]:
+    assert request is not None  # FastAPI 保证注入 request 对象
     return await _get_jarvis(request).test_target(target)
 
 
@@ -285,7 +288,7 @@ async def analysis_cache_status(
 @router.get("/admin/openai/status", response_model=OpenAIStatusResponse)
 async def openai_status(request: Request) -> OpenAIStatusResponse:
     ensure_app_services(request)
-    return request.app.state.openai_service.status()
+    return request.app.state.openai_service.status()  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 @router.post("/admin/openai/test", response_model=OpenAITestResponse)
@@ -304,7 +307,7 @@ async def openai_test(
         raise HTTPException(status_code=503, detail=result.last_error)
     if not result.ok:
         raise HTTPException(status_code=502, detail=result.last_error)
-    return result
+    return result  # type: ignore[no-any-return]  # openai_service 返回 Any
 
 
 # ── Watch Rules ──────────────────────────────────────────────────────────────
@@ -742,25 +745,25 @@ async def get_knowledge_graph(
 
     return EvidenceGraphRead(
         nodes=[
-            {
-                "node_id": node.node_key,
-                "label": node.label,
-                "node_type": node.node_type,
-                "metadata": {
+            EvidenceGraphNodeRead(
+                node_id=node.node_key,
+                label=node.label,
+                node_type=node.node_type,
+                metadata={
                     **(node.node_metadata or {}),
                     "source_table": node.source_table,
                     "source_id": node.source_id,
                 },
-            }
+            )
             for node in nodes
         ],
         edges=[
-            {
-                "source_id": edge.source_node_key,
-                "target_id": edge.target_node_key,
-                "relation_type": edge.relation_type,
-                "metadata": edge.edge_metadata or {},
-            }
+            EvidenceGraphEdgeRead(
+                source_id=edge.source_node_key,
+                target_id=edge.target_node_key,
+                relation_type=edge.relation_type,
+                metadata=edge.edge_metadata or {},
+            )
             for edge in edges
         ],
     )

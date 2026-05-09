@@ -3,6 +3,11 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from planagent.config.auth import AuthSettings
+from planagent.config.database import DatabaseSettings
+from planagent.config.minio import MinioSettings
+from planagent.config.redis import RedisSettings
+
 
 class BaseAppSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -79,3 +84,47 @@ class BaseAppSettings(BaseSettings):
 
     # Export 配置
     export_dir: str = "exports"
+
+    # --- 结构化子模型访问器 ---
+    # 提供 settings.db / settings.redis / settings.auth / settings.storage
+    # 向后兼容：原有的 settings.database_url 等顶级属性仍可直接访问
+
+    @property
+    def db(self) -> DatabaseSettings:
+        """数据库配置结构化访问。"""
+        return DatabaseSettings(
+            url=self.database_url,
+            pool_size=self.db_pool_size,
+            max_overflow=self.db_max_overflow,
+            pool_recycle=self.db_pool_recycle,
+            sql_echo=self.sql_echo,
+        )
+
+    @property
+    def redis(self) -> RedisSettings:
+        """Redis 配置结构化访问。"""
+        return RedisSettings(
+            url=self.redis_url,
+            event_bus_backend=self.event_bus_backend,
+            stream_maxlen=self.stream_maxlen,
+        )
+
+    @property
+    def auth(self) -> AuthSettings:
+        """认证配置结构化访问。"""
+        return AuthSettings(
+            secret_key=self.auth_secret_key,
+        )
+
+    @property
+    def storage(self) -> MinioSettings:
+        """MinIO / 存储配置结构化访问。"""
+        return MinioSettings(
+            endpoint=self.minio_endpoint,
+            access_key=self.minio_access_key,
+            secret_key=self.minio_secret_key,
+            secure=self.minio_secure,
+            bucket=self.minio_bucket,
+            snapshot_backend=self.source_snapshot_backend,
+            snapshot_dir=self.source_snapshot_dir,
+        )

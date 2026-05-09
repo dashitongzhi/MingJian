@@ -30,9 +30,9 @@ def create_app() -> FastAPI:
         app.state.rule_registry = get_rule_registry(settings.rules_dir)
         app.state.openai_service = OpenAIService(settings)
 
-        # Auth service
+        # Auth service — 使用结构化子模型访问
         auth_config = AuthConfig(
-            secret_key=getattr(settings, "auth_secret_key", "") or "",
+            secret_key=settings.auth.secret_key,
         )
         app.state.auth_service = AuthService(auth_config)
 

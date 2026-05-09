@@ -108,35 +108,35 @@ class CustomSourceProvider(DataSourceProvider):
 
     @property
     def key(self) -> str:
-        return self._config.get("key", "custom")
+        return str(self._config.get("key", "custom"))  # 显式转换为 str
 
     @property
     def label(self) -> str:
-        return self._config.get("label", self.key)
+        return str(self._config.get("label", self.key))  # 显式转换为 str
 
     @property
     def default_enabled(self) -> bool:
-        return self._config.get("enabled", True)
+        return bool(self._config.get("enabled", True))  # 显式转换为 bool
 
     @property
     def default_limit(self) -> int:
-        return self._config.get("default_limit", 5)
+        return int(self._config.get("default_limit", 5))  # 显式转换为 int
 
     @property
     def agent_name(self) -> str:
-        return self._config.get("agent_name", "自定义源探员")
+        return str(self._config.get("agent_name", "自定义源探员"))  # 显式转换为 str
 
     @property
     def agent_icon(self) -> str:
-        return self._config.get("agent_icon", "🔌")
+        return str(self._config.get("agent_icon", "🔌"))  # 显式转换为 str
 
     @property
     def task_desc(self) -> str:
-        return self._config.get("task_desc", f"正在搜索 {self.label}")
+        return str(self._config.get("task_desc", f"正在搜索 {self.label}"))  # 显式转换为 str
 
     @property
     def fallback_keys(self) -> list[str]:
-        return self._config.get("fallback_keys", [])
+        return list(self._config.get("fallback_keys", []))  # 显式转换为 list
 
     def is_available(self) -> str | None:
         if not self._url:

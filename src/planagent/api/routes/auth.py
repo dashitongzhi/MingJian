@@ -62,7 +62,7 @@ def _get_auth_service(request: Request) -> AuthService:
             secret_key=getattr(settings, "auth_secret_key", "") or "",
         )
         request.app.state.auth_service = AuthService(config)
-    return request.app.state.auth_service
+    return request.app.state.auth_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_current_user_payload(

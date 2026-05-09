@@ -792,18 +792,18 @@ class OpenAIService:
 
     def _model_for_target(self, target: TargetRole) -> str:
         if target == "primary":
-            return self.settings.openai_primary_model
+            return str(self.settings.openai_primary_model)
         if target == "extraction":
-            return self.settings.resolved_openai_extraction_model
+            return str(self.settings.resolved_openai_extraction_model)
         if target == "x_search":
-            return self.settings.resolved_openai_x_search_model
+            return str(self.settings.resolved_openai_x_search_model)
         if target == "debate_advocate":
-            return self.settings.resolved_openai_debate_advocate_model
+            return str(self.settings.resolved_openai_debate_advocate_model)
         if target == "debate_challenger":
-            return self.settings.resolved_openai_debate_challenger_model
+            return str(self.settings.resolved_openai_debate_challenger_model)
         if target == "debate_arbitrator":
-            return self.settings.resolved_openai_debate_arbitrator_model
-        return self.settings.resolved_openai_report_model
+            return str(self.settings.resolved_openai_debate_arbitrator_model)
+        return str(self.settings.resolved_openai_report_model)
 
     def _base_url_for_target(self, target: TargetRole) -> str | None:
         if target == "primary":

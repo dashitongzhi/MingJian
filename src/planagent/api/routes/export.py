@@ -28,7 +28,7 @@ router = APIRouter(prefix="/export", tags=["Export"])
 def _get_export_service(request: Request) -> ExportService:
     if not hasattr(request.app.state, "export_service"):
         request.app.state.export_service = ExportService(output_dir="exports")
-    return request.app.state.export_service
+    return request.app.state.export_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 # ── Export Assistant Result ───────────────────────────────────

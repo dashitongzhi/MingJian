@@ -41,7 +41,7 @@ async def optional_auth(
         # Invalid token provided — this IS an error
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    return payload
+    return payload  # type: ignore[no-any-return]  # app.state 动态属性验证后的 payload
 
 
 async def require_auth(
@@ -67,4 +67,4 @@ async def require_auth(
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    return payload
+    return payload  # type: ignore[no-any-return]  # verify_token 返回 Any

@@ -61,7 +61,7 @@ target-version = "py312"
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
-warn_return_any = false
+warn_return_any = true
 warn_unused_configs = true
-no_implicit_optional = false
-disable_error_code = ["attr-defined", "union-attr", "arg-type", "misc"]
+no_implicit_optional = true
+disable_error_code = ["attr-defined", "arg-type"]
