@@ -173,21 +173,28 @@ class TestEstimateEvidenceConfidence:
         """有标题应增加置信度。"""
         item_no_title = _make_item(title="")
         item_with_title = _make_item(title="Important News")
-        assert estimate_evidence_confidence(item_with_title) > estimate_evidence_confidence(item_no_title)
+        assert estimate_evidence_confidence(item_with_title) > estimate_evidence_confidence(
+            item_no_title
+        )
 
     def test_with_url_adds_score(self):
         """有 URL 应增加置信度。"""
         item_no_url = _make_item(source_url="")
         item_with_url = _make_item(source_url="https://example.com")
-        assert estimate_evidence_confidence(item_with_url) > estimate_evidence_confidence(item_no_url)
+        assert estimate_evidence_confidence(item_with_url) > estimate_evidence_confidence(
+            item_no_url
+        )
 
     def test_with_published_at_adds_score(self):
         """有发布时间应增加置信度。"""
         from datetime import datetime, timezone
+
         item_no_date = _make_item()
         item_with_date = _make_item()
         item_with_date.published_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
-        assert estimate_evidence_confidence(item_with_date) > estimate_evidence_confidence(item_no_date)
+        assert estimate_evidence_confidence(item_with_date) > estimate_evidence_confidence(
+            item_no_date
+        )
 
     def test_longer_content_higher_score(self):
         """更长的内容应有更高的置信度（到上限为止）。"""
@@ -198,6 +205,7 @@ class TestEstimateEvidenceConfidence:
     def test_score_clamped_at_095(self):
         """分数不应超过 0.95。"""
         from datetime import datetime, timezone
+
         item = _make_item(
             title="T",
             source_url="https://example.com",
@@ -395,10 +403,7 @@ class TestBatchProcessingHelpers:
 
     def test_multiple_items_unique_keys(self):
         """不同的 item 应产生不同的查重键。"""
-        items = [
-            _make_item(title=f"Title {i}", content_text=f"Content {i}")
-            for i in range(10)
-        ]
+        items = [_make_item(title=f"Title {i}", content_text=f"Content {i}") for i in range(10)]
         keys = [build_dedupe_key(item) for item in items]
         assert len(set(keys)) == 10
 
@@ -422,10 +427,7 @@ class TestBatchProcessingHelpers:
 
     def test_evidence_confidence_batch(self):
         """批量估算证据置信度。"""
-        items = [
-            _make_item(title=f"Title {i}", content_text="X" * (i * 100))
-            for i in range(1, 6)
-        ]
+        items = [_make_item(title=f"Title {i}", content_text="X" * (i * 100)) for i in range(1, 6)]
         scores = [estimate_evidence_confidence(item) for item in items]
         # 所有分数应在合理范围内
         assert all(0.25 <= s <= 0.95 for s in scores)

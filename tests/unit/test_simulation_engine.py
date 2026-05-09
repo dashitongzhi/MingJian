@@ -120,6 +120,7 @@ class TestScoreProbability:
     def _make_mixin(self):
         class Dummy(SimulationImpactMixin):
             pass
+
         return Dummy()
 
     def test_none_returns_05(self):
@@ -183,6 +184,7 @@ class TestScoreSeverity:
     def _make_mixin(self):
         class Dummy(SimulationImpactMixin):
             pass
+
         return Dummy()
 
     def test_empty_impact_returns_zero(self):
@@ -226,6 +228,7 @@ class TestDeriveShocks:
     def _make_mixin(self):
         class Dummy(SimulationImpactMixin):
             pass
+
         return Dummy()
 
     def test_corporate_cost_shock(self):
@@ -259,14 +262,18 @@ class TestDeriveShocks:
     def test_corporate_reliability_incident(self):
         """企业领域 - hallucination/outage 关键词应触发可靠性事件。"""
         mixin = self._make_mixin()
-        shocks = mixin._derive_shocks("corporate", "Major hallucination accuracy issue reported", "ev1")
+        shocks = mixin._derive_shocks(
+            "corporate", "Major hallucination accuracy issue reported", "ev1"
+        )
         types = [s["shock_type"] for s in shocks]
         assert "reliability_incident" in types
 
     def test_corporate_validated_roi(self):
         """企业领域 - roi/renewal/expansion 关键词应触发 ROI 验证。"""
         mixin = self._make_mixin()
-        shocks = mixin._derive_shocks("corporate", "Customer reported strong ROI and renewal", "ev1")
+        shocks = mixin._derive_shocks(
+            "corporate", "Customer reported strong ROI and renewal", "ev1"
+        )
         types = [s["shock_type"] for s in shocks]
         assert "validated_roi" in types
 
@@ -314,7 +321,9 @@ class TestDeriveShocks:
     def test_multiple_shocks_possible(self):
         """同一语句可触发多个冲击。"""
         mixin = self._make_mixin()
-        shocks = mixin._derive_shocks("corporate", "GPU cost increased due to strong demand adoption", "ev1")
+        shocks = mixin._derive_shocks(
+            "corporate", "GPU cost increased due to strong demand adoption", "ev1"
+        )
         types = {s["shock_type"] for s in shocks}
         assert "market_cost_pressure" in types
         assert "demand_shift" in types
@@ -337,6 +346,7 @@ class TestApplyExternalShock:
     def _make_mixin(self):
         class Dummy(SimulationImpactMixin):
             pass
+
         return Dummy()
 
     def test_corporate_cost_shock_modifies_state(self):
@@ -402,6 +412,7 @@ class TestCalculateImpact:
             def _apply_effects(self, state, effect):
                 for k, v in effect.items():
                     state[k] = state.get(k, 0.0) + v
+
         return Dummy()
 
     def test_basic_impact(self):
@@ -441,6 +452,7 @@ class TestScenarioTemplate:
     def _make_mixin(self):
         class Dummy(SimulationScenariosMixin):
             pass
+
         return Dummy()
 
     def _mock_parent_run(self, tick_count=10, domain_id="corporate"):

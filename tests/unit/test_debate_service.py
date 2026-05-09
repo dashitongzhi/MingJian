@@ -229,7 +229,14 @@ class TestDebateAssessment:
                 "role": "advocate",
                 "position": "SUPPORT",
                 "confidence": 0.9,
-                "arguments": [{"claim": "Growth is strong", "evidence_ids": [], "reasoning": "Data shows it", "strength": "STRONG"}],
+                "arguments": [
+                    {
+                        "claim": "Growth is strong",
+                        "evidence_ids": [],
+                        "reasoning": "Data shows it",
+                        "strength": "STRONG",
+                    }
+                ],
                 "rebuttals": [],
                 "concessions": [],
             },
@@ -238,14 +245,23 @@ class TestDebateAssessment:
                 "role": "challenger",
                 "position": "OPPOSE",
                 "confidence": 0.3,
-                "arguments": [{"claim": "Risk exists", "evidence_ids": [], "reasoning": "Market uncertain", "strength": "WEAK"}],
+                "arguments": [
+                    {
+                        "claim": "Risk exists",
+                        "evidence_ids": [],
+                        "reasoning": "Market uncertain",
+                        "strength": "WEAK",
+                    }
+                ],
                 "rebuttals": [],
                 "concessions": [],
             },
         ]
         payload = self._make_payload()
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1", "ev2"], payload=payload,
+            rounds,
+            evidence_ids=["ev1", "ev2"],
+            payload=payload,
         )
         assert isinstance(assessment, DebateAssessment)
         assert assessment.verdict == "ACCEPTED"
@@ -262,7 +278,14 @@ class TestDebateAssessment:
                 "role": "advocate",
                 "position": "SUPPORT",
                 "confidence": 0.3,
-                "arguments": [{"claim": "Maybe ok", "evidence_ids": [], "reasoning": "Unclear", "strength": "WEAK"}],
+                "arguments": [
+                    {
+                        "claim": "Maybe ok",
+                        "evidence_ids": [],
+                        "reasoning": "Unclear",
+                        "strength": "WEAK",
+                    }
+                ],
                 "rebuttals": [],
                 "concessions": [],
             },
@@ -271,14 +294,23 @@ class TestDebateAssessment:
                 "role": "challenger",
                 "position": "OPPOSE",
                 "confidence": 0.85,
-                "arguments": [{"claim": "Definitely risky", "evidence_ids": [], "reasoning": "Data is bad", "strength": "STRONG"}],
+                "arguments": [
+                    {
+                        "claim": "Definitely risky",
+                        "evidence_ids": [],
+                        "reasoning": "Data is bad",
+                        "strength": "STRONG",
+                    }
+                ],
                 "rebuttals": [],
                 "concessions": [],
             },
         ]
         payload = self._make_payload()
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
         )
         assert assessment.verdict == "REJECTED"
         # minority_opinion 取自 challenger_rounds（赢方），实际来自首轮挑战论点
@@ -293,7 +325,14 @@ class TestDebateAssessment:
                 "role": "advocate",
                 "position": "SUPPORT",
                 "confidence": 0.65,
-                "arguments": [{"claim": "Some support", "evidence_ids": [], "reasoning": "Partial data", "strength": "MODERATE"}],
+                "arguments": [
+                    {
+                        "claim": "Some support",
+                        "evidence_ids": [],
+                        "reasoning": "Partial data",
+                        "strength": "MODERATE",
+                    }
+                ],
                 "rebuttals": [],
                 "concessions": [],
             },
@@ -302,14 +341,23 @@ class TestDebateAssessment:
                 "role": "challenger",
                 "position": "CONDITIONAL",
                 "confidence": 0.6,
-                "arguments": [{"claim": "Some doubt", "evidence_ids": [], "reasoning": "Gaps exist", "strength": "MODERATE"}],
+                "arguments": [
+                    {
+                        "claim": "Some doubt",
+                        "evidence_ids": [],
+                        "reasoning": "Gaps exist",
+                        "strength": "MODERATE",
+                    }
+                ],
                 "rebuttals": [],
                 "concessions": [],
             },
         ]
         payload = self._make_payload()
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
         )
         assert assessment.verdict == "CONDITIONAL"
         assert assessment.conditions is not None
@@ -319,22 +367,45 @@ class TestDebateAssessment:
         svc = self._make_service()
         rounds = [
             {
-                "round_number": 1, "role": "advocate", "position": "SUPPORT",
-                "confidence": 0.5, "arguments": [], "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.5,
+                "arguments": [],
+                "rebuttals": [],
+                "concessions": [],
             },
             {
-                "round_number": 1, "role": "challenger", "position": "OPPOSE",
-                "confidence": 0.5, "arguments": [], "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "challenger",
+                "position": "OPPOSE",
+                "confidence": 0.5,
+                "arguments": [],
+                "rebuttals": [],
+                "concessions": [],
             },
             {
-                "round_number": 2, "role": "arbitrator", "position": "SUPPORT",
-                "confidence": 0.8, "arguments": [{"claim": "Support wins", "evidence_ids": [], "reasoning": "Evidence is clear", "strength": "STRONG"}],
-                "rebuttals": [], "concessions": [],
+                "round_number": 2,
+                "role": "arbitrator",
+                "position": "SUPPORT",
+                "confidence": 0.8,
+                "arguments": [
+                    {
+                        "claim": "Support wins",
+                        "evidence_ids": [],
+                        "reasoning": "Evidence is clear",
+                        "strength": "STRONG",
+                    }
+                ],
+                "rebuttals": [],
+                "concessions": [],
             },
         ]
         payload = self._make_payload()
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
         )
         assert assessment.verdict == "ACCEPTED"
 
@@ -343,14 +414,22 @@ class TestDebateAssessment:
         svc = self._make_service()
         rounds = [
             {
-                "round_number": 1, "role": "advocate", "position": "SUPPORT",
-                "confidence": 0.8, "arguments": [], "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.8,
+                "arguments": [],
+                "rebuttals": [],
+                "concessions": [],
             },
         ]
         payload = self._make_payload()
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
-            run_id="run-123", report_id="rep-456",
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
+            run_id="run-123",
+            report_id="rep-456",
         )
         assert assessment.context_payload["run_id"] == "run-123"
         assert assessment.context_payload["report_id"] == "rep-456"
@@ -361,13 +440,20 @@ class TestDebateAssessment:
         svc = self._make_service()
         rounds = [
             {
-                "round_number": 1, "role": "advocate", "position": "SUPPORT",
-                "confidence": 0.8, "arguments": [], "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.8,
+                "arguments": [],
+                "rebuttals": [],
+                "concessions": [],
             },
         ]
         payload = self._make_payload()
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
         )
         assert len(assessment.recommendations) > 0
         assert len(assessment.risk_factors) > 0
@@ -395,24 +481,44 @@ class TestDebateMultiRound:
         svc = self._make_service()
         rounds = [
             {
-                "round_number": 1, "role": "advocate", "position": "SUPPORT",
-                "confidence": 0.6, "arguments": [{"claim": "arg1", "evidence_ids": [], "reasoning": "", "strength": "MODERATE"}],
-                "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.6,
+                "arguments": [
+                    {"claim": "arg1", "evidence_ids": [], "reasoning": "", "strength": "MODERATE"}
+                ],
+                "rebuttals": [],
+                "concessions": [],
             },
             {
-                "round_number": 2, "role": "advocate", "position": "SUPPORT",
-                "confidence": 0.85, "arguments": [{"claim": "arg2", "evidence_ids": [], "reasoning": "", "strength": "STRONG"}],
-                "rebuttals": [], "concessions": [],
+                "round_number": 2,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.85,
+                "arguments": [
+                    {"claim": "arg2", "evidence_ids": [], "reasoning": "", "strength": "STRONG"}
+                ],
+                "rebuttals": [],
+                "concessions": [],
             },
             {
-                "round_number": 1, "role": "challenger", "position": "OPPOSE",
-                "confidence": 0.4, "arguments": [{"claim": "challenge1", "evidence_ids": [], "reasoning": "", "strength": "WEAK"}],
-                "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "challenger",
+                "position": "OPPOSE",
+                "confidence": 0.4,
+                "arguments": [
+                    {"claim": "challenge1", "evidence_ids": [], "reasoning": "", "strength": "WEAK"}
+                ],
+                "rebuttals": [],
+                "concessions": [],
             },
         ]
         payload = SimpleNamespace(context_lines=[], topic="Test", trigger_type="manual")
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
         )
         # advocate 最高 0.85，challenger 最高 0.4
         assert assessment.support_confidence == 0.85
@@ -424,13 +530,20 @@ class TestDebateMultiRound:
         svc = self._make_service()
         rounds = [
             {
-                "round_number": 1, "role": "advocate", "position": "SUPPORT",
-                "confidence": 0.7, "arguments": [], "rebuttals": [], "concessions": [],
+                "round_number": 1,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.7,
+                "arguments": [],
+                "rebuttals": [],
+                "concessions": [],
             },
         ]
         payload = SimpleNamespace(context_lines=[], topic="T", trigger_type="manual")
         assessment = svc._build_assessment_from_llm_rounds(
-            rounds, evidence_ids=["ev1"], payload=payload,
+            rounds,
+            evidence_ids=["ev1"],
+            payload=payload,
         )
         assert len(assessment.winning_arguments) >= 1
 

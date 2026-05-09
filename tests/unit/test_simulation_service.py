@@ -138,12 +138,20 @@ class TestScenarioTemplate:
         )
         payloads = [
             SimpleNamespace(
-                fork_step=2, tick_count=6, assumptions=[], decision_deltas=[],
-                state_overrides={}, probability_band=None,
+                fork_step=2,
+                tick_count=6,
+                assumptions=[],
+                decision_deltas=[],
+                state_overrides={},
+                probability_band=None,
             ),
             SimpleNamespace(
-                fork_step=4, tick_count=4, assumptions=[], decision_deltas=[],
-                state_overrides={}, probability_band=None,
+                fork_step=4,
+                tick_count=4,
+                assumptions=[],
+                decision_deltas=[],
+                state_overrides={},
+                probability_band=None,
             ),
         ]
         templates = scenario_service._generate_scenarios(parent_run, payloads)
@@ -166,9 +174,15 @@ class TestCreateScenarioRun:
         mock_session.get.return_value = None
         with pytest.raises(LookupError, match="was not found"):
             await scenario_service.create_scenario_run(
-                mock_session, "nonexistent", SimpleNamespace(
-                    fork_step=None, tick_count=None, assumptions=[], decision_deltas=[],
-                    state_overrides={}, probability_band=None,
+                mock_session,
+                "nonexistent",
+                SimpleNamespace(
+                    fork_step=None,
+                    tick_count=None,
+                    assumptions=[],
+                    decision_deltas=[],
+                    state_overrides={},
+                    probability_band=None,
                 ),
             )
 
@@ -185,9 +199,15 @@ class TestCreateScenarioRun:
         mock_session.get.return_value = parent
         with pytest.raises(ValueError, match="completed baseline"):
             await scenario_service.create_scenario_run(
-                mock_session, "run-1", SimpleNamespace(
-                    fork_step=None, tick_count=None, assumptions=[], decision_deltas=[],
-                    state_overrides={}, probability_band=None,
+                mock_session,
+                "run-1",
+                SimpleNamespace(
+                    fork_step=None,
+                    tick_count=None,
+                    assumptions=[],
+                    decision_deltas=[],
+                    state_overrides={},
+                    probability_band=None,
                 ),
             )
 
@@ -204,7 +224,8 @@ class TestHypothesisLogic:
         """场景模板应记录假设条件。"""
         parent = SimpleNamespace(id="r1", domain_id="corporate", actor_template="t", tick_count=10)
         payload = SimpleNamespace(
-            fork_step=5, tick_count=5,
+            fork_step=5,
+            tick_count=5,
             assumptions=["Interest rate rises 2%", "Supply chain disruption"],
             decision_deltas=["Switch supplier"],
             state_overrides={},
@@ -219,7 +240,8 @@ class TestHypothesisLogic:
         """state_overrides 应被记录在模板中。"""
         parent = SimpleNamespace(id="r2", domain_id="military", actor_template="t", tick_count=6)
         payload = SimpleNamespace(
-            fork_step=3, tick_count=3,
+            fork_step=3,
+            tick_count=3,
             assumptions=["New threat detected"],
             decision_deltas=["Increase ISR coverage"],
             state_overrides={"readiness": 0.95, "supply_network": 0.85},
