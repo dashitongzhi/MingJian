@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from planagent.services.auth import AuthService, AuthConfig, UserRole
 from planagent.services.notification import (
     NotificationService,
     NotificationConfig,
     NotificationChannel,
-    NotificationPriority,
 )
 from planagent.services.export import ExportService
 from planagent.services.debate.prompts import (

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from planagent.domain.enums import EventTopic
 from planagent.services.agent_registry import (
@@ -15,10 +14,8 @@ from planagent.services.agent_registry import (
     MILITARY_PROMPT,
     SOCIAL_PROMPT,
     TECH_PROMPT,
-    AgentRegistry,
     AgentRole,
     DEFAULT_AGENTS,
-    get_agent_registry,
     reset_agent_registry,
 )
 from planagent.services.debate import DebateService
@@ -92,7 +89,7 @@ class TestAgentPrompts:
         for prompt in all_prompts:
             other_roles_mentioned = sum(1 for name in role_names if name in prompt)
             assert other_roles_mentioned >= 1, (
-                f"Prompt should reference at least 1 other role name"
+                "Prompt should reference at least 1 other role name"
             )
 
     def test_registry_agents_use_optimized_prompts(self):

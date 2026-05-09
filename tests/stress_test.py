@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """明鉴 (MingJian) 7维压力测试 — stdlib only, no pip installs."""
-import json, time, sys, urllib.request, urllib.error, concurrent.futures, threading, ssl
+import json
+import time
+import sys
+import urllib.request
+import urllib.error
+import concurrent.futures
+import threading
+import ssl
 
 API = "http://127.0.0.1:8000"
 FRONTEND = "http://127.0.0.1:3001"
@@ -84,7 +91,7 @@ def test_api_reachability():
             record("PASS", path, f"expected {status}", latency_ms=latency)
             print(f"  ✅ GET {path} → {status} (expected) ({latency:.0f}ms)")
         elif status == 500:
-            record("FAIL", path, f"HTTP 500", latency_ms=latency)
+            record("FAIL", path, "HTTP 500", latency_ms=latency)
             print(f"  ❌ GET {path} → 500 ({latency:.0f}ms)")
         else:
             record("WARN", path, f"HTTP {status}", latency_ms=latency)
@@ -96,7 +103,7 @@ def test_api_reachability():
         url = f"{API}{test_path}"
         status, body, latency = fetch(url, timeout=10)
         if status == 500:
-            record("FAIL", path, f"HTTP 500 on param endpoint", latency_ms=latency)
+            record("FAIL", path, "HTTP 500 on param endpoint", latency_ms=latency)
             print(f"  ❌ GET {path} → 500 ({latency:.0f}ms)")
         else:
             record("PASS", path, f"param endpoint → {status}", latency_ms=latency)
@@ -206,7 +213,7 @@ def test_concurrent_load():
             print(f"    ❌ {errors} 个请求返回500或连接错误")
         else:
             record("PASS", f"并发{num_users}", f"{total_requests} requests, {rps:.0f} RPS")
-            print(f"    ✅ 零500错误")
+            print("    ✅ 零500错误")
         
         if avg_latency > 5000:
             record("FAIL", f"并发{num_users}延迟", f"avg {avg_latency:.0f}ms > 5000ms")

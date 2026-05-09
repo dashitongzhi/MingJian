@@ -1,22 +1,31 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
+import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import Dashboard from './pages/Dashboard'
-import Placeholder from './pages/Placeholder'
+import AiAssistant from './pages/AiAssistant'
+import Agents from './pages/Agents'
+import Debate from './pages/Debate'
+import Simulation from './pages/Simulation'
+import Evidence from './pages/Evidence'
+import Reports from './pages/Reports'
+import Settings from './pages/Settings'
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/ai-assistant" element={<Placeholder title="AI 助手" />} />
-        <Route path="/agents" element={<Placeholder title="智能体管理" />} />
-        <Route path="/debate" element={<Placeholder title="辩论中心" />} />
-        <Route path="/simulation" element={<Placeholder title="场景模拟" />} />
-        <Route path="/evidence" element={<Placeholder title="证据库" />} />
-        <Route path="/reports" element={<Placeholder title="报告中心" />} />
-        <Route path="/settings" element={<Placeholder title="设置" />} />
-      </Route>
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/ai-assistant" element={<AiAssistant />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/debate" element={<Debate />} />
+          <Route path="/simulation" element={<Simulation />} />
+          <Route path="/evidence" element={<Evidence />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
   )
 }
