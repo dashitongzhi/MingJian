@@ -713,22 +713,24 @@ class TestTokenBudget:
         assert len(messages) == 1
 
     def test_trim_old_messages_replaces_with_placeholder(self):
-        """Old messages beyond keep count should be replaced with placeholder."""
+        """Old messages beyond keep count should be replaced with structure-preserving placeholders."""
         messages = [
-            {"role": "user", "content": f"msg-{i}"} for i in range(10)
+            {"round_number": i, "role": "advocate", "position": "SUPPORT", "confidence": 0.7, "arguments": [f"arg-{i}"], "rebuttals": [], "concessions": []}
+            for i in range(10)
         ]
 
         trimmed = _trim_old_messages(messages, keep=3)
 
         assert len(trimmed) == 10
-        # First 7 should be placeholders
+        # First 7 should be placeholders with preserved structure but cleared arguments
         for i in range(7):
-            assert trimmed[i]["role"] == "tool"
-            assert trimmed[i]["content"] == "[已清理]"
-        # Last 3 should be original messages
-        assert trimmed[7]["content"] == "msg-7"
-        assert trimmed[8]["content"] == "msg-8"
-        assert trimmed[9]["content"] == "msg-9"
+            assert trimmed[i]["round_number"] == i
+            assert trimmed[i]["role"] == "advocate"
+            assert trimmed[i]["arguments"] == []
+        # Last 3 should be original messages unchanged
+        assert trimmed[7]["arguments"] == ["arg-7"]
+        assert trimmed[8]["arguments"] == ["arg-8"]
+        assert trimmed[9]["arguments"] == ["arg-9"]
 
     def test_trim_no_change_when_within_keep(self):
         """If message count <= keep, messages returned unchanged."""

@@ -45,7 +45,18 @@ def _inject_wrap_up_nudge(messages: list, used: int, budget: int) -> None:
 def _trim_old_messages(messages: list, keep: int = _KEEP_RECENT_MESSAGES) -> list:
     if len(messages) <= keep:
         return messages
-    trimmed = [{"role": "tool", "content": "[已清理]"}] * (len(messages) - keep)
+    trimmed = []
+    for msg in messages[:-keep]:
+        # Preserve essential structure (round_number, role) for debate_history()
+        trimmed.append({
+            "round_number": msg.get("round_number", 0),
+            "role": msg.get("role", "unknown"),
+            "position": msg.get("position", "NEUTRAL"),
+            "confidence": msg.get("confidence", 0.0),
+            "arguments": [],
+            "rebuttals": [],
+            "concessions": [],
+        })
     trimmed.extend(messages[-keep:])
     return trimmed
 

@@ -128,9 +128,9 @@ async def get_jarvis_profiles(request: Request) -> dict[str, Any]:
     return _get_jarvis(request).get_profiles()
 
 
-@router.post("/jarvis/test")
+@router.post("/jarvis/test", response_model=None)
 async def test_jarvis_target(
-    target: str = Query(default="primary"), request: Request | None = None
+    target: str = Query(default="primary"), request: Request = None
 ) -> dict[str, Any]:
     assert request is not None  # FastAPI 保证注入 request 对象
     return await _get_jarvis(request).test_target(target)
