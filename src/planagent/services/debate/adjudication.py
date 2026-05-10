@@ -152,16 +152,104 @@ _BIAS_PATTERNS: dict[str, list[str]] = {
 }
 
 _RISK_DIMENSIONS = {
-    "financial": {"budget", "cost", "revenue", "margin", "runway", "cash", "funding", "profit", "loss", "spend", "expense"},
-    "operational": {"delivery", "velocity", "pipeline", "throughput", "capacity", "load", "efficiency", "bottleneck", "latency"},
-    "strategic": {"market", "share", "competition", "positioning", "growth", "expansion", "pivot", "acquisition"},
-    "technical": {"reliability", "debt", "infrastructure", "architecture", "scalability", "security", "vulnerability", "outage"},
-    "human_capital": {"retention", "churn", "attrition", "hiring", "morale", "burnout", "talent", "skill"},
-    "geopolitical": {"sanctions", "alliance", "treaty", "sovereignty", "territory", "escalation", "deterrence", "nuclear"},
-    "logistics": {"supply", "logistics", "transport", "inventory", "stockpile", "distribution", "procurement"},
-    "intelligence": {"isr", "surveillance", "reconnaissance", "intelligence", "sigint", "osint", "indicator"},
-    "civilian_impact": {"civilian", "humanitarian", "refugee", "collateral", "population", "displacement"},
-    "environmental": {"climate", "environment", "pollution", "sustainability", "carbon", "emission"},
+    "financial": {
+        "budget",
+        "cost",
+        "revenue",
+        "margin",
+        "runway",
+        "cash",
+        "funding",
+        "profit",
+        "loss",
+        "spend",
+        "expense",
+    },
+    "operational": {
+        "delivery",
+        "velocity",
+        "pipeline",
+        "throughput",
+        "capacity",
+        "load",
+        "efficiency",
+        "bottleneck",
+        "latency",
+    },
+    "strategic": {
+        "market",
+        "share",
+        "competition",
+        "positioning",
+        "growth",
+        "expansion",
+        "pivot",
+        "acquisition",
+    },
+    "technical": {
+        "reliability",
+        "debt",
+        "infrastructure",
+        "architecture",
+        "scalability",
+        "security",
+        "vulnerability",
+        "outage",
+    },
+    "human_capital": {
+        "retention",
+        "churn",
+        "attrition",
+        "hiring",
+        "morale",
+        "burnout",
+        "talent",
+        "skill",
+    },
+    "geopolitical": {
+        "sanctions",
+        "alliance",
+        "treaty",
+        "sovereignty",
+        "territory",
+        "escalation",
+        "deterrence",
+        "nuclear",
+    },
+    "logistics": {
+        "supply",
+        "logistics",
+        "transport",
+        "inventory",
+        "stockpile",
+        "distribution",
+        "procurement",
+    },
+    "intelligence": {
+        "isr",
+        "surveillance",
+        "reconnaissance",
+        "intelligence",
+        "sigint",
+        "osint",
+        "indicator",
+    },
+    "civilian_impact": {
+        "civilian",
+        "humanitarian",
+        "refugee",
+        "collateral",
+        "population",
+        "displacement",
+    },
+    "environmental": {
+        "climate",
+        "environment",
+        "pollution",
+        "sustainability",
+        "carbon",
+        "emission",
+    },
 }
 
 
@@ -1548,14 +1636,33 @@ class DebateAdjudicationMixin:
                 # claims comprehensiveness but omits major areas
                 if any(
                     phrase in arg_text_lower
-                    for phrase in ("all factors", "comprehensive", "holistic", "all risks", "all aspects")
+                    for phrase in (
+                        "all factors",
+                        "comprehensive",
+                        "holistic",
+                        "all risks",
+                        "all aspects",
+                    )
                 ):
                     for dim in _RISK_DIMENSIONS:
                         if dim not in covered_dims:
                             arg_blind_spots.append(f"claims_completeness_but_ignores_{dim}")
 
                 # Determine auditor role (the "other side")
-                auditor_role = "risk_analyst" if role in ("strategist", "advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact") else "strategist"
+                auditor_role = (
+                    "risk_analyst"
+                    if role
+                    in (
+                        "strategist",
+                        "advocate",
+                        "geo_expert",
+                        "econ_analyst",
+                        "military_strategist",
+                        "tech_foresight",
+                        "social_impact",
+                    )
+                    else "strategist"
+                )
 
                 score_obj = DebateReliabilityScore(
                     debate_id=debate_id,
@@ -1573,9 +1680,7 @@ class DebateAdjudicationMixin:
                 scores.append(score_obj)
         return scores
 
-    def detect_blind_spots(
-        self, round_records: list[dict[str, Any]]
-    ) -> list[str]:
+    def detect_blind_spots(self, round_records: list[dict[str, Any]]) -> list[str]:
         """Identify risk dimensions that no role covered in the debate.
 
         Aggregates all argument text across all rounds and checks which
@@ -1592,9 +1697,7 @@ class DebateAdjudicationMixin:
         blind_spots: list[str] = []
         for dimension, keywords in _RISK_DIMENSIONS.items():
             if not tokens & keywords:
-                blind_spots.append(
-                    f"No argument addressed the '{dimension}' risk dimension."
-                )
+                blind_spots.append(f"No argument addressed the '{dimension}' risk dimension.")
         return blind_spots
 
     def weighted_consensus(
@@ -1624,8 +1727,12 @@ class DebateAdjudicationMixin:
         # Blend toward arbitrator weight when it's meaningfully different
         if arb_weight != 1.0:
             midpoint = (weighted_support + weighted_challenge) / 2.0
-            weighted_support = weighted_support * (1.0 - arb_weight * 0.2) + midpoint * arb_weight * 0.2
-            weighted_challenge = weighted_challenge * (1.0 - arb_weight * 0.2) + midpoint * arb_weight * 0.2
+            weighted_support = (
+                weighted_support * (1.0 - arb_weight * 0.2) + midpoint * arb_weight * 0.2
+            )
+            weighted_challenge = (
+                weighted_challenge * (1.0 - arb_weight * 0.2) + midpoint * arb_weight * 0.2
+            )
 
         weighted_confidence = max(weighted_support, weighted_challenge)
 
@@ -1678,23 +1785,25 @@ class DebateAdjudicationMixin:
                     claim_lower = claim_text.lower()
                     if any(kw in claim_lower for kw in ("evidence", "data", "source", "cite")):
                         category = "evidence_quality"
-                    elif any(kw in claim_lower for kw in ("alternative", "instead", "could", "option")):
+                    elif any(
+                        kw in claim_lower for kw in ("alternative", "instead", "could", "option")
+                    ):
                         category = "alternative"
                     elif any(kw in claim_lower for kw in ("assumption", "presume", "given that")):
                         category = "assumption_challenge"
 
-                    claims.append({
-                        "claim": claim_text[:500],
-                        "evidence": evidence_ids[:5],
-                        "confidence": arg_confidence,
-                        "category": category,
-                    })
+                    claims.append(
+                        {
+                            "claim": claim_text[:500],
+                            "evidence": evidence_ids[:5],
+                            "confidence": arg_confidence,
+                            "category": category,
+                        }
+                    )
 
                     # Identify evidence gaps: arguments with no or weak evidence
                     if not evidence_ids:
-                        evidence_gaps.append(
-                            f"Unsupported claim: {claim_text[:200]}"
-                        )
+                        evidence_gaps.append(f"Unsupported claim: {claim_text[:200]}")
 
         # Build monitoring recommendations from claims
         seen_categories = {c["category"] for c in claims}

@@ -6,7 +6,6 @@ import logging
 import os
 import tempfile
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -194,9 +193,7 @@ async def compare_debates(
 
         verdict = (
             await session.scalars(
-                select(DebateVerdictRecord)
-                .where(DebateVerdictRecord.debate_id == did)
-                .limit(1)
+                select(DebateVerdictRecord).where(DebateVerdictRecord.debate_id == did).limit(1)
             )
         ).first()
 

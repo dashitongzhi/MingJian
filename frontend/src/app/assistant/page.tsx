@@ -8,6 +8,7 @@ import { DebatePanel } from "./DebatePanel";
 import { useAssistantController } from "./hooks";
 import { ProcessTimeline, ReasoningPanel } from "./ProcessPanel";
 import { ResultSection, SessionDetailPanel, SourcePanel } from "./SourcePanel";
+import PauseControl from "./PauseControl";
 
 export default function AssistantPage() {
   const { t } = useTranslation();
@@ -67,7 +68,8 @@ export default function AssistantPage() {
           ) : (
             <>
               <div className="sticky top-[52px] z-10 -mx-1 mb-4 bg-[var(--background)]/95 px-1 py-2">
-                <div className="flex gap-0 overflow-x-auto">
+                <PauseControl controller={controller} />
+                <div className="flex gap-0 overflow-x-auto mt-2">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}

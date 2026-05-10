@@ -6,7 +6,6 @@ structured dissent, and token-budget management (wrap-up nudge / trim).
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,15 +14,14 @@ from planagent.services.debate.adjudication import DebateAdjudicationMixin
 from planagent.services.debate.rounds import (
     _inject_wrap_up_nudge,
     _trim_old_messages,
-    _TOKEN_BUDGET_PER_ROUND,
     _WRAP_UP_RATIO,
-    _KEEP_RECENT_MESSAGES,
 )
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_mixin() -> DebateAdjudicationMixin:
     """Return a bare DebateAdjudicationMixin instance."""
@@ -715,7 +713,15 @@ class TestTokenBudget:
     def test_trim_old_messages_replaces_with_placeholder(self):
         """Old messages beyond keep count should be replaced with structure-preserving placeholders."""
         messages = [
-            {"round_number": i, "role": "advocate", "position": "SUPPORT", "confidence": 0.7, "arguments": [f"arg-{i}"], "rebuttals": [], "concessions": []}
+            {
+                "round_number": i,
+                "role": "advocate",
+                "position": "SUPPORT",
+                "confidence": 0.7,
+                "arguments": [f"arg-{i}"],
+                "rebuttals": [],
+                "concessions": [],
+            }
             for i in range(10)
         ]
 
@@ -758,9 +764,7 @@ class TestTokenBudget:
 
     def test_trim_preserves_order(self):
         """Trimmed messages should maintain original order."""
-        messages = [
-            {"role": "user", "content": f"m{i}"} for i in range(6)
-        ]
+        messages = [{"role": "user", "content": f"m{i}"} for i in range(6)]
 
         trimmed = _trim_old_messages(messages, keep=2)
 

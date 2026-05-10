@@ -92,7 +92,13 @@ def sample_all_charts_data():
         "evidence_matrix": [
             {"argument": "Test", "sources": {"SRC1": 0.7}},
         ],
-        "role_scores": {"逻辑性": 0.8, "证据支撑": 0.6, "说服力": 0.5, "创新性": 0.4, "可行性": 0.7},
+        "role_scores": {
+            "逻辑性": 0.8,
+            "证据支撑": 0.6,
+            "说服力": 0.5,
+            "创新性": 0.4,
+            "可行性": 0.7,
+        },
     }
 
 
@@ -118,8 +124,15 @@ def _make_verdict(**overrides):
     return SimpleNamespace(**defaults)
 
 
-def _make_round(round_number=1, role="advocate", position="支持方", confidence=0.8,
-                arguments="Test argument text", rebuttals="", concessions=""):
+def _make_round(
+    round_number=1,
+    role="advocate",
+    position="支持方",
+    confidence=0.8,
+    arguments="Test argument text",
+    rebuttals="",
+    concessions="",
+):
     return SimpleNamespace(
         round_number=round_number,
         role=role,
@@ -131,9 +144,16 @@ def _make_round(round_number=1, role="advocate", position="支持方", confidenc
     )
 
 
-def _make_reliability_score(role="advocate", round_number=1, score=0.8,
-                            evidence_strength="strong", auditor="cross_examiner",
-                            arg_summary="Test argument", bias_flags=None, blind_spots=None):
+def _make_reliability_score(
+    role="advocate",
+    round_number=1,
+    score=0.8,
+    evidence_strength="strong",
+    auditor="cross_examiner",
+    arg_summary="Test argument",
+    bias_flags=None,
+    blind_spots=None,
+):
     return SimpleNamespace(
         role=role,
         round_number=round_number,
@@ -151,7 +171,11 @@ def _make_structured_dissent():
         dissenter_role="challenger",
         overall_dissent_strength="high",
         claims=[
-            {"summary": "Evidence gap in Q3 data", "details": "Missing regional breakdown", "evidence": "SEC filing incomplete"},
+            {
+                "summary": "Evidence gap in Q3 data",
+                "details": "Missing regional breakdown",
+                "evidence": "SEC filing incomplete",
+            },
         ],
         evidence_gaps=["No independent verification of revenue claims"],
         confidence_trajectory=[0.6, 0.5, 0.4],
@@ -237,9 +261,13 @@ class TestChartGeneration:
         assert "<svg" in result
         assert "</svg>" in result
 
-    def test_argument_comparison_returns_svg(self, chart_service, sample_support_args, sample_challenge_args):
+    def test_argument_comparison_returns_svg(
+        self, chart_service, sample_support_args, sample_challenge_args
+    ):
         """Argument comparison chart must produce valid SVG."""
-        result = chart_service.generate_argument_comparison(sample_support_args, sample_challenge_args)
+        result = chart_service.generate_argument_comparison(
+            sample_support_args, sample_challenge_args
+        )
         assert "<svg" in result
         assert "</svg>" in result
 
@@ -301,9 +329,11 @@ class TestChartGeneration:
 
     def test_evidence_matrix_no_sources_returns_fallback(self, chart_service):
         """Evidence matrix entries with no sources should return fallback."""
-        result = chart_service.generate_evidence_heatmap([
-            {"argument": "Arg1", "sources": {}},
-        ])
+        result = chart_service.generate_evidence_heatmap(
+            [
+                {"argument": "Arg1", "sources": {}},
+            ]
+        )
         assert "<svg" in result
 
     def test_generate_all_charts_with_empty_data(self, chart_service):
@@ -383,9 +413,7 @@ class TestHTMLTemplate:
     def test_template_verdict_accepted(self, jinja_env):
         """Verdict text with support keywords renders correctly."""
         template = jinja_env.get_template("debate_report.html")
-        ctx = _make_template_context(
-            verdict=_make_verdict(verdict="正方获胜", confidence=0.9)
-        )
+        ctx = _make_template_context(verdict=_make_verdict(verdict="正方获胜", confidence=0.9))
         html = template.render(**ctx)
         assert "正方获胜" in html
         assert "verdict-badge" in html
@@ -393,18 +421,14 @@ class TestHTMLTemplate:
     def test_template_verdict_rejected(self, jinja_env):
         """Verdict text with challenge keywords renders correctly."""
         template = jinja_env.get_template("debate_report.html")
-        ctx = _make_template_context(
-            verdict=_make_verdict(verdict="反对成立", confidence=0.75)
-        )
+        ctx = _make_template_context(verdict=_make_verdict(verdict="反对成立", confidence=0.75))
         html = template.render(**ctx)
         assert "反对成立" in html
 
     def test_template_verdict_conditional(self, jinja_env):
         """Verdict text that is neither support nor challenge uses warning style."""
         template = jinja_env.get_template("debate_report.html")
-        ctx = _make_template_context(
-            verdict=_make_verdict(verdict="有条件通过", confidence=0.55)
-        )
+        ctx = _make_template_context(verdict=_make_verdict(verdict="有条件通过", confidence=0.55))
         html = template.render(**ctx)
         assert "有条件通过" in html
 
@@ -534,11 +558,13 @@ class TestExportServiceHTML:
         db = AsyncMock()
         db.get = AsyncMock(return_value=mock_verdict)
 
-        scalars_results = iter([
-            MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
-            MagicMock(first=MagicMock(return_value=mock_dissent)),
-            MagicMock(all=MagicMock(return_value=mock_round_records)),
-        ])
+        scalars_results = iter(
+            [
+                MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
+                MagicMock(first=MagicMock(return_value=mock_dissent)),
+                MagicMock(all=MagicMock(return_value=mock_round_records)),
+            ]
+        )
         db.scalars = AsyncMock(side_effect=lambda *a, **kw: next(scalars_results))
         return db
 
@@ -548,11 +574,13 @@ class TestExportServiceHTML:
         db = AsyncMock()
         db.get = AsyncMock(return_value=mock_verdict)
 
-        scalars_results = iter([
-            MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
-            MagicMock(first=MagicMock(return_value=None)),
-            MagicMock(all=MagicMock(return_value=mock_round_records)),
-        ])
+        scalars_results = iter(
+            [
+                MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
+                MagicMock(first=MagicMock(return_value=None)),
+                MagicMock(all=MagicMock(return_value=mock_round_records)),
+            ]
+        )
         db.scalars = AsyncMock(side_effect=lambda *a, **kw: next(scalars_results))
         return db
 
@@ -562,17 +590,19 @@ class TestExportServiceHTML:
         db = AsyncMock()
         db.get = AsyncMock(return_value=None)
 
-        scalars_results = iter([
-            MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
-            MagicMock(first=MagicMock(return_value=None)),
-            MagicMock(all=MagicMock(return_value=mock_round_records)),
-        ])
+        scalars_results = iter(
+            [
+                MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
+                MagicMock(first=MagicMock(return_value=None)),
+                MagicMock(all=MagicMock(return_value=mock_round_records)),
+            ]
+        )
         db.scalars = AsyncMock(side_effect=lambda *a, **kw: next(scalars_results))
         return db
 
     async def test_export_debate_html_queries_db(self, export_service, mock_db_full, mock_verdict):
         """export_debate_html must query DB for verdict, reliability, dissent, rounds."""
-        with patch.object(export_service, '_get_jinja_env') as mock_env:
+        with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>rendered</html>"
             mock_jinja = MagicMock()
@@ -587,7 +617,7 @@ class TestExportServiceHTML:
 
     async def test_export_html_generates_charts(self, export_service, mock_db_full):
         """export_debate_html must call ChartGenerationService.generate_all_charts."""
-        with patch.object(export_service, '_get_jinja_env') as mock_env:
+        with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
             mock_jinja = MagicMock()
@@ -601,7 +631,7 @@ class TestExportServiceHTML:
                     "evidence_heatmap": "<svg/>",
                     "role_radar": "<svg/>",
                 }
-                html = await export_service.export_debate_html("deb-test", mock_db_full)
+                await export_service.export_debate_html("deb-test", mock_db_full)
 
         mock_cgs.generate_all_charts.assert_called_once()
         call_args = mock_cgs.generate_all_charts.call_args[0][0]
@@ -609,9 +639,11 @@ class TestExportServiceHTML:
         assert "support_args" in call_args
         assert "challenge_args" in call_args
 
-    async def test_export_html_passes_correct_render_kwargs(self, export_service, mock_db_full, mock_verdict):
+    async def test_export_html_passes_correct_render_kwargs(
+        self, export_service, mock_db_full, mock_verdict
+    ):
         """Template render() must receive the correct context dict."""
-        with patch.object(export_service, '_get_jinja_env') as mock_env:
+        with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
             mock_jinja = MagicMock()
@@ -627,9 +659,11 @@ class TestExportServiceHTML:
         assert "charts" in render_kw
         assert isinstance(render_kw["charts"], dict)
 
-    async def test_export_html_with_no_dissent_passes_none(self, export_service, mock_db_no_dissent):
+    async def test_export_html_with_no_dissent_passes_none(
+        self, export_service, mock_db_no_dissent
+    ):
         """When no dissent record exists, dissent=None must be passed to template."""
-        with patch.object(export_service, '_get_jinja_env') as mock_env:
+        with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
             mock_jinja = MagicMock()
@@ -641,9 +675,11 @@ class TestExportServiceHTML:
         render_kw = mock_template.render.call_args[1]
         assert render_kw["structured_dissent"] is None
 
-    async def test_export_html_with_no_verdict_defaults_topic(self, export_service, mock_db_no_verdict):
+    async def test_export_html_with_no_verdict_defaults_topic(
+        self, export_service, mock_db_no_verdict
+    ):
         """When no verdict exists, topic should default to '未知主题'."""
-        with patch.object(export_service, '_get_jinja_env') as mock_env:
+        with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
             mock_jinja = MagicMock()
@@ -658,7 +694,7 @@ class TestExportServiceHTML:
 
     async def test_export_html_builds_rounds_by_number(self, export_service, mock_db_full):
         """Round records must be grouped by round_number and sorted."""
-        with patch.object(export_service, '_get_jinja_env') as mock_env:
+        with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
             mock_jinja = MagicMock()
@@ -675,33 +711,42 @@ class TestExportServiceHTML:
         assert len(rounds[0]["messages"]) == 2
 
     async def test_export_html_contains_charts(
-        self, export_service, mock_verdict, mock_round_records,
-        mock_reliability_scores, mock_dissent,
+        self,
+        export_service,
+        mock_verdict,
+        mock_round_records,
+        mock_reliability_scores,
+        mock_dissent,
     ):
         """export_debate_html output must contain SVG chart content (integration)."""
         mock_db = AsyncMock()
         mock_db.get = AsyncMock(return_value=mock_verdict)
-        scalars_results = iter([
-            MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
-            MagicMock(first=MagicMock(return_value=mock_dissent)),
-            MagicMock(all=MagicMock(return_value=mock_round_records)),
-        ])
+        scalars_results = iter(
+            [
+                MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
+                MagicMock(first=MagicMock(return_value=mock_dissent)),
+                MagicMock(all=MagicMock(return_value=mock_round_records)),
+            ]
+        )
         mock_db.scalars = AsyncMock(side_effect=lambda *a, **kw: next(scalars_results))
 
         # Use real Jinja env but pass a simpler template that just outputs
         # chart keys to verify charts were generated
-        real_env = export_service._get_jinja_env()
         mock_template = MagicMock()
         mock_template.render.return_value = "<html>charts-ok</html>"
         mock_jinja = MagicMock()
         mock_jinja.get_template.return_value = mock_template
-        with patch.object(export_service, '_get_jinja_env', return_value=mock_jinja):
-            html = await export_service.export_debate_html("deb-test", mock_db)
+        with patch.object(export_service, "_get_jinja_env", return_value=mock_jinja):
+            await export_service.export_debate_html("deb-test", mock_db)
 
         render_kw = mock_template.render.call_args[1]
         charts = render_kw["charts"]
         # All 4 charts should be present and contain SVG
         assert len(charts) == 4
-        for key in ("confidence_trajectory", "argument_comparison",
-                     "evidence_heatmap", "role_radar"):
+        for key in (
+            "confidence_trajectory",
+            "argument_comparison",
+            "evidence_heatmap",
+            "role_radar",
+        ):
             assert "<svg" in charts[key]

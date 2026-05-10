@@ -20,6 +20,7 @@ from planagent.services.openai_client import DebatePositionPayload
 
 from . import DebateStreamEvent, DebateStreamPreparation
 from .prompts import build_round_plan
+
 _TOKEN_BUDGET_PER_ROUND = 60000
 _WRAP_UP_RATIO = 0.8
 _KEEP_RECENT_MESSAGES = 3
@@ -48,15 +49,17 @@ def _trim_old_messages(messages: list, keep: int = _KEEP_RECENT_MESSAGES) -> lis
     trimmed = []
     for msg in messages[:-keep]:
         # Preserve essential structure (round_number, role) for debate_history()
-        trimmed.append({
-            "round_number": msg.get("round_number", 0),
-            "role": msg.get("role", "unknown"),
-            "position": msg.get("position", "NEUTRAL"),
-            "confidence": msg.get("confidence", 0.0),
-            "arguments": [],
-            "rebuttals": [],
-            "concessions": [],
-        })
+        trimmed.append(
+            {
+                "round_number": msg.get("round_number", 0),
+                "role": msg.get("role", "unknown"),
+                "position": msg.get("position", "NEUTRAL"),
+                "confidence": msg.get("confidence", 0.0),
+                "arguments": [],
+                "rebuttals": [],
+                "concessions": [],
+            }
+        )
     trimmed.extend(messages[-keep:])
     return trimmed
 
@@ -449,6 +452,7 @@ class DebateRoundMixin:
                 f"Debate history so far:\n{history or 'No prior debate rounds.'}\n\n"
                 f"Original context:\n{context}"
             )
+
         # ── Token budget tracking ─────────────────────────────
         used_tokens = 0
         trimmed_rounds: list[dict[str, Any]] = []

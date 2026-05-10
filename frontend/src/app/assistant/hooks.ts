@@ -67,6 +67,8 @@ export function useAssistantController() {
   const [sourceSearches, setSourceSearches] = useState<SourceSearchState[]>([]);
   const [currentStage, setCurrentStage] = useState("ingest");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [pausedEvents, setPausedEvents] = useState<Array<{ event: string; payload: any }>>([]);
   const { data: sessionDetail, isLoading: sessionDetailLoading } = useSWR(
     selectedSessionId ? `session-detail/${selectedSessionId}` : null,
     () => fetchSessionDetail(selectedSessionId!),
@@ -112,6 +114,198 @@ export function useAssistantController() {
     }
   }, []);
 
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => !prev);
+  }, []);
+
+  const resumeWithMode = useCallback((mode: "immediate" | "sequential" | "discard") => {
+    if (mode === "discard") {
+      setPausedEvents([]);
+      setIsPaused(false);
+      return;
+    }
+
+    const events = [...pausedEvents];
+    setPausedEvents([]);
+    setIsPaused(false);
+
+    if (mode === "immediate") {
+      events.forEach(evt => processEvent(evt));
+    } else if (mode === "sequential") {
+      let index = 0;
+      const interval = setInterval(() => {
+        if (index < events.length) {
+          processEvent(events[index]);
+          index++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 1000);
+    }
+  }, [pausedEvents]);
+
+  const processEvent = useCallback((evt: { event: string; payload: any }) => {
+    setEvents(prev => [...prev, evt]);
+
+    if (evt.event === "source_start") {
+      const payload = evt.payload as { provider: string; label?: string; agent_name?: string; agent_icon?: string; task_desc?: string };
+      setSourceSearches(prev => {
+        const next = prev.filter((source) => source.provider !== payload.provider);
+        return [
+          ...next,
+          {
+            provider: payload.provider,
+            label: payload.label || payload.agent_name || payload.provider,
+            status: "searching",
+            icon: payload.agent_icon,
+          },
+        ];
+      });
+      setCurrentStage("fetch");
+    } else if (evt.event === "source_complete") {
+      const payload = evt.payload as { provider: string; label?: string; count?: number; items_preview?: string[] };
+      setSourceSearches(prev => {
+        const existing = prev.find((source) => source.provider === payload.provider);
+        const next = prev.filter((source) => source.provider !== payload.provider);
+        return [
+          ...next,
+          {
+            provider: payload.provider,
+            label: payload.label || existing?.label || payload.provider,
+            status: "completed",
+            count: payload.count || 0,
+            icon: existing?.icon,
+            itemsPreview: payload.items_preview,
+          },
+        ];
+      });
+    } else if (evt.event === "source_error") {
+      const payload = evt.payload as { provider: string; label?: string; error?: string };
+      setSourceSearches(prev => {
+        const existing = prev.find((source) => source.provider === payload.provider);
+        const next = prev.filter((source) => source.provider !== payload.provider);
+        return [
+          ...next,
+          {
+            provider: payload.provider,
+            label: payload.label || existing?.label || payload.provider,
+            status: "failed",
+            error: payload.error,
+          },
+        ];
+      });
+    } else if (evt.event === "step") {
+      const step = evt.payload as AnalysisStep;
+      setSteps(p => [...p, step]);
+      setProcessSteps(prev => [...prev, {
+        id: `step-${Date.now()}`,
+        stage: step.stage as any || "analyze",
+        title: step.message || t("common.processing"),
+        description: step.detail || "",
+        details: step.detail ? [step.detail] : undefined,
+        status: "completed",
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+      if (step.stage) setCurrentStage(step.stage);
+    } else if (evt.event === "ingest_run") {
+      const payload = evt.payload as { ingest_run?: string; summary?: Record<string, number> };
+      setCurrentStage("ingest");
+      setProcessSteps(prev => [...prev, {
+        id: `ingest-${Date.now()}`,
+        stage: "ingest",
+        title: t("assistant.ingestStarted"),
+        description: payload.ingest_run?.slice(0, 8) || "",
+        status: "completed",
+        timestamp: new Date().toLocaleTimeString(),
+      }]);
+    } else if (evt.event === "simulation_run") {
+      const payload = evt.payload as { simulation_run?: string; status?: string };
+      setCurrentStage("simulate");
+      setProcessSteps(prev => [...prev, {
+        id: `sim-${Date.now()}`,
+        stage: "simulate",
+        title: t("assistant.simulationStarted"),
+        description: payload.simulation_run?.slice(0, 8) || "",
+        status: "completed",
+        timestamp: new Date().toLocaleTimeString(),
+      }]);
+    } else if (evt.event === "source") {
+      const source = evt.payload as { title: string; url: string };
+      setSources(p => [...p, source]);
+      setProcessSteps(prev => {
+        const newSteps = [...prev];
+        if (newSteps.length > 0) {
+          const lastStep = newSteps[newSteps.length - 1];
+          if (!lastStep.sources) lastStep.sources = [];
+          lastStep.sources.push({
+            title: source.title,
+            url: source.url
+          });
+        }
+        return newSteps;
+      });
+    } else if (evt.event === "discussion") {
+      setDiscussions(p => [...p, evt.payload as PanelMessage]);
+    } else if (evt.event === "debate_round_start") {
+      const payload = evt.payload as { round_number: number; role: string };
+      setDebateStatus("in_progress");
+      setCurrentDebateRound(payload);
+      setCurrentStage("debate");
+    } else if (evt.event === "debate_round_complete") {
+      const payload = evt.payload as { round_number: number; role: string; position: string; confidence: number; key_arguments?: string[] };
+      const round: DebateRound = {
+        round_number: payload.round_number,
+        role: payload.role,
+        position: payload.position,
+        confidence: payload.confidence,
+        arguments: (payload.key_arguments || []).map((argument) => ({ content: argument })),
+        rebuttals: [],
+        concessions: [],
+      };
+      setDebateStatus("in_progress");
+      setDebateRounds(p => [...p, round]);
+      setDebateMessages(prev => [...prev, {
+        role: round.role as "advocate" | "challenger" | "arbitrator",
+        round: round.round_number,
+        content: round.position,
+        confidence: round.confidence,
+        arguments: payload.key_arguments || [],
+        rebuttals: []
+      }]);
+      setCurrentStage("debate");
+    } else if (evt.event === "debate_verdict") {
+      const payload = evt.payload as DebateVerdict;
+      setDebateVerdict(payload);
+      setDebateStatus("complete");
+      setCurrentDebateRound(null);
+      setCurrentStage("debate");
+    } else if (evt.event === "debate_round") {
+      const round = evt.payload as DebateRound;
+      setDebateStatus("in_progress");
+      setDebateRounds(p => [...p, round]);
+      setDebateMessages(prev => [...prev, {
+        role: round.role as "advocate" | "challenger" | "arbitrator",
+        round: round.round_number,
+        content: round.position,
+        confidence: round.confidence,
+        arguments: round.arguments?.map((a: any) => String(a.content || a)) || [],
+        rebuttals: round.rebuttals?.map((r: any) => String(r.content || r)) || []
+      }]);
+      setCurrentStage("debate");
+    } else if (evt.event === "assistant_result") {
+      const nextResult = evt.payload as AssistantResult;
+      setResult(nextResult);
+      if (nextResult.debate?.verdict) {
+        setDebateVerdict(nextResult.debate.verdict);
+        setDebateStatus("complete");
+        setCurrentDebateRound(null);
+      }
+    } else if (evt.event === "error") {
+      const errPayload = evt.payload as { message?: string } | undefined;
+      setError(errPayload?.message || t("assistant.sseError"));
+    }
+  }, [t]);
+
   const handleRun = useCallback(async (overrideParams?: AssistantRunParams) => {
     const runParams = overrideParams || {
       topic,
@@ -139,6 +333,8 @@ export function useAssistantController() {
     setDebateMessages([]);
     setSourceSearches([]);
     setCurrentStage("ingest");
+    setIsPaused(false);
+    setPausedEvents([]);
     let hasError = false;
     toast.info('分析已启动');
     const ctrl = new AbortController();
@@ -147,165 +343,20 @@ export function useAssistantController() {
       await streamAssistant(
         runParams,
         (evt) => {
-          setEvents(prev => [...prev, evt]);
-
-          if (evt.event === "source_start") {
-            const payload = evt.payload as { provider: string; label?: string; agent_name?: string; agent_icon?: string; task_desc?: string };
-            setSourceSearches(prev => {
-              const next = prev.filter((source) => source.provider !== payload.provider);
-              return [
-                ...next,
-                {
-                  provider: payload.provider,
-                  label: payload.label || payload.agent_name || payload.provider,
-                  status: "searching",
-                  icon: payload.agent_icon,
-                },
-              ];
-            });
-            setCurrentStage("fetch");
-          } else if (evt.event === "source_complete") {
-            const payload = evt.payload as { provider: string; label?: string; count?: number; items_preview?: string[] };
-            setSourceSearches(prev => {
-              const existing = prev.find((source) => source.provider === payload.provider);
-              const next = prev.filter((source) => source.provider !== payload.provider);
-              return [
-                ...next,
-                {
-                  provider: payload.provider,
-                  label: payload.label || existing?.label || payload.provider,
-                  status: "completed",
-                  count: payload.count || 0,
-                  icon: existing?.icon,
-                  itemsPreview: payload.items_preview,
-                },
-              ];
-            });
-          } else if (evt.event === "source_error") {
-            const payload = evt.payload as { provider: string; label?: string; error?: string };
-            setSourceSearches(prev => {
-              const existing = prev.find((source) => source.provider === payload.provider);
-              const next = prev.filter((source) => source.provider !== payload.provider);
-              return [
-                ...next,
-                {
-                  provider: payload.provider,
-                  label: payload.label || existing?.label || payload.provider,
-                  status: "failed",
-                  error: payload.error,
-                },
-              ];
-            });
-          } else if (evt.event === "step") {
-            const step = evt.payload as AnalysisStep;
-            setSteps(p => [...p, step]);
-            setProcessSteps(prev => [...prev, {
-              id: `step-${Date.now()}`,
-              stage: step.stage as any || "analyze",
-              title: step.message || t("common.processing"),
-              description: step.detail || "",
-              details: step.detail ? [step.detail] : undefined,
-              status: "completed",
-              timestamp: new Date().toLocaleTimeString()
-            }]);
-            if (step.stage) setCurrentStage(step.stage);
-          } else if (evt.event === "ingest_run") {
-            const payload = evt.payload as { ingest_run?: string; summary?: Record<string, number> };
-            setCurrentStage("ingest");
-            setProcessSteps(prev => [...prev, {
-              id: `ingest-${Date.now()}`,
-              stage: "ingest",
-              title: t("assistant.ingestStarted"),
-              description: payload.ingest_run?.slice(0, 8) || "",
-              status: "completed",
-              timestamp: new Date().toLocaleTimeString(),
-            }]);
-          } else if (evt.event === "simulation_run") {
-            const payload = evt.payload as { simulation_run?: string; status?: string };
-            setCurrentStage("simulate");
-            setProcessSteps(prev => [...prev, {
-              id: `sim-${Date.now()}`,
-              stage: "simulate",
-              title: t("assistant.simulationStarted"),
-              description: payload.simulation_run?.slice(0, 8) || "",
-              status: "completed",
-              timestamp: new Date().toLocaleTimeString(),
-            }]);
-          } else if (evt.event === "source") {
-            const source = evt.payload as { title: string; url: string };
-            setSources(p => [...p, source]);
-            setProcessSteps(prev => {
-              const newSteps = [...prev];
-              if (newSteps.length > 0) {
-                const lastStep = newSteps[newSteps.length - 1];
-                if (!lastStep.sources) lastStep.sources = [];
-                lastStep.sources.push({
-                  title: source.title,
-                  url: source.url
-                });
+          if (isPaused) {
+            setPausedEvents(prev => {
+              if (prev.length >= 100) {
+                return [...prev.slice(1), evt];
               }
-              return newSteps;
+              return [...prev, evt];
             });
-          } else if (evt.event === "discussion") {
-            setDiscussions(p => [...p, evt.payload as PanelMessage]);
-          } else if (evt.event === "debate_round_start") {
-            const payload = evt.payload as { round_number: number; role: string };
-            setDebateStatus("in_progress");
-            setCurrentDebateRound(payload);
-            setCurrentStage("debate");
-          } else if (evt.event === "debate_round_complete") {
-            const payload = evt.payload as { round_number: number; role: string; position: string; confidence: number; key_arguments?: string[] };
-            const round: DebateRound = {
-              round_number: payload.round_number,
-              role: payload.role,
-              position: payload.position,
-              confidence: payload.confidence,
-              arguments: (payload.key_arguments || []).map((argument) => ({ content: argument })),
-              rebuttals: [],
-              concessions: [],
-            };
-            setDebateStatus("in_progress");
-            setDebateRounds(p => [...p, round]);
-            setDebateMessages(prev => [...prev, {
-              role: round.role as "advocate" | "challenger" | "arbitrator",
-              round: round.round_number,
-              content: round.position,
-              confidence: round.confidence,
-              arguments: payload.key_arguments || [],
-              rebuttals: []
-            }]);
-            setCurrentStage("debate");
-          } else if (evt.event === "debate_verdict") {
-            const payload = evt.payload as DebateVerdict;
-            setDebateVerdict(payload);
-            setDebateStatus("complete");
-            setCurrentDebateRound(null);
-            setCurrentStage("debate");
-          } else if (evt.event === "debate_round") {
-            const round = evt.payload as DebateRound;
-            setDebateStatus("in_progress");
-            setDebateRounds(p => [...p, round]);
-            setDebateMessages(prev => [...prev, {
-              role: round.role as "advocate" | "challenger" | "arbitrator",
-              round: round.round_number,
-              content: round.position,
-              confidence: round.confidence,
-              arguments: round.arguments?.map((a: any) => String(a.content || a)) || [],
-              rebuttals: round.rebuttals?.map((r: any) => String(r.content || r)) || []
-            }]);
-            setCurrentStage("debate");
-          } else if (evt.event === "assistant_result") {
-            const nextResult = evt.payload as AssistantResult;
-            setResult(nextResult);
-            if (nextResult.debate?.verdict) {
-              setDebateVerdict(nextResult.debate.verdict);
-              setDebateStatus("complete");
-              setCurrentDebateRound(null);
-            }
-          } else if (evt.event === "error") {
+            return;
+          }
+
+          processEvent(evt);
+
+          if (evt.event === "error") {
             hasError = true;
-            const errPayload = evt.payload as { message?: string } | undefined;
-            setError(errPayload?.message || t("assistant.sseError"));
           }
         },
         ctrl.signal
@@ -416,8 +467,11 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
     handleExport,
     handleReanalyze,
     handleRun,
+    isPaused,
+    pausedEvents,
     processSteps,
     result,
+    resumeWithMode,
     selectedSessionId,
     sessionDetail,
     sessionDetailLoading,
@@ -439,6 +493,7 @@ ${result.debate.verdict?.minority_opinion ? `- Minority Opinion: ${result.debate
     subjectName,
     tabs,
     tickCount,
+    togglePause,
     topic,
   };
 }

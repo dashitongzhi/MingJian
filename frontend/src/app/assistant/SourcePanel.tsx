@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useViewMode } from "@/contexts/ViewModeContext";
 import { toText } from "@/lib/utils";
 import type { AssistantResult, StrategicSessionDetail, WorkbenchAlternativeScenario } from "@/lib/api";
 import { RecommendationCard } from "@/components/RecommendationCard";
@@ -30,7 +32,36 @@ function SourceCard({ source, index }: { source: { title: string; url: string };
 
 export function SourcePanel({ sources, streaming }: { sources: { title: string; url: string }[]; streaming: boolean }) {
   const { t } = useTranslation();
+  const { isCompact } = useViewMode();
+  const [showSources, setShowSources] = useState(false);
 
+  // Compact mode: only show count
+  if (isCompact && sources.length > 0) {
+    return (
+      <div>
+        <div className="divider-subtle py-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{t("assistant.sources")}</span>
+            <span className="text-xs text-[var(--muted)]">{sources.length} {t("assistant.sources")}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowSources(!showSources)}
+          className="mt-2 flex items-center gap-2 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+        >
+          {showSources ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          {showSources ? t("common.hide") : t("assistant.viewSources")}
+        </button>
+        {showSources && sources.map((source, index) => (
+          <SourceCard key={index} source={source} index={index} />
+        ))}
+        {streaming && <StreamingSkeleton label={t("assistant.sources")} />}
+      </div>
+    );
+  }
+
+  // Default mode: show all sources
   if (sources.length > 0) {
     return (
       <div>

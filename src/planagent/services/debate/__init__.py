@@ -175,7 +175,7 @@ class DebateService(
             round_records=assessment.rounds,
             session=session,
         )
-        blind_spots = self.detect_blind_spots(assessment.rounds)
+        self.detect_blind_spots(assessment.rounds)
         dissenter_role = "risk_analyst"
         for rd in assessment.rounds:
             if rd.get("role") in ("challenger", "risk_analyst", "intel_analyst"):
@@ -370,7 +370,7 @@ class DebateService(
                     round_records=assessment.rounds,
                     session=session,
                 )
-                blind_spots = self.detect_blind_spots(assessment.rounds)
+                self.detect_blind_spots(assessment.rounds)
                 dissenter_role = "risk_analyst"
                 for rd in assessment.rounds:
                     if rd.get("role") in ("challenger", "risk_analyst", "intel_analyst"):
@@ -662,9 +662,7 @@ class DebateService(
             ).all()
         }
 
-    async def get_debate_enhanced_report(
-        self, debate_id: str, db: AsyncSession
-    ) -> dict[str, Any]:
+    async def get_debate_enhanced_report(self, debate_id: str, db: AsyncSession) -> dict[str, Any]:
         """Build an enhanced debate report including rounds, verdict, reliability scores,
         structured dissent, and charts_data suitable for ChartGenerationService.generate_all_charts().
         """
@@ -793,10 +791,7 @@ class DebateService(
                 }
                 for s in reliability_records
             ],
-            "role_scores": {
-                s.role: s.reliability_score
-                for s in reliability_records
-            },
+            "role_scores": {s.role: s.reliability_score for s in reliability_records},
         }
 
         return {

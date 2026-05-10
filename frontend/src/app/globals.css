@@ -73,6 +73,15 @@
   --header-height: 52px;
   --radius: 8px;
 
+  /* Spacing system — 4px base unit */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+
   /* Charts */
   --chart-1: #d4940a;
   --chart-2: #16a34a;
@@ -100,18 +109,18 @@
 .dark {
   /* Canvas — near-pure black (Linear #010102 / VoltAgent #050507) */
   --background: #050507;
-  --foreground: #f0f0f0;
+  --foreground: #f5f5f5;
   --card: #0c0c0e;
-  --card-hover: #121214;
+  --card-hover: #141416;
   --card-border: #1e1e22;
   --card-border-hover: #2a2a30;
-  --card-foreground: #f0f0f0;
+  --card-foreground: #f5f5f5;
   --popover: #0c0c0e;
-  --popover-foreground: #f0f0f0;
+  --popover-foreground: #f5f5f5;
 
   /* Surface ladder */
   --bg-secondary: #0f1011;
-  --surface-elevated: #141416;
+  --surface-elevated: #18181a;
 
   /* Brand accent — warm amber (明鉴 strategic identity) */
   --accent: #e5a00c;
@@ -123,12 +132,12 @@
   --accent-purple-bg: rgba(167, 139, 250, 0.08);
 
   /* Status */
-  --accent-green: #34d399;
-  --accent-green-bg: rgba(52, 211, 153, 0.08);
-  --accent-red: #f87171;
-  --accent-red-bg: rgba(248, 113, 113, 0.08);
-  --accent-amber: #fbbf24;
-  --accent-amber-bg: rgba(251, 191, 36, 0.08);
+  --accent-green: #3dd68c;
+  --accent-green-bg: rgba(61, 214, 140, 0.08);
+  --accent-red: #ff6b6b;
+  --accent-red-bg: rgba(255, 107, 107, 0.08);
+  --accent-amber: #ffc93c;
+  --accent-amber-bg: rgba(255, 201, 60, 0.08);
 
   /* Semantic blue */
   --accent-blue: #60a5fa;
@@ -140,12 +149,12 @@
 
   /* Text hierarchy — Linear ink system */
   --muted: #787878;
-  --muted-foreground: #b0b0b0;
-  --primary: #f0f0f0;
+  --muted-foreground: #b8b8b8;
+  --primary: #f5f5f5;
   --primary-foreground: #050507;
   --secondary: #0f1011;
-  --secondary-foreground: #f0f0f0;
-  --destructive: #f87171;
+  --secondary-foreground: #f5f5f5;
+  --destructive: #ff6b6b;
   --border: #1e1e22;
   --input: #1e1e22;
   --ring: #e5a00c;
@@ -304,8 +313,76 @@ a {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES — Shadows, Interactions, Effects
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Card elevation system — subtle shadows for depth */
+.card-elevated {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px var(--card-border);
+}
+
+.card-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--card-border-hover);
+  transform: translateY(-1px);
+}
+
+.dark .card-hover:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--card-border-hover);
+}
+
+/* Accent glow effect */
+.accent-glow {
+  box-shadow: 0 0 20px rgba(229, 160, 12, 0.15);
+}
+
+/* Interactive elements — micro-interactions */
+.interactive {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.interactive:hover {
+  transform: translateY(-1px);
+}
+
+.interactive:active {
+  transform: translateY(0);
+  transition-duration: 0.05s;
+}
+
+/* Button press effect */
+.btn-press:active {
+  transform: scale(0.98);
+}
+
+/* Gradient accent background */
+.gradient-accent {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    ANIMATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes cardExpand {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(12px); }
@@ -669,14 +746,20 @@ a {
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
   color: var(--accent-foreground);
   padding: 6px 14px;
   font-size: 13px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn-primary:hover {
-  background: var(--accent-hover);
+  box-shadow: 0 4px 12px rgba(229, 160, 12, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
 }
 
 .btn-ghost {
@@ -688,9 +771,8 @@ a {
 }
 
 .btn-ghost:hover {
-  background: var(--card);
-  color: var(--foreground);
-  border-color: var(--card-border-hover);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .btn-sm {

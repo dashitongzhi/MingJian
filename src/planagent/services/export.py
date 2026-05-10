@@ -512,8 +512,9 @@ class ExportService:
 
         dissent: DebateStructuredDissent | None = (
             await db.scalars(
-                select(DebateStructuredDissent)
-                .where(DebateStructuredDissent.debate_id == debate_id)
+                select(DebateStructuredDissent).where(
+                    DebateStructuredDissent.debate_id == debate_id
+                )
             )
         ).first()
 
@@ -540,12 +541,14 @@ class ExportService:
                     "phase": "debate",
                     "messages": [],
                 }
-            rounds_by_number[rn]["messages"].append({
-                "role": rec.role,
-                "position": rec.position,
-                "confidence": rec.confidence,
-                "arguments": rec.arguments,
-            })
+            rounds_by_number[rn]["messages"].append(
+                {
+                    "role": rec.role,
+                    "position": rec.position,
+                    "confidence": rec.confidence,
+                    "arguments": rec.arguments,
+                }
+            )
 
         sorted_rounds = [rounds_by_number[k] for k in sorted(rounds_by_number)]
 
@@ -554,8 +557,7 @@ class ExportService:
         for rec in round_records:
             conf_by_round[rec.round_number][rec.role] = rec.confidence
         confidence_data = [
-            {"round": rn, "roles": roles}
-            for rn, roles in sorted(conf_by_round.items())
+            {"round": rn, "roles": roles} for rn, roles in sorted(conf_by_round.items())
         ]
 
         # ── Build evidence_matrix grouped by argument_summary [{argument, sources: {role: score}}]
@@ -563,10 +565,7 @@ class ExportService:
         for score in reliability_scores:
             key = (score.argument_summary or "")[:50]
             ev_matrix.setdefault(key, {})[score.auditor_role] = score.reliability_score / 5.0
-        evidence_matrix = [
-            {"argument": k, "sources": v}
-            for k, v in ev_matrix.items()
-        ]
+        evidence_matrix = [{"argument": k, "sources": v} for k, v in ev_matrix.items()]
 
         # ── Build role_scores for radar chart: flat {dimension: score} in [0,1]
         # The radar chart expects {dimension_name: score, ...} — aggregate across roles
@@ -583,8 +582,7 @@ class ExportService:
             dim_sums["logic"].append(max(0.0, 1.0 - bias_penalty))
             dim_sums["adaptability"].append(0.6)
         role_scores = {
-            dim: sum(vals) / len(vals) if vals else 0.0
-            for dim, vals in dim_sums.items()
+            dim: sum(vals) / len(vals) if vals else 0.0 for dim, vals in dim_sums.items()
         }
 
         debate_data: dict[str, Any] = {

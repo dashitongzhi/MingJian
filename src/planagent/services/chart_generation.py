@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import io
 import math
-from typing import Any
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import matplotlib.patches as mpatches
 import numpy as np
 
@@ -33,14 +32,20 @@ def _fig_to_svg(fig: plt.Figure) -> str:
 
 def _rc_context():
     """Return a matplotlib rcParams context for safe concurrent use."""
-    return matplotlib.rc_context({
-        "svg.fonttype": "none",
-        "font.sans-serif": [
-            "SimHei", "WenQuanYi Micro Hei", "Noto Sans CJK SC",
-            "Microsoft YaHei", "DejaVu Sans", "sans-serif",
-        ],
-        "axes.unicode_minus": False,
-    })
+    return matplotlib.rc_context(
+        {
+            "svg.fonttype": "none",
+            "font.sans-serif": [
+                "SimHei",
+                "WenQuanYi Micro Hei",
+                "Noto Sans CJK SC",
+                "Microsoft YaHei",
+                "DejaVu Sans",
+                "sans-serif",
+            ],
+            "axes.unicode_minus": False,
+        }
+    )
 
 
 class ChartGenerationService:
@@ -85,16 +90,31 @@ class ChartGenerationService:
 
                 for idx, (role, values) in enumerate(roles.items()):
                     color = ChartGenerationService.COLORS[idx % len(ChartGenerationService.COLORS)]
-                    ax.plot(rounds[: len(values)], values, marker="o", linewidth=2,
-                            markersize=6, color=color, label=role)
+                    ax.plot(
+                        rounds[: len(values)],
+                        values,
+                        marker="o",
+                        linewidth=2,
+                        markersize=6,
+                        color=color,
+                        label=role,
+                    )
 
                 ax.set_xlabel("轮次", fontsize=11, color=ChartGenerationService.TEXT_COLOR)
                 ax.set_ylabel("置信度", fontsize=11, color=ChartGenerationService.TEXT_COLOR)
-                ax.set_title("辩论置信度变化轨迹", fontsize=13, fontweight="bold",
-                             color=ChartGenerationService.TEXT_COLOR)
+                ax.set_title(
+                    "辩论置信度变化轨迹",
+                    fontsize=13,
+                    fontweight="bold",
+                    color=ChartGenerationService.TEXT_COLOR,
+                )
                 ax.set_ylim(0, 1.05)
-                ax.legend(facecolor=ChartGenerationService.BG_COLOR, edgecolor=ChartGenerationService.GRID_COLOR,
-                          labelcolor=ChartGenerationService.TEXT_COLOR, fontsize=9)
+                ax.legend(
+                    facecolor=ChartGenerationService.BG_COLOR,
+                    edgecolor=ChartGenerationService.GRID_COLOR,
+                    labelcolor=ChartGenerationService.TEXT_COLOR,
+                    fontsize=9,
+                )
                 ChartGenerationService._apply_dark_theme(fig, [ax])
                 return _fig_to_svg(fig)
         except Exception:
@@ -113,15 +133,20 @@ class ChartGenerationService:
                 if not support and not challenge:
                     return _empty_svg()
 
-                support_labels = [a.get("label", a.get("text", f"S{i+1}")) for i, a in enumerate(support)]
+                support_labels = [
+                    a.get("label", a.get("text", f"S{i + 1}")) for i, a in enumerate(support)
+                ]
                 support_scores = [a.get("score", a.get("strength", 0.5)) for a in support]
-                challenge_labels = [a.get("label", a.get("text", f"C{i+1}")) for i, a in enumerate(challenge)]
+                challenge_labels = [
+                    a.get("label", a.get("text", f"C{i + 1}")) for i, a in enumerate(challenge)
+                ]
                 challenge_scores = [a.get("score", a.get("strength", 0.5)) for a in challenge]
 
                 all_labels = support_labels + challenge_labels
                 all_scores = support_scores + challenge_scores
-                colors = ([ChartGenerationService.COLORS[0]] * len(support) +
-                          [ChartGenerationService.COLORS[1]] * len(challenge))
+                colors = [ChartGenerationService.COLORS[0]] * len(support) + [
+                    ChartGenerationService.COLORS[1]
+                ] * len(challenge)
 
                 fig, ax = plt.subplots(figsize=(8, max(4, len(all_labels) * 0.5 + 1)))
                 y_pos = np.arange(len(all_labels))
@@ -129,8 +154,12 @@ class ChartGenerationService:
                 ax.set_yticks(y_pos)
                 ax.set_yticklabels(all_labels, fontsize=9, color=ChartGenerationService.TEXT_COLOR)
                 ax.set_xlabel("论证强度", fontsize=11, color=ChartGenerationService.TEXT_COLOR)
-                ax.set_title("论点对比：支持 vs 质疑", fontsize=13, fontweight="bold",
-                             color=ChartGenerationService.TEXT_COLOR)
+                ax.set_title(
+                    "论点对比：支持 vs 质疑",
+                    fontsize=13,
+                    fontweight="bold",
+                    color=ChartGenerationService.TEXT_COLOR,
+                )
                 ax.invert_yaxis()
 
                 # Legend proxy
@@ -138,9 +167,14 @@ class ChartGenerationService:
                     mpatches.Patch(facecolor=ChartGenerationService.COLORS[0], label="支持方"),
                     mpatches.Patch(facecolor=ChartGenerationService.COLORS[1], label="质疑方"),
                 ]
-                ax.legend(handles=legend_elements, facecolor=ChartGenerationService.BG_COLOR,
-                          edgecolor=ChartGenerationService.GRID_COLOR,
-                          labelcolor=ChartGenerationService.TEXT_COLOR, fontsize=9, loc="lower right")
+                ax.legend(
+                    handles=legend_elements,
+                    facecolor=ChartGenerationService.BG_COLOR,
+                    edgecolor=ChartGenerationService.GRID_COLOR,
+                    labelcolor=ChartGenerationService.TEXT_COLOR,
+                    fontsize=9,
+                    loc="lower right",
+                )
 
                 ChartGenerationService._apply_dark_theme(fig, [ax])
                 return _fig_to_svg(fig)
@@ -158,7 +192,9 @@ class ChartGenerationService:
                 if not evidence_matrix:
                     return _empty_svg()
 
-                arguments = [e.get("argument", f"论点{i+1}") for i, e in enumerate(evidence_matrix)]
+                arguments = [
+                    e.get("argument", f"论点{i + 1}") for i, e in enumerate(evidence_matrix)
+                ]
                 # Collect all source names
                 all_sources: list[str] = []
                 for e in evidence_matrix:
@@ -175,16 +211,26 @@ class ChartGenerationService:
 
                 fig, ax = plt.subplots(figsize=(8, max(4, len(arguments) * 0.6 + 1)))
                 cmap = matplotlib.colors.LinearSegmentedColormap.from_list(
-                    "debate", ["#1a1a2e", "#4ecdc4", "#ffd93d"], N=256)
+                    "debate", ["#1a1a2e", "#4ecdc4", "#ffd93d"], N=256
+                )
                 im = ax.imshow(matrix, cmap=cmap, aspect="auto", vmin=0, vmax=1)
 
                 ax.set_xticks(np.arange(len(all_sources)))
-                ax.set_xticklabels(all_sources, fontsize=9, rotation=30, ha="right",
-                                   color=ChartGenerationService.TEXT_COLOR)
+                ax.set_xticklabels(
+                    all_sources,
+                    fontsize=9,
+                    rotation=30,
+                    ha="right",
+                    color=ChartGenerationService.TEXT_COLOR,
+                )
                 ax.set_yticks(np.arange(len(arguments)))
                 ax.set_yticklabels(arguments, fontsize=9, color=ChartGenerationService.TEXT_COLOR)
-                ax.set_title("证据强度热力图", fontsize=13, fontweight="bold",
-                             color=ChartGenerationService.TEXT_COLOR)
+                ax.set_title(
+                    "证据强度热力图",
+                    fontsize=13,
+                    fontweight="bold",
+                    color=ChartGenerationService.TEXT_COLOR,
+                )
 
                 cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 cbar.ax.tick_params(colors=ChartGenerationService.TEXT_COLOR, labelsize=8)
@@ -201,7 +247,7 @@ class ChartGenerationService:
     @staticmethod
     def generate_role_radar(role_scores: dict) -> str:
         """Radar/spider chart for multi-dimensional role evaluation.
-        
+
         Input: {dimension_name: score, ...} where score in [0, 1].
         """
         try:
@@ -223,18 +269,33 @@ class ChartGenerationService:
                 ax.set_facecolor(ChartGenerationService.BG_COLOR)
                 fig.patch.set_facecolor(ChartGenerationService.BG_COLOR)
 
-                ax.plot(angles_closed, values_closed, color=ChartGenerationService.COLORS[0],
-                        linewidth=2, linestyle="-")
-                ax.fill(angles_closed, values_closed, color=ChartGenerationService.COLORS[0], alpha=0.25)
+                ax.plot(
+                    angles_closed,
+                    values_closed,
+                    color=ChartGenerationService.COLORS[0],
+                    linewidth=2,
+                    linestyle="-",
+                )
+                ax.fill(
+                    angles_closed, values_closed, color=ChartGenerationService.COLORS[0], alpha=0.25
+                )
 
                 ax.set_xticks(angles)
                 ax.set_xticklabels(labels, fontsize=10, color=ChartGenerationService.TEXT_COLOR)
                 ax.set_ylim(0, 1)
                 ax.set_yticks([0.25, 0.5, 0.75, 1.0])
-                ax.set_yticklabels(["0.25", "0.5", "0.75", "1.0"],
-                                   fontsize=7, color=ChartGenerationService.TEXT_COLOR)
-                ax.set_title("角色多维评估", fontsize=13, fontweight="bold", pad=20,
-                             color=ChartGenerationService.TEXT_COLOR)
+                ax.set_yticklabels(
+                    ["0.25", "0.5", "0.75", "1.0"],
+                    fontsize=7,
+                    color=ChartGenerationService.TEXT_COLOR,
+                )
+                ax.set_title(
+                    "角色多维评估",
+                    fontsize=13,
+                    fontweight="bold",
+                    pad=20,
+                    color=ChartGenerationService.TEXT_COLOR,
+                )
                 ax.spines["polar"].set_color(ChartGenerationService.GRID_COLOR)
                 ax.grid(color=ChartGenerationService.GRID_COLOR, alpha=0.4)
 
@@ -252,16 +313,19 @@ class ChartGenerationService:
         charts: dict[str, str] = {}
 
         charts["confidence_trajectory"] = ChartGenerationService.generate_confidence_trajectory(
-            debate_data.get("confidence_data", []))
+            debate_data.get("confidence_data", [])
+        )
 
         charts["argument_comparison"] = ChartGenerationService.generate_argument_comparison(
-            debate_data.get("support_args", []),
-            debate_data.get("challenge_args", []))
+            debate_data.get("support_args", []), debate_data.get("challenge_args", [])
+        )
 
         charts["evidence_heatmap"] = ChartGenerationService.generate_evidence_heatmap(
-            debate_data.get("evidence_matrix", []))
+            debate_data.get("evidence_matrix", [])
+        )
 
         charts["role_radar"] = ChartGenerationService.generate_role_radar(
-            debate_data.get("role_scores", {}))
+            debate_data.get("role_scores", {})
+        )
 
         return charts

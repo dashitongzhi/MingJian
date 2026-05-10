@@ -442,9 +442,7 @@ class ReportService:
         """Embed debate analysis into report sections if a debate session exists for this run."""
         session_record = (
             await db.scalars(
-                select(DebateSessionRecord)
-                .where(DebateSessionRecord.run_id == run_id)
-                .limit(1)
+                select(DebateSessionRecord).where(DebateSessionRecord.run_id == run_id).limit(1)
             )
         ).first()
         if session_record is None:
@@ -466,8 +464,7 @@ class ReportService:
 
         avg_reliability = (
             round(
-                sum(s.reliability_score for s in reliability_scores)
-                / len(reliability_scores),
+                sum(s.reliability_score for s in reliability_scores) / len(reliability_scores),
                 2,
             )
             if reliability_scores
@@ -479,9 +476,7 @@ class ReportService:
             "debate_id": session_record.id,
             "verdict": verdict.verdict if verdict is not None else None,
             "confidence": verdict.confidence if verdict is not None else None,
-            "key_arguments": verdict.winning_arguments[:3]
-            if verdict is not None
-            else [],
+            "key_arguments": verdict.winning_arguments[:3] if verdict is not None else [],
             "reliability_summary": {
                 "avg_score": avg_reliability,
                 "score_count": len(reliability_scores),

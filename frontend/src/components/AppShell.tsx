@@ -12,6 +12,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
 import CommandPalette from "@/components/CommandPalette";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useViewMode } from "@/contexts/ViewModeContext";
 import {
   LayoutDashboard,
   Brain,
@@ -30,6 +31,8 @@ import {
   PanelLeftOpen,
   Users,
   Layers,
+  Minimize2,
+  Maximize2,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -244,6 +247,7 @@ function SidebarContent({
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
+  const { isCompact, toggleViewMode } = useViewMode();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -460,6 +464,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="status-dot online" />
               <span className="text-[11px] text-[var(--muted)] font-medium">{t("layout.systemOnline")}</span>
             </div>
+            <button
+              type="button"
+              onClick={toggleViewMode}
+              className="btn btn-ghost btn-sm"
+              aria-label={isCompact ? t("assistant.defaultMode") : t("assistant.compactMode")}
+              title={isCompact ? t("assistant.defaultMode") : t("assistant.compactMode")}
+            >
+              {isCompact ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+            </button>
             <LanguageSwitcher />
             <ThemeToggle />
             <WelcomeGuide />

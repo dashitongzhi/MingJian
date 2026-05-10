@@ -809,15 +809,9 @@ class DebateStructuredDissent(Base):
     claims: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
     # Each claim: {"claim": str, "evidence": [str], "confidence": float, "category": str}
     evidence_gaps: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
-    confidence_trajectory: Mapped[list[float]] = mapped_column(
-        JSON, default=list, nullable=False
-    )
-    recommended_monitoring: Mapped[list[str]] = mapped_column(
-        JSON, default=list, nullable=False
-    )
-    overall_dissent_strength: Mapped[float] = mapped_column(
-        Float, nullable=False, default=0.0
-    )
+    confidence_trajectory: Mapped[list[float]] = mapped_column(JSON, default=list, nullable=False)
+    recommended_monitoring: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    overall_dissent_strength: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )

@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useViewMode } from "@/contexts/ViewModeContext";
 import { toText } from "@/lib/utils";
 import type { DebateRound, DebateVerdict } from "@/lib/api";
 import type { CurrentDebateRound } from "./hooks";
@@ -120,7 +123,36 @@ export function DebatePanel({
   streaming: boolean;
 }) {
   const { t } = useTranslation();
+  const { isCompact } = useViewMode();
+  const [showHistory, setShowHistory] = useState(false);
 
+  // Compact mode: only show current round and verdict
+  if (isCompact && debateRounds.length > 0) {
+    const currentRound = debateRounds[debateRounds.length - 1];
+    return (
+      <div>
+        <DebateStatusBar status={debateStatus} currentRound={currentDebateRound} />
+        <DebateRoundCard round={currentRound} />
+        {debateVerdict && <DebateVerdictCard verdict={debateVerdict} />}
+        {debateRounds.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setShowHistory(!showHistory)}
+            className="mt-4 flex items-center gap-2 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+          >
+            {showHistory ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            {showHistory ? t("common.hide") : t("assistant.viewHistory")} ({debateRounds.length - 1} {t("assistant.round")})
+          </button>
+        )}
+        {showHistory && debateRounds.slice(0, -1).map((round, index) => (
+          <DebateRoundCard key={index} round={round} />
+        ))}
+        {streaming && <StreamingSkeleton label={t("assistant.debateTrace")} />}
+      </div>
+    );
+  }
+
+  // Default mode: show all rounds
   if (debateRounds.length > 0) {
     return (
       <div>

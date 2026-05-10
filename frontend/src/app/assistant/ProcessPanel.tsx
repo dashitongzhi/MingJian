@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useViewMode } from "@/contexts/ViewModeContext";
 import type { AnalysisStep } from "@/lib/api";
 import type { DebateMessage, ProcessStep } from "@/components/ProcessVisualizer";
 import { SkeletonLine } from "@/components/ui/status";
@@ -184,11 +187,87 @@ export function ProcessTimeline({
   isStreaming: boolean;
 }) {
   const { t } = useTranslation();
+  const { isCompact } = useViewMode();
+  const [showDetails, setShowDetails] = useState(false);
 
   if (steps.length === 0 && debateMessages.length === 0 && sourceSearches.length === 0 && !isStreaming) {
     return <EmptyState title={t("assistant.waitingForAnalysis")} description={t("assistant.waitingForAnalysisDescription")} />;
   }
 
+  // Compact mode: only show current stage and progress
+  if (isCompact) {
+    const totalSources = sourceSearches.length;
+    const completedSources = sourceSearches.filter(s => s.status === "completed").length;
+    const currentStep = steps[steps.length - 1];
+
+    return (
+      <div>
+        <div className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-4 text-xs text-[var(--muted)]">
+          <span>ST</span>
+          <span className="section-label">{currentStage}</span>
+        </div>
+
+        {totalSources > 0 && (
+          <div className="divider-subtle py-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">数据源采集</span>
+              <span className="text-xs text-[var(--muted)]">{completedSources}/{totalSources}</span>
+            </div>
+            <div className="mt-2 h-1 bg-[var(--code-bg)] overflow-hidden">
+              <div
+                className="h-full bg-[var(--accent)] transition-all duration-300"
+                style={{ width: `${(completedSources / totalSources) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {currentStep && (
+          <div className="divider-subtle py-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="section-label">{currentStep.stage}</span>
+              <span className="text-xs text-[var(--muted)]">{currentStep.timestamp}</span>
+            </div>
+            <div className="text-sm font-medium">{currentStep.title}</div>
+          </div>
+        )}
+
+        {steps.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setShowDetails(!showDetails)}
+            className="mt-4 flex items-center gap-2 text-sm text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+          >
+            {showDetails ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            {showDetails ? t("common.hide") : t("assistant.viewDetails")} ({steps.length} {t("assistant.step")})
+          </button>
+        )}
+
+        {showDetails && (
+          <>
+            <SourceSearchProgress sources={sourceSearches} />
+            {steps.slice(0, -1).map((step, index) => (
+              <div key={step.id} className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-5">
+                <div className="font-mono text-xs text-[var(--muted)]">{String(index + 1).padStart(2, "0")}</div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="section-label">{step.stage}</span>
+                    <span className="text-xs text-[var(--muted)]">{step.timestamp}</span>
+                  </div>
+                  <div className="mt-2 text-sm font-medium">{step.title}</div>
+                  {step.description && <div className="mt-1 text-sm leading-6 text-[var(--muted)]">{step.description}</div>}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {isStreaming && <StreamingSkeleton label={t("assistant.process")} />}
+      </div>
+    );
+  }
+
+  // Default mode: show all steps
   return (
     <div>
       <div className="grid grid-cols-[48px_minmax(0,1fr)] divider-subtle py-4 text-xs text-[var(--muted)]">

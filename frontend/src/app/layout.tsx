@@ -3,6 +3,7 @@ import "./globals.css";
 import AppShell from "@/components/AppShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Toaster } from "sonner";
@@ -39,12 +40,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen" suppressHydrationWarning>
         <ThemeProvider>
           <LanguageProvider>
-            <TooltipProvider>
-              <ErrorBoundary>
-                <AppShell>{children}</AppShell>
-              </ErrorBoundary>
-              <Toaster position="top-center" richColors />
-            </TooltipProvider>
+            <ViewModeProvider>
+              <TooltipProvider>
+                <ErrorBoundary>
+                  <AppShell>{children}</AppShell>
+                </ErrorBoundary>
+                <Toaster position="top-center" richColors />
+              </TooltipProvider>
+            </ViewModeProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>
