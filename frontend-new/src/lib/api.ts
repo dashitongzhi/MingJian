@@ -9,11 +9,38 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return res.json();
 }
 
-// Types
+// ===== Types =====
+export interface AnalysisSource {
+  source_type: string;
+  title: string;
+  url: string;
+  summary: string;
+  published_at: string | null;
+}
+
 export interface AnalysisStep {
   stage: string;
   message: string;
   detail: string | null;
+}
+
+export interface AnalysisResponse {
+  query: string;
+  domain_id: string;
+  summary: string;
+  reasoning_steps: AnalysisStep[];
+  findings: string[];
+  recommendations: string[];
+  sources: AnalysisSource[];
+  generated_at: string;
+}
+
+export interface SimulationRun {
+  id: string;
+  domain_id: string;
+  status: string;
+  tick_count: number;
+  created_at: string;
 }
 
 export interface DebateRound {
@@ -34,28 +61,108 @@ export interface DebateVerdict {
   minority_opinion: string | null;
 }
 
-export interface SimulationRun {
+export interface DebateDetail {
   id: string;
-  domain_id: string;
+  topic: string;
   status: string;
-  tick_count: number;
+  rounds: DebateRound[];
+  verdict: DebateVerdict | null;
   created_at: string;
 }
 
-export interface AssistantResult {
+export interface DebateSummary {
+  debate_id: string;
+  topic: string;
+  verdict: string | null;
+  confidence: number | null;
+  created_at: string;
+}
+
+export interface StrategicSession {
+  id: string;
+  name: string;
   topic: string;
   domain_id: string;
-  analysis: {
-    summary: string;
-    findings: string[];
-    recommendations: string[];
-  };
-  debate: {
-    rounds: DebateRound[];
-    verdict: DebateVerdict | null;
-  } | null;
-  simulation_run: SimulationRun;
+  created_at: string;
 }
+
+export interface PredictionVersion {
+  id: string;
+  series_id: string;
+  version_number: number;
+  probability: number;
+  confidence: number;
+  prediction_text: string;
+  status: string;
+  created_at: string;
+}
+
+export interface WatchRule {
+  id: string;
+  name: string;
+  domain_id: string;
+  enabled: boolean;
+  last_poll_at: string | null;
+  created_at: string;
+}
+
+export interface DashboardStats {
+  active_sessions: number;
+  prediction_accuracy: number;
+  pending_items: number;
+}
+
+export interface AgentStatus {
+  role: string;
+  name: string;
+  icon: string;
+  description: string;
+  effective_model: string;
+  has_key: boolean;
+}
+
+export interface CustomSource {
+  key: string;
+  label: string;
+  type: string;
+  url: string;
+  enabled: boolean;
+}
+
+// ===== API Endpoints =====
+
+// Health & Stats
+export const fetchHealth = () => apiFetch<{ status: string }>("/health");
+export const fetchStats = () => apiFetch<DashboardStats>("/stats");
+
+// Assistant & Sessions
+export const fetchSessions = () => apiFetch<StrategicSession[]>("/assistant/sessions");
+export const fetchSessionDetail = (id: string) => apiFetch<any>(`/assistant/sessions/${id}`);
+
+// Simulation
+export const fetchSimulationRuns = (limit = 20) =>
+  apiFetch<SimulationRun[]>(`/simulation/runs?limit=${limit}`);
+export const createSimulationRun = (data: Record<string, unknown>) =>
+  apiFetch<SimulationRun>("/simulation/runs", { method: "POST", body: JSON.stringify(data) });
+
+// Debate
+export const fetchDebates = (limit = 50) => apiFetch<DebateSummary[]>(`/debates?limit=${limit}`);
+export const fetchDebateDetail = (id: string) => apiFetch<DebateDetail>(`/debates/${id}`);
+
+// Predictions
+export const fetchPredictions = () => apiFetch<PredictionVersion[]>("/predictions");
+
+// Monitoring
+export const fetchMonitoringDashboard = () => apiFetch<any>("/monitoring/dashboard");
+export const fetchWatchRules = () => apiFetch<WatchRule[]>("/admin/watch-rules");
+
+// Agents
+export const fetchAgentStatus = () => apiFetch<{ agents: AgentStatus[] }>("/agents/status");
+
+// Sources
+export const fetchCustomSources = () => apiFetch<CustomSource[]>("/sources/custom");
+export const createCustomSource = (data: Partial<CustomSource>) =>
+  apiFetch<CustomSource>("/sources/custom", { method: "POST", body: JSON.stringify(data) });
 
 // Stream assistant analysis
 export async function streamAssistant(
@@ -101,17 +208,3 @@ export async function streamAssistant(
     }
   }
 }
-
-export interface DashboardStats {
-  active_sessions: number;
-  prediction_accuracy: number;
-  pending_items: number;
-}
-
-// API endpoints
-export const fetchHealth = () => apiFetch<{ status: string }>("/health");
-export const fetchStats = () => apiFetch<DashboardStats>("/stats");
-export const fetchSimulationRuns = (limit = 20) =>
-  apiFetch<SimulationRun[]>(`/simulation/runs?limit=${limit}`);
-export const createSimulationRun = (data: Record<string, unknown>) =>
-  apiFetch<SimulationRun>("/simulation/runs", { method: "POST", body: JSON.stringify(data) });

@@ -1,10 +1,54 @@
 import { useState, useEffect, useRef } from 'react'
-import { Moon, Sun, Brain, MessageSquare, TrendingUp, Pause, Play, Minimize2, Maximize2 } from 'lucide-react'
-import { streamAssistant, fetchSimulationRuns, fetchStats, type DashboardStats } from './lib/api'
+import {
+  Moon,
+  Sun,
+  Brain,
+  MessageSquare,
+  TrendingUp,
+  Pause,
+  Play,
+  Minimize2,
+  Maximize2,
+  LayoutDashboard,
+  Clock,
+  Search,
+  Shield,
+  Database,
+  Users,
+  Layers,
+  Building2,
+  ClipboardCheck,
+} from 'lucide-react'
+import {
+  streamAssistant,
+  fetchSimulationRuns,
+  fetchStats,
+  fetchDebates,
+  fetchSessions,
+  fetchAgentStatus,
+  type DashboardStats,
+  type SimulationRun,
+  type DebateSummary,
+  type StrategicSession,
+  type AgentStatus,
+} from './lib/api'
 import './App.css'
 
 type Theme = 'light' | 'dark'
 type ViewMode = 'default' | 'compact'
+type ActivePage =
+  | 'dashboard'
+  | 'assistant'
+  | 'workbench'
+  | 'simulation'
+  | 'debate'
+  | 'evidence'
+  | 'predictions'
+  | 'monitoring'
+  | 'providers'
+  | 'sources'
+  | 'agents'
+  | 'batch'
 
 interface DebateRound {
   round: number
@@ -17,8 +61,20 @@ interface DebateRound {
 function App() {
   const [theme, setTheme] = useState<Theme>('dark')
   const [viewMode, setViewMode] = useState<ViewMode>('default')
-  const [isPaused, setIsPaused] = useState(false)
-  const [activeTab, setActiveTab] = useState<'assistant' | 'debate' | 'simulation'>('assistant')
+  const [activePage, setActivePage] = useState<ActivePage>('dashboard')
+  const [stats, setStats] = useState<DashboardStats>({
+    active_sessions: 0,
+    prediction_accuracy: 87,
+    pending_items: 0,
+  })
+
+  // Dashboard data
+  const [sessions, setSessions] = useState<StrategicSession[]>([])
+  const [simulations, setSimulations] = useState<SimulationRun[]>([])
+  const [debates, setDebates] = useState<DebateSummary[]>([])
+  const [agents, setAgents] = useState<AgentStatus[]>([])
+
+  // Assistant state
   const [debateRounds, setDebateRounds] = useState<DebateRound[]>([])
   const [streaming, setStreaming] = useState(false)
   const [topic, setTopic] = useState('')
@@ -28,18 +84,12 @@ function App() {
   const [dataCount, setDataCount] = useState(0)
   const [pausedEvents, setPausedEvents] = useState<any[]>([])
   const [verdict, setVerdict] = useState<{ verdict: string; confidence: number } | null>(null)
-  const [stats, setStats] = useState<DashboardStats>({ active_sessions: 0, prediction_accuracy: 87, pending_items: 0 })
+  const [isPaused, setIsPaused] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
-
-  useEffect(() => {
-    if (activeTab === 'simulation') {
-      fetchSimulationRuns(10).catch(console.error)
-    }
-  }, [activeTab])
 
   useEffect(() => {
     fetchStats().then(setStats).catch(console.error)
@@ -49,29 +99,42 @@ function App() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    // Load dashboard data
+    fetchSessions().then(setSessions).catch(console.error)
+    fetchSimulationRuns(10).then(setSimulations).catch(console.error)
+    fetchDebates(10).then(setDebates).catch(console.error)
+    fetchAgentStatus()
+      .then((res) => setAgents(res.agents))
+      .catch(console.error)
+  }, [])
+
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light')
   const toggleViewMode = () => setViewMode(viewMode === 'default' ? 'compact' : 'default')
 
   const processEvent = (event: any) => {
     if (event.event === 'source_complete') {
-      setDataCount(prev => prev + (event.payload.count || 0))
-      setProgress(prev => Math.min(prev + 15, 65))
+      setDataCount((prev) => prev + (event.payload.count || 0))
+      setProgress((prev) => Math.min(prev + 15, 65))
     } else if (event.event === 'debate_round_complete') {
       const payload = event.payload
-      setDebateRounds(prev => [...prev, {
-        round: payload.round_number,
-        role: payload.role,
-        position: payload.position,
-        confidence: payload.confidence,
-        arguments: payload.key_arguments || []
-      }])
+      setDebateRounds((prev) => [
+        ...prev,
+        {
+          round: payload.round_number,
+          role: payload.role,
+          position: payload.position,
+          confidence: payload.confidence,
+          arguments: payload.key_arguments || [],
+        },
+      ])
       setCurrentStage('辩论进行中')
-      setProgress(prev => Math.min(prev + 10, 90))
+      setProgress((prev) => Math.min(prev + 10, 90))
     } else if (event.event === 'debate_verdict') {
       const payload = event.payload
       setVerdict({
         verdict: payload.verdict || 'ACCEPTED',
-        confidence: payload.confidence || 0.92
+        confidence: payload.confidence || 0.92,
       })
       setCurrentStage('分析完成')
       setProgress(100)
@@ -103,7 +166,7 @@ function App() {
         },
         (event) => {
           if (isPaused) {
-            setPausedEvents(prev => [...prev, event])
+            setPausedEvents((prev) => [...prev, event])
             return
           }
           processEvent(event)
@@ -125,7 +188,7 @@ function App() {
   }
 
   const handleResumeImmediate = () => {
-    pausedEvents.forEach(event => {
+    pausedEvents.forEach((event) => {
       processEvent(event)
     })
     setPausedEvents([])
@@ -136,6 +199,21 @@ function App() {
     setPausedEvents([])
     setIsPaused(false)
   }
+
+  const navItems = [
+    { id: 'dashboard' as ActivePage, label: '仪表板', icon: <LayoutDashboard size={20} /> },
+    { id: 'assistant' as ActivePage, label: '战略助手', icon: <Brain size={20} /> },
+    { id: 'workbench' as ActivePage, label: '工作台', icon: <ClipboardCheck size={20} /> },
+    { id: 'simulation' as ActivePage, label: '情景推演', icon: <Clock size={20} /> },
+    { id: 'debate' as ActivePage, label: '辩论系统', icon: <MessageSquare size={20} /> },
+    { id: 'evidence' as ActivePage, label: '证据库', icon: <Search size={20} /> },
+    { id: 'predictions' as ActivePage, label: '预测追踪', icon: <TrendingUp size={20} /> },
+    { id: 'monitoring' as ActivePage, label: '监控中心', icon: <Shield size={20} /> },
+    { id: 'providers' as ActivePage, label: '数据源', icon: <Building2 size={20} /> },
+    { id: 'sources' as ActivePage, label: '自定义源', icon: <Database size={20} /> },
+    { id: 'agents' as ActivePage, label: '智能体', icon: <Users size={20} /> },
+    { id: 'batch' as ActivePage, label: '批处理', icon: <Layers size={20} /> },
+  ]
 
   return (
     <div className="app">
@@ -149,7 +227,11 @@ function App() {
           </div>
 
           <div className="header-actions">
-            <button className="icon-btn" onClick={toggleViewMode} title={viewMode === 'compact' ? '默认模式' : '简洁模式'}>
+            <button
+              className="icon-btn"
+              onClick={toggleViewMode}
+              title={viewMode === 'compact' ? '默认模式' : '简洁模式'}
+            >
               {viewMode === 'compact' ? <Maximize2 size={18} /> : <Minimize2 size={18} />}
             </button>
             <button className="icon-btn" onClick={toggleTheme}>
@@ -164,27 +246,16 @@ function App() {
         {/* Sidebar */}
         <aside className="sidebar glass-card">
           <nav className="nav-menu">
-            <button
-              className={`nav-item ${activeTab === 'assistant' ? 'active' : ''}`}
-              onClick={() => setActiveTab('assistant')}
-            >
-              <Brain size={20} />
-              <span>战略助手</span>
-            </button>
-            <button
-              className={`nav-item ${activeTab === 'debate' ? 'active' : ''}`}
-              onClick={() => setActiveTab('debate')}
-            >
-              <MessageSquare size={20} />
-              <span>辩论系统</span>
-            </button>
-            <button
-              className={`nav-item ${activeTab === 'simulation' ? 'active' : ''}`}
-              onClick={() => setActiveTab('simulation')}
-            >
-              <TrendingUp size={20} />
-              <span>情景推演</span>
-            </button>
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                className={`nav-item ${activePage === item.id ? 'active' : ''}`}
+                onClick={() => setActivePage(item.id)}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
           </nav>
 
           {/* Stats Card */}
@@ -206,85 +277,126 @@ function App() {
 
         {/* Content Area */}
         <section className="content-area">
-          {/* Pause Control */}
-          {activeTab === 'assistant' && streaming && (
-            <div className="pause-control glass-card">
-              <button className="pause-btn" onClick={handlePauseToggle}>
-                {isPaused ? <Play size={16} /> : <Pause size={16} />}
-                <span>{isPaused ? '已暂停' : '实时更新'}</span>
-              </button>
-              {isPaused && pausedEvents.length > 0 && (
-                <div className="pause-actions">
-                  <span className="pending-count">{pausedEvents.length}条待处理</span>
-                  <button className="action-btn" onClick={handleResumeImmediate}>全部应用</button>
-                  <button className="action-btn danger" onClick={handleDiscard}>丢弃</button>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Dashboard Page */}
+          {activePage === 'dashboard' && (
+            <div className="dashboard-page">
+              <h2 className="panel-title">仪表板总览</h2>
 
-          {/* Debate Panel */}
-          {activeTab === 'debate' && (
-            <div className="debate-panel">
-              <h2 className="panel-title">多智能体辩论</h2>
-
-              <div className="debate-rounds">
-                {debateRounds.map((round, index) => (
-                  <div key={index} className={`debate-round glass-card ${viewMode === 'compact' && index < debateRounds.length - 1 ? 'hidden' : ''}`}>
-                    <div className="round-header">
-                      <div className="round-info">
-                        <span className="round-number">第 {round.round} 轮</span>
-                        <span className="round-role">{round.role}</span>
-                      </div>
-                      <div className="confidence-bar">
-                        <div className="confidence-fill" style={{ width: `${round.confidence * 100}%` }} />
-                        <span className="confidence-value">{(round.confidence * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-
-                    <p className="round-position">{round.position}</p>
-
-                    {viewMode === 'default' && (
-                      <div className="round-arguments">
-                        <div className="arguments-label">关键论据</div>
-                        {round.arguments.map((arg, i) => (
-                          <div key={i} className="argument-item">
-                            <span className="argument-marker">+</span>
-                            <span>{arg}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              <div className="dashboard-grid">
+                {/* Sessions Card */}
+                <div className="glass-card dashboard-card">
+                  <div className="card-header">
+                    <Brain size={20} />
+                    <h3>战略会话</h3>
+                    <span className="badge">{sessions.length}</span>
                   </div>
-                ))}
+                  <div className="card-content">
+                    {sessions.slice(0, 5).map((session) => (
+                      <div key={session.id} className="list-item">
+                        <div className="item-title">{session.name}</div>
+                        <div className="item-meta">{session.domain_id}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-                {viewMode === 'compact' && debateRounds.length > 1 && (
-                  <button className="view-history-btn">
-                    查看历史 ({debateRounds.length - 1}轮)
-                  </button>
-                )}
+                {/* Simulations Card */}
+                <div className="glass-card dashboard-card">
+                  <div className="card-header">
+                    <Clock size={20} />
+                    <h3>推演运行</h3>
+                    <span className="badge">{simulations.length}</span>
+                  </div>
+                  <div className="card-content">
+                    {simulations.slice(0, 5).map((sim) => (
+                      <div key={sim.id} className="list-item">
+                        <div className="item-title">{sim.domain_id}</div>
+                        <div className="item-meta">
+                          <span className={`status-badge ${sim.status.toLowerCase()}`}>
+                            {sim.status}
+                          </span>
+                          <span>{sim.tick_count} ticks</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Debates Card */}
+                <div className="glass-card dashboard-card">
+                  <div className="card-header">
+                    <MessageSquare size={20} />
+                    <h3>辩论记录</h3>
+                    <span className="badge">{debates.length}</span>
+                  </div>
+                  <div className="card-content">
+                    {debates.slice(0, 5).map((debate) => (
+                      <div key={debate.debate_id} className="list-item">
+                        <div className="item-title">{debate.topic}</div>
+                        <div className="item-meta">
+                          {debate.verdict && (
+                            <span className="verdict-badge">{debate.verdict}</span>
+                          )}
+                          {debate.confidence && (
+                            <span>{(debate.confidence * 100).toFixed(0)}%</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Agents Card */}
+                <div className="glass-card dashboard-card">
+                  <div className="card-header">
+                    <Users size={20} />
+                    <h3>智能体状态</h3>
+                    <span className="badge">{agents.length}</span>
+                  </div>
+                  <div className="card-content">
+                    {agents.slice(0, 5).map((agent) => (
+                      <div key={agent.role} className="list-item">
+                        <div className="item-title">
+                          <span className="agent-icon">{agent.icon}</span>
+                          {agent.name}
+                        </div>
+                        <div className="item-meta">
+                          <span className={`status-dot ${agent.has_key ? 'active' : 'inactive'}`} />
+                          <span className="model-name">{agent.effective_model}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-
-              {/* Verdict Card */}
-              {verdict && (
-                <div className="verdict-card glass-card accent-border">
-                  <div className="verdict-header">
-                    <span className="verdict-label">最终裁决</span>
-                    <span className="verdict-result">{verdict.verdict}</span>
-                  </div>
-                  <div className="verdict-confidence">
-                    <span>置信度</span>
-                    <span className="confidence-badge">{(verdict.confidence * 100).toFixed(0)}%</span>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Assistant Panel */}
-          {activeTab === 'assistant' && (
+          {/* Assistant Page */}
+          {activePage === 'assistant' && (
             <div className="assistant-panel">
               <h2 className="panel-title">战略助手</h2>
+
+              {/* Pause Control */}
+              {streaming && (
+                <div className="pause-control glass-card">
+                  <button className="pause-btn" onClick={handlePauseToggle}>
+                    {isPaused ? <Play size={16} /> : <Pause size={16} />}
+                    <span>{isPaused ? '已暂停' : '实时更新'}</span>
+                  </button>
+                  {isPaused && pausedEvents.length > 0 && (
+                    <div className="pause-actions">
+                      <span className="pending-count">{pausedEvents.length}条待处理</span>
+                      <button className="action-btn" onClick={handleResumeImmediate}>
+                        全部应用
+                      </button>
+                      <button className="action-btn danger" onClick={handleDiscard}>
+                        丢弃
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="input-card glass-card">
                 <textarea
@@ -339,69 +451,80 @@ function App() {
                   </div>
                 </div>
               )}
+
+              {/* Debate Rounds */}
+              {debateRounds.length > 0 && (
+                <div className="debate-rounds">
+                  {debateRounds.map((round, index) => (
+                    <div
+                      key={index}
+                      className={`debate-round glass-card ${
+                        viewMode === 'compact' && index < debateRounds.length - 1 ? 'hidden' : ''
+                      }`}
+                    >
+                      <div className="round-header">
+                        <div className="round-info">
+                          <span className="round-number">第 {round.round} 轮</span>
+                          <span className="round-role">{round.role}</span>
+                        </div>
+                        <div className="confidence-bar">
+                          <div
+                            className="confidence-fill"
+                            style={{ width: `${round.confidence * 100}%` }}
+                          />
+                          <span className="confidence-value">
+                            {(round.confidence * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="round-position">{round.position}</p>
+
+                      {viewMode === 'default' && (
+                        <div className="round-arguments">
+                          <div className="arguments-label">关键论据</div>
+                          {round.arguments.map((arg, i) => (
+                            <div key={i} className="argument-item">
+                              <span className="argument-marker">+</span>
+                              <span>{arg}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {viewMode === 'compact' && debateRounds.length > 1 && (
+                    <button className="view-history-btn">
+                      查看历史 ({debateRounds.length - 1}轮)
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Verdict Card */}
+              {verdict && (
+                <div className="verdict-card glass-card accent-border">
+                  <div className="verdict-header">
+                    <span className="verdict-label">最终裁决</span>
+                    <span className="verdict-result">{verdict.verdict}</span>
+                  </div>
+                  <div className="verdict-confidence">
+                    <span>置信度</span>
+                    <span className="confidence-badge">
+                      {(verdict.confidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Simulation Panel */}
-          {activeTab === 'simulation' && (
-            <div className="simulation-panel">
-              <h2 className="panel-title">情景推演</h2>
-
-              <div className="simulation-grid">
-                <div className="sim-card glass-card">
-                  <div className="sim-header">
-                    <span className="sim-title">基准场景</span>
-                    <span className="sim-probability">45%</span>
-                  </div>
-                  <p className="sim-description">基于当前趋势的标准发展路径</p>
-                  <div className="sim-metrics">
-                    <div className="metric">
-                      <span className="metric-label">预期收益</span>
-                      <span className="metric-value positive">+23%</span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">风险等级</span>
-                      <span className="metric-value">中</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="sim-card glass-card">
-                  <div className="sim-header">
-                    <span className="sim-title">乐观场景</span>
-                    <span className="sim-probability">30%</span>
-                  </div>
-                  <p className="sim-description">市场环境优于预期的发展路径</p>
-                  <div className="sim-metrics">
-                    <div className="metric">
-                      <span className="metric-label">预期收益</span>
-                      <span className="metric-value positive">+45%</span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">风险等级</span>
-                      <span className="metric-value">低</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="sim-card glass-card">
-                  <div className="sim-header">
-                    <span className="sim-title">悲观场景</span>
-                    <span className="sim-probability">25%</span>
-                  </div>
-                  <p className="sim-description">面临重大挑战的发展路径</p>
-                  <div className="sim-metrics">
-                    <div className="metric">
-                      <span className="metric-label">预期收益</span>
-                      <span className="metric-value negative">-12%</span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">风险等级</span>
-                      <span className="metric-value">高</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          {/* Other pages - placeholder */}
+          {activePage !== 'dashboard' && activePage !== 'assistant' && (
+            <div className="placeholder-page glass-card">
+              <h2 className="panel-title">{navItems.find((n) => n.id === activePage)?.label}</h2>
+              <p className="placeholder-text">此模块正在开发中...</p>
             </div>
           )}
         </section>
