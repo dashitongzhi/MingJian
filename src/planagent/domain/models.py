@@ -768,6 +768,61 @@ class DebateInterruptRecord(Base):
     debate_session: Mapped[DebateSessionRecord] = relationship(back_populates="interrupts")
 
 
+class DebateReliabilityScore(Base):
+    """辩论论点可靠性评分——交叉审查阶段对每个论点的独立审计"""
+
+    __tablename__ = "debate_reliability_scores"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    debate_id: Mapped[str] = mapped_column(
+        ForeignKey("debate_sessions.id"), nullable=False, index=True
+    )
+    round_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    argument_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    argument_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    reliability_score: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+    bias_flags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    blind_spots: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    evidence_strength: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="moderate"
+    )  # strong/moderate/weak/speculative
+    auditor_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class DebateStructuredDissent(Base):
+    """结构化少数意见——替代原有的单一字符串 minority_opinion"""
+
+    __tablename__ = "debate_structured_dissents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    debate_id: Mapped[str] = mapped_column(
+        ForeignKey("debate_sessions.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    dissenter_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    claims: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
+    # Each claim: {"claim": str, "evidence": [str], "confidence": float, "category": str}
+    evidence_gaps: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    confidence_trajectory: Mapped[list[float]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    recommended_monitoring: Mapped[list[str]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
+    overall_dissent_strength: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
 class StrategicSession(Base):
     __tablename__ = "strategic_sessions"
 
