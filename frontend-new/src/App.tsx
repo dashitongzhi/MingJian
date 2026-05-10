@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Moon, Sun, Brain, MessageSquare, TrendingUp, Pause, Play, Minimize2, Maximize2 } from 'lucide-react'
+import { streamAssistant, fetchSimulationRuns, type DebateRound as APIDebateRound, type SimulationRun } from './lib/api'
 import './App.css'
 
 type Theme = 'light' | 'dark'
@@ -18,29 +19,105 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('default')
   const [isPaused, setIsPaused] = useState(false)
   const [activeTab, setActiveTab] = useState<'assistant' | 'debate' | 'simulation'>('assistant')
-  const [debateRounds, setDebateRounds] = useState<DebateRound[]>([
-    {
-      round: 1,
-      role: '支持方',
-      position: '基于当前市场趋势和技术发展，该战略具有可行性',
-      confidence: 0.85,
-      arguments: ['市场需求持续增长', '技术成熟度达标', '竞争优势明显']
-    },
-    {
-      round: 2,
-      role: '质询方',
-      position: '存在潜在风险需要谨慎评估',
-      confidence: 0.72,
-      arguments: ['市场波动性较大', '资源投入需求高', '时间窗口有限']
-    }
-  ])
+  const [debateRounds, setDebateRounds] = useState<DebateRound[]>([])
+  const [streaming, setStreaming] = useState(false)
+  const [topic, setTopic] = useState('')
+  const [domainId, setDomainId] = useState('auto')
+  const [progress, setProgress] = useState(0)
+  const [currentStage, setCurrentStage] = useState('准备中')
+  const [dataCount, setDataCount] = useState(0)
+  const [simulations, setSimulations] = useState<SimulationRun[]>([])
+  const [pausedEvents, setPausedEvents] = useState<any[]>([])
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  useEffect(() => {
+    if (activeTab === 'simulation') {
+      fetchSimulationRuns(10).then(setSimulations).catch(console.error)
+    }
+  }, [activeTab])
+
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light')
   const toggleViewMode = () => setViewMode(viewMode === 'default' ? 'compact' : 'default')
+
+  const handleRunAnalysis = async () => {
+    if (!topic.trim() || streaming) return
+
+    setStreaming(true)
+    setDebateRounds([])
+    setProgress(0)
+    setCurrentStage('数据采集')
+    setDataCount(0)
+
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+
+    try {
+      await streamAssistant(
+        {
+          topic: topic.trim(),
+          domain_id: domainId,
+          subject_name: topic.slice(0, 50),
+          tick_count: 4,
+        },
+        (event) => {
+          if (isPaused) {
+            setPausedEvents(prev => [...prev, event])
+            return
+          }
+
+          if (event.event === 'source_complete') {
+            setDataCount(prev => prev + (event.payload.count || 0))
+            setProgress(prev => Math.min(prev + 15, 65))
+          } else if (event.event === 'debate_round_complete') {
+            const payload = event.payload
+            setDebateRounds(prev => [...prev, {
+              round: payload.round_number,
+              role: payload.role,
+              position: payload.position,
+              confidence: payload.confidence,
+              arguments: payload.key_arguments || []
+            }])
+            setCurrentStage('辩论进行中')
+            setProgress(prev => Math.min(prev + 10, 90))
+          } else if (event.event === 'debate_verdict') {
+            setCurrentStage('分析完成')
+            setProgress(100)
+          } else if (event.event === 'step') {
+            setCurrentStage(event.payload.message || '处理中')
+          }
+        },
+        ctrl.signal
+      )
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Analysis failed:', err)
+        setCurrentStage('分析失败')
+      }
+    } finally {
+      setStreaming(false)
+    }
+  }
+
+  const handlePauseToggle = () => {
+    setIsPaused(!isPaused)
+  }
+
+  const handleResumeImmediate = () => {
+    pausedEvents.forEach(event => {
+      // Process cached events
+    })
+    setPausedEvents([])
+    setIsPaused(false)
+  }
+
+  const handleDiscard = () => {
+    setPausedEvents([])
+    setIsPaused(false)
+  }
 
   return (
     <div className="app">
@@ -112,18 +189,17 @@ function App() {
         {/* Content Area */}
         <section className="content-area">
           {/* Pause Control */}
-          {activeTab === 'assistant' && (
+          {activeTab === 'assistant' && streaming && (
             <div className="pause-control glass-card">
-              <button className="pause-btn" onClick={() => setIsPaused(!isPaused)}>
+              <button className="pause-btn" onClick={handlePauseToggle}>
                 {isPaused ? <Play size={16} /> : <Pause size={16} />}
                 <span>{isPaused ? '已暂停' : '实时更新'}</span>
               </button>
-              {isPaused && (
+              {isPaused && pausedEvents.length > 0 && (
                 <div className="pause-actions">
-                  <span className="pending-count">12条待处理</span>
-                  <button className="action-btn">全部应用</button>
-                  <button className="action-btn">逐条播放</button>
-                  <button className="action-btn danger">丢弃</button>
+                  <span className="pending-count">{pausedEvents.length}条待处理</span>
+                  <button className="action-btn" onClick={handleResumeImmediate}>全部应用</button>
+                  <button className="action-btn danger" onClick={handleDiscard}>丢弃</button>
                 </div>
               )}
             </div>
@@ -195,36 +271,54 @@ function App() {
                   className="analysis-input"
                   placeholder="请输入分析主题..."
                   rows={3}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  disabled={streaming}
                 />
                 <div className="input-actions">
-                  <select className="domain-select">
-                    <option>自动识别</option>
-                    <option>企业战略</option>
-                    <option>军事分析</option>
+                  <select
+                    className="domain-select"
+                    value={domainId}
+                    onChange={(e) => setDomainId(e.target.value)}
+                    disabled={streaming}
+                  >
+                    <option value="auto">自动识别</option>
+                    <option value="corporate">企业战略</option>
+                    <option value="military">军事分析</option>
                   </select>
-                  <button className="run-btn">执行分析</button>
+                  <button
+                    className="run-btn"
+                    onClick={handleRunAnalysis}
+                    disabled={streaming || !topic.trim()}
+                  >
+                    {streaming ? '分析中...' : '执行分析'}
+                  </button>
                 </div>
               </div>
 
-              <div className="process-card glass-card">
-                <div className="process-header">
-                  <span className="process-stage">数据采集</span>
-                  <span className="process-status">进行中</span>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: '65%' }} />
-                </div>
-                <div className="process-details">
-                  <div className="detail-item">
-                    <span className="detail-icon">🔍</span>
-                    <span>正在搜索公共来源...</span>
+              {streaming && (
+                <div className="process-card glass-card">
+                  <div className="process-header">
+                    <span className="process-stage">{currentStage}</span>
+                    <span className="process-status">{isPaused ? '已暂停' : '进行中'}</span>
                   </div>
-                  <div className="detail-item">
-                    <span className="detail-icon">📊</span>
-                    <span>已采集 127 条数据</span>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="process-details">
+                    <div className="detail-item">
+                      <span className="detail-icon">🔍</span>
+                      <span>{currentStage}</span>
+                    </div>
+                    {dataCount > 0 && (
+                      <div className="detail-item">
+                        <span className="detail-icon">📊</span>
+                        <span>已采集 {dataCount} 条数据</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
