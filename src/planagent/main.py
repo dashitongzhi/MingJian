@@ -69,7 +69,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(router)
+    app.include_router(router, prefix="/api")
     app.include_router(websocket_router)
 
     # 条件性注册 MCP Server 路由

@@ -102,8 +102,15 @@ export async function streamAssistant(
   }
 }
 
+export interface DashboardStats {
+  active_sessions: number;
+  prediction_accuracy: number;
+  pending_items: number;
+}
+
 // API endpoints
 export const fetchHealth = () => apiFetch<{ status: string }>("/health");
+export const fetchStats = () => apiFetch<DashboardStats>("/stats");
 export const fetchSimulationRuns = (limit = 20) =>
   apiFetch<SimulationRun[]>(`/simulation/runs?limit=${limit}`);
 export const createSimulationRun = (data: Record<string, unknown>) =>

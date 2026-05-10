@@ -22,6 +22,7 @@ from planagent.api.routes.model_adapter import router as model_adapter_router
 from planagent.api.routes.auth import router as auth_router
 from planagent.api.routes.export import router as export_router
 from planagent.api.routes.notifications import router as notifications_router
+from planagent.api.routes.stats import router as stats_router
 
 router = APIRouter()
 router.include_router(analysis_router, tags=["Analysis & Assistant"])
@@ -44,3 +45,4 @@ router.include_router(model_adapter_router)
 router.include_router(auth_router)
 router.include_router(export_router)
 router.include_router(notifications_router)
+router.include_router(stats_router)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Moon, Sun, Brain, MessageSquare, TrendingUp, Pause, Play, Minimize2, Maximize2 } from 'lucide-react'
-import { streamAssistant, fetchSimulationRuns, type DebateRound as APIDebateRound, type SimulationRun } from './lib/api'
+import { streamAssistant, fetchSimulationRuns, fetchStats, type DashboardStats } from './lib/api'
 import './App.css'
 
 type Theme = 'light' | 'dark'
@@ -26,8 +26,9 @@ function App() {
   const [progress, setProgress] = useState(0)
   const [currentStage, setCurrentStage] = useState('准备中')
   const [dataCount, setDataCount] = useState(0)
-  const [simulations, setSimulations] = useState<SimulationRun[]>([])
   const [pausedEvents, setPausedEvents] = useState<any[]>([])
+  const [verdict, setVerdict] = useState<{ verdict: string; confidence: number } | null>(null)
+  const [stats, setStats] = useState<DashboardStats>({ active_sessions: 0, prediction_accuracy: 87, pending_items: 0 })
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -36,18 +37,55 @@ function App() {
 
   useEffect(() => {
     if (activeTab === 'simulation') {
-      fetchSimulationRuns(10).then(setSimulations).catch(console.error)
+      fetchSimulationRuns(10).catch(console.error)
     }
   }, [activeTab])
 
+  useEffect(() => {
+    fetchStats().then(setStats).catch(console.error)
+    const interval = setInterval(() => {
+      fetchStats().then(setStats).catch(console.error)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light')
   const toggleViewMode = () => setViewMode(viewMode === 'default' ? 'compact' : 'default')
+
+  const processEvent = (event: any) => {
+    if (event.event === 'source_complete') {
+      setDataCount(prev => prev + (event.payload.count || 0))
+      setProgress(prev => Math.min(prev + 15, 65))
+    } else if (event.event === 'debate_round_complete') {
+      const payload = event.payload
+      setDebateRounds(prev => [...prev, {
+        round: payload.round_number,
+        role: payload.role,
+        position: payload.position,
+        confidence: payload.confidence,
+        arguments: payload.key_arguments || []
+      }])
+      setCurrentStage('辩论进行中')
+      setProgress(prev => Math.min(prev + 10, 90))
+    } else if (event.event === 'debate_verdict') {
+      const payload = event.payload
+      setVerdict({
+        verdict: payload.verdict || 'ACCEPTED',
+        confidence: payload.confidence || 0.92
+      })
+      setCurrentStage('分析完成')
+      setProgress(100)
+    } else if (event.event === 'step') {
+      setCurrentStage(event.payload.message || '处理中')
+    }
+  }
 
   const handleRunAnalysis = async () => {
     if (!topic.trim() || streaming) return
 
     setStreaming(true)
     setDebateRounds([])
+    setVerdict(null)
     setProgress(0)
     setCurrentStage('数据采集')
     setDataCount(0)
@@ -68,27 +106,7 @@ function App() {
             setPausedEvents(prev => [...prev, event])
             return
           }
-
-          if (event.event === 'source_complete') {
-            setDataCount(prev => prev + (event.payload.count || 0))
-            setProgress(prev => Math.min(prev + 15, 65))
-          } else if (event.event === 'debate_round_complete') {
-            const payload = event.payload
-            setDebateRounds(prev => [...prev, {
-              round: payload.round_number,
-              role: payload.role,
-              position: payload.position,
-              confidence: payload.confidence,
-              arguments: payload.key_arguments || []
-            }])
-            setCurrentStage('辩论进行中')
-            setProgress(prev => Math.min(prev + 10, 90))
-          } else if (event.event === 'debate_verdict') {
-            setCurrentStage('分析完成')
-            setProgress(100)
-          } else if (event.event === 'step') {
-            setCurrentStage(event.payload.message || '处理中')
-          }
+          processEvent(event)
         },
         ctrl.signal
       )
@@ -108,7 +126,7 @@ function App() {
 
   const handleResumeImmediate = () => {
     pausedEvents.forEach(event => {
-      // Process cached events
+      processEvent(event)
     })
     setPausedEvents([])
     setIsPaused(false)
@@ -173,15 +191,15 @@ function App() {
           <div className="stats-card glass-card-inner">
             <div className="stat-item">
               <span className="stat-label">活跃会话</span>
-              <span className="stat-value">12</span>
+              <span className="stat-value">{stats.active_sessions}</span>
             </div>
             <div className="stat-item">
               <span className="stat-label">预测准确率</span>
-              <span className="stat-value">87%</span>
+              <span className="stat-value">{stats.prediction_accuracy}%</span>
             </div>
             <div className="stat-item">
               <span className="stat-label">待处理项</span>
-              <span className="stat-value">5</span>
+              <span className="stat-value">{stats.pending_items}</span>
             </div>
           </div>
         </aside>
@@ -248,16 +266,18 @@ function App() {
               </div>
 
               {/* Verdict Card */}
-              <div className="verdict-card glass-card accent-border">
-                <div className="verdict-header">
-                  <span className="verdict-label">最终裁决</span>
-                  <span className="verdict-result">ACCEPTED</span>
+              {verdict && (
+                <div className="verdict-card glass-card accent-border">
+                  <div className="verdict-header">
+                    <span className="verdict-label">最终裁决</span>
+                    <span className="verdict-result">{verdict.verdict}</span>
+                  </div>
+                  <div className="verdict-confidence">
+                    <span>置信度</span>
+                    <span className="confidence-badge">{(verdict.confidence * 100).toFixed(0)}%</span>
+                  </div>
                 </div>
-                <div className="verdict-confidence">
-                  <span>置信度</span>
-                  <span className="confidence-badge">92%</span>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
