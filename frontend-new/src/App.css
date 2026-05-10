@@ -608,11 +608,41 @@ body::before {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.run-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.run-btn:hover::before {
+  width: 300px;
+  height: 300px;
 }
 
 .run-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(229, 160, 12, 0.3);
+}
+
+.run-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.run-btn:disabled:hover {
+  box-shadow: none;
 }
 
 /* ===== Process Card ===== */
@@ -699,6 +729,24 @@ body::before {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sim-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sim-card:hover::before {
+  opacity: 1;
 }
 
 .sim-header {
