@@ -187,6 +187,7 @@ class DebateService(
             dissenter_role=dissenter_role,
             session=session,
         )
+        session.add(dissent)
 
         if (
             payload.trigger_type in ("pivot_decision", "conflict_resolution")
@@ -381,6 +382,7 @@ class DebateService(
                     dissenter_role=dissenter_role,
                     session=session,
                 )
+                session.add(dissent)
 
                 if (
                     payload.trigger_type in ("pivot_decision", "conflict_resolution")

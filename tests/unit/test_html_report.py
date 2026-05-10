@@ -621,7 +621,7 @@ class TestExportServiceHTML:
             await export_service.export_debate_html("deb-test", mock_db_full)
 
         render_kw = mock_template.render.call_args[1]
-        assert render_kw["topic"] == "AI Investment Feasibility"
+        assert render_kw["debate"].topic == "AI Investment Feasibility"
         assert render_kw["verdict"] is mock_verdict
         assert render_kw["status"] == "completed"
         assert "charts" in render_kw
@@ -639,7 +639,7 @@ class TestExportServiceHTML:
             await export_service.export_debate_html("deb-test", mock_db_no_dissent)
 
         render_kw = mock_template.render.call_args[1]
-        assert render_kw["dissent"] is None
+        assert render_kw["structured_dissent"] is None
 
     async def test_export_html_with_no_verdict_defaults_topic(self, export_service, mock_db_no_verdict):
         """When no verdict exists, topic should default to '未知主题'."""
@@ -653,7 +653,7 @@ class TestExportServiceHTML:
             await export_service.export_debate_html("deb-test", mock_db_no_verdict)
 
         render_kw = mock_template.render.call_args[1]
-        assert render_kw["topic"] == "未知主题"
+        assert render_kw["debate"].topic == "未知主题"
         assert render_kw["status"] == "in_progress"
 
     async def test_export_html_builds_rounds_by_number(self, export_service, mock_db_full):

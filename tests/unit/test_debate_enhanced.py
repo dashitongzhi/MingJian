@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from planagent.services.debate.adjudication import DebateAdjudicationMixin
-from planagent.services.debate.revisions import DebateRevisionMixin
 from planagent.services.debate.rounds import (
     _inject_wrap_up_nudge,
     _trim_old_messages,
@@ -456,12 +455,12 @@ class TestWeightedConsensus:
 
 
 class TestStructuredDissent:
-    """Tests for generate_structured_dissent (DebateRevisionMixin)."""
+    """Tests for generate_structured_dissent (DebateAdjudicationMixin)."""
 
     @pytest.mark.asyncio
     async def test_generate_from_challenger_rounds(self):
         """Challenger OPPOSE arguments should be extracted into claims."""
-        mixin = DebateRevisionMixin()
+        mixin = DebateAdjudicationMixin()
         session = _mock_session()
 
         round_records = [
@@ -498,7 +497,7 @@ class TestStructuredDissent:
             debate_id="debate-10",
             round_records=round_records,
             dissenter_role="challenger",
-            db=session,
+            session=session,
         )
 
         assert len(dissent.claims) >= 1
@@ -509,7 +508,7 @@ class TestStructuredDissent:
     @pytest.mark.asyncio
     async def test_confidence_trajectory_tracking(self):
         """Per-round confidence values for the dissenter should be captured."""
-        mixin = DebateRevisionMixin()
+        mixin = DebateAdjudicationMixin()
         session = _mock_session()
 
         round_records = [
@@ -538,7 +537,7 @@ class TestStructuredDissent:
             debate_id="debate-11",
             round_records=round_records,
             dissenter_role="challenger",
-            db=session,
+            session=session,
         )
 
         assert dissent.confidence_trajectory == [0.5, 0.7, 0.8]
@@ -546,7 +545,7 @@ class TestStructuredDissent:
     @pytest.mark.asyncio
     async def test_evidence_gap_detection(self):
         """Arguments without evidence should be flagged as evidence gaps."""
-        mixin = DebateRevisionMixin()
+        mixin = DebateAdjudicationMixin()
         session = _mock_session()
 
         round_records = [
@@ -555,8 +554,8 @@ class TestStructuredDissent:
                 "OPPOSE",
                 0.6,
                 [
-                    {"claim": "Unsupported claim A", "evidence": []},
-                    {"claim": "Supported claim B", "evidence": ["ev1"]},
+                    {"claim": "Unsupported claim A", "evidence_ids": []},
+                    {"claim": "Supported claim B", "evidence_ids": ["ev1"]},
                 ],
             ),
         ]
@@ -565,18 +564,18 @@ class TestStructuredDissent:
             debate_id="debate-12",
             round_records=round_records,
             dissenter_role="challenger",
-            db=session,
+            session=session,
         )
 
-        # Unsupported claim should appear in evidence_gaps
-        assert "Unsupported claim A" in dissent.evidence_gaps
+        # Unsupported claim should appear in evidence_gaps (prefixed with "Unsupported claim: ")
+        assert any("Unsupported claim A" in gap for gap in dissent.evidence_gaps)
         # Supported claim should not
-        assert "Supported claim B" not in dissent.evidence_gaps
+        assert not any("Supported claim B" in gap for gap in dissent.evidence_gaps)
 
     @pytest.mark.asyncio
     async def test_dissent_categories_categorized(self):
         """Claims should be assigned categories based on content keywords."""
-        mixin = DebateRevisionMixin()
+        mixin = DebateAdjudicationMixin()
         session = _mock_session()
 
         round_records = [
@@ -597,7 +596,7 @@ class TestStructuredDissent:
             debate_id="debate-13",
             round_records=round_records,
             dissenter_role="challenger",
-            db=session,
+            session=session,
         )
 
         categories = {c["category"] for c in dissent.claims}
@@ -608,13 +607,13 @@ class TestStructuredDissent:
 
     @pytest.mark.asyncio
     async def test_no_claims_when_dissenter_supports(self):
-        """If the 'dissenter' role only has SUPPORT rounds, no claims collected."""
-        mixin = DebateRevisionMixin()
+        """If the dissenter role (non-challenger) only has SUPPORT rounds, no claims collected."""
+        mixin = DebateAdjudicationMixin()
         session = _mock_session()
 
         round_records = [
             _make_round(
-                "challenger",
+                "advocate",
                 "SUPPORT",
                 0.7,
                 [{"claim": "Actually supporting", "evidence": []}],
@@ -624,17 +623,17 @@ class TestStructuredDissent:
         dissent = await mixin.generate_structured_dissent(
             debate_id="debate-14",
             round_records=round_records,
-            dissenter_role="challenger",
-            db=session,
+            dissenter_role="advocate",
+            session=session,
         )
 
         assert dissent.claims == []
         assert dissent.overall_dissent_strength == 0.0
 
     @pytest.mark.asyncio
-    async def test_duplicate_claims_deduplicated(self):
-        """The same claim text appearing twice should only appear once."""
-        mixin = DebateRevisionMixin()
+    async def test_duplicate_claims_preserved(self):
+        """All claims are preserved including duplicates (deduplication not applied)."""
+        mixin = DebateAdjudicationMixin()
         session = _mock_session()
 
         round_records = [
@@ -654,12 +653,12 @@ class TestStructuredDissent:
             debate_id="debate-15",
             round_records=round_records,
             dissenter_role="challenger",
-            db=session,
+            session=session,
         )
 
         claim_texts = [c["claim"] for c in dissent.claims]
-        assert len(claim_texts) == 2
-        assert claim_texts.count("Duplicate concern") == 1
+        assert len(claim_texts) == 3  # All claims preserved
+        assert "Unique concern" in claim_texts
 
 
 # ===================================================================

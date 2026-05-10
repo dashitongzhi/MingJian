@@ -118,12 +118,14 @@ _BIAS_PATTERNS: dict[str, list[str]] = {
     ],
     "cherry_picking": [
         "for example",
-        "one case",
-        "specific instance",
+        "one case where",
+        "specific instance of",
         "in one study",
-        "a single",
-        "notably",
-        "particularly",
+        "a single case",
+        "ignore the rest",
+        "only evidence that",
+        "selectively citing",
+        "hand-picked",
     ],
     "hand_waving": [
         "roughly",
@@ -1538,17 +1540,18 @@ class DebateAdjudicationMixin:
                 # Blind spots specific to this argument
                 arg_blind_spots: list[str] = []
                 arg_text_lower = combined_text.lower()
+                covered_dims: set[str] = set()
                 for dim, keywords in _RISK_DIMENSIONS.items():
                     if any(kw in arg_text_lower for kw in keywords):
-                        continue
+                        covered_dims.add(dim)
                 # Don't flag all missing dimensions—only flag if the argument
                 # claims comprehensiveness but omits major areas
                 if any(
                     phrase in arg_text_lower
                     for phrase in ("all factors", "comprehensive", "holistic", "all risks", "all aspects")
                 ):
-                    for dim, keywords in _RISK_DIMENSIONS.items():
-                        if not any(kw in arg_text_lower for kw in keywords):
+                    for dim in _RISK_DIMENSIONS:
+                        if dim not in covered_dims:
                             arg_blind_spots.append(f"claims_completeness_but_ignores_{dim}")
 
                 # Determine auditor role (the "other side")
@@ -1727,5 +1730,4 @@ class DebateAdjudicationMixin:
             recommended_monitoring=recommended_monitoring,
             overall_dissent_strength=overall_dissent_strength,
         )
-        session.add(dissent)
         return dissent

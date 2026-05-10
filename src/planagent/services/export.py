@@ -10,9 +10,12 @@ Provides full report export for:
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from types import SimpleNamespace
 
 import markdown2
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -546,11 +549,46 @@ class ExportService:
 
         sorted_rounds = [rounds_by_number[k] for k in sorted(rounds_by_number)]
 
+        # ── Aggregate confidence_data per round for chart format [{round, roles: {role: val}}]
+        conf_by_round: dict[int, dict[str, float]] = defaultdict(dict)
+        for rec in round_records:
+            conf_by_round[rec.round_number][rec.role] = rec.confidence
+        confidence_data = [
+            {"round": rn, "roles": roles}
+            for rn, roles in sorted(conf_by_round.items())
+        ]
+
+        # ── Build evidence_matrix grouped by argument_summary [{argument, sources: {role: score}}]
+        ev_matrix: dict[str, dict[str, float]] = {}
+        for score in reliability_scores:
+            key = (score.argument_summary or "")[:50]
+            ev_matrix.setdefault(key, {})[score.auditor_role] = score.reliability_score / 5.0
+        evidence_matrix = [
+            {"argument": k, "sources": v}
+            for k, v in ev_matrix.items()
+        ]
+
+        # ── Build role_scores for radar chart: flat {dimension: score} in [0,1]
+        # The radar chart expects {dimension_name: score, ...} — aggregate across roles
+        dim_sums: dict[str, list[float]] = defaultdict(list)
+        for score in reliability_scores:
+            dim_sums["reliability"].append(score.reliability_score / 5.0)
+            if score.evidence_strength == "strong":
+                dim_sums["evidence"].append(0.8)
+            elif score.evidence_strength == "moderate":
+                dim_sums["evidence"].append(0.5)
+            else:
+                dim_sums["evidence"].append(0.3)
+            bias_penalty = len(score.bias_flags or []) * 0.15
+            dim_sums["logic"].append(max(0.0, 1.0 - bias_penalty))
+            dim_sums["adaptability"].append(0.6)
+        role_scores = {
+            dim: sum(vals) / len(vals) if vals else 0.0
+            for dim, vals in dim_sums.items()
+        }
+
         debate_data: dict[str, Any] = {
-            "confidence_data": [
-                {"round": rec.round_number, "role": rec.role, "confidence": rec.confidence}
-                for rec in round_records
-            ],
+            "confidence_data": confidence_data,
             "support_args": [
                 a
                 for rec in round_records
@@ -563,14 +601,8 @@ class ExportService:
                 if rec.position == "challenge"
                 for a in (rec.arguments if isinstance(rec.arguments, list) else [])
             ],
-            "evidence_matrix": [
-                {"role": s.role, "round": s.round_number, "strength": s.evidence_strength, "score": s.reliability_score}
-                for s in reliability_scores
-            ],
-            "role_scores": {
-                s.role: s.reliability_score
-                for s in reliability_scores
-            },
+            "evidence_matrix": evidence_matrix,
+            "role_scores": dict(role_scores),
         }
 
         charts = ChartGenerationService.generate_all_charts(debate_data)
@@ -590,13 +622,17 @@ class ExportService:
         env = self._get_jinja_env()
         template = env.get_template("debate_report.html")
         return template.render(
-            topic=topic,
+            debate=SimpleNamespace(
+                topic=topic,
+                id=debate_id,
+                created_at=now,
+            ),
             status="completed" if verdict else "in_progress",
             generated_at=now,
             rounds=sorted_rounds,
             verdict=verdict,
             reliability_scores=reliability_scores,
-            dissent=dissent,
+            structured_dissent=dissent,
             charts=charts,
             chart_names=chart_names,
             theme=theme,
