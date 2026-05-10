@@ -20,6 +20,34 @@ from planagent.services.openai_client import DebatePositionPayload
 
 from . import DebateStreamEvent, DebateStreamPreparation
 from .prompts import build_round_plan
+_TOKEN_BUDGET_PER_ROUND = 60000
+_WRAP_UP_RATIO = 0.8
+_KEEP_RECENT_MESSAGES = 3
+
+
+def _estimate_tokens(text: str) -> int:
+    return len(text) // 4
+
+
+def _inject_wrap_up_nudge(messages: list, used: int, budget: int) -> None:
+    if used > budget * _WRAP_UP_RATIO:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    f"[系统] Token预算即将耗尽（已用{used}/{budget}）。"
+                    "请立即停止扩展论证，输出最终立场总结。"
+                ),
+            }
+        )
+
+
+def _trim_old_messages(messages: list, keep: int = _KEEP_RECENT_MESSAGES) -> list:
+    if len(messages) <= keep:
+        return messages
+    trimmed = [{"role": "tool", "content": "[已清理]"}] * (len(messages) - keep)
+    trimmed.extend(messages[-keep:])
+    return trimmed
 
 
 class DebateRoundMixin:
@@ -410,6 +438,36 @@ class DebateRoundMixin:
                 f"Debate history so far:\n{history or 'No prior debate rounds.'}\n\n"
                 f"Original context:\n{context}"
             )
+        # ── Token budget tracking ─────────────────────────────
+        used_tokens = 0
+        trimmed_rounds: list[dict[str, Any]] = []
+
+        def _estimate_response_tokens(position: Any) -> int:
+            """Estimate token count from a LLM response position."""
+            if position is None:
+                return 0
+            text = position.position or ""
+            for arg in getattr(position, "arguments", []) or []:
+                text += getattr(arg, "claim", "") or ""
+                text += getattr(arg, "reasoning", "") or ""
+            for r in getattr(position, "rebuttals", []) or []:
+                text += str(r)
+            for c in getattr(position, "concessions", []) or []:
+                text += str(c)
+            return _estimate_tokens(text)
+
+        def _track_and_nudge(ctx: str, position: Any) -> None:
+            """Update token usage from context + response, inject nudge if needed."""
+            nonlocal used_tokens
+            used_tokens += _estimate_tokens(ctx)
+            used_tokens += _estimate_response_tokens(position)
+            _inject_wrap_up_nudge(trimmed_rounds, used_tokens, _TOKEN_BUDGET_PER_ROUND)
+
+        def _trimmed_context(instruction: str) -> str:
+            """Build context with trimmed round history for budget control."""
+            nonlocal trimmed_rounds
+            trimmed_rounds = _trim_old_messages(rounds)
+            return context_with_history(instruction, trimmed_rounds)
 
         # ── Round 1: 立论 ──────────────────────────────────────
         advocate_r1 = await self._call_llm(
@@ -460,6 +518,14 @@ class DebateRoundMixin:
             trigger_type=trigger_type,
             context=context,
         )
+        _track_and_nudge(context, advocate_r1)
+        _track_and_nudge(context, intel_r1)
+        _track_and_nudge(context, geo_r1)
+        _track_and_nudge(context, econ_r1)
+        _track_and_nudge(context, military_r1)
+        _track_and_nudge(context, tech_r1)
+        _track_and_nudge(context, social_r1)
+        _track_and_nudge(context, challenger_r1)
         if advocate_r1 is None and challenger_r1 is None:
             return None
 
@@ -495,20 +561,21 @@ class DebateRoundMixin:
             role="challenger",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(round_2_instruction, rounds),
+            context=_trimmed_context(round_2_instruction),
             opponent_arguments=argument_refs(all_r1_args),
         )
         intel_r2 = await self._call_llm(
             role="intel_analyst",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(
+            context=_trimmed_context(
                 "【第2轮·质询】情报分析师：请对立论中的事实声明进行情报核实，标注矛盾信息和来源可信度。",
-                rounds,
             ),
             opponent_arguments=argument_refs(all_r1_args),
         )
-
+        ctx_r2 = _trimmed_context(round_2_instruction)
+        _track_and_nudge(ctx_r2, challenger_r2)
+        _track_and_nudge(ctx_r2, intel_r2)
         if challenger_r2 is not None:
             rounds.append(round_payload(2, "challenger", challenger_r2))
         if intel_r2 is not None:
@@ -522,7 +589,7 @@ class DebateRoundMixin:
             role="advocate",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(round_3_instruction, rounds),
+            context=_trimmed_context(round_3_instruction),
             opponent_arguments=argument_refs(all_r2_args),
             own_previous=[{"claim": a.claim} for a in adv_args_r1],
         )
@@ -530,9 +597,8 @@ class DebateRoundMixin:
             role="geo_expert",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(
+            context=_trimmed_context(
                 "【第3轮·修订】地缘政治专家：请根据质询修订地缘政治分析，补充被质疑的论据。",
-                rounds,
             ),
             opponent_arguments=argument_refs(all_r2_args),
         )
@@ -540,9 +606,8 @@ class DebateRoundMixin:
             role="econ_analyst",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(
+            context=_trimmed_context(
                 "【第3轮·修订】经济分析师：请根据质询修订经济分析，修正数据和结论。",
-                rounds,
             ),
             opponent_arguments=argument_refs(all_r2_args),
         )
@@ -550,9 +615,8 @@ class DebateRoundMixin:
             role="military_strategist",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(
+            context=_trimmed_context(
                 "【第3轮·修订】军事战略家：请根据质询修订军事评估，强化或修正关键判断。",
-                rounds,
             ),
             opponent_arguments=argument_refs(all_r2_args),
         )
@@ -560,9 +624,8 @@ class DebateRoundMixin:
             role="tech_foresight",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(
+            context=_trimmed_context(
                 "【第3轮·修订】技术前瞻者：请根据质询修订技术评估，更新时间线和置信度。",
-                rounds,
             ),
             opponent_arguments=argument_refs(all_r2_args),
         )
@@ -570,13 +633,18 @@ class DebateRoundMixin:
             role="social_impact",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(
+            context=_trimmed_context(
                 "【第3轮·修订】社会影响评估师：请根据质询修订社会影响分析。",
-                rounds,
             ),
             opponent_arguments=argument_refs(all_r2_args),
         )
-
+        ctx_r3 = _trimmed_context(round_3_instruction)
+        _track_and_nudge(ctx_r3, advocate_r3)
+        _track_and_nudge(ctx_r3, geo_r3)
+        _track_and_nudge(ctx_r3, econ_r3)
+        _track_and_nudge(ctx_r3, military_r3)
+        _track_and_nudge(ctx_r3, tech_r3)
+        _track_and_nudge(ctx_r3, social_r3)
         if advocate_r3 is not None:
             rounds.append(round_payload(3, "advocate", advocate_r3))
         if geo_r3 is not None:
@@ -622,9 +690,10 @@ class DebateRoundMixin:
             role="arbitrator",
             topic=topic,
             trigger_type=trigger_type,
-            context=context_with_history(round_4_instruction, rounds),
+            context=_trimmed_context(round_4_instruction),
             opponent_arguments=argument_refs(all_round_args),
         )
+        _track_and_nudge(_trimmed_context(round_4_instruction), arbitrator)
         if arbitrator is not None:
             rounds.append(round_payload(4, "arbitrator", arbitrator))
 

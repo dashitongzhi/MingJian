@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.domain.enums import EventTopic
-from planagent.domain.models import EventArchive
+from planagent.domain.models import DebateStructuredDissent, EventArchive
 
 
 class DebateRevisionMixin:
@@ -121,6 +121,133 @@ class DebateRevisionMixin:
             f"你的目标不是固守，而是在压力测试中让分析更加精确可靠。"
         )
 
+    # ------------------------------------------------------------------
+    # Structured minority dissent
+    # ------------------------------------------------------------------
+
+    _DISSENT_CATEGORIES: dict[str, str] = {
+        "risk": "风险识别",
+        "evidence_quality": "证据质量",
+        "alternative": "替代方案",
+        "assumption_challenge": "假设质疑",
+    }
+
+    def _categorise_claim(self, text: str) -> str:
+        """Heuristic: pick the most likely dissent category for *text*."""
+        lower = text.lower()
+        # Order matters — first match wins
+        if any(kw in lower for kw in ("risk", "danger", "风险", "危害", "威胁")):
+            return "risk"
+        if any(kw in lower for kw in ("evidence", "数据", "来源", "source", "cite", "证据")):
+            return "evidence_quality"
+        if any(kw in lower for kw in ("alternative", "替代", "方案", "option", "建议")):
+            return "alternative"
+        if any(kw in lower for kw in ("assume", "假设", "premise", "前提")):
+            return "assumption_challenge"
+        # Default fallback: assumption_challenge is the most general
+        return "assumption_challenge"
+
+    def _extract_topic_keywords(self, rounds: list[dict[str, Any]]) -> list[str]:
+        """Extract salient keywords from debate topic / round summaries."""
+        seen: set[str] = set()
+        keywords: list[str] = []
+        for r in rounds:
+            text = r.get("topic", "") or r.get("summary", "") or ""
+            for word in text.split():
+                w = word.strip("，。、；：""''（）《》【】,.:;!?()[]{}")
+                if len(w) >= 2 and w not in seen:
+                    seen.add(w)
+                    keywords.append(w)
+        return keywords
+
+    async def generate_structured_dissent(
+        self,
+        debate_id: str,
+        round_records: list[dict[str, Any]],
+        dissenter_role: str,
+        db: AsyncSession,
+    ) -> DebateStructuredDissent:
+        """Build a structured dissent object from debate round records.
+
+        Collects OPPOSE/challenger arguments into categorised claims,
+        extracts evidence gaps, tracks confidence trajectory, and
+        recommends monitoring items.
+        """
+
+        # 1. Collect challenger / OPPOSE arguments across rounds
+        claims: list[dict[str, Any]] = []
+        seen_claims: set[str] = set()
+        evidence_gaps: list[str] = []
+        confidence_trajectory: list[float] = []
+
+        for rec in round_records:
+            role = rec.get("role", "")
+            position = (rec.get("position", "") or "").upper()
+
+            # Track confidence trajectory for the dissenter
+            if role == dissenter_role:
+                conf = float(rec.get("confidence", 0.5))
+                confidence_trajectory.append(conf)
+
+            # Only collect challenger / OPPOSE arguments
+            if role != dissenter_role or position not in ("OPPOSE", "CONDITIONAL"):
+                continue
+
+            arguments = rec.get("arguments", []) or []
+            for arg in arguments:
+                claim_text = arg if isinstance(arg, str) else arg.get("claim", str(arg))
+                if claim_text in seen_claims:
+                    continue
+                seen_claims.add(claim_text)
+
+                # Gather evidence attached to the argument
+                evidence: list[str] = []
+                if isinstance(arg, dict):
+                    evidence = arg.get("evidence", []) or []
+
+                claim_confidence = float(rec.get("confidence", 0.5))
+                category = self._categorise_claim(claim_text)
+
+                claims.append({
+                    "claim": claim_text,
+                    "evidence": evidence,
+                    "confidence": claim_confidence,
+                    "category": category,
+                })
+
+                if not evidence:
+                    evidence_gaps.append(claim_text)
+
+        # 2. Generate monitoring recommendations from topic keywords
+        topic_keywords = self._extract_topic_keywords(round_records)
+        recommended_monitoring: list[str] = []
+        for kw in topic_keywords[:10]:
+            recommended_monitoring.append(f"持续追踪「{kw}」相关新证据与进展")
+
+        # 3. Overall dissent strength: average confidence of claims
+        overall_dissent_strength = (
+            sum(c["confidence"] for c in claims) / len(claims) if claims else 0.0
+        )
+
+        return DebateStructuredDissent(
+            debate_id=debate_id,
+            dissenter_role=dissenter_role,
+            claims=claims,
+            evidence_gaps=evidence_gaps,
+            confidence_trajectory=confidence_trajectory,
+            recommended_monitoring=recommended_monitoring,
+            overall_dissent_strength=overall_dissent_strength,
+        )
+
+    async def persist_structured_dissent(
+        self,
+        dissent: DebateStructuredDissent,
+        db: AsyncSession,
+    ) -> None:
+        """Persist a structured dissent object to the database."""
+        db.add(dissent)
+        await db.flush()
+
     async def check_and_apply_revisions(
         self,
         session: AsyncSession,
@@ -133,6 +260,18 @@ class DebateRevisionMixin:
         返回修订记录列表。
         """
         overturned = self.detect_overturned_arguments(rounds)
+
+        # Persist structured dissent for the primary dissenter
+        if overturned:
+            # Pick the dissenter: the OPPOSE role with the largest confidence drop
+            dissenter = max(overturned, key=lambda o: o.get("confidence_drop", 0.0))
+            dissent_obj = await self.generate_structured_dissent(
+                debate_id=debate_id,
+                round_records=rounds,
+                dissenter_role=dissenter["role"],
+                db=session,
+            )
+            await self.persist_structured_dissent(dissent_obj, session)
 
         if not overturned:
             return []

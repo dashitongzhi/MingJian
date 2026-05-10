@@ -11,6 +11,8 @@ from planagent.domain.enums import ClaimStatus
 from planagent.domain.models import (
     Claim,
     CompanyProfile,
+    DebateReliabilityScore,
+    DebateStructuredDissent,
     DecisionRecordRecord,
     EvidenceItem,
     ExternalShockRecord,
@@ -99,6 +101,65 @@ _NEGATIVE_CLAIM_KEYWORDS = {
     "rejected",
     "withdraw",
     "withdrew",
+}
+
+
+_BIAS_PATTERNS: dict[str, list[str]] = {
+    "confirmation_bias": [
+        "confirms",
+        "as expected",
+        "proves",
+        "clearly shows",
+        "undeniable",
+        "without doubt",
+        "obvious that",
+        "always leads to",
+        "inevitably",
+    ],
+    "cherry_picking": [
+        "for example",
+        "one case",
+        "specific instance",
+        "in one study",
+        "a single",
+        "notably",
+        "particularly",
+    ],
+    "hand_waving": [
+        "roughly",
+        "approximately",
+        "about",
+        "more or less",
+        "in the ballpark",
+        "general sense",
+        "broadly speaking",
+        "in theory",
+        "should be fine",
+    ],
+    "excessive_pessimism": [
+        "catastrophic",
+        "disaster",
+        "collapse",
+        "unrecoverable",
+        "fatal",
+        "doomed",
+        "point of no return",
+        "irreversible damage",
+        "total failure",
+    ],
+}
+
+_RISK_DIMENSIONS = {
+    "financial": {"budget", "cost", "revenue", "margin", "runway", "cash", "funding", "profit", "loss", "spend", "expense"},
+    "operational": {"delivery", "velocity", "pipeline", "throughput", "capacity", "load", "efficiency", "bottleneck", "latency"},
+    "strategic": {"market", "share", "competition", "positioning", "growth", "expansion", "pivot", "acquisition"},
+    "technical": {"reliability", "debt", "infrastructure", "architecture", "scalability", "security", "vulnerability", "outage"},
+    "human_capital": {"retention", "churn", "attrition", "hiring", "morale", "burnout", "talent", "skill"},
+    "geopolitical": {"sanctions", "alliance", "treaty", "sovereignty", "territory", "escalation", "deterrence", "nuclear"},
+    "logistics": {"supply", "logistics", "transport", "inventory", "stockpile", "distribution", "procurement"},
+    "intelligence": {"isr", "surveillance", "reconnaissance", "intelligence", "sigint", "osint", "indicator"},
+    "civilian_impact": {"civilian", "humanitarian", "refugee", "collateral", "population", "displacement"},
+    "environmental": {"climate", "environment", "pollution", "sustainability", "carbon", "emission"},
 }
 
 
@@ -1410,3 +1471,261 @@ class DebateAdjudicationMixin:
 
     def _clamp(self, value: float, minimum: float, maximum: float) -> float:
         return max(minimum, min(maximum, value))
+
+    # ── New: reliability scoring, bias/blind-spot detection, weighted consensus ──
+
+    def _detect_biases(self, text: str) -> list[str]:
+        """Detect bias patterns in argument text. Returns list of bias flag names."""
+        lower = text.lower()
+        flags: list[str] = []
+        for bias_name, patterns in _BIAS_PATTERNS.items():
+            if any(pattern in lower for pattern in patterns):
+                flags.append(bias_name)
+        return flags
+
+    def _assess_evidence_strength(self, argument: dict[str, Any]) -> str:
+        """Classify evidence strength based on argument metadata."""
+        strength = argument.get("strength", "MODERATE").upper()
+        evidence_ids = argument.get("evidence_ids", [])
+        if strength == "STRONG" and len(evidence_ids) >= 2:
+            return "strong"
+        if strength in ("STRONG", "MODERATE") and evidence_ids:
+            return "moderate"
+        if evidence_ids:
+            return "weak"
+        return "speculative"
+
+    def _compute_reliability_score(
+        self, bias_flags: list[str], evidence_strength: str, reasoning: str
+    ) -> int:
+        """Compute reliability score 1-5 based on bias count and evidence quality."""
+        base = 4
+        evidence_map = {"strong": 1, "moderate": 0, "weak": -1, "speculative": -2}
+        base += evidence_map.get(evidence_strength, 0)
+        base -= len(bias_flags)
+        # Penalize very short or empty reasoning
+        if len(reasoning.strip()) < 20:
+            base -= 1
+        return max(1, min(5, base))
+
+    async def score_argument_reliability(
+        self,
+        debate_id: str,
+        round_records: list[dict[str, Any]],
+        session: AsyncSession,
+    ) -> list[DebateReliabilityScore]:
+        """Score each argument for reliability, bias, and blind spots.
+
+        Creates a DebateReliabilityScore for every argument in every round.
+        Returns the list of persisted objects (already session.add'd).
+        """
+        scores: list[DebateReliabilityScore] = []
+        for round_data in round_records:
+            round_number = round_data.get("round_number", 1)
+            role = round_data.get("role", "unknown")
+            arguments = round_data.get("arguments", [])
+            for idx, arg in enumerate(arguments):
+                claim_text = arg.get("claim", "")
+                reasoning = arg.get("reasoning", "")
+                combined_text = f"{claim_text} {reasoning}"
+
+                bias_flags = self._detect_biases(combined_text)
+                evidence_strength = self._assess_evidence_strength(arg)
+                rel_score = self._compute_reliability_score(
+                    bias_flags, evidence_strength, reasoning
+                )
+
+                # Blind spots specific to this argument
+                arg_blind_spots: list[str] = []
+                arg_text_lower = combined_text.lower()
+                for dim, keywords in _RISK_DIMENSIONS.items():
+                    if any(kw in arg_text_lower for kw in keywords):
+                        continue
+                # Don't flag all missing dimensions—only flag if the argument
+                # claims comprehensiveness but omits major areas
+                if any(
+                    phrase in arg_text_lower
+                    for phrase in ("all factors", "comprehensive", "holistic", "all risks", "all aspects")
+                ):
+                    for dim, keywords in _RISK_DIMENSIONS.items():
+                        if not any(kw in arg_text_lower for kw in keywords):
+                            arg_blind_spots.append(f"claims_completeness_but_ignores_{dim}")
+
+                # Determine auditor role (the "other side")
+                auditor_role = "risk_analyst" if role in ("strategist", "advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact") else "strategist"
+
+                score_obj = DebateReliabilityScore(
+                    debate_id=debate_id,
+                    round_number=round_number,
+                    role=role,
+                    argument_index=idx,
+                    argument_summary=claim_text[:500],
+                    reliability_score=rel_score,
+                    bias_flags=bias_flags,
+                    blind_spots=arg_blind_spots,
+                    evidence_strength=evidence_strength,
+                    auditor_role=auditor_role,
+                )
+                session.add(score_obj)
+                scores.append(score_obj)
+        return scores
+
+    def detect_blind_spots(
+        self, round_records: list[dict[str, Any]]
+    ) -> list[str]:
+        """Identify risk dimensions that no role covered in the debate.
+
+        Aggregates all argument text across all rounds and checks which
+        risk dimension keyword sets had zero hits.
+        """
+        all_text_parts: list[str] = []
+        for round_data in round_records:
+            for arg in round_data.get("arguments", []):
+                all_text_parts.append(arg.get("claim", ""))
+                all_text_parts.append(arg.get("reasoning", ""))
+        combined = " ".join(all_text_parts).lower()
+        tokens = set(_TOKEN_RE.findall(combined))
+
+        blind_spots: list[str] = []
+        for dimension, keywords in _RISK_DIMENSIONS.items():
+            if not tokens & keywords:
+                blind_spots.append(
+                    f"No argument addressed the '{dimension}' risk dimension."
+                )
+        return blind_spots
+
+    def weighted_consensus(
+        self,
+        support_confidence: float,
+        challenge_confidence: float,
+        domain_weights: dict[str, float],
+    ) -> tuple[str, float]:
+        """Compute regime-weighted consensus verdict.
+
+        Args:
+            support_confidence: Raw confidence from advocate side.
+            challenge_confidence: Raw confidence from challenger side.
+            domain_weights: Mapping of role name → weight multiplier.
+                Example: {"strategist": 1.2, "risk_analyst": 1.0, "opportunist": 0.8}
+
+        Returns:
+            Tuple of (verdict_string, weighted_confidence).
+        """
+        support_weight = domain_weights.get("strategist", 1.0)
+        challenge_weight = domain_weights.get("risk_analyst", 1.0)
+        arb_weight = domain_weights.get("opportunist", 0.5)
+
+        weighted_support = support_confidence * support_weight
+        weighted_challenge = challenge_confidence * challenge_weight
+
+        # Blend toward arbitrator weight when it's meaningfully different
+        if arb_weight != 1.0:
+            midpoint = (weighted_support + weighted_challenge) / 2.0
+            weighted_support = weighted_support * (1.0 - arb_weight * 0.2) + midpoint * arb_weight * 0.2
+            weighted_challenge = weighted_challenge * (1.0 - arb_weight * 0.2) + midpoint * arb_weight * 0.2
+
+        weighted_confidence = max(weighted_support, weighted_challenge)
+
+        if weighted_support >= weighted_challenge + 0.1 and weighted_support >= 0.65:
+            verdict = "ACCEPTED"
+        elif weighted_challenge >= weighted_support + 0.1 and weighted_challenge >= 0.65:
+            verdict = "REJECTED"
+        else:
+            verdict = "CONDITIONAL"
+
+        return verdict, self._clamp(weighted_confidence, minimum=0.0, maximum=1.0)
+
+    async def generate_structured_dissent(
+        self,
+        debate_id: str,
+        round_records: list[dict[str, Any]],
+        dissenter_role: str,
+        session: AsyncSession,
+    ) -> DebateStructuredDissent:
+        """Generate a structured dissent record from challenger/OPPOSE arguments.
+
+        Collects all arguments from the dissenter role, evidence gaps,
+        and the confidence trajectory across rounds.
+        """
+        challenger_roles = {"challenger", "risk_analyst", "intel_analyst"}
+
+        claims: list[dict[str, Any]] = []
+        confidence_trajectory: list[float] = []
+        evidence_gaps: list[str] = []
+        recommended_monitoring: list[str] = []
+
+        for round_data in round_records:
+            role = round_data.get("role", "")
+            confidence = round_data.get("confidence", 0.5)
+            position = round_data.get("position", "")
+
+            # Track confidence for challenger-side roles
+            if role in challenger_roles or position == "OPPOSE":
+                confidence_trajectory.append(confidence)
+
+            # Collect arguments from the dissenter side
+            if role in challenger_roles or (position == "OPPOSE" and role == dissenter_role):
+                for arg in round_data.get("arguments", []):
+                    claim_text = arg.get("claim", "")
+                    evidence_ids = arg.get("evidence_ids", [])
+                    arg_confidence = confidence
+
+                    # Categorize the claim
+                    category = "risk"
+                    claim_lower = claim_text.lower()
+                    if any(kw in claim_lower for kw in ("evidence", "data", "source", "cite")):
+                        category = "evidence_quality"
+                    elif any(kw in claim_lower for kw in ("alternative", "instead", "could", "option")):
+                        category = "alternative"
+                    elif any(kw in claim_lower for kw in ("assumption", "presume", "given that")):
+                        category = "assumption_challenge"
+
+                    claims.append({
+                        "claim": claim_text[:500],
+                        "evidence": evidence_ids[:5],
+                        "confidence": arg_confidence,
+                        "category": category,
+                    })
+
+                    # Identify evidence gaps: arguments with no or weak evidence
+                    if not evidence_ids:
+                        evidence_gaps.append(
+                            f"Unsupported claim: {claim_text[:200]}"
+                        )
+
+        # Build monitoring recommendations from claims
+        seen_categories = {c["category"] for c in claims}
+        if "risk" in seen_categories:
+            recommended_monitoring.append("Track risk indicators identified by challenger.")
+        if "evidence_quality" in seen_categories:
+            recommended_monitoring.append("Verify evidence sources flagged as weak.")
+        if "alternative" in seen_categories:
+            recommended_monitoring.append("Evaluate alternative approaches proposed by dissenter.")
+        if "assumption_challenge" in seen_categories:
+            recommended_monitoring.append("Re-examine challenged assumptions in next review cycle.")
+        if not recommended_monitoring:
+            recommended_monitoring.append("Continue monitoring debate outcomes for drift.")
+
+        # Compute overall dissent strength
+        if claims:
+            avg_confidence = sum(c["confidence"] for c in claims) / len(claims)
+            # More claims + higher confidence = stronger dissent
+            overall_dissent_strength = self._clamp(
+                0.3 + 0.1 * len(claims) + 0.3 * avg_confidence,
+                minimum=0.0,
+                maximum=1.0,
+            )
+        else:
+            overall_dissent_strength = 0.0
+
+        dissent = DebateStructuredDissent(
+            debate_id=debate_id,
+            dissenter_role=dissenter_role,
+            claims=claims,
+            evidence_gaps=evidence_gaps,
+            confidence_trajectory=confidence_trajectory,
+            recommended_monitoring=recommended_monitoring,
+            overall_dissent_strength=overall_dissent_strength,
+        )
+        session.add(dissent)
+        return dissent

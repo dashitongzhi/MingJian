@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import tempfile
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -216,6 +219,111 @@ async def export_debate(
             media_type="text/markdown; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="debate_{session_id[:8]}.md"'},
         )
+
+
+# ── Compare Debates ─────────────────────────────────────────
+
+
+@router.get("/debate/compare")
+async def compare_debates(
+    ids: str = Query(..., description="Comma-separated debate IDs (max 3)"),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    """Compare verdict data from up to three debates side-by-side."""
+    debate_ids = [d.strip() for d in ids.split(",") if d.strip()]
+    if not debate_ids:
+        raise HTTPException(status_code=400, detail="No debate IDs provided")
+    if len(debate_ids) > 3:
+        raise HTTPException(status_code=400, detail="Maximum 3 debate IDs allowed")
+
+    debates: list[dict[str, Any]] = []
+    for did in debate_ids:
+        debate = await session.get(DebateSessionRecord, did)
+        if debate is None:
+            raise HTTPException(status_code=404, detail=f"Debate {did} not found")
+
+        verdict = (
+            await session.scalars(
+                select(DebateVerdictRecord)
+                .where(DebateVerdictRecord.debate_id == did)
+                .limit(1)
+            )
+        ).first()
+
+        entry: dict[str, Any] = {
+            "id": did,
+            "topic": debate.topic,
+            "verdict": verdict.verdict if verdict else None,
+            "confidence": verdict.confidence if verdict else None,
+            "winning_arguments": verdict.winning_arguments if verdict else [],
+        }
+        debates.append(entry)
+
+    # Build a simple differences summary
+    verdicts = [d["verdict"] for d in debates if d["verdict"]]
+    confidences = [d["confidence"] for d in debates if d["confidence"] is not None]
+    differences: dict[str, Any] = {
+        "verdicts_match": len(set(verdicts)) <= 1 if verdicts else None,
+        "confidence_range": (min(confidences), max(confidences)) if confidences else None,
+        "unique_verdicts": list(set(verdicts)),
+    }
+
+    return {"debates": debates, "differences": differences}
+
+
+# ── Export Debate HTML ───────────────────────────────────────
+
+
+@router.get("/debate/{debate_id}/html")
+async def export_debate_html(
+    debate_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> HTMLResponse:
+    """Export a full debate report as a self-contained HTML page."""
+    export_service = _get_export_service(request)
+
+    try:
+        html_content = await export_service.export_debate_html(debate_id, session)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"Debate {debate_id} not found or export failed: {exc}")
+
+    return HTMLResponse(
+        content=html_content,
+        media_type="text/html; charset=utf-8",
+    )
+
+
+# ── Download Debate HTML ────────────────────────────────────
+
+
+@router.get("/debate/{debate_id}/download")
+async def download_debate_html(
+    debate_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> FileResponse:
+    """Generate a debate HTML report and return it as a downloadable file."""
+    export_service = _get_export_service(request)
+
+    try:
+        html_content = await export_service.export_debate_html(debate_id, session)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"Debate {debate_id} not found or export failed: {exc}")
+
+    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    filename = f"debate_{debate_id[:8]}_{date_str}.html"
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8")
+    tmp.write(html_content)
+    tmp.close()
+
+    return FileResponse(
+        path=tmp.name,
+        media_type="text/html; charset=utf-8",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Export Simulation Report ─────────────────────────────────

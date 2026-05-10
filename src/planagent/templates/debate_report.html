@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>辩论报告 - {{ debate.topic }}</title>
+    <style>
+        :root {
+            --bg: {{ theme.bg | default('#0f0f1a') }};
+            --surface: {{ theme.surface | default('#1a1a2e') }};
+            --card: {{ theme.card | default('#252540') }};
+            --text: {{ theme.text | default('#e0e0e0') }};
+            --text-secondary: {{ theme.text_secondary | default('#8888aa') }};
+            --border: {{ theme.border | default('#333355') }};
+            --accent: #4ecdc4;
+            --support-color: #4ecdc4;
+            --challenge-color: #ff6b6b;
+            --warning: #ffd93d;
+            --success: #6bcb77;
+            --radius: 12px;
+            --shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+
+        header .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .debate-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .debate-date {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .verdict-badge {
+            display: inline-block;
+            padding: 0.5rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            {% if verdict.verdict %}
+                {% if '支持' in verdict.verdict or '正方' in verdict.verdict %}
+                    background: rgba(78, 205, 196, 0.2);
+                    color: var(--support-color);
+                    border: 1px solid var(--support-color);
+                {% elif '反对' in verdict.verdict or '反方' in verdict.verdict %}
+                    background: rgba(255, 107, 107, 0.2);
+                    color: var(--challenge-color);
+                    border: 1px solid var(--challenge-color);
+                {% else %}
+                    background: rgba(255, 217, 61, 0.2);
+                    color: var(--warning);
+                    border: 1px solid var(--warning);
+                {% endif %}
+            {% endif %}
+        }
+
+        /* Navigation */
+        nav {
+            background: var(--surface);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
+            padding: 0.8rem 0;
+        }
+
+        nav .container {
+            padding: 0 2rem;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        nav a:hover {
+            background: var(--card);
+            color: var(--text);
+        }
+
+        /* Sections */
+        section {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 2px solid var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 24px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        /* Executive Summary */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-card {
+            background: var(--card);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .summary-card h3 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .summary-card .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .conclusion-box {
+            background: var(--card);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            border-left: 4px solid var(--accent);
+        }
+
+        /* Confidence Gauge */
+        .confidence-gauge {
+            width: 120px;
+            height: 120px;
+            position: relative;
+        }
+
+        .confidence-gauge svg {
+            transform: rotate(-90deg);
+        }
+
+        .confidence-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        /* Charts */
+        .chart-container {
+            background: var(--card);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .chart-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Arguments Grid */
+        .arguments-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .argument-column h3 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .argument-column h3.support {
+            color: var(--support-color);
+        }
+
+        .argument-column h3.challenge {
+            color: var(--challenge-color);
+        }
+
+        .argument-card {
+            background: var(--card);
+            padding: 1.2rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+            transition: transform 0.2s;
+        }
+
+        .argument-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .argument-card.support {
+            border-left: 4px solid var(--support-color);
+        }
+
+        .argument-card.challenge {
+            border-left: 4px solid var(--challenge-color);
+        }
+
+        .argument-confidence {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .confidence-high {
+            background: rgba(107, 203, 119, 0.2);
+            color: var(--success);
+        }
+
+        .confidence-medium {
+            background: rgba(255, 217, 61, 0.2);
+            color: var(--warning);
+        }
+
+        .confidence-low {
+            background: rgba(255, 107, 107, 0.2);
+            color: var(--challenge-color);
+        }
+
+        /* Role Filter Tabs */
+        .role-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .role-tab {
+            padding: 0.5rem 1rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .role-tab:hover,
+        .role-tab.active {
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
+        }
+
+        .role-content {
+            display: none;
+        }
+
+        .role-content.active {
+            display: block;
+        }
+
+        /* Reliability Table */
+        .reliability-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .reliability-table th,
+        .reliability-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .reliability-table th {
+            background: var(--card);
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .reliability-table tr:hover {
+            background: rgba(78, 205, 196, 0.05);
+        }
+
+        .score-cell {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .score-high {
+            color: var(--success);
+        }
+
+        .score-medium {
+            color: var(--warning);
+        }
+
+        .score-low {
+            color: var(--challenge-color);
+        }
+
+        .bias-flag {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin: 0.2rem;
+            background: rgba(255, 107, 107, 0.15);
+            color: var(--challenge-color);
+        }
+
+        .evidence-strength {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .strength-strong {
+            background: rgba(107, 203, 119, 0.2);
+            color: var(--success);
+        }
+
+        .strength-moderate {
+            background: rgba(255, 217, 61, 0.2);
+            color: var(--warning);
+        }
+
+        .strength-weak {
+            background: rgba(255, 107, 107, 0.2);
+            color: var(--challenge-color);
+        }
+
+        /* Dissent Section */
+        .dissent-section {
+            border: 1px solid var(--challenge-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .dissent-header {
+            background: rgba(255, 107, 107, 0.1);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dissent-header h3 {
+            color: var(--challenge-color);
+            font-size: 1rem;
+        }
+
+        .dissent-strength {
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .strength-high {
+            background: rgba(255, 107, 107, 0.3);
+            color: var(--challenge-color);
+        }
+
+        .strength-medium {
+            background: rgba(255, 217, 61, 0.3);
+            color: var(--warning);
+        }
+
+        .strength-low {
+            background: rgba(107, 203, 119, 0.3);
+            color: var(--success);
+        }
+
+        .dissent-body {
+            padding: 1.5rem;
+        }
+
+        .dissent-claim {
+            background: var(--card);
+            padding: 1.2rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 3px solid var(--challenge-color);
+        }
+
+        .evidence-gap {
+            background: rgba(255, 107, 107, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 0.5rem 0;
+        }
+
+        .monitoring-item {
+            background: var(--card);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .monitoring-item::before {
+            content: '👁️';
+        }
+
+        /* Rounds */
+        .round-details {
+            margin-bottom: 1rem;
+        }
+
+        details {
+            background: var(--card);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            margin-bottom: 0.8rem;
+        }
+
+        summary {
+            padding: 1.2rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        summary:hover {
+            background: rgba(78, 205, 196, 0.1);
+        }
+
+        summary::marker {
+            content: '';
+        }
+
+        summary::after {
+            content: '▼';
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+
+        details[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .round-content {
+            padding: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .round-role {
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .round-position {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .round-section {
+            margin-top: 1.2rem;
+        }
+
+        .round-section h4 {
+            font-size: 0.9rem;
+            color: var(--accent);
+            margin-bottom: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .round-text {
+            background: var(--bg);
+            padding: 1.2rem;
+            border-radius: 8px;
+            line-height: 1.8;
+            font-size: 0.95rem;
+        }
+
+        /* Confidence Trajectory */
+        .trajectory-container {
+            position: relative;
+            padding: 1rem 0;
+        }
+
+        .trajectory-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 0;
+            margin-top: 2rem;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .footer-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .print-btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .print-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+
+            .arguments-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            nav ul {
+                justify-content: center;
+            }
+
+            .reliability-table {
+                font-size: 0.85rem;
+            }
+
+            .reliability-table th,
+            .reliability-table td {
+                padding: 0.8rem 0.5rem;
+            }
+        }
+
+        /* Print Styles */
+        @media print {
+            * {
+                background: white !important;
+                color: black !important;
+                border-color: #ddd !important;
+            }
+
+            body {
+                font-size: 12pt;
+            }
+
+            .container {
+                max-width: 100%;
+                padding: 0;
+            }
+
+            nav,
+            .print-btn,
+            footer {
+                display: none !important;
+            }
+
+            section {
+                page-break-inside: avoid;
+                border: 1px solid #ddd;
+                margin-bottom: 1rem;
+                padding: 1rem;
+            }
+
+            details {
+                border: 1px solid #ddd;
+            }
+
+            details[open] .round-content {
+                display: block;
+            }
+
+            .verdict-badge {
+                border: 2px solid #333 !important;
+            }
+
+            h2::before {
+                background: #333 !important;
+            }
+        }
+
+        /* Collapsible Claims */
+        .claim-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .claim-toggle::before {
+            content: '▶ ';
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+
+        .claim-toggle.expanded::before {
+            transform: rotate(90deg);
+        }
+
+        .claim-details {
+            display: none;
+            margin-top: 0.8rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .claim-details.show {
+            display: block;
+        }
+
+        /* Scroll margin for anchors */
+        section[id] {
+            scroll-margin-top: 80px;
+        }
+
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <div class="debate-meta">
+                <div>
+                    <h1>{{ debate.topic }}</h1>
+                    <span class="debate-date">辩论ID: {{ debate.id }} | 创建时间: {{ debate.created_at }}</span>
+                </div>
+                <span class="verdict-badge">{{ verdict.verdict }}</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="container">
+            <ul>
+                <li><a href="#executive-summary">📋 摘要</a></li>
+                <li><a href="#confidence-chart">📈 置信度</a></li>
+                <li><a href="#arguments">💬 论点</a></li>
+                <li><a href="#evidence">🔍 证据</a></li>
+                <li><a href="#role-analysis">👥 角色分析</a></li>
+                <li><a href="#reliability">📊 可靠性</a></li>
+                {% if structured_dissent %}
+                <li><a href="#dissent">⚠️ 异议</a></li>
+                {% endif %}
+                <li><a href="#rounds">📝 轮次</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Executive Summary -->
+        <section id="executive-summary">
+            <h2>执行摘要</h2>
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>裁决</h3>
+                    <div class="value">{{ verdict.verdict }}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>置信度</h3>
+                    <div class="value">{{ "%.1f"|format(verdict.confidence * 100) }}%</div>
+                </div>
+                <div class="summary-card">
+                    <h3>关键论点数</h3>
+                    <div class="value">{{ verdict.winning_arguments | length }}</div>
+                </div>
+            </div>
+
+            {% if verdict.conclusion_summary %}
+            <div class="conclusion-box">
+                <h3 style="margin-bottom: 0.8rem; color: var(--accent);">结论摘要</h3>
+                <p>{{ verdict.conclusion_summary }}</p>
+            </div>
+            {% endif %}
+
+            {% if verdict.winning_arguments %}
+            <div style="margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 0.8rem; color: var(--text-secondary);">获胜论点</h3>
+                <ul style="list-style: none;">
+                    {% for arg in verdict.winning_arguments %}
+                    <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
+                        ✅ {{ arg }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if verdict.decisive_evidence %}
+            <div style="margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 0.8rem; color: var(--text-secondary);">决定性证据</h3>
+                <ul style="list-style: none;">
+                    {% for evidence in verdict.decisive_evidence %}
+                    <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
+                        🔑 {{ evidence }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if verdict.conditions %}
+            <div style="margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 0.8rem; color: var(--text-secondary);">附加条件</h3>
+                <ul style="list-style: none;">
+                    {% for condition in verdict.conditions %}
+                    <li style="padding: 0.5rem 0; border-bottom: 1px solid var(--border);">
+                        ⚡ {{ condition }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Confidence Chart -->
+        <section id="confidence-chart">
+            <h2>置信度变化轨迹</h2>
+            <div class="chart-container">
+                {% if charts.confidence_trajectory %}
+                    {{ charts.confidence_trajectory | safe }}
+                {% else %}
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        暂无置信度轨迹数据
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Arguments -->
+        <section id="arguments">
+            <h2>论点分析</h2>
+
+            {% if charts.argument_comparison %}
+            <div class="chart-container" style="margin-bottom: 1.5rem;">
+                {{ charts.argument_comparison | safe }}
+            </div>
+            {% endif %}
+
+            <div class="arguments-grid">
+                <div class="argument-column">
+                    <h3 class="support">✅ 支持论点</h3>
+                    {% for round in rounds %}
+                        {% if round.position and ('支持' in round.position or '正方' in round.position) %}
+                        <div class="argument-card support">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                                {{ round.role }} - 第{{ round.round_number }}轮
+                            </div>
+                            {% if round.arguments %}
+                            <p>{{ round.arguments }}</p>
+                            {% endif %}
+                            <span class="argument-confidence {% if round.confidence >= 0.7 %}confidence-high{% elif round.confidence >= 0.4 %}confidence-medium{% else %}confidence-low{% endif %}">
+                                置信度: {{ "%.0f"|format(round.confidence * 100) }}%
+                            </span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <div class="argument-column">
+                    <h3 class="challenge">❌ 挑战论点</h3>
+                    {% for round in rounds %}
+                        {% if round.position and ('反对' in round.position or '反方' in round.position) %}
+                        <div class="argument-card challenge">
+                            <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                                {{ round.role }} - 第{{ round.round_number }}轮
+                            </div>
+                            {% if round.arguments %}
+                            <p>{{ round.arguments }}</p>
+                            {% endif %}
+                            <span class="argument-confidence {% if round.confidence >= 0.7 %}confidence-high{% elif round.confidence >= 0.4 %}confidence-medium{% else %}confidence-low{% endif %}">
+                                置信度: {{ "%.0f"|format(round.confidence * 100) }}%
+                            </span>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <!-- Evidence Heatmap -->
+        <section id="evidence">
+            <h2>证据分析</h2>
+            <div class="chart-container">
+                {% if charts.evidence_heatmap %}
+                    {{ charts.evidence_heatmap | safe }}
+                {% else %}
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        暂无证据热力图数据
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Role Analysis -->
+        <section id="role-analysis">
+            <h2>角色分析</h2>
+            <div class="chart-container">
+                {% if charts.role_radar %}
+                    {{ charts.role_radar | safe }}
+                {% else %}
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        暂无角色雷达图数据
+                    </p>
+                {% endif %}
+            </div>
+
+            {% set roles = rounds | map(attribute='role') | unique | list %}
+            {% if roles | length > 1 %}
+            <div class="role-tabs">
+                <span class="role-tab active" onclick="filterRole('all')">全部</span>
+                {% for role in roles %}
+                <span class="role-tab" onclick="filterRole('{{ role }}')">{{ role }}</span>
+                {% endfor %}
+            </div>
+
+            {% for role in roles %}
+            <div class="role-content {% if loop.first %}active{% endif %}" data-role="{{ role }}">
+                <div class="round-section">
+                    <h4>{{ role }} 的发言</h4>
+                    {% for round in rounds %}
+                        {% if round.role == role %}
+                        <div class="round-text" style="margin-bottom: 1rem;">
+                            <strong>第{{ round.round_number }}轮</strong>
+                            {% if round.position %} | <span class="round-position">{{ round.position }}</span>{% endif %}
+                            <br><br>
+                            {% if round.arguments %}{{ round.arguments }}{% endif %}
+                            {% if round.rebuttals %}
+                            <br><br><strong>反驳:</strong> {{ round.rebuttals }}
+                            {% endif %}
+                            {% if round.concessions %}
+                            <br><br><strong>让步:</strong> {{ round.concessions }}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </section>
+
+        <!-- Reliability Scores -->
+        <section id="reliability">
+            <h2>可靠性评估</h2>
+            <div style="overflow-x: auto;">
+                <table class="reliability-table">
+                    <thead>
+                        <tr>
+                            <th>论点摘要</th>
+                            <th>可靠性评分</th>
+                            <th>证据强度</th>
+                            <th>偏见标记</th>
+                            <th>盲点</th>
+                            <th>审计角色</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for score in reliability_scores %}
+                        <tr>
+                            <td>{{ score.argument_summary }}</td>
+                            <td class="score-cell {% if score.reliability_score >= 0.7 %}score-high{% elif score.reliability_score >= 0.4 %}score-medium{% else %}score-low{% endif %}">
+                                {{ "%.0f"|format(score.reliability_score * 100) }}%
+                            </td>
+                            <td>
+                                <span class="evidence-strength {% if score.evidence_strength == 'strong' %}strength-strong{% elif score.evidence_strength == 'moderate' %}strength-moderate{% else %}strength-weak{% endif %}">
+                                    {% if score.evidence_strength == 'strong' %}强{% elif score.evidence_strength == 'moderate' %}中{% else %}弱{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if score.bias_flags %}
+                                    {% for flag in score.bias_flags %}
+                                    <span class="bias-flag">{{ flag }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span style="color: var(--success);">无</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if score.blind_spots %}
+                                    {% for spot in score.blind_spots %}
+                                    <div style="font-size: 0.85rem; margin: 0.2rem 0;">• {{ spot }}</div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span style="color: var(--text-secondary);">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ score.auditor_role }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Structured Dissent -->
+        {% if structured_dissent %}
+        <section id="dissent">
+            <h2>结构化异议</h2>
+            <div class="dissent-section">
+                <div class="dissent-header">
+                    <h3>异议提出者: {{ structured_dissent.dissenter_role }}</h3>
+                    <span class="dissent-strength {% if structured_dissent.overall_dissent_strength == 'high' %}strength-high{% elif structured_dissent.overall_dissent_strength == 'medium' %}strength-medium{% else %}strength-low{% endif %}">
+                        异议强度: {% if structured_dissent.overall_dissent_strength == 'high' %}高{% elif structured_dissent.overall_dissent_strength == 'medium' %}中{% else %}低{% endif %}
+                    </span>
+                </div>
+                <div class="dissent-body">
+                    {% if structured_dissent.claims %}
+                    <h4 style="margin-bottom: 1rem; color: var(--text-secondary);">异议主张</h4>
+                    {% for claim in structured_dissent.claims %}
+                    <div class="dissent-claim">
+                        <div class="claim-toggle" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('show')">
+                            <strong>{{ claim.summary if claim.summary else '主张 ' ~ loop.index }}</strong>
+                        </div>
+                        <div class="claim-details">
+                            {% if claim.details %}
+                            <p>{{ claim.details }}</p>
+                            {% endif %}
+                            {% if claim.evidence %}
+                            <div style="margin-top: 0.5rem;">
+                                <strong>证据:</strong> {{ claim.evidence }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if structured_dissent.evidence_gaps %}
+                    <h4 style="margin: 1.5rem 0 1rem; color: var(--text-secondary);">证据缺口</h4>
+                    {% for gap in structured_dissent.evidence_gaps %}
+                    <div class="evidence-gap">
+                        ⚠️ {{ gap }}
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if structured_dissent.confidence_trajectory %}
+                    <h4 style="margin: 1.5rem 0 1rem; color: var(--text-secondary);">置信度变化</h4>
+                    <div class="round-text">
+                        {{ structured_dissent.confidence_trajectory }}
+                    </div>
+                    {% endif %}
+
+                    {% if structured_dissent.recommended_monitoring %}
+                    <h4 style="margin: 1.5rem 0 1rem; color: var(--text-secondary);">建议监控项</h4>
+                    {% for item in structured_dissent.recommended_monitoring %}
+                    <div class="monitoring-item">
+                        {{ item }}
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Rounds Detail -->
+        <section id="rounds">
+            <h2>辩论轮次详情</h2>
+            <div class="round-details">
+                {% for round in rounds %}
+                <details {% if loop.first %}open{% endif %}>
+                    <summary>
+                        <span>
+                            第{{ round.round_number }}轮 - {{ round.role }}
+                            {% if round.position %} ({{ round.position }}){% endif %}
+                        </span>
+                        <span class="argument-confidence {% if round.confidence >= 0.7 %}confidence-high{% elif round.confidence >= 0.4 %}confidence-medium{% else %}confidence-low{% endif %}">
+                            {{ "%.0f"|format(round.confidence * 100) }}%
+                        </span>
+                    </summary>
+                    <div class="round-content">
+                        {% if round.arguments %}
+                        <div class="round-section">
+                            <h4>论点</h4>
+                            <div class="round-text">{{ round.arguments }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if round.rebuttals %}
+                        <div class="round-section">
+                            <h4>反驳</h4>
+                            <div class="round-text">{{ round.rebuttals }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if round.concessions %}
+                        <div class="round-section">
+                            <h4>让步</h4>
+                            <div class="round-text">{{ round.concessions }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </details>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <span class="footer-info">
+                    辩论报告生成于 {{ debate.created_at }} | 共 {{ rounds | length }} 轮辩论
+                </span>
+                <button class="print-btn" onclick="window.print()">
+                    🖨️ 打印报告
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript for role filtering -->
+    <script>
+        function filterRole(role) {
+            // Update active tab
+            document.querySelectorAll('.role-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.textContent.trim() === role || (role === 'all' && tab.textContent.trim() === '全部')) {
+                    tab.classList.add('active');
+                }
+            });
+
+            // Show/hide content
+            document.querySelectorAll('.role-content').forEach(content => {
+                if (role === 'all') {
+                    content.classList.add('active');
+                } else {
+                    content.classList.toggle('active', content.dataset.role === role);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

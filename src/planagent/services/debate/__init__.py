@@ -27,6 +27,8 @@ from planagent.domain.models import (
     Hypothesis,
     ScenarioBranchRecord,
     SimulationRun,
+    DebateReliabilityScore,
+    DebateStructuredDissent,
 )
 from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
@@ -166,6 +168,25 @@ class DebateService(
             conclusion_summary=assessment.conclusion_summary,
         )
         session.add(verdict)
+
+        # Score argument reliability and generate structured dissent
+        await self.score_argument_reliability(
+            debate_id=debate_session.id,
+            round_records=assessment.rounds,
+            session=session,
+        )
+        blind_spots = self.detect_blind_spots(assessment.rounds)
+        dissenter_role = "risk_analyst"
+        for rd in assessment.rounds:
+            if rd.get("role") in ("challenger", "risk_analyst", "intel_analyst"):
+                dissenter_role = rd["role"]
+                break
+        dissent = await self.generate_structured_dissent(
+            debate_id=debate_session.id,
+            round_records=assessment.rounds,
+            dissenter_role=dissenter_role,
+            session=session,
+        )
 
         if (
             payload.trigger_type in ("pivot_decision", "conflict_resolution")
@@ -341,6 +362,25 @@ class DebateService(
                 debate_session.status = "COMPLETED"
                 debate_session.context_payload = assessment.context_payload
                 session.add(verdict)
+
+                # Score argument reliability and generate structured dissent
+                await self.score_argument_reliability(
+                    debate_id=debate_id,
+                    round_records=assessment.rounds,
+                    session=session,
+                )
+                blind_spots = self.detect_blind_spots(assessment.rounds)
+                dissenter_role = "risk_analyst"
+                for rd in assessment.rounds:
+                    if rd.get("role") in ("challenger", "risk_analyst", "intel_analyst"):
+                        dissenter_role = rd["role"]
+                        break
+                dissent = await self.generate_structured_dissent(
+                    debate_id=debate_id,
+                    round_records=assessment.rounds,
+                    dissenter_role=dissenter_role,
+                    session=session,
+                )
 
                 if (
                     payload.trigger_type in ("pivot_decision", "conflict_resolution")
@@ -618,6 +658,153 @@ class DebateService(
                     select(DebateVerdictRecord).where(DebateVerdictRecord.debate_id.in_(debate_ids))
                 )
             ).all()
+        }
+
+    async def get_debate_enhanced_report(
+        self, debate_id: str, db: AsyncSession
+    ) -> dict[str, Any]:
+        """Build an enhanced debate report including rounds, verdict, reliability scores,
+        structured dissent, and charts_data suitable for ChartGenerationService.generate_all_charts().
+        """
+        # ── Query debate session for topic ──
+        debate_session = await db.get(DebateSessionRecord, debate_id)
+        if debate_session is None:
+            raise LookupError(f"Debate {debate_id} was not found.")
+        topic: str = debate_session.topic or ""
+
+        # ── Query verdict ──
+        verdict = await db.get(DebateVerdictRecord, debate_id)
+        verdict_data: dict[str, Any] | None = None
+        if verdict is not None:
+            verdict_data = {
+                "verdict": verdict.verdict,
+                "confidence": verdict.confidence,
+                "winning_arguments": verdict.winning_arguments or [],
+                "decisive_evidence": verdict.decisive_evidence or [],
+                "conditions": verdict.conditions or [],
+                "minority_opinion": verdict.minority_opinion,
+                "recommendations": verdict.recommendations or [],
+                "risk_factors": verdict.risk_factors or [],
+                "alternative_scenarios": verdict.alternative_scenarios or [],
+                "conclusion_summary": verdict.conclusion_summary,
+                "rounds_completed": verdict.rounds_completed,
+                "trigger_type": verdict.trigger_type,
+            }
+
+        # ── Query all rounds ordered by round_number ──
+        round_records = list(
+            (
+                await db.scalars(
+                    select(DebateRoundRecord)
+                    .where(DebateRoundRecord.debate_id == debate_id)
+                    .order_by(
+                        DebateRoundRecord.round_number.asc(),
+                        DebateRoundRecord.role.asc(),
+                    )
+                )
+            ).all()
+        )
+        rounds_data: list[dict[str, Any]] = [
+            {
+                "round_number": rec.round_number,
+                "role": rec.role,
+                "position": rec.position,
+                "confidence": rec.confidence,
+                "arguments": rec.arguments,
+                "rebuttals": rec.rebuttals,
+                "concessions": rec.concessions,
+            }
+            for rec in round_records
+        ]
+
+        # ── Query reliability scores ──
+        reliability_records = list(
+            (
+                await db.scalars(
+                    select(DebateReliabilityScore)
+                    .where(DebateReliabilityScore.debate_id == debate_id)
+                    .order_by(
+                        DebateReliabilityScore.round_number.asc(),
+                        DebateReliabilityScore.argument_index.asc(),
+                    )
+                )
+            ).all()
+        )
+        reliability_data: list[dict[str, Any]] = [
+            {
+                "argument_summary": s.argument_summary,
+                "reliability_score": s.reliability_score,
+                "bias_flags": s.bias_flags or [],
+                "blind_spots": s.blind_spots or [],
+                "evidence_strength": s.evidence_strength,
+                "role": s.role,
+                "round_number": s.round_number,
+                "argument_index": s.argument_index,
+                "auditor_role": s.auditor_role,
+            }
+            for s in reliability_records
+        ]
+
+        # ── Query structured dissent ──
+        dissent_record = (
+            await db.scalars(
+                select(DebateStructuredDissent).where(
+                    DebateStructuredDissent.debate_id == debate_id
+                )
+            )
+        ).first()
+        dissent_data: dict[str, Any] | None = None
+        if dissent_record is not None:
+            dissent_data = {
+                "dissenter_role": dissent_record.dissenter_role,
+                "claims": dissent_record.claims or [],
+                "evidence_gaps": dissent_record.evidence_gaps or [],
+                "confidence_trajectory": dissent_record.confidence_trajectory or [],
+                "recommended_monitoring": dissent_record.recommended_monitoring or [],
+                "overall_dissent_strength": dissent_record.overall_dissent_strength,
+            }
+
+        # ── Build charts_data for ChartGenerationService.generate_all_charts() ──
+        charts_data: dict[str, Any] = {
+            "confidence_data": [
+                {"round": rec.round_number, "role": rec.role, "confidence": rec.confidence}
+                for rec in round_records
+            ],
+            "support_args": [
+                a
+                for rec in round_records
+                if rec.position == "support"
+                for a in (rec.arguments if isinstance(rec.arguments, list) else [])
+            ],
+            "challenge_args": [
+                a
+                for rec in round_records
+                if rec.position == "challenge"
+                for a in (rec.arguments if isinstance(rec.arguments, list) else [])
+            ],
+            "evidence_matrix": [
+                {
+                    "role": s.role,
+                    "round": s.round_number,
+                    "strength": s.evidence_strength,
+                    "score": s.reliability_score,
+                }
+                for s in reliability_records
+            ],
+            "role_scores": {
+                s.role: s.reliability_score
+                for s in reliability_records
+            },
+        }
+
+        return {
+            "debate_id": debate_id,
+            "topic": topic,
+            "verdict": verdict_data,
+            "rounds": rounds_data,
+            "reliability_scores": reliability_data,
+            "structured_dissent": dissent_data,
+            "charts_data": charts_data,
         }
 
     @staticmethod

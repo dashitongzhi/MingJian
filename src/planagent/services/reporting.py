@@ -5,6 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.domain.models import (
     CompanyProfile,
+    DebateReliabilityScore,
+    DebateSessionRecord,
+    DebateStructuredDissent,
+    DebateVerdictRecord,
     DecisionRecordRecord,
     ExternalShockRecord,
     ForceProfile,
@@ -153,6 +157,8 @@ class ReportService:
             if startup_kpi_pack is not None
             else None,
         }
+
+        await self._embed_debate_analysis(sections, simulation_run.id, session)
 
         report = GeneratedReport(
             run_id=simulation_run.id,
@@ -410,6 +416,8 @@ class ReportService:
             else None,
         }
 
+        await self._embed_debate_analysis(sections, simulation_run.id, session)
+
         report = GeneratedReport(
             run_id=simulation_run.id,
             force_id=force.id,
@@ -424,6 +432,67 @@ class ReportService:
         session.add(report)
         await session.flush()
         return report
+
+    async def _embed_debate_analysis(
+        self,
+        report_sections: dict,
+        run_id: str,
+        db: AsyncSession,
+    ) -> dict:
+        """Embed debate analysis into report sections if a debate session exists for this run."""
+        session_record = (
+            await db.scalars(
+                select(DebateSessionRecord)
+                .where(DebateSessionRecord.run_id == run_id)
+                .limit(1)
+            )
+        ).first()
+        if session_record is None:
+            return report_sections
+
+        verdict = await db.get(DebateVerdictRecord, session_record.id)
+
+        reliability_scores = list(
+            (
+                await db.scalars(
+                    select(DebateReliabilityScore).where(
+                        DebateReliabilityScore.debate_id == session_record.id
+                    )
+                )
+            ).all()
+        )
+
+        dissent = await db.get(DebateStructuredDissent, session_record.id)
+
+        avg_reliability = (
+            round(
+                sum(s.reliability_score for s in reliability_scores)
+                / len(reliability_scores),
+                2,
+            )
+            if reliability_scores
+            else None
+        )
+        total_bias_flags = sum(len(s.bias_flags) for s in reliability_scores)
+
+        debate_section: dict = {
+            "debate_id": session_record.id,
+            "verdict": verdict.verdict if verdict is not None else None,
+            "confidence": verdict.confidence if verdict is not None else None,
+            "key_arguments": verdict.winning_arguments[:3]
+            if verdict is not None
+            else [],
+            "reliability_summary": {
+                "avg_score": avg_reliability,
+                "score_count": len(reliability_scores),
+                "total_bias_flags": total_bias_flags,
+            },
+            "dissent_summary": dissent.claims if dissent is not None else None,
+            "conditions": verdict.conditions if verdict is not None else [],
+        }
+
+        report_sections["debate_analysis"] = debate_section
+        return report_sections
 
     async def _load_run_materials(
         self,
