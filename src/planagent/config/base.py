@@ -26,7 +26,12 @@ class BaseAppSettings(BaseSettings):
     db_pool_size: int = 20
     db_max_overflow: int = 10
     db_pool_recycle: int = 300
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:8000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:8000",
+    ]
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "planagent"
     minio_secret_key: str = "planagent123"
@@ -51,7 +56,7 @@ class BaseAppSettings(BaseSettings):
     douyin_provider_base_url: str | None = None
     douyin_provider_api_key: str | None = None
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-4-20250514"
+    anthropic_model: str = ""
     debate_advocate_provider: str = "openai"
     debate_challenger_provider: str = "anthropic"
     debate_arbitrator_provider: str = "openai"

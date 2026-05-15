@@ -37,8 +37,9 @@ async def get_dashboard_stats(
     # 预测准确率（活跃预测版本的平均置信度）
     avg_confidence = (
         await session.scalar(
-            select(func.avg(PredictionVersion.confidence))
-            .where(PredictionVersion.status == "ACTIVE")
+            select(func.avg(PredictionVersion.confidence)).where(
+                PredictionVersion.status == "ACTIVE"
+            )
         )
     ) or 0.0
 
