@@ -63,7 +63,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-ingest
-    command: python -m planagent.worker_cli ingest-worker
+    command: python -m planagent.worker_cli ingest-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
@@ -80,7 +80,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-knowledge
-    command: python -m planagent.worker_cli knowledge-worker
+    command: python -m planagent.worker_cli knowledge-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
@@ -97,7 +97,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-simulation
-    command: python -m planagent.worker_cli simulation-worker
+    command: python -m planagent.worker_cli simulation-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
@@ -114,7 +114,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-report
-    command: python -m planagent.worker_cli report-worker
+    command: python -m planagent.worker_cli report-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
@@ -131,7 +131,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-watch
-    command: python -m planagent.worker_cli watch-ingest-worker
+    command: python -m planagent.worker_cli watch-ingest-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
@@ -148,7 +148,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-strategic
-    command: python -m planagent.worker_cli strategic-watch-worker
+    command: python -m planagent.worker_cli strategic-watch-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
@@ -165,7 +165,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-prediction
-    command: python -m planagent.worker_cli prediction-revision-worker
+    command: python -m planagent.worker_cli prediction-revision-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent

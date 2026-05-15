@@ -19,7 +19,7 @@ export default function AiAssistant() {
   const [titleInput, setTitleInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const { data: sessionDetail } = useApi(
+  const { data: sessionDetail, reload: reloadSession } = useApi(
     () => activeSession ? assistantApi.getSession(activeSession) : Promise.resolve(null),
     [activeSession]
   )
@@ -54,8 +54,8 @@ export default function AiAssistant() {
     setInput('')
     const r = await doCreateRun({ session_id: activeSession, message: msg })
     if (r) {
-      // Reload session detail to get updated messages
-      // The useApi will auto-refresh since activeSession is in deps
+      reloadSession()
+      reload()
     }
   }
 

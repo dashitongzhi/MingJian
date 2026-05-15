@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -34,6 +35,20 @@ router = APIRouter()
 _CONSOLE_HTML = Path(__file__).resolve().parents[2] / "ui" / "strategic_console.html"
 _APP_VERSION = "0.1.0"
 _logger = logging.getLogger(__name__)
+
+
+def _coerce_assistant_request(
+    payload: StrategicAssistantRequest | dict[str, Any],
+) -> StrategicAssistantRequest:
+    if isinstance(payload, StrategicAssistantRequest):
+        return payload
+    data = dict(payload)
+    topic = data.get("topic") or data.pop("message", None) or data.get("title")
+    if topic is not None:
+        data["topic"] = topic
+    if data.get("title") and not data.get("session_name"):
+        data["session_name"] = data["title"]
+    return StrategicAssistantRequest.model_validate(data)
 
 
 @router.get("/")
@@ -159,23 +174,23 @@ async def strategic_console():
 
 @router.post("/assistant/runs", response_model=StrategicAssistantResponse, status_code=201)
 async def create_strategic_assistant_run(
-    payload: StrategicAssistantRequest,
+    payload: dict[str, Any],
     request: Request,
     session: AsyncSession = Depends(get_session),
     user: dict | None = Depends(optional_auth),
 ) -> StrategicAssistantResponse:
     service = get_assistant_service(request)
-    return await service.run(session, payload)
+    return await service.run(session, _coerce_assistant_request(payload))
 
 
 @router.post("/assistant/sessions", response_model=StrategicSessionRead, status_code=201)
 async def create_strategic_session(
-    payload: StrategicAssistantRequest,
+    payload: dict[str, Any],
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> StrategicSessionRead:
     service = get_assistant_service(request)
-    return await service.create_session(session, payload)
+    return await service.create_session(session, _coerce_assistant_request(payload))
 
 
 @router.get("/assistant/sessions", response_model=list[StrategicSessionRead])
@@ -214,25 +229,26 @@ async def get_strategic_session_detail(
 
 @router.post("/assistant/daily-brief", response_model=AnalysisResponse)
 async def create_daily_brief(
-    payload: StrategicAssistantRequest,
+    payload: dict[str, Any],
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> AnalysisResponse:
     service = get_assistant_service(request)
-    return await service.daily_brief(session, payload)
+    return await service.daily_brief(session, _coerce_assistant_request(payload))
 
 
 @router.post("/assistant/stream")
 async def strategic_assistant_stream(
-    payload: StrategicAssistantRequest,
+    payload: dict[str, Any],
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     service = get_assistant_service(request)
+    assistant_request = _coerce_assistant_request(payload)
 
     async def event_stream():
         try:
-            async for event in service.stream(session, payload):
+            async for event in service.stream(session, assistant_request):
                 yield f"event: {event.event}\n"
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
         except Exception as exc:

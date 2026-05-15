@@ -11,6 +11,8 @@ from planagent.db import get_database
 from planagent.domain.models import DeadLetterEvent
 from planagent.events.bus import ConsumedEvent
 from planagent.events.bus import build_event_bus
+from planagent.services.notification import NotificationConfig
+from planagent.services.notification import NotificationService
 from planagent.services.openai_client import OpenAIService
 from planagent.simulation.rules import get_rule_registry
 from planagent.workers.base import Worker
@@ -31,6 +33,7 @@ def build_worker(worker_name: str) -> Worker:
     event_bus = build_event_bus(settings)
     rule_registry = get_rule_registry(settings.rules_dir)
     openai_service = OpenAIService(settings)
+    notification_service = _build_notification_service(settings)
     factories = {
         "ingest-worker": lambda: IngestWorker(settings, event_bus, openai_service),
         "knowledge-worker": lambda: KnowledgeWorker(settings, event_bus, openai_service),
@@ -51,6 +54,7 @@ def build_worker(worker_name: str) -> Worker:
             event_bus,
             rule_registry,
             openai_service,
+            notification_service,
         ),
         "prediction-revision-worker": lambda: PredictionRevisionWorker(
             settings,
@@ -70,6 +74,18 @@ def build_worker(worker_name: str) -> Worker:
     if not hasattr(worker, "openai_service"):
         worker.openai_service = openai_service
     return worker
+
+
+def _build_notification_service(settings) -> NotificationService:
+    return NotificationService(
+        NotificationConfig(
+            smtp_host=getattr(settings, "smtp_host", None),
+            smtp_port=getattr(settings, "smtp_port", 587),
+            smtp_user=getattr(settings, "smtp_user", None),
+            smtp_password=getattr(settings, "smtp_password", None),
+            webhook_urls=getattr(settings, "webhook_urls", []),
+        )
+    )
 
 
 def list_workers() -> list[dict[str, object]]:
@@ -113,6 +129,8 @@ async def run_worker(worker_name: str, loop: bool, interval_seconds: float) -> N
             await event_bus.close()
         if hasattr(worker, "openai_service") and worker.openai_service is not None:
             await worker.openai_service.close()
+        if hasattr(worker, "notification_service") and worker.notification_service is not None:
+            await worker.notification_service.close()
 
 
 def _supports_stream_consumers(worker: Worker, event_bus: object | None) -> bool:

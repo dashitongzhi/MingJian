@@ -1,5 +1,66 @@
 import { api } from './client'
 
+type ApiRecord = Record<string, unknown>
+type AssistantSessionRecord = ApiRecord & {
+  id: string
+  title: string
+  created_at: string
+  message_count?: number
+}
+
+function readRecord(value: unknown): ApiRecord {
+  return value && typeof value === 'object' ? value as ApiRecord : {}
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function normalizeAssistantSession(value: unknown): AssistantSessionRecord {
+  const session = readRecord(value)
+  const title = readString(session.title) || readString(session.name) || readString(session.topic) || '未命名会话'
+  const id = readString(session.id) || ''
+  const created_at = readString(session.created_at) || new Date().toISOString()
+  const message_count = typeof session.message_count === 'number' ? session.message_count : undefined
+  return { ...session, id, title, created_at, message_count }
+}
+
+function normalizeAssistantDetail(value: unknown): ApiRecord {
+  const detail = readRecord(value)
+  const session = normalizeAssistantSession(detail.session || detail)
+  const recentRuns = Array.isArray(detail.recent_runs) ? detail.recent_runs : []
+  const dailyBriefs = Array.isArray(detail.daily_briefs) ? detail.daily_briefs : []
+  const messages = [
+    ...dailyBriefs.map((brief) => {
+      const item = readRecord(brief)
+      return {
+        role: 'assistant',
+        content: readString(item.summary) || '已生成每日简报',
+        created_at: readString(item.generated_at),
+      }
+    }),
+    ...recentRuns.flatMap((run) => {
+      const item = readRecord(run)
+      const result = readRecord(item.result)
+      const analysis = readRecord(result.analysis)
+      const latestReport = readRecord(result.latest_report)
+      return [
+        {
+          role: 'user',
+          content: readString(result.topic) || readString(session.topic) || readString(session.title) || '',
+          created_at: readString(item.generated_at),
+        },
+        {
+          role: 'assistant',
+          content: readString(latestReport.summary) || readString(analysis.summary) || '分析完成',
+          created_at: readString(item.generated_at),
+        },
+      ]
+    }),
+  ]
+  return { ...detail, ...session, messages }
+}
+
 // ==================== 总览 ====================
 export const consoleApi = {
   get: () => api.get('/console'),
@@ -8,9 +69,9 @@ export const consoleApi = {
 
 // ==================== AI 助手 ====================
 export const assistantApi = {
-  listSessions: () => api.get<unknown[]>('/assistant/sessions'),
-  getSession: (id: string) => api.get(`/assistant/sessions/${id}`),
-  createSession: (data: unknown) => api.post('/assistant/sessions', data),
+  listSessions: async () => (await api.get<unknown[]>('/assistant/sessions')).map(normalizeAssistantSession),
+  getSession: async (id: string) => normalizeAssistantDetail(await api.get(`/assistant/sessions/${id}`)),
+  createSession: async (data: unknown) => normalizeAssistantSession(await api.post('/assistant/sessions', data)),
   createRun: (data: unknown) => api.post('/assistant/runs', data),
   dailyBrief: (data: unknown) => api.post('/assistant/daily-brief', data),
 }

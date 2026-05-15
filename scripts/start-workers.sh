@@ -11,6 +11,7 @@ WORKERS=(
   report-worker
   strategic-watch-worker
   watch-ingest-worker
+  prediction-revision-worker
   calibration-worker
 )
 

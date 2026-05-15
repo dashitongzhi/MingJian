@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+from typing import Any
 
 from sqlalchemy import or_, select, update
 
@@ -14,7 +15,13 @@ from planagent.domain.api import (
     SimulationRunCreate,
 )
 from planagent.domain.enums import EventTopic
-from planagent.domain.models import StrategicRunSnapshot, StrategicSession, WatchRule, utc_now
+from planagent.domain.models import (
+    SourceCursorState,
+    StrategicRunSnapshot,
+    StrategicSession,
+    WatchRule,
+    utc_now,
+)
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.change_detection import ChangeDetectionService
@@ -103,24 +110,6 @@ class WatchIngestWorker(Worker):
     async def _poll_rule(self, session, rule: WatchRule) -> dict:
         source_state_service = SourceStateService(self.settings)
         change_service = ChangeDetectionService(self.settings)
-        state = await source_state_service.get_or_create_state(
-            session,
-            source_type=rule.source_types[0] if rule.source_types else "unknown",
-            source_url_or_query=rule.query,
-            watch_rule_id=rule.id,
-            tenant_id=rule.tenant_id,
-            preset_id=rule.preset_id,
-        )
-        if rule.incremental_enabled:
-            should_fetch = await source_state_service.should_fetch(
-                session,
-                state,
-                force_full_refresh_every_minutes=rule.force_full_refresh_every_minutes,
-            )
-            if not should_fetch:
-                await self._mark_poll_success(session, rule)
-                return {"skipped": True, "reason": "no_change"}
-
         analysis_request = AnalysisRequest(
             content=rule.query,
             domain_id=rule.domain_id,
@@ -174,45 +163,35 @@ class WatchIngestWorker(Worker):
                 }
             )
 
-        content_text = self._change_detection_text(rule, analysis.sources)
-        content_hash = change_service.compute_content_hash(
-            content_text,
-            sources=analysis.sources,
-        )
-        change_record = await change_service.detect_change(
+        change_records = await self._detect_source_changes(
             session,
-            state,
-            new_hash=content_hash,
-            new_content_text=content_text,
-            new_title=rule.name,
-            new_raw_source_item_id=None,
+            rule,
+            source_state_service,
+            change_service,
+            analysis.sources,
         )
-        await source_state_service.update_after_fetch(
-            session,
-            state.id,
-            success=True,
-            content_hash=content_hash,
-            raw_source_item_id=None,
-        )
+        significance = self._max_significance(change_records)
+        change_summary = self._change_summary(change_records)
         if rule.incremental_enabled:
             threshold = rule.change_significance_threshold
             significance_order = {"none": 0, "low": 1, "medium": 2, "high": 3}
-            if significance_order.get(change_record.significance, 0) < significance_order.get(
-                threshold, 2
-            ):
+            if significance_order.get(significance, 0) < significance_order.get(threshold, 2):
                 await self._mark_poll_success(session, rule)
                 return {
                     "skipped": True,
                     "reason": "below_threshold",
-                    "significance": change_record.significance,
+                    "significance": significance,
                 }
 
-        if change_record.change_type != "unchanged":
+        for change_record in change_records:
+            if change_record.change_type == "unchanged":
+                continue
+            state = await session.get(SourceCursorState, change_record.source_state_id)
             await self.event_bus.publish(
                 EventTopic.SOURCE_CHANGED.value,
                 {
                     "change_id": change_record.id,
-                    "source_type": state.source_type,
+                    "source_type": state.source_type if state is not None else "unknown",
                     "significance": change_record.significance,
                 },
             )
@@ -221,7 +200,10 @@ class WatchIngestWorker(Worker):
                 try:
                     await self.notification_service.broadcast(
                         title=f"📡 源变化检测 [{change_record.significance.upper()}]",
-                        body=f"监控规则「{rule.name}」检测到{change_record.significance}级变化：{change_record.diff_summary or state.source_type}",
+                        body=(
+                            f"监控规则「{rule.name}」检测到{change_record.significance}级变化："
+                            f"{change_record.diff_summary or (state.source_type if state is not None else 'source')}"
+                        ),
                         priority=NotificationPriority.HIGH
                         if change_record.significance == "high"
                         else NotificationPriority.NORMAL,
@@ -248,8 +230,8 @@ class WatchIngestWorker(Worker):
         debate_id = await self._maybe_trigger_re_debate(
             rule,
             session,
-            change_record.diff_summary,
-            change_record.significance,
+            change_summary,
+            significance,
         )
 
         threshold_met = self._threshold_met(rule, qualified_sources)
@@ -323,6 +305,8 @@ class WatchIngestWorker(Worker):
             "threshold_met": threshold_met,
             "simulation_run_id": simulation_run_id,
             "debate_id": debate_id,
+            "change_records": len(change_records),
+            "significance": significance,
         }
 
     async def _maybe_trigger_re_debate(
@@ -393,6 +377,75 @@ class WatchIngestWorker(Worker):
                 f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
             )
             return None
+
+    async def _detect_source_changes(
+        self,
+        session,
+        rule: WatchRule,
+        source_state_service: SourceStateService,
+        change_service: ChangeDetectionService,
+        sources: list[Any],
+    ) -> list:
+        records = []
+        for source_type, source_items in self._group_sources_for_change_detection(sources).items():
+            state = await source_state_service.get_or_create_state(
+                session,
+                source_type=source_type,
+                source_url_or_query=rule.query,
+                watch_rule_id=rule.id,
+                tenant_id=rule.tenant_id,
+                preset_id=rule.preset_id,
+            )
+            content_text = self._change_detection_text(rule, source_items)
+            content_hash = change_service.compute_content_hash(
+                content_text,
+                sources=source_items,
+            )
+            record = await change_service.detect_change(
+                session,
+                state,
+                new_hash=content_hash,
+                new_content_text=content_text,
+                new_title=f"{rule.name} [{source_type}]",
+                new_raw_source_item_id=None,
+            )
+            await source_state_service.update_after_fetch(
+                session,
+                state.id,
+                success=True,
+                content_hash=content_hash,
+                raw_source_item_id=None,
+            )
+            records.append(record)
+        return records
+
+    def _group_sources_for_change_detection(
+        self,
+        sources: list[Any],
+    ) -> dict[str, list[Any]]:
+        grouped: dict[str, list[Any]] = {}
+        for source in sources:
+            source_type = str(getattr(source, "source_type", "") or "unknown")
+            grouped.setdefault(source_type, []).append(source)
+        if not grouped:
+            grouped["watch_rule"] = []
+        return dict(sorted(grouped.items()))
+
+    def _max_significance(self, change_records: list) -> str:
+        order = {"none": 0, "low": 1, "medium": 2, "high": 3}
+        significance = "none"
+        for record in change_records:
+            if order.get(record.significance, 0) > order.get(significance, 0):
+                significance = record.significance
+        return significance
+
+    def _change_summary(self, change_records: list) -> str | None:
+        order = {"none": 0, "low": 1, "medium": 2, "high": 3}
+        changed = [record for record in change_records if record.change_type != "unchanged"]
+        if not changed:
+            return None
+        chosen = max(changed, key=lambda record: order.get(record.significance, 0))
+        return chosen.diff_summary
 
     def _source_type_from_step(self, message: str) -> str:
         lowered = message.lower()

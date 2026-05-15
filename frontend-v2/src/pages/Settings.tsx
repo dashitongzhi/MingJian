@@ -13,6 +13,15 @@ const MODEL_LABELS: Record<string, string> = {
   max_arguments_override: '最大参数数',
 }
 
+function modelName(model: unknown): string {
+  if (typeof model === 'string') return model
+  if (model && typeof model === 'object') {
+    const record = model as Record<string, unknown>
+    return String(record.model_id ?? record.id ?? record.name ?? JSON.stringify(record))
+  }
+  return String(model)
+}
+
 export default function Settings() {
   const { data: modelSettings, loading, error, reload } = useApi(() => settingsApi.getModelSettings())
   const { data: capabilities } = useApi(() => settingsApi.getModelCapabilities())
@@ -56,7 +65,7 @@ export default function Settings() {
   const ms = (modelSettings || {}) as Record<string, unknown>
   const caps = (capabilities || {}) as Record<string, unknown>
   const oai = (openaiStatus || {}) as Record<string, unknown>
-  const knownModels: string[] = Array.isArray(caps.known_models) ? caps.known_models : []
+  const knownModels: unknown[] = Array.isArray(caps.known_models) ? caps.known_models : []
 
   const configured = Boolean(oai.configured)
   const responsesApi = Boolean(oai.responses_api)
@@ -166,9 +175,9 @@ export default function Settings() {
           <CardHeader title={`已知模型 (${caps.model_count || knownModels.length})`} />
           <div className="divide-y divide-slate-800/60">
             {knownModels.map((m, i) => (
-              <div key={`${m}-${i}`} className="px-6 py-3 flex items-center gap-3 hover:bg-slate-800/30 transition-colors">
+              <div key={`${modelName(m)}-${i}`} className="px-6 py-3 flex items-center gap-3 hover:bg-slate-800/30 transition-colors">
                 <Zap className="w-4 h-4 text-slate-500" />
-                <span className="text-sm text-slate-300">{m}</span>
+                <span className="text-sm text-slate-300">{modelName(m)}</span>
               </div>
             ))}
           </div>
