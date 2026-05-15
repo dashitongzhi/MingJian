@@ -26,11 +26,20 @@ import {
   fetchDebates,
   fetchSessions,
   fetchAgentStatus,
+  fetchMonitoringDashboard,
+  fetchWatchRules,
+  fetchCustomSources,
+  fetchPredictions,
+  fetchDebateDetail,
   type DashboardStats,
   type SimulationRun,
   type DebateSummary,
   type StrategicSession,
   type AgentStatus,
+  type WatchRule,
+  type CustomSource,
+  type PredictionVersion,
+  type DebateDetail,
 } from './lib/api'
 import './App.css'
 

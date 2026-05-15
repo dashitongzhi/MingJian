@@ -10,8 +10,9 @@ import concurrent.futures
 import threading
 import ssl
 
-API = "http://127.0.0.1:8000"
-FRONTEND = "http://127.0.0.1:3001"
+API_ROOT = "http://127.0.0.1:8000"
+API = f"{API_ROOT}/api"
+FRONTEND = "http://127.0.0.1:3000"
 RESULTS = {"pass": 0, "fail": 0, "warn": 0, "errors": [], "warnings": [], "details": []}
 lock = threading.Lock()
 
@@ -57,7 +58,7 @@ def fetch(url, method="GET", data=None, timeout=15):
 
 def get_endpoints():
     """Discover GET endpoints from OpenAPI spec."""
-    status, body, _ = fetch(f"{API}/openapi.json", timeout=10)
+    status, body, _ = fetch(f"{API_ROOT}/openapi.json", timeout=10)
     if status != 200:
         print(f"Cannot fetch OpenAPI spec: {status}")
         return []
@@ -87,7 +88,7 @@ def test_api_reachability():
 
     # Test static endpoints
     for _, path, _ in static_eps:
-        url = f"{API}{path}"
+        url = f"{API_ROOT}{path}"
         status, body, latency = fetch(url, timeout=10)
         if status == 200:
             record("PASS", path, latency_ms=latency)
@@ -105,7 +106,7 @@ def test_api_reachability():
     # Test param endpoints with dummy IDs (expect 404/422, not 500)
     for _, path, _ in param_eps[:20]:  # Limit to 20
         test_path = path.replace("{", "").replace("}", "")
-        url = f"{API}{test_path}"
+        url = f"{API_ROOT}{test_path}"
         status, body, latency = fetch(url, timeout=10)
         if status == 500:
             record("FAIL", path, "HTTP 500 on param endpoint", latency_ms=latency)
@@ -128,16 +129,16 @@ def test_frontend_pages():
     pages = [
         "/",
         "/dashboard",
-        "/analysis",
+        "/ai-assistant",
         "/debate",
-        "/assistant",
         "/sources",
         "/predictions",
         "/simulation",
         "/monitoring",
         "/workbench",
         "/agents",
-        "/decisions",
+        "/batch",
+        "/reports",
         "/settings",
     ]
 

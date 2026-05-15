@@ -2,30 +2,115 @@
 
 @layer base {
   :root {
-    --color-bg-base: #0B0F19;
-    --color-bg-surface: #111827;
-    --color-bg-elevated: #1E293B;
-    --color-border: #1E293B;
-    --color-border-subtle: #0F172A;
-    --color-text-primary: #F1F5F9;
-    --color-text-secondary: #94A3B8;
-    --color-text-tertiary: #475569;
-    --color-accent: #3B82F6;
-    --color-accent-subtle: rgba(59, 130, 246, 0.1);
+    --color-bg-base: #030814;
+    --color-bg-surface: rgba(7, 19, 38, 0.74);
+    --color-bg-elevated: rgba(12, 30, 58, 0.82);
+    --color-border: rgba(92, 139, 214, 0.22);
+    --color-border-strong: rgba(96, 165, 250, 0.36);
+    --color-border-subtle: rgba(148, 163, 184, 0.10);
+    --color-text-primary: #F4F8FF;
+    --color-text-secondary: #A9B8D0;
+    --color-text-tertiary: #64748B;
+    --color-accent: #2F7BFF;
+    --color-cyan: #22D3EE;
+    --color-emerald: #34D399;
+    --color-violet: #A78BFA;
+    --color-amber: #F59E0B;
+    --color-red: #F87171;
+    --glass-bg: linear-gradient(145deg, rgba(12, 35, 72, 0.66), rgba(2, 9, 23, 0.72));
+    --glass-highlight: linear-gradient(135deg, rgba(255,255,255,0.22), rgba(96,165,250,0.05) 34%, transparent 72%);
+    --glass-shadow: 0 18px 50px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255,255,255,0.10);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #1E293B transparent;
+    scrollbar-color: rgba(59, 130, 246, 0.45) transparent;
+    box-sizing: border-box;
   }
 
   body {
     margin: 0;
     padding: 0;
-    background-color: var(--color-bg-base);
+    min-width: 320px;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 54% -8%, rgba(37, 99, 235, 0.42), transparent 35%),
+      radial-gradient(circle at 80% 6%, rgba(14, 165, 233, 0.18), transparent 26%),
+      linear-gradient(180deg, #020617 0%, #041021 48%, #06101d 100%);
     color: var(--color-text-primary);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(96, 165, 250, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(96, 165, 250, 0.028) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent 72%);
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .liquid-glass {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    background: var(--glass-bg);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: var(--glass-highlight);
+    opacity: 0.72;
+  }
+
+  .liquid-glass > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .glass-button {
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    background: linear-gradient(180deg, rgba(37, 99, 235, 0.22), rgba(15, 23, 42, 0.42));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 12px 26px rgba(15, 23, 42, 0.25);
+  }
+
+  .glass-input {
+    border: 1px solid rgba(96, 165, 250, 0.20);
+    background: rgba(2, 8, 23, 0.48);
+    color: #dbeafe;
+    outline: none;
+  }
+
+  .glass-input:focus {
+    border-color: rgba(96, 165, 250, 0.56);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+  }
+
+  .blue-text-glow {
+    text-shadow: 0 0 18px rgba(59, 130, 246, 0.46);
   }
 }

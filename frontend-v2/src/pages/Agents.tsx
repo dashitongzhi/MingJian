@@ -24,6 +24,7 @@ export default function Agents() {
   const { data: allAgents, loading, error, reload } = useApi(() => agentsApi.listAll())
   const [showModal, setShowModal] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [systemDetail, setSystemDetail] = useState<Agent | null>(null)
   const [form, setForm] = useState<AgentForm>(emptyForm)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
@@ -142,7 +143,11 @@ export default function Agents() {
                 ) : (
                   <StatusBadge status="active" />
                 )}
-                <button className="p-1.5 rounded hover:bg-slate-800/40 text-slate-500 hover:text-slate-300 transition-colors">
+                <button
+                  onClick={() => setSystemDetail(a)}
+                  className="p-1.5 rounded hover:bg-slate-800/40 text-slate-500 hover:text-slate-300 transition-colors"
+                  title="查看配置"
+                >
                   <Settings className="w-4 h-4" />
                 </button>
               </div>
@@ -257,6 +262,43 @@ export default function Agents() {
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
                 <Save className="w-4 h-4" />
                 {creating || updating ? '保存中...' : editingKey ? '更新' : '创建'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {systemDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSystemDetail(null)}>
+          <div className="liquid-glass w-full max-w-lg rounded-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+              <h3 className="text-sm font-semibold text-slate-100">{systemDetail.name} 配置</h3>
+              <button onClick={() => setSystemDetail(null)} className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              {[
+                ['角色标识', systemDetail.role_key],
+                ['当前模型', systemDetail.effective_model || '默认模型'],
+                ['模型覆盖', systemDetail.model_override || '未覆盖'],
+                ['状态', systemDetail.status || 'active'],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between rounded-lg border border-slate-800/60 bg-slate-950/25 px-3 py-2">
+                  <span className="text-xs text-slate-500">{label}</span>
+                  <span className="text-sm text-slate-200">{value}</span>
+                </div>
+              ))}
+              {systemDetail.description && (
+                <div className="rounded-lg border border-slate-800/60 bg-slate-950/25 p-3">
+                  <p className="text-xs text-slate-500 mb-2">描述</p>
+                  <p className="max-h-48 overflow-auto text-sm leading-6 text-slate-300 whitespace-pre-wrap">{systemDetail.description}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end px-6 py-4 border-t border-slate-800/60">
+              <button onClick={() => setSystemDetail(null)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">
+                知道了
               </button>
             </div>
           </div>

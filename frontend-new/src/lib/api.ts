@@ -155,16 +155,24 @@ export const fetchPredictions = () => apiFetch<PredictionVersion[]>("/prediction
 // Monitoring
 export const fetchMonitoringDashboard = () => apiFetch<any>("/monitoring/dashboard");
 export const fetchWatchRules = () => apiFetch<WatchRule[]>("/admin/watch-rules");
+export const fetchQueueHealth = () => apiFetch<any>("/admin/runtime/queues");
 
 // Agents
 export const fetchAgentStatus = () => apiFetch<{ agents: AgentStatus[] }>("/agents/status");
+export const configureAgents = (keys: any[]) =>
+  apiFetch<any>("/agents/configure", { method: "POST", body: JSON.stringify({ keys }) });
 
 // Sources
 export const fetchCustomSources = () => apiFetch<CustomSource[]>("/sources/custom");
 export const createCustomSource = (data: Partial<CustomSource>) =>
   apiFetch<CustomSource>("/sources/custom", { method: "POST", body: JSON.stringify(data) });
+export const updateCustomSource = (key: string, data: Partial<CustomSource>) =>
+  apiFetch<CustomSource>(`/sources/custom/${key}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteCustomSource = (key: string) =>
+  apiFetch<void>(`/sources/custom/${key}`, { method: "DELETE" });
 
-// Stream assistant analysis
+// Predictions
+export const fetchPredictions = () => apiFetch<PredictionVersion[]>("/predictions");
 export async function streamAssistant(
   params: {
     topic: string;

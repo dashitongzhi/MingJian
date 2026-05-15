@@ -75,8 +75,15 @@ export const sourcesApi = {
   listChanges: () => api.get('/sources/changes'),
   listCustom: () => api.get('/sources/custom'),
   createCustom: (data: unknown) => api.post('/sources/custom', data),
+  updateCustom: (sourceKey: string, data: unknown) => api.put(`/sources/custom/${sourceKey}`, data),
+  deleteCustom: (sourceKey: string) => api.delete(`/sources/custom/${sourceKey}`),
+  testCustom: (sourceKey: string) => api.post(`/sources/custom/${sourceKey}/test`),
+  listProviders: () => api.get('/sources/providers'),
   listReputations: () => api.get('/sources/reputation'),
   listHealth: () => api.get('/sources/health'),
+  listSnapshots: () => api.get('/sources/snapshots'),
+  resetWatchCursor: (ruleId: string) => api.post(`/watch/rules/${ruleId}/cursor/reset`),
+  reanalyzeChange: (changeId: string) => api.post(`/sources/changes/${changeId}/reanalyze`),
 }
 
 // ==================== 报告中心 ====================
@@ -88,9 +95,15 @@ export const reportApi = {
   reforecast: (id: string) => api.post(`/predictions/${id}/reforecast`),
   getMonitoringDashboard: () => api.get('/monitoring/dashboard'),
   getCalibration: () => api.get('/monitoring/calibration'),
+  getCalibrationHistory: () => api.get('/monitoring/calibration/history'),
+  listBacktests: () => api.get('/predictions/backtests'),
+  listRevisionJobs: () => api.get('/predictions/revision-jobs'),
+  getPredictionTimeline: (id: string) => api.get(`/predictions/${id}/timeline`),
   listDecisions: () => api.get<unknown[]>('/decisions'),
   createDecision: (data: unknown) => api.post('/decisions', data),
   getDecisionStats: () => api.get<Record<string, unknown>>('/decisions/stats'),
+  getDecisionAccuracy: () => api.get('/decisions/accuracy'),
+  getPendingVerifications: () => api.get('/decisions/pending-verifications'),
 }
 
 // ==================== 设置 ====================
@@ -109,4 +122,43 @@ export const monitoringApi = {
   updateWatchRule: (id: string, data: unknown) => api.patch(`/watch/rules/${id}`, data),
   deleteWatchRule: (id: string) => api.delete(`/watch/rules/${id}`),
   triggerWatchRule: (id: string) => api.post(`/watch/rules/${id}/trigger`),
+  getDashboard: () => api.get('/monitoring/dashboard'),
+  getQueueHealth: () => api.get('/admin/runtime/queues'),
+  getAnalysisCache: () => api.get('/admin/analysis/cache'),
+  getKnowledgeGraph: () => api.get('/knowledge/graph'),
+  searchKnowledge: (q: string) => api.get(`/knowledge/search?q=${encodeURIComponent(q)}`),
+  getScoreboard: () => api.get('/hypotheses/scoreboard'),
+  getCalibration: () => api.get('/calibration'),
+  computeCalibration: () => api.post('/calibration/compute'),
+}
+
+// ==================== 供应商 ====================
+export const providersApi = {
+  presets: () => api.get('/admin/providers/presets'),
+  list: () => api.get('/admin/providers'),
+  save: (data: unknown) => api.post('/admin/providers', data),
+  delete: (providerId: string) => api.delete(`/admin/providers/${providerId}`),
+  test: (data: unknown) => api.post('/admin/providers/test', data),
+}
+
+// ==================== 批处理 ====================
+export const batchApi = {
+  list: () => api.get<unknown[]>('/batch'),
+  get: (batchId: string) => api.get(`/batch/${batchId}`),
+  tasks: (batchId: string) => api.get<unknown[]>(`/batch/${batchId}/tasks`),
+  submit: (data: unknown) => api.post('/batch/submit', data),
+  cancel: (batchId: string) => api.post(`/batch/${batchId}/cancel`),
+}
+
+// ==================== 工作台/导出/通知 ====================
+export const workbenchApi = {
+  sessions: () => api.get<unknown[]>('/assistant/sessions'),
+  getSession: (id: string) => api.get(`/assistant/sessions/${id}`),
+  getRunWorkbench: (runId: string) => api.get(`/runs/${runId}/workbench`),
+  getDecisionTrace: (runId: string) => api.get(`/runs/${runId}/decision-trace`),
+  getScenarioCompare: (runId: string) => api.get(`/runs/${runId}/scenario-compare`),
+  getReplayPackage: (runId: string) => api.get(`/runs/${runId}/replay-package`),
+  exportAssistantSession: (sessionId: string) => api.get(`/export/assistant/session/${sessionId}`),
+  exportSimulation: (runId: string) => api.get(`/export/simulation/${runId}`),
+  notificationStats: () => api.get('/stats'),
 }
