@@ -270,12 +270,14 @@ docker compose -f docker-compose.yml down
 PLANAGENT_OPENAI_API_KEY=your_api_key_here
 
 # 個別のターゲットをオーバーライド（未設定の場合は共通値にフォールバック）
-# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+# 先にAPIキーを設定し、接続テストで利用可能なモデルを取得してから、
+# 必要な場合だけ返されたモデルIDを貼り付けます。
+# PLANAGENT_OPENAI_PRIMARY_MODEL=
 # PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
-# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
-# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
-# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
-# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
+# PLANAGENT_OPENAI_EXTRACTION_MODEL=
+# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=
+# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=
+# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=
 
 # ═══════════════════════════════════════════════════════════════
 # データベース（任意 — ローカル開発ではSQLiteがデフォルト）

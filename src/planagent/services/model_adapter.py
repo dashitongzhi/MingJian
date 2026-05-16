@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 class ModelTier(str, Enum):
     """模型能力等级"""
 
-    BASIC = "basic"  # 基础模型 (如 gpt-3.5-turbo, deepseek-chat)
-    STANDARD = "standard"  # 标准模型 (如 gpt-4o-mini, claude-haiku)
-    ADVANCED = "advanced"  # 高级模型 (如 gpt-4o, claude-sonnet-4, gemini-2.5-pro)
+    BASIC = "basic"
+    STANDARD = "standard"
+    ADVANCED = "advanced"
 
 
 class DomainStrength(str, Enum):
@@ -81,188 +81,11 @@ class ModelSettings:
     disabled_agent_roles: list[str] | None = None
 
 
-# ── 模型数据库 ─────────────────────────────────────────────────
+# ── 模型能力估计 ───────────────────────────────────────────────
 
 
-# 已知模型的能力数据
-_MODEL_DB: dict[str, dict[str, Any]] = {
-    # ── OpenAI 系列 ──────────────
-    "gpt-4o": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 128000,
-        "max_output_tokens": 16384,
-        "reasoning_score": 0.92,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 2000,
-    },
-    "gpt-4o-mini": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 128000,
-        "max_output_tokens": 16384,
-        "reasoning_score": 0.78,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 1200,
-    },
-    "gpt-4-turbo": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 128000,
-        "max_output_tokens": 4096,
-        "reasoning_score": 0.88,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 3000,
-    },
-    "gpt-3.5-turbo": {
-        "tier": ModelTier.BASIC,
-        "context_window": 16385,
-        "max_output_tokens": 4096,
-        "reasoning_score": 0.55,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 800,
-    },
-    "o1": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 200000,
-        "max_output_tokens": 100000,
-        "reasoning_score": 0.97,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 8000,
-    },
-    "o3": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 200000,
-        "max_output_tokens": 100000,
-        "reasoning_score": 0.98,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 10000,
-    },
-    "o3-mini": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 200000,
-        "max_output_tokens": 100000,
-        "reasoning_score": 0.85,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 5000,
-    },
-    # ── Anthropic 系列 ──────────────
-    "claude-sonnet-4": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 200000,
-        "max_output_tokens": 8192,
-        "reasoning_score": 0.94,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 3000,
-    },
-    "claude-haiku-3.5": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 200000,
-        "max_output_tokens": 8192,
-        "reasoning_score": 0.80,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 1000,
-    },
-    "claude-opus-4": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 200000,
-        "max_output_tokens": 32000,
-        "reasoning_score": 0.96,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 5000,
-    },
-    # ── Google 系列 ──────────────
-    "gemini-2.5-pro": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 1000000,
-        "max_output_tokens": 65536,
-        "reasoning_score": 0.93,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 2500,
-    },
-    "gemini-2.5-flash": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 1000000,
-        "max_output_tokens": 65536,
-        "reasoning_score": 0.82,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 1000,
-    },
-    # ── DeepSeek 系列 ──────────────
-    "deepseek-chat": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 64000,
-        "max_output_tokens": 8192,
-        "reasoning_score": 0.75,
-        "domain_strength": DomainStrength.GENERAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 2000,
-    },
-    "deepseek-reasoner": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 64000,
-        "max_output_tokens": 8192,
-        "reasoning_score": 0.90,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": False,
-        "estimated_latency_ms": 8000,
-    },
-    # ── Qwen 系列 ──────────────
-    "qwen-max": {
-        "tier": ModelTier.ADVANCED,
-        "context_window": 32000,
-        "max_output_tokens": 8192,
-        "reasoning_score": 0.85,
-        "domain_strength": DomainStrength.MULTILINGUAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 2000,
-    },
-    "qwen-plus": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 131072,
-        "max_output_tokens": 8192,
-        "reasoning_score": 0.78,
-        "domain_strength": DomainStrength.MULTILINGUAL,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 1500,
-    },
-    # ── MiMo 系列 ──────────────
-    "mimo-v2.5-pro": {
-        "tier": ModelTier.STANDARD,
-        "context_window": 128000,
-        "max_output_tokens": 16384,
-        "reasoning_score": 0.82,
-        "domain_strength": DomainStrength.REASONING,
-        "supports_json": True,
-        "supports_function_calling": True,
-        "estimated_latency_ms": 2000,
-    },
-}
+# 不在代码里预置具体模型 ID；配置 API Key 后通过供应商 /models 获取可用模型。
+_MODEL_DB: dict[str, dict[str, Any]] = {}
 
 # 默认未知模型的能力（按标准模型估计）
 _DEFAULT_CAPABILITIES: dict[str, Any] = {
@@ -276,56 +99,19 @@ _DEFAULT_CAPABILITIES: dict[str, Any] = {
     "estimated_latency_ms": 3000,
 }
 
-# 模型名称模式匹配（用于未直接注册的模型变体）
+# 模型族模式匹配（用于对供应商返回的模型 ID 做粗略能力估计）
 _MODEL_PATTERNS: list[tuple[str, dict[str, Any]]] = [
-    # gpt-4o-2024-xx-xx 等变体
     (
-        r"gpt-4o",
+        r"\bgpt[-_]",
         {
             "tier": ModelTier.ADVANCED,
-            "reasoning_score": 0.92,
+            "reasoning_score": 0.94,
             "context_window": 128000,
             "max_output_tokens": 16384,
         },
     ),
     (
-        r"gpt-4-turbo",
-        {
-            "tier": ModelTier.ADVANCED,
-            "reasoning_score": 0.88,
-            "context_window": 128000,
-            "max_output_tokens": 4096,
-        },
-    ),
-    (
-        r"gpt-4[^o]",
-        {
-            "tier": ModelTier.ADVANCED,
-            "reasoning_score": 0.85,
-            "context_window": 8192,
-            "max_output_tokens": 4096,
-        },
-    ),
-    (
-        r"gpt-3\.5",
-        {
-            "tier": ModelTier.BASIC,
-            "reasoning_score": 0.55,
-            "context_window": 16385,
-            "max_output_tokens": 4096,
-        },
-    ),
-    (
-        r"o1[-_]",
-        {
-            "tier": ModelTier.ADVANCED,
-            "reasoning_score": 0.97,
-            "context_window": 200000,
-            "max_output_tokens": 100000,
-        },
-    ),
-    (
-        r"o3[-_]",
+        r"\bo\d",
         {
             "tier": ModelTier.ADVANCED,
             "reasoning_score": 0.97,
@@ -462,7 +248,7 @@ class ModelAdapterService:
         """评估指定模型的能力
 
         Args:
-            model_id: 模型标识（如 "gpt-4o", "claude-sonnet-4-20250514"）
+            model_id: 供应商 /models 返回的模型标识
 
         Returns:
             ModelCapabilities 评估结果
@@ -761,7 +547,7 @@ class ModelAdapterService:
     def _normalize_model_id(model_id: str) -> str:
         """标准化模型名称，去除前缀和后缀"""
         name = model_id.strip().lower()
-        # 去除 provider/ 前缀（如 openai/gpt-4o → gpt-4o）
+        # 去除 provider/ 前缀
         if "/" in name:
             name = name.split("/")[-1]
         return name

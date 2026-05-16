@@ -44,17 +44,17 @@ _ROLE_PRIORITY: list[AgentRole] = [
     AgentRole.SOCIAL,
 ]
 
-# 每个角色的推荐模型
+# 每个角色的推荐模型。这里不预置模型 ID；模型列表来自配置 API Key 后的供应商 /models 返回值。
 _RECOMMENDED_MODELS: dict[AgentRole, list[str]] = {
-    AgentRole.ADVOCATE: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro", "deepseek-chat"],
-    AgentRole.CHALLENGER: ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro", "deepseek-chat"],
-    AgentRole.ARBITRATOR: ["gpt-4o", "gemini-2.5-pro", "claude-sonnet-4", "deepseek-chat"],
-    AgentRole.EVIDENCE_ASSESSOR: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
-    AgentRole.GEOPOLITICAL: ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro"],
-    AgentRole.ECONOMIC: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
-    AgentRole.MILITARY: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
-    AgentRole.TECH: ["claude-sonnet-4", "gpt-4o", "gemini-2.5-pro"],
-    AgentRole.SOCIAL: ["gpt-4o", "claude-sonnet-4", "gemini-2.5-pro"],
+    AgentRole.ADVOCATE: [],
+    AgentRole.CHALLENGER: [],
+    AgentRole.ARBITRATOR: [],
+    AgentRole.EVIDENCE_ASSESSOR: [],
+    AgentRole.GEOPOLITICAL: [],
+    AgentRole.ECONOMIC: [],
+    AgentRole.MILITARY: [],
+    AgentRole.TECH: [],
+    AgentRole.SOCIAL: [],
 }
 
 
@@ -499,7 +499,7 @@ def _config_to_agent(cfg: dict[str, Any]) -> AgentConfig:
         name_en=cfg.get("name_en", ""),
         icon=cfg.get("icon", "🤖"),
         description=cfg.get("description", ""),
-        recommended_models=cfg.get("recommended_models", ["gpt-4o", "claude-sonnet-4"]),
+        recommended_models=cfg.get("recommended_models", []),
         priority=cfg.get("priority", 2),
         is_custom=True,
     )
@@ -548,7 +548,7 @@ def create_custom_agent(
         name_en=name_en,
         icon=icon,
         description=description,
-        recommended_models=recommended_models or ["gpt-4o", "claude-sonnet-4"],
+        recommended_models=recommended_models or [],
         priority=priority,
         is_custom=True,
     )
@@ -719,6 +719,8 @@ class AgentRegistry:
         key_model = key.get("model", "")
         if key_model and not agent.model_override:
             agent.model = key_model
+        if key_model and key_model not in agent.recommended_models:
+            agent.recommended_models = [key_model, *agent.recommended_models]
 
     # ── 状态 ──────────────────────────────────────────────
 
@@ -747,7 +749,7 @@ class AgentRegistry:
                     "model_override": a.model_override,
                     "effective_model": a.model_override
                     or a.model
-                    or (a.recommended_models[0] if a.recommended_models else ""),
+                    or "",
                     "has_key": bool(a.api_key),
                     "priority": a.priority,
                     "is_custom": a.is_custom,

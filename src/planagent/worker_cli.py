@@ -265,3 +265,7 @@ def main() -> None:
         return
 
     asyncio.run(run_worker(args.worker, args.loop, args.interval_seconds))
+
+
+if __name__ == "__main__":
+    main()

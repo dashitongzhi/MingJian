@@ -1,0 +1,11 @@
+# PPT exports and generated previews are local deliverables.
+*.pptx
+*.ppt
+preview/
+
+# Local build dependencies.
+node_modules/
+
+# Temporary Office and OS files.
+~$*
+.DS_Store

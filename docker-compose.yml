@@ -57,6 +57,22 @@ services:
     volumes:
       - ./exports:/app/exports
 
+  frontend:
+    image: node:22-alpine
+    container_name: planagent-frontend
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 3000"
+    ports:
+      - "3001:3000"
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    volumes:
+      - ./frontend-v2:/app
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
   # ── Workers ────────────────────────────────────────────────
   worker-ingest:
     build:
@@ -166,6 +182,57 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-prediction
     command: python -m planagent.worker_cli prediction-revision-worker --loop
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-graph:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-graph
+    command: python -m planagent.worker_cli graph-worker --loop
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-review:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-review
+    command: python -m planagent.worker_cli review-worker --loop
+    env_file: .env
+    environment:
+      PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
+      PLANAGENT_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker-calibration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: planagent-worker-calibration
+    command: python -m planagent.worker_cli calibration-worker --loop
     env_file: .env
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent

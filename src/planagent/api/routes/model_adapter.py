@@ -23,7 +23,7 @@ router = APIRouter(prefix="/model", tags=["Model Adapter"])
 class ModelAssessRequest(BaseModel):
     """模型能力评估请求"""
 
-    model_id: str = Field(..., description="模型标识（如 gpt-4o, claude-sonnet-4-20250514）")
+    model_id: str = Field(..., description="供应商 /models 返回的模型标识")
 
 
 class ModelCapabilitiesResponse(BaseModel):

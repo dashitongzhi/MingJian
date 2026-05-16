@@ -84,31 +84,31 @@ class TestOpenAIEnvVarResolution:
 
 class TestOpenAIModelSource:
     def test_primary_target_returns_primary_env_var(self, settings):
-        assert settings.openai_model_source("primary") == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert settings.openai_model_source("primary") == "unset"
 
     def test_extraction_with_own_model(self, monkeypatch):
-        monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_MODEL", "gpt-4o-mini")
+        monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_MODEL", "provider-model-alpha")
         s = Settings(_env_file=None)
         assert s.openai_model_source("extraction") == "PLANAGENT_OPENAI_EXTRACTION_MODEL"
 
     def test_extraction_falls_back_to_primary(self, settings):
-        assert settings.openai_model_source("extraction") == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert settings.openai_model_source("extraction") == "unset"
 
     def test_report_with_own_model(self, monkeypatch):
-        monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_MODEL", "gpt-4o")
+        monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_MODEL", "provider-model-beta")
         s = Settings(_env_file=None)
         assert s.openai_model_source("report") == "PLANAGENT_OPENAI_REPORT_MODEL"
 
     def test_report_falls_back_to_primary(self, settings):
-        assert settings.openai_model_source("report") == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert settings.openai_model_source("report") == "unset"
 
     def test_debate_advocate_with_own_model(self, monkeypatch):
-        monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL", "o3")
+        monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL", "provider-model-gamma")
         s = Settings(_env_file=None)
         assert s.openai_model_source("debate_advocate") == "PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL"
 
     def test_debate_advocate_falls_back_to_primary(self, settings):
-        assert settings.openai_model_source("debate_advocate") == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert settings.openai_model_source("debate_advocate") == "unset"
 
     def test_debate_challenger_with_own_model(self, monkeypatch):
         monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL", "claude-3")
@@ -119,19 +119,19 @@ class TestOpenAIModelSource:
 
     def test_debate_challenger_falls_back_to_extraction_then_primary(self, settings):
         # No extraction model → falls to primary
-        assert settings.openai_model_source("debate_challenger") == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert settings.openai_model_source("debate_challenger") == "unset"
 
     def test_debate_challenger_prefers_extraction_over_primary(self, monkeypatch):
-        monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_MODEL", "gpt-4o-mini")
+        monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_MODEL", "provider-model-alpha")
         s = Settings(_env_file=None)
         assert s.openai_model_source("debate_challenger") == "PLANAGENT_OPENAI_EXTRACTION_MODEL"
 
     def test_debate_arbitrator_falls_back_to_report_then_primary(self, settings):
         # No report model → falls to primary
-        assert settings.openai_model_source("debate_arbitrator") == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert settings.openai_model_source("debate_arbitrator") == "unset"
 
     def test_debate_arbitrator_prefers_report_over_primary(self, monkeypatch):
-        monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_MODEL", "gpt-4o")
+        monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_MODEL", "provider-model-beta")
         s = Settings(_env_file=None)
         assert s.openai_model_source("debate_arbitrator") == "PLANAGENT_OPENAI_REPORT_MODEL"
 
@@ -147,7 +147,8 @@ class TestOpenAIModelSource:
 
 class TestResolvedOpenAIFields:
     def test_primary_model_default(self, settings):
-        assert settings.resolved_openai_extraction_model == settings.openai_primary_model
+        assert settings.openai_primary_model is None
+        assert settings.resolved_openai_extraction_model == ""
 
     def test_extraction_model_overrides_primary(self, monkeypatch):
         monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_MODEL", "custom-extraction")
@@ -155,7 +156,8 @@ class TestResolvedOpenAIFields:
         assert s.resolved_openai_extraction_model == "custom-extraction"
 
     def test_report_model_defaults_to_primary(self, settings):
-        assert settings.resolved_openai_report_model == settings.openai_primary_model
+        assert settings.openai_primary_model is None
+        assert settings.resolved_openai_report_model == ""
 
     def test_shared_api_key_propagates_to_targets(self, settings_with_openai_key):
         s = settings_with_openai_key

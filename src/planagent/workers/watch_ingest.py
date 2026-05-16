@@ -81,6 +81,7 @@ class WatchIngestWorker(Worker):
             debate_runs = 0
 
             for rule in claimed_rules:
+                rule_id = rule.id
                 try:
                     result = await self._poll_rule(session, rule)
                     polled += 1
@@ -91,9 +92,10 @@ class WatchIngestWorker(Worker):
                     if result.get("debate_id"):
                         debate_runs += 1
                 except Exception as exc:
+                    await session.rollback()
                     await self._mark_failure(
                         session,
-                        rule.id,
+                        rule_id,
                         f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
                     )
                     failed += 1

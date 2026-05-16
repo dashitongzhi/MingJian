@@ -31,7 +31,7 @@ const customProviderSchema = z.object({
   name: z.string().min(1, "请输入供应商名称"),
   api_key: z.string().min(1, "请输入API Key"),
   base_url: z.string().min(1, "请输入Base URL").url("请输入有效的URL"),
-  model: z.string(),
+  model: z.string().min(1, "请先验活并选择模型"),
   api_format: z.enum(["openai", "anthropic"]),
 });
 
@@ -693,7 +693,7 @@ function CustomConfigPanel({
           <Button type="button" variant="ghost" className="btn btn-ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button type="submit" disabled={saving || !watchedName || !watchedApiKey || !watchedBaseUrl} className="btn btn-primary">
+          <Button type="submit" disabled={saving || !watchedName || !watchedApiKey || !watchedBaseUrl || !watchedModel} className="btn btn-primary">
             {saving ? t("common.saving") : t("common.save")}
           </Button>
         </div>
@@ -777,7 +777,7 @@ function AgentConfigSection() {
           </div>
           <div>
             <h2 className="text-sm font-semibold">🤖 9智能体配置</h2>
-            <p className="text-xs text-[var(--muted-foreground)]">每个智能体独立角色，默认使用系统推荐模型，可自选切换</p>
+            <p className="text-xs text-[var(--muted-foreground)]">每个智能体独立角色，模型来自已验活的供应商</p>
           </div>
         </div>
       </div>
@@ -853,11 +853,11 @@ function AgentCard({ agent, onModelChange }: {
           onChange={(e) => onModelChange(agent.role, e.target.value)}
           className="mt-1 w-full rounded border border-[var(--input)] bg-[var(--background)] px-2 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
         >
-          <option value="">⭐ {agent.recommended_models[0] || "系统推荐"}</option>
-          {agent.recommended_models.slice(1).map((m) => (
+          <option value="">{agent.effective_model || "先配置供应商模型"}</option>
+          {agent.recommended_models.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
-          <option value="__custom__">✏️ 自定义...</option>
+          <option value="__custom__">自定义...</option>
         </select>
         {agent.model_override === "__custom__" && (
           <input

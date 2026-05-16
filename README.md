@@ -270,13 +270,15 @@ Create a `.env` file in the project root with the following variables:
 
 PLANAGENT_OPENAI_API_KEY=your_api_key_here
 
-# Override individual targets (all fall back to shared if unset)
-# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+# Override individual targets (all fall back to shared if unset).
+# Set the API key first, run the provider connection test to fetch available models,
+# then paste one of the returned model IDs if you need a manual override.
+# PLANAGENT_OPENAI_PRIMARY_MODEL=
 # PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
-# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
-# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
-# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
-# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
+# PLANAGENT_OPENAI_EXTRACTION_MODEL=
+# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=
+# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=
+# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=
 
 # ═══════════════════════════════════════════════════════════════
 # Database (optional — defaults to SQLite for local dev)

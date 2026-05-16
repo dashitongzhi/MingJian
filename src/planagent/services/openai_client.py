@@ -174,25 +174,25 @@ class OpenAIService:
             x_search_configured=self.clients["x_search"] is not None,
             report_configured=self.clients["report"] is not None,
             configured_targets=configured_targets,
-            primary_model=self.settings.openai_primary_model,
+            primary_model=self.settings.openai_primary_model or "",
             resolved_primary_model=resolve_openclaw_model_selector(
-                self.settings.openai_primary_model
+                self.settings.resolved_openai_primary_model or ""
             ),
-            extraction_model=self.settings.resolved_openai_extraction_model,
-            x_search_model=self.settings.resolved_openai_x_search_model,
-            report_model=self.settings.resolved_openai_report_model,
+            extraction_model=self.settings.resolved_openai_extraction_model or "",
+            x_search_model=self.settings.resolved_openai_x_search_model or "",
+            report_model=self.settings.resolved_openai_report_model or "",
             primary_base_url=self._base_url_for_target("primary"),
             extraction_base_url=self._base_url_for_target("extraction"),
             x_search_base_url=self._base_url_for_target("x_search"),
             report_base_url=self._base_url_for_target("report"),
             resolved_extraction_model=resolve_openclaw_model_selector(
-                self.settings.resolved_openai_extraction_model
+                self.settings.resolved_openai_extraction_model or ""
             ),
             resolved_x_search_model=resolve_openclaw_model_selector(
-                self.settings.resolved_openai_x_search_model
+                self.settings.resolved_openai_x_search_model or ""
             ),
             resolved_report_model=resolve_openclaw_model_selector(
-                self.settings.resolved_openai_report_model
+                self.settings.resolved_openai_report_model or ""
             ),
             model_sources={
                 target: self.settings.openai_model_source(target) for target in self.clients
@@ -333,6 +333,24 @@ class OpenAIService:
         client = self.clients[target]
         base_url = self._base_url_for_target(target)
 
+        if not resolved_model:
+            self._record_target_failure(
+                target=target,
+                error_prefix="connectivity_test_failed",
+                failures=["model not configured"],
+                model="",
+            )
+            return OpenAITestResponse(
+                ok=False,
+                configured=client is not None,
+                target=target,
+                base_url=base_url,
+                model="",
+                resolved_model="",
+                api_mode=None,
+                last_error="model not configured; fetch available models after setting the API key",
+            )
+
         if client is None:
             self._record_target_failure(
                 target=target,
@@ -455,16 +473,23 @@ class OpenAIService:
         error_prefix: str,
     ) -> BaseModel | None:
         client = self.clients[target]
+        model = resolve_openclaw_model_selector(self._model_for_target(target))
         if client is None:
             self._record_target_failure(
                 target=target,
                 error_prefix=error_prefix,
                 failures=["client not configured"],
-                model=resolve_openclaw_model_selector(self._model_for_target(target)),
+                model=model,
             )
             return None
-
-        model = resolve_openclaw_model_selector(self._model_for_target(target))
+        if not model:
+            self._record_target_failure(
+                target=target,
+                error_prefix=error_prefix,
+                failures=["model not configured"],
+                model="",
+            )
+            return None
         try:
             response = await client.responses.parse(
                 model=model,
@@ -792,18 +817,18 @@ class OpenAIService:
 
     def _model_for_target(self, target: TargetRole) -> str:
         if target == "primary":
-            return str(self.settings.openai_primary_model)
+            return str(self.settings.resolved_openai_primary_model or "")
         if target == "extraction":
-            return str(self.settings.resolved_openai_extraction_model)
+            return str(self.settings.resolved_openai_extraction_model or "")
         if target == "x_search":
-            return str(self.settings.resolved_openai_x_search_model)
+            return str(self.settings.resolved_openai_x_search_model or "")
         if target == "debate_advocate":
-            return str(self.settings.resolved_openai_debate_advocate_model)
+            return str(self.settings.resolved_openai_debate_advocate_model or "")
         if target == "debate_challenger":
-            return str(self.settings.resolved_openai_debate_challenger_model)
+            return str(self.settings.resolved_openai_debate_challenger_model or "")
         if target == "debate_arbitrator":
-            return str(self.settings.resolved_openai_debate_arbitrator_model)
-        return str(self.settings.resolved_openai_report_model)
+            return str(self.settings.resolved_openai_debate_arbitrator_model or "")
+        return str(self.settings.resolved_openai_report_model or "")
 
     def _base_url_for_target(self, target: TargetRole) -> str | None:
         if target == "primary":
@@ -834,6 +859,8 @@ class OpenAIService:
         if client is None:
             return None, None
         model = resolve_openclaw_model_selector(self._model_for_target(target))
+        if not model:
+            return None, None
         try:
             response = await client.chat.completions.create(
                 model=model,

@@ -45,14 +45,21 @@ def build_database_url(path: Path) -> str:
 def disable_openai(monkeypatch) -> None:
     monkeypatch.setenv("PLANAGENT_OPENAI_API_KEY", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_MODEL", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_API_KEY", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_MODEL", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_API_KEY", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_EXTRACTION_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_X_SEARCH_MODEL", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_X_SEARCH_API_KEY", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_X_SEARCH_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_MODEL", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_API_KEY", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_REPORT_BASE_URL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL", "")
+    monkeypatch.setenv("PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL", "")
     monkeypatch.setenv("PLANAGENT_X_BEARER_TOKEN", "")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
@@ -501,7 +508,6 @@ def test_root_and_openai_status_are_available_without_api_key(monkeypatch, tmp_p
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     disable_openai(monkeypatch)
-    monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_MODEL", "openai/gpt-5.2")
     reset_settings_cache()
     reset_database_cache()
 
@@ -520,14 +526,14 @@ def test_root_and_openai_status_are_available_without_api_key(monkeypatch, tmp_p
         assert payload["x_search_configured"] is False
         assert payload["report_configured"] is False
         assert payload["responses_api"] is True
-        assert payload["primary_model"] == "openai/gpt-5.2"
-        assert payload["resolved_primary_model"] == "gpt-5.2"
-        assert payload["resolved_extraction_model"] == "gpt-5.2"
-        assert payload["resolved_x_search_model"] == "gpt-5.2"
+        assert payload["primary_model"] == ""
+        assert payload["resolved_primary_model"] == ""
+        assert payload["resolved_extraction_model"] == ""
+        assert payload["resolved_x_search_model"] == ""
         assert payload["api_key_sources"]["primary"] == "unset"
-        assert payload["model_sources"]["report"] == "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        assert payload["model_sources"]["report"] == "unset"
         assert payload["target_diagnostics"]["primary"]["configured"] is False
-        assert payload["target_diagnostics"]["primary"]["resolved_model"] == "gpt-5.2"
+        assert payload["target_diagnostics"]["primary"]["resolved_model"] == ""
         assert payload["target_diagnostics"]["report"]["base_url"] is None
 
         test_response = client.post("/admin/openai/test", json={})
@@ -552,7 +558,7 @@ def test_openai_status_reports_target_level_inheritance(monkeypatch, tmp_path: P
         payload = status_response.json()
 
     assert payload["configured"] is True
-    assert payload["configured_targets"] == ["extraction", "x_search"]
+    assert payload["configured_targets"] == ["extraction", "x_search", "debate_challenger"]
     assert payload["primary_configured"] is False
     assert payload["extraction_configured"] is True
     assert payload["x_search_configured"] is True
@@ -730,12 +736,9 @@ def test_runtime_queue_health_reports_filtered_counts(monkeypatch, tmp_path: Pat
 
 
 def test_openclaw_style_model_selector_is_normalized() -> None:
-    assert resolve_openclaw_model_selector("openai/gpt-5.2") == "gpt-5.2"
-    assert resolve_openclaw_model_selector("openai-codex/gpt-5.2") == "gpt-5.2"
-    assert resolve_openclaw_model_selector("openai/gpt-5.4") == "gpt-5.4"
-    assert resolve_openclaw_model_selector("GPT-5.4") == "gpt-5.4"
-    assert resolve_openclaw_model_selector("GPT-5.3-Codex") == "gpt-5.3-codex"
-    assert resolve_openclaw_model_selector("gpt-5.2") == "gpt-5.2"
+    assert resolve_openclaw_model_selector("openai/current-model") == "current-model"
+    assert resolve_openclaw_model_selector("openai-codex/current-model") == "current-model"
+    assert resolve_openclaw_model_selector(" Current Model ") == "current-model"
 
 
 def test_x_source_uses_x_search_target() -> None:

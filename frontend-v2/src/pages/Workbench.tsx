@@ -1,12 +1,12 @@
-import { BriefcaseBusiness, GitBranch, Layers, MessageSquare, RefreshCw } from 'lucide-react'
+import { BriefcaseBusiness, GitBranch, Layers, MessageSquare, Network, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
 import { simulationApi, workbenchApi } from '../api/endpoints'
-import { useApi } from '../hooks/useApi'
+import { useApi, useApiAction } from '../hooks/useApi'
 import { ExpandableRecord, JsonBlock, MetricCard, asArray, asRecord, titleOf } from '../components/ui/DataSurface'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function Workbench() {
   const { data: sessions, loading, error, reload } = useApi(() => workbenchApi.sessions())
@@ -16,14 +16,37 @@ export default function Workbench() {
   const { data: trace } = useApi(() => selectedRun ? workbenchApi.getDecisionTrace(selectedRun) : Promise.resolve([]), [selectedRun])
   const { data: compare } = useApi(() => selectedRun ? workbenchApi.getScenarioCompare(selectedRun).catch(() => null) : Promise.resolve(null), [selectedRun])
   const { data: replay } = useApi(() => selectedRun ? workbenchApi.getReplayPackage(selectedRun).catch(() => null) : Promise.resolve(null), [selectedRun])
+  const { data: jarvisRuns, reload: reloadJarvis } = useApi(() => selectedRun ? workbenchApi.listJarvisRuns(selectedRun).catch(() => []) : Promise.resolve([]), [selectedRun])
+  const { execute: runJarvis, loading: jarvisRunning } = useApiAction((data: unknown) => workbenchApi.createJarvisRun(data))
+
+  const runList = asArray(runs)
+
+  useEffect(() => {
+    if (selectedRun || runList.length === 0) return
+    const firstRun = asRecord(runList[0])
+    const id = String(firstRun.id ?? '')
+    if (id) setSelectedRun(id)
+  }, [runList, selectedRun])
 
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorBanner message={error} onRetry={reload} />
 
   const sessionList = asArray(sessions)
-  const runList = asArray(runs)
   const wb = asRecord(workbench)
   const traceList = asArray(trace)
+  const evidenceGraph = asRecord(wb.evidence_graph)
+  const graphNodes = asArray(evidenceGraph.nodes)
+  const graphEdges = asArray(evidenceGraph.edges)
+  const timeline = asArray(wb.timeline)
+  const predictions = asArray(wb.prediction_versions)
+  const debates = asArray(wb.debate_records)
+  const jarvisList = asArray(jarvisRuns)
+
+  const handleJarvis = async () => {
+    if (!selectedRun) return
+    const result = await runJarvis({ run_id: selectedRun, target_type: 'run' })
+    if (result) reloadJarvis()
+  }
 
   return (
     <div className="space-y-5">
@@ -68,7 +91,31 @@ export default function Workbench() {
           <CardHeader title={selectedRun ? '运行工作台详情' : '战略会话'} />
           {selectedRun ? (
             <CardBody className="space-y-4">
-              <JsonBlock value={{ workbench, trace, compare, replay }} />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <AuditStat label="证据节点" value={graphNodes.length} icon={<Network className="h-4 w-4" />} />
+                <AuditStat label="证据关系" value={graphEdges.length} icon={<Layers className="h-4 w-4" />} />
+                <AuditStat label="辩论记录" value={debates.length} icon={<MessageSquare className="h-4 w-4" />} />
+                <AuditStat label="Jarvis 复核" value={jarvisList.length} icon={<ShieldCheck className="h-4 w-4" />} />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleJarvis}
+                  disabled={jarvisRunning}
+                  className="glass-button inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-slate-200 disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4" />{jarvisRunning ? '复核中...' : '运行 Jarvis 复核'}
+                </button>
+              </div>
+
+              <AuditSection title="证据链节点" items={graphNodes.slice(0, 8)} eyebrow="node" empty="暂无证据节点" />
+              <AuditSection title="决策时间线" items={timeline.slice(0, 8)} eyebrow="event" empty="暂无时间线事件" />
+              <AuditSection title="决策轨迹" items={traceList.slice(0, 8)} eyebrow="trace" empty="暂无决策轨迹" />
+              <AuditSection title="预测与辩论" items={[...predictions.slice(0, 4), ...debates.slice(0, 4)]} eyebrow="audit" empty="暂无预测或辩论记录" />
+              <AuditSection title="Jarvis 自愈复核" items={jarvisList.slice(0, 5)} eyebrow="jarvis" empty="暂无 Jarvis 复核" />
+
+              <JsonBlock value={{ compare, replay }} />
             </CardBody>
           ) : sessionList.length === 0 ? (
             <CardBody><EmptyState icon="▤" title="暂无会话" /></CardBody>
@@ -76,5 +123,43 @@ export default function Workbench() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function AuditStat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-slate-800/70 bg-slate-950/25 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-500">{label}</span>
+        <span className="text-blue-300">{icon}</span>
+      </div>
+      <p className="mt-2 text-2xl font-semibold text-slate-100">{value}</p>
+    </div>
+  )
+}
+
+function AuditSection({
+  title,
+  items,
+  eyebrow,
+  empty,
+}: {
+  title: string
+  items: unknown[]
+  eyebrow: string
+  empty: string
+}) {
+  return (
+    <section className="rounded-lg border border-slate-800/70 bg-slate-950/20">
+      <div className="flex items-center justify-between border-b border-slate-800/60 px-5 py-3">
+        <h3 className="text-sm font-medium text-slate-200">{title}</h3>
+        <span className="text-xs text-slate-600">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="p-5"><EmptyState icon="▤" title={empty} /></div>
+      ) : (
+        items.map((item, index) => <ExpandableRecord key={`${eyebrow}-${index}`} item={item} eyebrow={eyebrow} />)
+      )}
+    </section>
   )
 }

@@ -113,9 +113,7 @@ TARGET_FALLBACKS: dict[str, dict[str, tuple[str, ...]]] = {
     },
 }
 
-TARGET_MODEL_DEFAULTS: dict[str, str] = {
-    "primary": "openai/gpt-5.2",
-}
+TARGET_MODEL_DEFAULTS: dict[str, str] = {}
 
 
 def _target_attr(openai_cfg: OpenAIConfig, target: str, field: str) -> str | None:
@@ -190,7 +188,7 @@ def _primary_base_url_source(openai_cfg: OpenAIConfig) -> str:
 def model_source(openai_cfg: OpenAIConfig, target: str) -> str:
     src = _walk_chain_for_source(openai_cfg, target, "model")
     if src is None:
-        return "PLANAGENT_OPENAI_PRIMARY_MODEL"
+        return "unset"
     if src == target:
         return f"PLANAGENT_OPENAI_{target.upper()}_MODEL"
     return model_source(openai_cfg, src)

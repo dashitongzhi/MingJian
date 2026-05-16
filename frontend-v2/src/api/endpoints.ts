@@ -219,6 +219,8 @@ export const workbenchApi = {
   getDecisionTrace: (runId: string) => api.get(`/runs/${runId}/decision-trace`),
   getScenarioCompare: (runId: string) => api.get(`/runs/${runId}/scenario-compare`),
   getReplayPackage: (runId: string) => api.get(`/runs/${runId}/replay-package`),
+  listJarvisRuns: (runId?: string) => api.get<unknown[]>(`/jarvis/runs${runId ? `?run_id=${encodeURIComponent(runId)}` : ''}`),
+  createJarvisRun: (data: unknown) => api.post('/jarvis/runs', data),
   exportAssistantSession: (sessionId: string) => api.get(`/export/assistant/session/${sessionId}`),
   exportSimulation: (runId: string) => api.get(`/export/simulation/${runId}`),
   notificationStats: () => api.get('/stats'),

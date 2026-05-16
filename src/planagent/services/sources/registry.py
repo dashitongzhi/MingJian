@@ -274,5 +274,13 @@ class _SourceAdapter:
 
     async def fetch(self, limit: int | None = None) -> list[AnalysisSourceRead]:
         """Delegate to the provider's fetch method."""
+        return await self.fetch_query(self.query, limit)
+
+    async def fetch_query(
+        self,
+        query: str,
+        limit: int | None = None,
+    ) -> list[AnalysisSourceRead]:
+        """Fetch using an explicit query variant for autonomous research agents."""
         effective_limit = limit if limit is not None else self.limit
-        return await self.provider.fetch(self.query, effective_limit, self.domain_id)
+        return await self.provider.fetch(query, effective_limit, self.domain_id)

@@ -140,6 +140,8 @@ class DebateLLMMixin:
     ) -> DebatePositionPayload | None:
         if not self._anthropic_is_configured():
             return None
+        if not self.settings.anthropic_model:
+            return None
         provider = AnthropicProvider(
             api_key=self.settings.resolved_anthropic_api_key,
             timeout=self.settings.openai_timeout_seconds,
@@ -256,10 +258,13 @@ class DebateLLMMixin:
         )
 
         if provider_type == "anthropic":
+            selected_model = model or self.settings.anthropic_model
+            if not selected_model:
+                return None
             provider = AnthropicProvider(api_key=api_key, timeout=45.0)
             try:
                 _, parsed = await provider.generate_json(
-                    model=model or self.settings.anthropic_model,
+                    model=selected_model,
                     system_prompt=self._debate_role_instruction(role),
                     user_prompt=prompt,
                     schema=DebatePositionPayload.model_json_schema(),
@@ -271,6 +276,8 @@ class DebateLLMMixin:
                 await provider.close()
         else:
             # OpenAI 兼容
+            if not model:
+                return None
             from openai import AsyncOpenAI
 
             client = AsyncOpenAI(
@@ -280,7 +287,7 @@ class DebateLLMMixin:
             )
             try:
                 resp = await client.chat.completions.create(
-                    model=model or "gpt-4o",
+                    model=model,
                     messages=[
                         {"role": "system", "content": self._debate_role_instruction(role)},
                         {"role": "user", "content": f"{prompt}\n\nReturn valid JSON only."},

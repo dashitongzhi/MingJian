@@ -95,20 +95,27 @@ async def create_jarvis_run(
     session: AsyncSession = Depends(get_session),
 ) -> JarvisRunRead:
     orchestrator = _get_jarvis(request)
+    run = await session.get(SimulationRun, payload.run_id) if payload.run_id is not None else None
+    task_payload: dict[str, Any] = {
+        "run_id": payload.run_id,
+        "target_id": payload.target_id,
+        "prompt": payload.prompt,
+    }
+    if run is not None:
+        task_payload["run_status"] = run.status
+        task_payload["run_summary"] = run.summary
     task = JarvisTask(
         task_type=payload.target_type,
-        payload={"run_id": payload.run_id, "target_id": payload.target_id},
+        payload=task_payload,
         run_id=payload.run_id,
         target_id=payload.target_id,
         profile_id="plan-agent",
     )
     jarvis_result = await orchestrator.orchestrate(task)
     result = jarvis_result.to_dict()
-    if payload.run_id is not None:
-        run = await session.get(SimulationRun, payload.run_id)
-        if run is not None:
-            result["run_status"] = run.status
-            result["run_summary"] = run.summary
+    if run is not None:
+        result["run_status"] = run.status
+        result["run_summary"] = run.summary
     record = JarvisRunRecord(
         run_id=payload.run_id,
         target_type=payload.target_type,
