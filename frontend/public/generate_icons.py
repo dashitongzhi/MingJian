@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Generate PlanAgent icons from SVG."""
 
-from PIL import Image, ImageDraw, ImageFont
-import math
+from PIL import Image, ImageDraw
 
 def create_icon(size):
     """Create a PlanAgent icon of given size."""
