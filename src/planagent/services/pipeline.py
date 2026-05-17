@@ -182,7 +182,6 @@ class PhaseOnePipelineService:
 
         await session.commit()
         await self._publish_events(emitted_events)
-        await session.refresh(run)
         return run
 
     async def process_queued_runs(

@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/.venv312/bin/python}"
 DB_URL="${PLANAGENT_DATABASE_URL:-sqlite+aiosqlite:////tmp/planagent-local.db}"
 EVENT_BUS="${PLANAGENT_EVENT_BUS_BACKEND:-memory}"
+LOG_DIR="${PLANAGENT_LOG_DIR:-/tmp}"
 if [[ -n "${PLANAGENT_LOCAL_WORKERS:-}" ]]; then
   WORKERS="${PLANAGENT_LOCAL_WORKERS}"
 elif [[ "${DB_URL}" == sqlite* ]]; then
@@ -22,10 +23,11 @@ log() {
 start_screen() {
   local name="$1"
   local command="$2"
+  local log_file="${LOG_DIR}/${name}.log"
 
   screen -S "${name}" -X quit >/dev/null 2>&1 || true
-  screen -dmS "${name}" zsh -lc "${command}"
-  log "started ${name}"
+  screen -dmS "${name}" zsh -lc "${command} > '${log_file}' 2>&1"
+  log "started ${name} (log: ${log_file})"
 }
 
 stop_project_port() {
@@ -66,6 +68,8 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   log "python executable not found: ${PYTHON_BIN}"
   exit 1
 fi
+
+mkdir -p "${LOG_DIR}"
 
 COMMON_ENV="cd '${ROOT_DIR}' && PLANAGENT_DATABASE_URL='${DB_URL}' PLANAGENT_EVENT_BUS_BACKEND='${EVENT_BUS}' PLANAGENT_INLINE_INGEST_DEFAULT=true PLANAGENT_INLINE_SIMULATION_DEFAULT=true"
 

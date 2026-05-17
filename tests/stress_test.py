@@ -137,7 +137,6 @@ def test_frontend_pages():
         "/monitoring",
         "/workbench",
         "/agents",
-        "/batch",
         "/reports",
         "/settings",
     ]
@@ -172,7 +171,6 @@ def test_concurrent_load():
         f"{API}/health",
         f"{API}/health/ready",
         f"{API}/sources/reputation",
-        f"{API}/sources/custom",
         f"{API}/agents",
         f"{API}/predictions",
         f"{API}/claims",
@@ -182,7 +180,6 @@ def test_concurrent_load():
         f"{API}/decisions",
         f"{API}/debates",
         f"{API}/monitoring/dashboard",
-        f"{API}/model/settings",
     ]
 
     concurrency_levels = [5, 10, 20]
@@ -347,22 +344,17 @@ def test_error_handling():
         # Invalid IDs → expect 404
         ("GET", "/debates/nonexistent-id-12345", None, "404", "无效ID"),
         ("GET", "/assistant/sessions/nonexistent-session", None, "404", "无效session ID"),
-        ("GET", "/sources/custom/nonexistent-source", None, "404", "无效source key"),
         # Missing POST body → expect 422
         ("POST", "/analysis", None, "422", "空POST body"),
         ("POST", "/debate/stream", None, "422", "空debate请求"),
         ("POST", "/simulation/runs", None, "422", "空simulation请求"),
         # Invalid POST body
         ("POST", "/analysis", {"invalid": "data"}, "422", "无效POST数据"),
-        ("POST", "/sources/custom", {"bad": "schema"}, "422", "无效source schema"),
         # Extreme query params
         ("GET", "/claims?limit=0", None, None, "limit=0"),
         ("GET", "/claims?limit=999999", None, None, "limit=999999"),
         ("GET", "/evidence?limit=-1", None, None, "limit=-1"),
         ("GET", "/predictions?limit=1", None, None, "limit=1"),
-        # DELETE on nonexistent
-        ("DELETE", "/sources/custom/nonexistent-key-xyz", None, "404", "删除不存在的source"),
-        ("DELETE", "/agents/custom/nonexistent-role", None, "404", "删除不存在的agent"),
     ]
 
     for method, path, data, expected, desc in edge_cases:
@@ -398,7 +390,6 @@ def test_response_times():
         "/health",
         "/health/ready",
         "/sources/reputation",
-        "/sources/custom",
         "/agents",
         "/claims",
         "/evidence",
@@ -408,8 +399,6 @@ def test_response_times():
         "/decisions",
         "/debates",
         "/monitoring/dashboard",
-        "/model/settings",
-        "/model/capabilities",
         "/knowledge/graph",
         "/calibration",
     ]

@@ -1,20 +1,13 @@
-"""智能体注册中心 — 管理9个智能体和自定义智能体的生命周期和API Key分配"""
+"""智能体注册中心 — 管理9个内置智能体和API Key分配"""
 
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
-from typing import Any, Optional
-
-import yaml
+from typing import Optional
 
 logger = logging.getLogger(__name__)
-
-_CUSTOM_AGENTS_FILE = "custom_agents.yaml"
-_DEFAULT_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 
 
 class AgentRole(str, Enum):
@@ -442,156 +435,6 @@ DEFAULT_AGENTS: list[AgentConfig] = [
 ]
 
 
-# ── Custom Agents Persistence ─────────────────────────────────────
-
-
-def _custom_agents_config_path() -> Path:
-    """Resolve the custom agents config file path."""
-    return _DEFAULT_CONFIG_DIR / _CUSTOM_AGENTS_FILE
-
-
-def load_custom_agent_configs() -> list[dict[str, Any]]:
-    """Load custom agent configs from YAML file."""
-    path = _custom_agents_config_path()
-    if not path.exists():
-        return []
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        agents = data.get("agents", []) if isinstance(data, dict) else []
-        if not isinstance(agents, list):
-            logger.warning("Custom agents config is not a list: %s", path)
-            return []
-        return agents
-    except Exception as exc:
-        logger.warning("Failed to load custom agents config %s: %s", path, exc)
-        return []
-
-
-def save_custom_agent_configs(configs: list[dict[str, Any]]) -> None:
-    """Save custom agent configs to YAML file."""
-    path = _custom_agents_config_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = {"agents": configs}
-    path.write_text(yaml.dump(data, default_flow_style=False, allow_unicode=True), encoding="utf-8")
-
-
-def _make_unique_role_key(name: str, existing_keys: set[str]) -> str:
-    """Generate a unique role key from a name."""
-    # Convert to snake_case, prefixed with custom_
-    key = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "_", name).strip("_").lower()
-    if not key:
-        key = "agent"
-    base = f"custom_{key}"
-    candidate = base
-    counter = 2
-    while candidate in existing_keys:
-        candidate = f"{base}_{counter}"
-        counter += 1
-    return candidate
-
-
-def _config_to_agent(cfg: dict[str, Any]) -> AgentConfig:
-    """Convert a YAML config dict to an AgentConfig."""
-    role_key = cfg.get("role_key", "")
-    return AgentConfig(
-        role=role_key,
-        name=cfg.get("name", ""),
-        name_en=cfg.get("name_en", ""),
-        icon=cfg.get("icon", "🤖"),
-        description=cfg.get("description", ""),
-        recommended_models=cfg.get("recommended_models", []),
-        priority=cfg.get("priority", 2),
-        is_custom=True,
-    )
-
-
-def _agent_to_config(agent: AgentConfig) -> dict[str, Any]:
-    """Convert an AgentConfig to a YAML-safe dict."""
-    return {
-        "role_key": str(agent.role),
-        "name": agent.name,
-        "name_en": agent.name_en,
-        "icon": agent.icon,
-        "description": agent.description,
-        "recommended_models": agent.recommended_models,
-        "priority": agent.priority,
-    }
-
-
-def get_all_agent_configs() -> list[AgentConfig]:
-    """Return DEFAULT_AGENTS + custom agents."""
-    result = list(DEFAULT_AGENTS)
-    for cfg in load_custom_agent_configs():
-        result.append(_config_to_agent(cfg))
-    return result
-
-
-def create_custom_agent(
-    name: str,
-    name_en: str,
-    icon: str,
-    description: str,
-    priority: int = 2,
-    recommended_models: list[str] | None = None,
-) -> AgentConfig:
-    """Create a new custom agent and persist it."""
-    configs = load_custom_agent_configs()
-    existing_keys = {c.get("role_key", "") for c in configs}
-    # Also include default role keys
-    for r in AgentRole:
-        existing_keys.add(r.value)
-
-    role_key = _make_unique_role_key(name, existing_keys)
-    agent = AgentConfig(
-        role=role_key,
-        name=name,
-        name_en=name_en,
-        icon=icon,
-        description=description,
-        recommended_models=recommended_models or [],
-        priority=priority,
-        is_custom=True,
-    )
-    configs.append(_agent_to_config(agent))
-    save_custom_agent_configs(configs)
-    logger.info("Created custom agent: %s (%s)", name, role_key)
-    return agent
-
-
-def update_custom_agent(role_key: str, **kwargs: Any) -> AgentConfig | None:
-    """Update an existing custom agent. Returns updated agent or None if not found."""
-    configs = load_custom_agent_configs()
-    for i, cfg in enumerate(configs):
-        if cfg.get("role_key") == role_key:
-            for k, v in kwargs.items():
-                if k in cfg and v is not None:
-                    cfg[k] = v
-            configs[i] = cfg
-            save_custom_agent_configs(configs)
-            logger.info("Updated custom agent: %s", role_key)
-            return _config_to_agent(cfg)
-    return None
-
-
-def delete_custom_agent(role_key: str) -> bool:
-    """Delete a custom agent. Returns True if deleted."""
-    configs = load_custom_agent_configs()
-    new_configs = [c for c in configs if c.get("role_key") != role_key]
-    if len(new_configs) == len(configs):
-        return False
-    save_custom_agent_configs(new_configs)
-    logger.info("Deleted custom agent: %s", role_key)
-    return True
-
-
-def get_custom_agent(role_key: str) -> AgentConfig | None:
-    """Get a single custom agent by role_key."""
-    for cfg in load_custom_agent_configs():
-        if cfg.get("role_key") == role_key:
-            return _config_to_agent(cfg)
-    return None
-
-
 class AgentRegistry:
     """智能体注册中心 — 管理9个智能体"""
 
@@ -599,10 +442,6 @@ class AgentRegistry:
         self._agents: dict[AgentRole | str, AgentConfig] = {
             a.role: AgentConfig(**{**a.__dict__}) for a in DEFAULT_AGENTS
         }
-        # Load custom agents from persistent storage
-        for cfg in load_custom_agent_configs():
-            agent = _config_to_agent(cfg)
-            self._agents[str(agent.role)] = agent
         # 备用 key 池（当 key 数量 > 9 时）
         self._spare_keys: list[dict[str, str]] = []
 
@@ -612,20 +451,7 @@ class AgentRegistry:
         return self._agents[role]
 
     def get_all_agents(self) -> list[AgentConfig]:
-        agents = [self._agents[r] for r in _ROLE_PRIORITY]
-        # Append any custom agents stored in the registry
-        for key, cfg in self._agents.items():
-            if isinstance(key, str) and key.startswith("custom_"):
-                agents.append(cfg)
-        return agents
-
-    def add_custom_agent(self, agent: AgentConfig) -> None:
-        """Add a custom agent to the live registry."""
-        self._agents[str(agent.role)] = agent
-
-    def remove_custom_agent(self, role_key: str) -> None:
-        """Remove a custom agent from the live registry."""
-        self._agents.pop(role_key, None)
+        return [self._agents[r] for r in _ROLE_PRIORITY]
 
     def get_provider_config(self, role: AgentRole | str) -> dict[str, str]:
         """获取指定角色的 provider 配置，用于 LLM 调用"""

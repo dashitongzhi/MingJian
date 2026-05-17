@@ -1,8 +1,7 @@
 """Source provider registry — auto-discovers providers and builds adapters.
 
 Enhanced with:
-- Fallback/degradation logic (primary source fails → try fallbacks)
-- Custom source provider support (user-defined sources)
+- Fallback/degradation logic (primary source fails -> try fallbacks)
 - MCP-style provider listing and configuration
 """
 
@@ -64,7 +63,6 @@ class SourceRegistry:
         self.openai_service = openai_service
         self._providers: dict[str, DataSourceProvider] = {}
         self._load_providers()
-        self._load_custom_providers()
 
     # ── public API ─────────────────────────────────────────────────────
 
@@ -200,21 +198,6 @@ class SourceRegistry:
                         logger.debug("Registered source provider: %s", instance.key)
                     except Exception as exc:
                         logger.warning("Failed to instantiate provider %s: %s", attr_name, exc)
-
-    def _load_custom_providers(self) -> None:
-        """Load user-defined custom source providers from config files."""
-        try:
-            from planagent.services.sources.custom_provider import create_custom_providers
-
-            for provider in create_custom_providers(
-                self.settings, openai_service=self.openai_service
-            ):
-                self._providers[provider.key] = provider
-                logger.debug("Registered custom source provider: %s", provider.key)
-        except ImportError:
-            logger.debug("Custom provider support not available (missing dependencies)")
-        except Exception as exc:
-            logger.warning("Failed to load custom providers: %s", exc)
 
 
 class _SourceAdapter:

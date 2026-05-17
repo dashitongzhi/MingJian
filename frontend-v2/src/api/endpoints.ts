@@ -80,14 +80,7 @@ export const assistantApi = {
 export const agentsApi = {
   list: () => api.get<{ agents: unknown[]; total: number }>('/agents'),
   status: () => api.get('/agents/status'),
-  listAll: () => api.get<unknown[]>('/agents/all'),
-  configure: (data: unknown) => api.post('/agents/configure', data),
-  setModel: (data: unknown) => api.post('/agents/model', data),
   reset: () => api.post('/agents/reset'),
-  createCustom: (data: unknown) => api.post('/agents/custom', data),
-  getCustom: (roleKey: string) => api.get(`/agents/custom/${roleKey}`),
-  updateCustom: (roleKey: string, data: unknown) => api.put(`/agents/custom/${roleKey}`, data),
-  deleteCustom: (roleKey: string) => api.delete(`/agents/custom/${roleKey}`),
 }
 
 // ==================== 辩论 ====================
@@ -134,12 +127,6 @@ export const evidenceApi = {
 export const sourcesApi = {
   listStates: () => api.get<unknown[]>('/sources/states'),
   listChanges: () => api.get('/sources/changes'),
-  listCustom: () => api.get('/sources/custom'),
-  createCustom: (data: unknown) => api.post('/sources/custom', data),
-  updateCustom: (sourceKey: string, data: unknown) => api.put(`/sources/custom/${sourceKey}`, data),
-  deleteCustom: (sourceKey: string) => api.delete(`/sources/custom/${sourceKey}`),
-  testCustom: (sourceKey: string) => api.post(`/sources/custom/${sourceKey}/test`),
-  listProviders: () => api.get('/sources/providers'),
   listReputations: () => api.get('/sources/reputation'),
   listHealth: () => api.get('/sources/health'),
   listSnapshots: () => api.get('/sources/snapshots'),
@@ -169,9 +156,6 @@ export const reportApi = {
 
 // ==================== 设置 ====================
 export const settingsApi = {
-  getModelSettings: () => api.get('/model/settings'),
-  updateModelSettings: (data: unknown) => api.put('/model/settings', data),
-  getModelCapabilities: () => api.get('/model/capabilities'),
   getOpenaiStatus: () => api.get('/admin/openai/status'),
   testOpenai: () => api.post('/admin/openai/test'),
 }
@@ -191,24 +175,6 @@ export const monitoringApi = {
   getScoreboard: () => api.get('/hypotheses/scoreboard'),
   getCalibration: () => api.get('/calibration'),
   computeCalibration: () => api.post('/calibration/compute'),
-}
-
-// ==================== 供应商 ====================
-export const providersApi = {
-  presets: () => api.get('/admin/providers/presets'),
-  list: () => api.get('/admin/providers'),
-  save: (data: unknown) => api.post('/admin/providers', data),
-  delete: (providerId: string) => api.delete(`/admin/providers/${providerId}`),
-  test: (data: unknown) => api.post('/admin/providers/test', data),
-}
-
-// ==================== 批处理 ====================
-export const batchApi = {
-  list: () => api.get<unknown[]>('/batch'),
-  get: (batchId: string) => api.get(`/batch/${batchId}`),
-  tasks: (batchId: string) => api.get<unknown[]>(`/batch/${batchId}/tasks`),
-  submit: (data: unknown) => api.post('/batch/submit', data),
-  cancel: (batchId: string) => api.post(`/batch/${batchId}/cancel`),
 }
 
 // ==================== 工作台/导出/通知 ====================

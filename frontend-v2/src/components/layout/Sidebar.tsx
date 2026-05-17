@@ -3,8 +3,6 @@ import {
   Activity,
   BarChart3,
   Bot,
-  Boxes,
-  BrainCircuit,
   BriefcaseBusiness,
   ChevronLeft,
   ChevronRight,
@@ -40,9 +38,7 @@ const MENU_ITEMS: MenuItem[] = [
   { label: '证据库', icon: Library, path: '/evidence' },
   { label: '预测追踪', icon: BarChart3, path: '/predictions' },
   { label: '监控中心', icon: Activity, path: '/monitoring' },
-  { label: '模型供应商', icon: BrainCircuit, path: '/providers' },
   { label: '数据源', icon: Database, path: '/sources' },
-  { label: '批处理', icon: Boxes, path: '/batch' },
   { label: '报告中心', icon: FileText, path: '/reports' },
 ]
 

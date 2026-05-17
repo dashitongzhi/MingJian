@@ -188,13 +188,7 @@ class DebateLLMMixin:
         return role_providers.get(role, "openai").strip().lower() or "openai"
 
     def _get_custom_agents(self) -> list[dict[str, Any]]:
-        """Get custom agent configs from the agent registry or YAML."""
-        try:
-            from planagent.services.agent_registry import load_custom_agent_configs
-
-            return load_custom_agent_configs()
-        except Exception:
-            return []
+        return []
 
     def _get_agent_registry_config(self, role: str) -> dict[str, str] | None:
         """从 Agent Registry 获取角色的 provider 配置"""

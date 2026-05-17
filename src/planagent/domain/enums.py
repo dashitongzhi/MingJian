@@ -116,19 +116,3 @@ class ImpactDirection(StrEnum):
     NEUTRAL = "neutral"
     UNKNOWN = "unknown"
 
-
-class BatchTaskStatus(StrEnum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    PARTIAL = "PARTIAL"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
-
-
-class BatchSubTaskStatus(StrEnum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
