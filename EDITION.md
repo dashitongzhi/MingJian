@@ -5,7 +5,25 @@ This directory is the current public open-source version of MingJian.
 Path:
 
 ```text
-/Users/kral/project/agents
+/Users/kral/project/mingjian/mingjian
+```
+
+Cloud Edition:
+
+```text
+/Users/kral/project/mingjian/mingjian-cloud
+```
+
+Enterprise Edition:
+
+```text
+/Users/kral/project/mingjian/mingjian-enterprise
+```
+
+Sync Scripts:
+
+```text
+/Users/kral/project/mingjian/mingjian-sync
 ```
 
 License:

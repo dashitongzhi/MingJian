@@ -2,7 +2,7 @@
 
 > **目标**：打通"提问题→采集→辩论→监控→更新→决策"完整闭环
 > **架构**：FastAPI + SQLAlchemy async + Redis Streams + pgvector
-> **路径**：`/Users/kral/project/agents/src/planagent/`
+> **路径**：`/Users/kral/project/mingjian/mingjian/src/planagent/`
 
 ---
 

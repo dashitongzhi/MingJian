@@ -8,8 +8,11 @@ import {
   saveBlobToFile,
 } from "/Users/kral/.codex/plugins/cache/openai-primary-runtime/presentations/26.515.10909/skills/presentations/scripts/artifact_tool_utils.mjs";
 
-const WORKSPACE = "/Users/kral/project/agents/outputs/019e2f0f-14b6-7cb0-8595-a08f7aa823fd/presentations/mingjian-opc-pitch";
-const OUTPUT_DIR = "/Users/kral/project/agents";
+const OUTPUT_DIR = "/Users/kral/project/mingjian/mingjian";
+const WORKSPACE = path.join(
+  OUTPUT_DIR,
+  "outputs/019e2f0f-14b6-7cb0-8595-a08f7aa823fd/presentations/mingjian-opc-pitch",
+);
 const FINAL_PPTX = path.join(OUTPUT_DIR, "明鉴_OPC路演优化版.pptx");
 const FINAL_PPTX_V2 = path.join(OUTPUT_DIR, "明鉴_OPC路演优化版_新版.pptx");
 const FINAL_PPTX_PRICE = path.join(OUTPUT_DIR, "明鉴_OPC路演优化版_价格重做版.pptx");

@@ -3,7 +3,7 @@
 This directory is the public open-source upstream for MingJian.
 
 ```text
-/Users/kral/project/agents
+/Users/kral/project/mingjian/mingjian
 ```
 
 ## Role
@@ -55,10 +55,9 @@ edition instead.
 Commercial editions should follow this repository, not the other way around.
 
 ```text
-agents -> mingjian-cloud
-agents -> mingjian-enterprise
+mingjian -> mingjian-cloud
+mingjian -> mingjian-enterprise
 ```
 
 Avoid copying Cloud or Enterprise implementation back into this repository unless
 the feature is meant to become public.
-
