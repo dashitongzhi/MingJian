@@ -79,6 +79,7 @@ export const assistantApi = {
 // ==================== 智能体 ====================
 export const agentsApi = {
   list: () => api.get<{ agents: unknown[]; total: number }>('/agents'),
+  listAll: async () => (await api.get<{ agents: unknown[]; total: number }>('/agents')).agents,
   status: () => api.get('/agents/status'),
   reset: () => api.post('/agents/reset'),
 }

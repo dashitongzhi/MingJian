@@ -2,8 +2,9 @@ import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, BriefcaseBusiness, ChevronDown, Plus, Search } from 'lucide-react'
+import { Bell, BriefcaseBusiness, ChevronDown, Moon, Plus, Search, Sun } from 'lucide-react'
 import Sidebar from './Sidebar'
+import { useTheme } from '../../hooks/useTheme'
 
 export default function AppLayout() {
   const navigate = useNavigate()
@@ -12,6 +13,7 @@ export default function AppLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [userOpen, setUserOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const { theme, toggleTheme } = useTheme()
 
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -20,10 +22,10 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen text-slate-100">
+    <div className="app-shell flex min-h-screen text-slate-100">
       <Sidebar />
       <main className="ml-[76px] flex min-h-screen flex-1 flex-col overflow-x-hidden lg:ml-[248px]">
-        <header className="sticky top-0 z-30 border-b border-[rgba(96,165,250,0.12)] bg-[#030814]/76 px-4 py-3 backdrop-blur-2xl lg:px-7">
+        <header className="app-header sticky top-0 z-30 border-b border-[rgba(96,165,250,0.12)] bg-[#030814]/76 px-4 py-3 backdrop-blur-2xl lg:px-7">
           <div className="flex items-center gap-3">
             <div className="relative hidden lg:block">
             <button
@@ -77,6 +79,16 @@ export default function AppLayout() {
                 军事
               </button>
             </div>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+              aria-pressed={theme === 'light'}
+              title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+              className="theme-toggle-button glass-button grid h-10 w-10 shrink-0 place-items-center rounded-lg"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
             <div className="relative">
               <button
                 type="button"

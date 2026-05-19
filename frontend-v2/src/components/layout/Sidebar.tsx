@@ -83,7 +83,7 @@ export default function Sidebar() {
   return (
     <aside
       className={`
-        fixed left-0 top-0 z-40 h-screen flex flex-col
+        app-sidebar fixed left-0 top-0 z-40 h-screen flex flex-col
         border-r border-[rgba(96,165,250,0.16)] bg-[#020817]/88 backdrop-blur-2xl
         transition-all duration-300
         ${collapsed ? 'w-[76px]' : 'w-[76px] lg:w-[248px]'}
