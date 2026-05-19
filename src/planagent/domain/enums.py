@@ -115,4 +115,3 @@ class ImpactDirection(StrEnum):
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
     UNKNOWN = "unknown"
-

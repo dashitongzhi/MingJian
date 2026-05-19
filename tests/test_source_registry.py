@@ -56,4 +56,3 @@ def test_registry_describes_builtin_providers() -> None:
 
     assert descriptions
     assert all("name" in item for item in descriptions)
-

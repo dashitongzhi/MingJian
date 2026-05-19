@@ -8,7 +8,7 @@ import html
 import inspect
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -359,7 +359,7 @@ class AutomatedAnalysisService:
             fetch_requests, fetch_results, strict=True
         ):
             provider_label = adapter.label
-            if isinstance(provider_results, Exception):
+            if isinstance(provider_results, BaseException):
                 error_detail = (
                     self._clean_text(str(provider_results))[:240]
                     or provider_results.__class__.__name__
@@ -386,8 +386,9 @@ class AutomatedAnalysisService:
 
             added = 0
             items_preview: list[str] = []
-            sources = provider_results["sources"]
-            attempts = provider_results["attempts"]
+            provider_data = cast(dict[str, Any], provider_results)
+            sources = provider_data["sources"]
+            attempts = provider_data["attempts"]
             for source in sources:
                 dedupe_key = (source.title.lower(), source.url)
                 if dedupe_key in seen:

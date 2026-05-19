@@ -573,9 +573,7 @@ class AgentRegistry:
                     "description": a.description,
                     "recommended_models": a.recommended_models,
                     "model_override": a.model_override,
-                    "effective_model": a.model_override
-                    or a.model
-                    or "",
+                    "effective_model": a.model_override or a.model or "",
                     "has_key": bool(a.api_key),
                     "priority": a.priority,
                     "is_custom": a.is_custom,

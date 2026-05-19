@@ -144,10 +144,7 @@ class JarvisOrchestrator:
         result.critical_issues = fail + int(review_output.get("critical_issues", 0) or 0)
         result.validation_dimensions = {
             **dict(VALIDATION_DIMENSIONS),
-            **{
-                str(k): str(v)
-                for k, v in (review_output.get("dimension_status") or {}).items()
-            },
+            **{str(k): str(v) for k, v in (review_output.get("dimension_status") or {}).items()},
         }
         if fail > 0 and success == 0:
             result.status, result.verdict, result.pass_score = "FAILED", "FAIL", 0
