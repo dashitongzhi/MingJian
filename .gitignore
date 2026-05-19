@@ -64,3 +64,10 @@ workspace/
 
 # Copilot instructions (local, do not upload)
 .github/copilot-instructions.md
+
+# Local-only planning and development guidance
+DEVELOPMENT_GUIDE.md
+PLAN.md
+plana.md
+docs/planagent_full_report.md
+CONTINUOUS_MONITORING.md
