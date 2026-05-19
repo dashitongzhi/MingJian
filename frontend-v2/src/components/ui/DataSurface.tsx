@@ -71,14 +71,14 @@ export function MetricCard({
   }
 
   return (
-    <Card className="p-5">
+    <Card className="cockpit-metric p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-xs uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-50 blue-text-glow">{metricNumber(value)}</p>
+          <p className="cockpit-kicker truncate">{label}</p>
+          <p className="mt-3 text-3xl font-semibold text-slate-50">{metricNumber(value)}</p>
           {hint && <p className="mt-1 truncate text-xs text-slate-500">{hint}</p>}
         </div>
-        {icon && <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${tones[tone]}`}>{icon}</div>}
+        {icon && <div className={`cockpit-metric-icon grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${tones[tone]}`}>{icon}</div>}
       </div>
     </Card>
   )
