@@ -61,3 +61,6 @@ current-workspace-chat-history.md
 workspace/
 *.pptx
 .venv312/
+
+# Copilot instructions (local, do not upload)
+.github/copilot-instructions.md
