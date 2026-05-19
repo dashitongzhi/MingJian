@@ -219,7 +219,7 @@ chmod +x setup.sh
  API | http://localhost:8000 |
  MinIOコンソール | http://localhost:9001 |
 
-MinIOログイン：`planagent` / `planagent123`
+MinIOログイン：`.env` の `PLANAGENT_MINIO_ACCESS_KEY` / `PLANAGENT_MINIO_SECRET_KEY` を使用してください。
 
 Dockerスタックを停止するには：
 

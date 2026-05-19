@@ -33,8 +33,8 @@ class BaseAppSettings(BaseSettings):
         "http://localhost:8000",
     ]
     minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "planagent"
-    minio_secret_key: str = "planagent123"
+    minio_access_key: str = "change-me-minio-access-key"
+    minio_secret_key: str = "change-me-minio-secret-key"
     minio_secure: bool = False
     minio_bucket: str = "planagent-snapshots"
     source_snapshot_backend: str = "filesystem"

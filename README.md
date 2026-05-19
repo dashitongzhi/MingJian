@@ -221,7 +221,7 @@ When the script finishes, open:
 | API | http://localhost:8000 |
 | MinIO Console | http://localhost:9001 |
 
-MinIO login: `planagent` / `planagent123`
+MinIO login: use `PLANAGENT_MINIO_ACCESS_KEY` / `PLANAGENT_MINIO_SECRET_KEY` from your `.env`.
 
 To stop the Docker stack:
 
@@ -232,6 +232,10 @@ docker compose -f docker-compose.yml down
 ### Manual Development Setup
 
 Use this path if you want to run the backend and frontend directly on your machine for development.
+
+#### Frontend Directory Policy
+
+`frontend-v2/` is the active Vite frontend for new UI work. `frontend/` is the legacy Next.js app kept for compatibility, while `frontend-new/` and `pure-react-app/` are historical experiment directories and should not receive new product work unless they are explicitly revived.
 
 #### Prerequisites
 

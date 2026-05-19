@@ -35,6 +35,8 @@ pip-wheel-metadata/
 *.sqlite3
 *.log
 source_snapshots/
+outputs/
+exports/
 
 # Local editor and OS files
 .DS_Store
@@ -46,6 +48,12 @@ source_snapshots/
 frontend/.next/
 frontend/node_modules/
 frontend/next-env.d.ts
+frontend-new/node_modules/
+frontend-new/dist/
+frontend-v2/node_modules/
+frontend-v2/dist/
+pure-react-app/node_modules/
+pure-react-app/dist/
 
 # Docker local compose
 docker-compose.yml

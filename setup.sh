@@ -84,6 +84,10 @@ if [ ! -f ".env.example" ]; then
   fail ".env.example was not found. Please run this script from the MingJian project root."
 fi
 
+if [ ! -f "docker-compose.yml" ]; then
+  fail "docker-compose.yml was not found. This setup script only supports roots that ship a Docker Compose stack."
+fi
+
 if [ ! -f ".env" ]; then
   info "Creating .env from .env.example..."
   cp .env.example .env
@@ -124,5 +128,5 @@ printf '%s\n' "🌐 Frontend: http://localhost:3001"
 printf '%s\n' "🧠 API:      http://localhost:8000"
 printf '%s\n' "📦 MinIO:    http://localhost:9001"
 printf '\n'
-printf '%s\n' "MinIO login: planagent / planagent123"
+printf '%s\n' "MinIO login: use PLANAGENT_MINIO_ACCESS_KEY / PLANAGENT_MINIO_SECRET_KEY from .env"
 printf '%s\n' "To stop MingJian later, run: docker compose down"

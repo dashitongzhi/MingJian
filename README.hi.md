@@ -219,7 +219,7 @@ chmod +x setup.sh
  API | http://localhost:8000 |
  MinIO कंसोल | http://localhost:9001 |
 
-MinIO लॉगिन: `planagent` / `planagent123`
+MinIO लॉगिन: `.env` में `PLANAGENT_MINIO_ACCESS_KEY` / `PLANAGENT_MINIO_SECRET_KEY` का उपयोग करें।
 
 Docker स्टैक रोकने के लिए:
 
