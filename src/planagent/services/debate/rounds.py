@@ -185,6 +185,8 @@ class DebateRoundMixin:
         evidence_ids: list[str],
         debate_mode: str = "full",
         domain_id: str | None = None,
+        session: AsyncSession | None = None,
+        debate_id: str | None = None,
     ) -> AsyncIterator[DebateStreamEvent]:
         completed_rounds: list[dict[str, Any]] = []
         round_plan = build_round_plan(
@@ -192,6 +194,24 @@ class DebateRoundMixin:
         )
 
         for round_number, role, instruction in round_plan:
+            if session is not None and debate_id is not None:
+                pending_interrupts = await self.get_pending_interrupts(session, debate_id)
+                interrupt_context = self.format_interrupts_for_context(pending_interrupts)
+                if interrupt_context:
+                    context = f"{context}\n\n{interrupt_context}"
+                    injected_count = await self.mark_interrupts_injected(
+                        session, debate_id, round_number
+                    )
+                    await session.flush()
+                    yield DebateStreamEvent(
+                        event="debate_interrupt_injected",
+                        payload={
+                            "round_number": round_number,
+                            "role": role,
+                            "count": injected_count,
+                            "interrupt_ids": [item.id for item in pending_interrupts],
+                        },
+                    )
             yield DebateStreamEvent(
                 event="debate_round_start",
                 payload={"round_number": round_number, "role": role},
@@ -397,319 +417,21 @@ class DebateRoundMixin:
         trigger_type: str,
         context: str,
         evidence_ids: list[str],
+        debate_mode: str = "full",
+        domain_id: str | None = None,
     ) -> list[dict[str, Any]] | None:
         if not self._has_available_debate_provider():
             return None
 
-        def argument_dicts(arguments: list[Any]) -> list[dict[str, Any]]:
-            return [
-                {
-                    "claim": argument.claim,
-                    "evidence_ids": argument.evidence_ids or evidence_ids[:3],
-                    "reasoning": argument.reasoning,
-                    "strength": argument.strength,
-                }
-                for argument in arguments
-            ]
-
-        def argument_refs(arguments: list[Any]) -> list[dict[str, str]]:
-            return [
-                {"claim": argument.claim, "reasoning": argument.reasoning} for argument in arguments
-            ]
-
-        def round_payload(round_number: int, role: str, position: Any) -> dict[str, Any]:
-            return {
-                "round_number": round_number,
-                "role": role,
-                "position": position.position,
-                "confidence": position.confidence,
-                "arguments": argument_dicts(position.arguments),
-                "rebuttals": position.rebuttals or [],
-                "concessions": position.concessions or [],
-            }
-
-        def debate_history(completed_rounds: list[dict[str, Any]]) -> str:
-            lines: list[str] = []
-            for item in completed_rounds:
-                lines.append(
-                    f"Round {item['round_number']} {item['role']} "
-                    f"({item['position']}, confidence {item['confidence']:.2f}):"
-                )
-                for argument in item.get("arguments", [])[:3]:
-                    claim = str(argument.get("claim", ""))[:90]
-                    reasoning = str(argument.get("reasoning", ""))[:70]
-                    lines.append(f"- {claim} | {reasoning}")
-                for rebuttal in item.get("rebuttals", [])[:2]:
-                    lines.append(f"- rebuttal: {str(rebuttal)[:90]}")
-                for concession in item.get("concessions", [])[:2]:
-                    lines.append(f"- concession: {str(concession)[:90]}")
-            return "\n".join(lines)
-
-        def context_with_history(instruction: str, completed_rounds: list[dict[str, Any]]) -> str:
-            history = debate_history(completed_rounds)
-            return (
-                f"{instruction}\n\n"
-                f"Debate history so far:\n{history or 'No prior debate rounds.'}\n\n"
-                f"Original context:\n{context}"
-            )
-
-        # ── Token budget tracking ─────────────────────────────
-        used_tokens = 0
-        trimmed_rounds: list[dict[str, Any]] = []
-
-        def _estimate_response_tokens(position: Any) -> int:
-            """Estimate token count from a LLM response position."""
-            if position is None:
-                return 0
-            text = position.position or ""
-            for arg in getattr(position, "arguments", []) or []:
-                text += getattr(arg, "claim", "") or ""
-                text += getattr(arg, "reasoning", "") or ""
-            for r in getattr(position, "rebuttals", []) or []:
-                text += str(r)
-            for c in getattr(position, "concessions", []) or []:
-                text += str(c)
-            return _estimate_tokens(text)
-
-        def _track_and_nudge(ctx: str, position: Any) -> None:
-            """Update token usage from context + response, inject nudge if needed."""
-            nonlocal used_tokens
-            used_tokens += _estimate_tokens(ctx)
-            used_tokens += _estimate_response_tokens(position)
-            _inject_wrap_up_nudge(trimmed_rounds, used_tokens, _TOKEN_BUDGET_PER_ROUND)
-
-        def _trimmed_context(instruction: str) -> str:
-            """Build context with trimmed round history for budget control."""
-            nonlocal trimmed_rounds
-            trimmed_rounds = _trim_old_messages(rounds)
-            return context_with_history(instruction, trimmed_rounds)
-
-        # ── Round 1: 立论 ──────────────────────────────────────
-        advocate_r1 = await self._call_llm(
-            role="advocate",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        intel_r1 = await self._call_llm(
-            role="intel_analyst",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        geo_r1 = await self._call_llm(
-            role="geo_expert",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        econ_r1 = await self._call_llm(
-            role="econ_analyst",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        military_r1 = await self._call_llm(
-            role="military_strategist",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        tech_r1 = await self._call_llm(
-            role="tech_foresight",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        social_r1 = await self._call_llm(
-            role="social_impact",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        challenger_r1 = await self._call_llm(
-            role="challenger",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=context,
-        )
-        _track_and_nudge(context, advocate_r1)
-        _track_and_nudge(context, intel_r1)
-        _track_and_nudge(context, geo_r1)
-        _track_and_nudge(context, econ_r1)
-        _track_and_nudge(context, military_r1)
-        _track_and_nudge(context, tech_r1)
-        _track_and_nudge(context, social_r1)
-        _track_and_nudge(context, challenger_r1)
-        if advocate_r1 is None and challenger_r1 is None:
-            return None
-
         rounds: list[dict[str, Any]] = []
-        if advocate_r1 is not None:
-            rounds.append(round_payload(1, "advocate", advocate_r1))
-        if intel_r1 is not None:
-            rounds.append(round_payload(1, "intel_analyst", intel_r1))
-        if geo_r1 is not None:
-            rounds.append(round_payload(1, "geo_expert", geo_r1))
-        if econ_r1 is not None:
-            rounds.append(round_payload(1, "econ_analyst", econ_r1))
-        if military_r1 is not None:
-            rounds.append(round_payload(1, "military_strategist", military_r1))
-        if tech_r1 is not None:
-            rounds.append(round_payload(1, "tech_foresight", tech_r1))
-        if social_r1 is not None:
-            rounds.append(round_payload(1, "social_impact", social_r1))
-        if challenger_r1 is not None:
-            rounds.append(round_payload(1, "challenger", challenger_r1))
-
-        # ── Round 2: 质询 ──────────────────────────────────────
-        all_r1_args = [
-            a
-            for p in [advocate_r1, intel_r1, geo_r1, econ_r1, military_r1, tech_r1, social_r1]
-            if p is not None
-            for a in p.arguments
-        ]
-        round_2_instruction = (
-            "【第2轮·质询】请针对第1轮所有立论进行系统性质疑，找出逻辑漏洞和证据缺陷。"
-        )
-        challenger_r2 = await self._call_llm(
-            role="challenger",
+        async for stream_event in self._stream_llm_rounds(
             topic=topic,
             trigger_type=trigger_type,
-            context=_trimmed_context(round_2_instruction),
-            opponent_arguments=argument_refs(all_r1_args),
-        )
-        intel_r2 = await self._call_llm(
-            role="intel_analyst",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(
-                "【第2轮·质询】情报分析师：请对立论中的事实声明进行情报核实，标注矛盾信息和来源可信度。",
-            ),
-            opponent_arguments=argument_refs(all_r1_args),
-        )
-        ctx_r2 = _trimmed_context(round_2_instruction)
-        _track_and_nudge(ctx_r2, challenger_r2)
-        _track_and_nudge(ctx_r2, intel_r2)
-        if challenger_r2 is not None:
-            rounds.append(round_payload(2, "challenger", challenger_r2))
-        if intel_r2 is not None:
-            rounds.append(round_payload(2, "intel_analyst", intel_r2))
-
-        # ── Round 3: 修订 ──────────────────────────────────────
-        all_r2_args = [a for p in [challenger_r2, intel_r2] if p is not None for a in p.arguments]
-        adv_args_r1 = advocate_r1.arguments if advocate_r1 else []
-        round_3_instruction = "【第3轮·修订】请根据第2轮质询反馈修订和完善你的核心论证，保留有证据支撑的部分，修正被质疑的部分。"
-        advocate_r3 = await self._call_llm(
-            role="advocate",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(round_3_instruction),
-            opponent_arguments=argument_refs(all_r2_args),
-            own_previous=[{"claim": a.claim} for a in adv_args_r1],
-        )
-        geo_r3 = await self._call_llm(
-            role="geo_expert",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(
-                "【第3轮·修订】地缘政治专家：请根据质询修订地缘政治分析，补充被质疑的论据。",
-            ),
-            opponent_arguments=argument_refs(all_r2_args),
-        )
-        econ_r3 = await self._call_llm(
-            role="econ_analyst",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(
-                "【第3轮·修订】经济分析师：请根据质询修订经济分析，修正数据和结论。",
-            ),
-            opponent_arguments=argument_refs(all_r2_args),
-        )
-        military_r3 = await self._call_llm(
-            role="military_strategist",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(
-                "【第3轮·修订】军事战略家：请根据质询修订军事评估，强化或修正关键判断。",
-            ),
-            opponent_arguments=argument_refs(all_r2_args),
-        )
-        tech_r3 = await self._call_llm(
-            role="tech_foresight",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(
-                "【第3轮·修订】技术前瞻者：请根据质询修订技术评估，更新时间线和置信度。",
-            ),
-            opponent_arguments=argument_refs(all_r2_args),
-        )
-        social_r3 = await self._call_llm(
-            role="social_impact",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(
-                "【第3轮·修订】社会影响评估师：请根据质询修订社会影响分析。",
-            ),
-            opponent_arguments=argument_refs(all_r2_args),
-        )
-        ctx_r3 = _trimmed_context(round_3_instruction)
-        _track_and_nudge(ctx_r3, advocate_r3)
-        _track_and_nudge(ctx_r3, geo_r3)
-        _track_and_nudge(ctx_r3, econ_r3)
-        _track_and_nudge(ctx_r3, military_r3)
-        _track_and_nudge(ctx_r3, tech_r3)
-        _track_and_nudge(ctx_r3, social_r3)
-        if advocate_r3 is not None:
-            rounds.append(round_payload(3, "advocate", advocate_r3))
-        if geo_r3 is not None:
-            rounds.append(round_payload(3, "geo_expert", geo_r3))
-        if econ_r3 is not None:
-            rounds.append(round_payload(3, "econ_analyst", econ_r3))
-        if military_r3 is not None:
-            rounds.append(round_payload(3, "military_strategist", military_r3))
-        if tech_r3 is not None:
-            rounds.append(round_payload(3, "tech_foresight", tech_r3))
-        if social_r3 is not None:
-            rounds.append(round_payload(3, "social_impact", social_r3))
-
-        # ── Round 4: 仲裁 ──────────────────────────────────────
-        all_round_args = [
-            a
-            for p in [
-                advocate_r1,
-                intel_r1,
-                geo_r1,
-                econ_r1,
-                military_r1,
-                tech_r1,
-                social_r1,
-                challenger_r1,
-                challenger_r2,
-                intel_r2,
-                advocate_r3,
-                geo_r3,
-                econ_r3,
-                military_r3,
-                tech_r3,
-                social_r3,
-            ]
-            if p is not None
-            for a in p.arguments
-        ]
-        round_4_instruction = (
-            "【第4轮·仲裁】首席仲裁官：请基于全部论证历史做出最终裁决，"
-            "综合权衡战略、情报、地缘政治、经济、军事、技术和社会各维度的分析。"
-        )
-        arbitrator = await self._call_llm(
-            role="arbitrator",
-            topic=topic,
-            trigger_type=trigger_type,
-            context=_trimmed_context(round_4_instruction),
-            opponent_arguments=argument_refs(all_round_args),
-        )
-        _track_and_nudge(_trimmed_context(round_4_instruction), arbitrator)
-        if arbitrator is not None:
-            rounds.append(round_payload(4, "arbitrator", arbitrator))
-
+            context=context,
+            evidence_ids=evidence_ids,
+            debate_mode=debate_mode,
+            domain_id=domain_id,
+        ):
+            if stream_event.event == "debate_round_complete":
+                rounds.append(stream_event.payload["round"])
         return rounds if rounds else None

@@ -483,6 +483,10 @@ class DebateReplayRead(APIModel):
         default_factory=list,
         description="按时间顺序排列的所有发言",
     )
+    events: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="前端可直接消费的回放事件列表，兼容 timeline",
+    )
     verdict: DebateVerdictRead | None = None
     created_at: datetime
     updated_at: datetime

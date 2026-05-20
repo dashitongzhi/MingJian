@@ -23,7 +23,8 @@ export interface DebateDetail { id: string; topic: string; trigger_type: string;
 export interface DebateRoundStartEvent { event: "debate_round_start"; payload: { round_number: number; role: string; debate_id?: string } }
 export interface DebateRoundCompleteEvent { event: "debate_round_complete"; payload: { round_number: number; role: string; position: string; confidence: number; key_arguments: string[]; debate_id?: string } }
 export interface DebateVerdictEvent { event: "debate_verdict"; payload: { verdict: string; confidence: number; winning_arguments: string[]; decisive_evidence: string[]; minority_opinion?: string | null; debate_id?: string } }
-export type DebateStreamEvent = DebateRoundStartEvent | DebateRoundCompleteEvent | DebateVerdictEvent;
+export interface DebateInterruptInjectedEvent { event: "debate_interrupt_injected"; payload: { round_number: number; role: string; count: number; interrupt_ids: string[]; debate_id?: string } }
+export type DebateStreamEvent = DebateRoundStartEvent | DebateRoundCompleteEvent | DebateVerdictEvent | DebateInterruptInjectedEvent;
 export interface PanelMessage { participant_id: string; label: string; model_target: string; stance: "support" | "challenge" | "monitor"; summary: string; key_points: string[]; recommendation: string; confidence: number }
 export interface StrategicSession { id: string; name: string; topic: string; domain_id: string; subject_name: string | null; auto_refresh_enabled: boolean; latest_brief_summary: string | null; latest_run_summary: string | null; created_at: string }
 export interface StrategicRunSnapshot { id: string; session_id?: string; ingest_run_id?: string | null; simulation_run_id?: string | null; debate_id?: string | null; generated_report_id?: string | null; latest_prediction_version?: WorkbenchPredictionVersion | null; result: AssistantResult; generated_at: string }
@@ -320,29 +321,38 @@ export type InterruptType = "supplementary_info" | "direction_correction" | "new
 
 export interface DebateInterrupt {
   id: string;
-  debate_id: string;
+  debate_session_id: string;
   message: string;
   interrupt_type: InterruptType;
+  injected_at_round?: number | null;
+  status: "PENDING" | "INJECTED" | "IGNORED";
   created_at: string;
 }
 
 export interface ReplayEvent {
-  event_type: "round_start" | "round_complete" | "interrupt" | "position_change" | "verdict";
+  event_type: "speech" | "round_start" | "round_complete" | "interrupt" | "position_change" | "verdict";
   timestamp: string;
-  round_number: number;
-  role: string;
-  content: string;
+  round_number?: number;
+  injected_at_round?: number | null;
+  role?: string;
+  content?: string;
+  message?: string;
   position?: string;
   stance?: "support" | "oppose" | "neutral";
   confidence?: number;
   interrupt_type?: string;
+  status?: string;
 }
 
 export interface DebateReplay {
   debate_id: string;
   topic: string;
   status: string;
+  total_rounds: number;
+  rounds_by_number: Record<string, DebateRound[]>;
+  timeline: ReplayEvent[];
   events: ReplayEvent[];
+  verdict: DebateVerdict | null;
 }
 
 export const postDebateInterrupt = (debateId: string, message: string, interruptType: InterruptType) =>

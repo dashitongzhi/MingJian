@@ -223,6 +223,8 @@ function DebateCenter() {
             };
             setLiveRounds((prev) => [...prev, round]);
             setLiveCurrentRound({ round_number: evt.payload.round_number, role: evt.payload.role });
+          } else if (evt.event === "debate_interrupt_injected") {
+            toast.info(`插话已注入第 ${evt.payload.round_number} 轮上下文`);
           } else if (evt.event === "debate_verdict") {
             setLiveVerdict(evt.payload as DebateVerdict);
             setLiveCurrentRound(null);
@@ -267,9 +269,11 @@ function DebateCenter() {
     setReplayLoading(true);
     try {
       const data = await fetchDebateReplay(debate.id);
-      setReplay(data);
+      setReplay({ ...data, events: data.events?.length ? data.events : data.timeline || [] });
       setShowReplay(true);
-      setExpandedReplayRounds(new Set(data.events.map((e) => e.round_number)));
+      setExpandedReplayRounds(
+        new Set((data.events?.length ? data.events : data.timeline || []).map((e) => e.round_number || e.injected_at_round || 0).filter(Boolean))
+      );
     } catch {
       toast.error("加载回放失败");
     } finally {
@@ -578,7 +582,12 @@ function RoundMessages({
   submittingVoteKey: string | null;
   onVote: (round: DebateRound, vote: VoteValue) => void;
 }) {
-  const allRounds = [roundData.proRound, roundData.conRound, roundData.arbiterRound].filter(Boolean) as DebateRound[];
+  const allRounds = [
+    roundData.proRound,
+    ...(roundData.otherRounds || []),
+    roundData.conRound,
+    roundData.arbiterRound,
+  ].filter(Boolean) as DebateRound[];
 
   return (
     <div className="space-y-3">
@@ -745,7 +754,9 @@ function ReplaySection({
           >
             {Object.entries(
               replay.events.reduce<Record<number, ReplayEvent[]>>((acc, evt) => {
-                (acc[evt.round_number] ??= []).push(evt);
+                const roundNumber = evt.round_number || evt.injected_at_round || 0;
+                if (!roundNumber) return acc;
+                (acc[roundNumber] ??= []).push(evt);
                 return acc;
               }, {})
             )
@@ -772,14 +783,16 @@ function ReplaySection({
                             <div className="flex items-center gap-2 mb-0.5">
                               <Clock size={10} className="text-[var(--muted)]" />
                               <span className="font-mono text-[10px] text-[var(--muted)]">{formatTimestamp(evt.timestamp)}</span>
-                              <span className="text-[11px] font-medium">{roleLabel(evt.role)}</span>
+                              <span className="text-[11px] font-medium">
+                                {evt.event_type === "interrupt" ? "用户插话" : roleLabel(evt.role || "unknown")}
+                              </span>
                               {evt.stance && (
                                 <span className={`rounded px-1 py-0.5 text-[9px] font-medium ${stanceBadgeColor(evt.stance)}`}>
                                   {stanceLabel(evt.stance, (k: string) => k)}
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs leading-5 text-[var(--muted-foreground)]">{evt.content}</p>
+                            <p className="text-xs leading-5 text-[var(--muted-foreground)]">{evt.content || evt.message || "—"}</p>
                           </div>
                         ))}
                       </div>

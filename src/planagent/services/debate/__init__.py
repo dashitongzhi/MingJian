@@ -74,6 +74,7 @@ class ClaimRelationContext:
 from .adjudication import DebateAdjudicationMixin  # noqa: E402
 from .llm import DebateLLMMixin  # noqa: E402
 from .revisions import DebateRevisionMixin  # noqa: E402
+from .roles import debate_record_sort_key  # noqa: E402
 from .rounds import DebateRoundMixin  # noqa: E402
 from .triggers import DebateTriggerMixin  # noqa: E402
 
@@ -272,7 +273,7 @@ class DebateService(
             context_payload={"user_context": payload.context_lines},
         )
         trigger_payload: dict[str, Any]
-        debate_id: str
+        debate_id = ""
 
         try:
             async with session.begin_nested():
@@ -290,6 +291,7 @@ class DebateService(
                     EventArchive(topic=EventTopic.DEBATE_TRIGGERED.value, payload=trigger_payload)
                 )
                 await session.flush()
+            await session.commit()
 
             preparation = await self._prepare_stream_llm_debate(session, payload)
             if preparation is not None and self._has_available_debate_provider():
@@ -301,8 +303,15 @@ class DebateService(
                     evidence_ids=preparation.llm_evidence_ids,
                     debate_mode=getattr(payload, "debate_mode", "full") or "full",
                     domain_id=getattr(payload, "domain_id", None),
+                    session=session,
+                    debate_id=debate_id,
                 ):
                     if stream_event.event == "debate_round_start":
+                        yield self._stream_event(
+                            stream_event.event, debate_id, stream_event.payload
+                        )
+                        continue
+                    if stream_event.event != "debate_round_complete":
                         yield self._stream_event(
                             stream_event.event, debate_id, stream_event.payload
                         )
@@ -439,6 +448,11 @@ class DebateService(
             )
         except Exception:
             await session.rollback()
+            if debate_id:
+                failed_session = await session.get(DebateSessionRecord, debate_id)
+                if failed_session is not None:
+                    failed_session.status = "FAILED"
+                    await session.commit()
             raise
 
     async def _ensure_debate_prediction(
@@ -538,10 +552,14 @@ class DebateService(
                 await session.scalars(
                     select(DebateRoundRecord)
                     .where(DebateRoundRecord.debate_id == debate_id)
-                    .order_by(DebateRoundRecord.round_number.asc(), DebateRoundRecord.role.asc())
+                    .order_by(
+                        DebateRoundRecord.round_number.asc(),
+                        DebateRoundRecord.created_at.asc(),
+                    )
                 )
             ).all()
         )
+        rounds.sort(key=debate_record_sort_key)
         verdict = await session.get(DebateVerdictRecord, debate_id)
         return DebateDetailRead(
             id=debate.id,
@@ -699,11 +717,12 @@ class DebateService(
                     .where(DebateRoundRecord.debate_id == debate_id)
                     .order_by(
                         DebateRoundRecord.round_number.asc(),
-                        DebateRoundRecord.role.asc(),
+                        DebateRoundRecord.created_at.asc(),
                     )
                 )
             ).all()
         )
+        round_records.sort(key=debate_record_sort_key)
         rounds_data: list[dict[str, Any]] = [
             {
                 "round_number": rec.round_number,

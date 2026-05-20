@@ -44,6 +44,33 @@ function LiveProgressBar({ value }: { value: number }) {
   );
 }
 
+export function RoundTimeline({
+  rounds,
+  activeRound,
+}: {
+  rounds: Array<{ roundNumber: number }>;
+  activeRound?: number;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {rounds.map((round) => (
+          <div
+            key={round.roundNumber}
+            className={`rounded-md border px-3 py-1.5 text-xs ${
+              activeRound === round.roundNumber
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-[var(--card-border)] text-[var(--muted)]"
+            }`}
+          >
+            Round {round.roundNumber}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StateBlock({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex min-h-[420px] items-center justify-center text-center">
@@ -176,7 +203,9 @@ function ReplayTimeline({ replay }: { replay: DebateReplay }) {
 
   // Group events by round number
   const grouped = replay.events.reduce<Record<number, ReplayEvent[]>>((acc, evt) => {
-    (acc[evt.round_number] ??= []).push(evt);
+    const roundNumber = evt.round_number || evt.injected_at_round || 0;
+    if (!roundNumber) return acc;
+    (acc[roundNumber] ??= []).push(evt);
     return acc;
   }, {});
 
@@ -232,7 +261,9 @@ function ReplayTimeline({ replay }: { replay: DebateReplay }) {
                         <Clock size={12} className="text-[var(--muted)]" />
                         <span className="font-mono text-[11px] text-[var(--muted)]">{formatTimestamp(evt.timestamp)}</span>
                         <span className="text-[11px] text-[var(--muted)]">·</span>
-                        <span className="text-xs font-medium text-[var(--foreground)]">{roleLabel(evt.role)}</span>
+                        <span className="text-xs font-medium text-[var(--foreground)]">
+                          {isInterrupt ? "用户插话" : roleLabel(evt.role || "unknown")}
+                        </span>
                         {evt.stance && (
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${stanceBadgeColor(evt.stance)}`}>
                             {stanceLabel(evt.stance, t)}
@@ -254,7 +285,7 @@ function ReplayTimeline({ replay }: { replay: DebateReplay }) {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">{evt.content}</p>
+                      <p className="text-sm leading-6 text-[var(--muted-foreground)]">{evt.content || evt.message || "—"}</p>
                       {evt.position && isPositionChange && (
                         <p className="mt-1 text-xs text-[var(--accent)]">→ {evt.position}</p>
                       )}

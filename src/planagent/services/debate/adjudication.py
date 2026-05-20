@@ -24,6 +24,7 @@ from planagent.domain.models import (
 from planagent.services.pipeline import normalize_text
 
 from . import ClaimRelationContext, DebateAssessment
+from .roles import debate_role_label, debate_round_sort_key
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _CLAIM_STOPWORDS = {
@@ -526,67 +527,42 @@ class DebateAdjudicationMixin:
         )[0]
         subject_name = await self._run_subject_name(session, branch_run)
 
-        rounds = [
-            {
-                "round_number": 1,
-                "role": "strategist",
-                "position": "SUPPORT",
-                "confidence": support_confidence,
-                "arguments": [
-                    {
-                        "claim": argument,
-                        "evidence_ids": evidence_ids[:3],
-                        "reasoning": f"The branch for {subject_name} improves part of the scenario surface versus baseline.",
-                        "strength": "STRONG" if index == 0 else "MODERATE",
-                    }
-                    for index, argument in enumerate(winning_arguments)
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            },
-            {
-                "round_number": 1,
-                "role": "risk_analyst",
-                "position": "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
-                "confidence": challenge_confidence,
-                "arguments": [
-                    {
-                        "claim": argument,
-                        "evidence_ids": evidence_ids[:3],
-                        "reasoning": "The alternative branch still carries meaningful tradeoffs against the baseline.",
-                        "strength": "STRONG" if index == 0 else "MODERATE",
-                    }
-                    for index, argument in enumerate(
-                        (
-                            risks
-                            or [
-                                "The branch does not yet beat baseline on the highest-value metrics."
-                            ]
-                        )[:3]
-                    )
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            },
-            {
-                "round_number": 2,
-                "role": "opportunist",
-                "position": self._verdict_position(verdict),
-                "confidence": max(support_confidence, challenge_confidence),
-                "arguments": [
-                    {
-                        "claim": f"Final verdict: {verdict}.",
-                        "evidence_ids": evidence_ids[:3],
-                        "reasoning": "The opportunist compared branch KPI deltas, recommendations, and unresolved downside tradeoffs.",
-                        "strength": "STRONG",
-                    }
-                ],
-                "rebuttals": [],
-                "concessions": (
-                    [{"argument_idx": 0, "reason": conditions[0]}] if conditions else []
+        branch_risk_claim = (
+            risks or ["The branch does not yet beat baseline on the highest-value metrics."]
+        )[0]
+        rounds = self._build_heuristic_full_panel_rounds(
+            subject_name=subject_name,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+            verdict=verdict,
+            decisive_evidence=evidence_ids[:3],
+            winning_arguments=winning_arguments,
+            minority_opinion=minority_opinion,
+            conditions=conditions,
+            focus="the scenario branch",
+            role_claims={
+                "advocate": (
+                    winning_arguments[0],
+                    f"The branch for {subject_name} improves part of the scenario surface versus baseline.",
+                ),
+                "challenger": (
+                    branch_risk_claim,
+                    "The alternative branch still carries meaningful tradeoffs against the baseline.",
+                ),
+                "econ_analyst": (
+                    positives[0] if positives else winning_arguments[0],
+                    "The economic view compares KPI deltas, opportunity cost, and resource tradeoffs.",
+                ),
+                "military_strategist": (
+                    positives[1] if len(positives) > 1 else winning_arguments[0],
+                    "The military view compares readiness, tempo, and operational feasibility versus baseline.",
+                ),
+                "social_impact": (
+                    branch_risk_claim,
+                    "The social view inspects collateral, legitimacy, and stakeholder effects in the branch path.",
                 ),
             },
-        ]
+        )
 
         # Generate planning recommendations
         branch_recommendations = self._generate_recommendations(
@@ -759,6 +735,8 @@ class DebateAdjudicationMixin:
             trigger_type=payload.trigger_type,
             context=llm_context,
             evidence_ids=decisive_evidence_pre,
+            debate_mode=payload.debate_mode,
+            domain_id=payload.domain_id,
         )
         if llm_rounds is not None:
             return self._build_assessment_from_llm_rounds(
@@ -834,53 +812,52 @@ class DebateAdjudicationMixin:
             if verdict != "REJECTED"
             else "The advocate argued the statement still deserves retention for audit and search."
         )
-        rounds = [
-            {
-                "round_number": 1,
-                "role": "strategist",
-                "position": "SUPPORT",
-                "confidence": support_confidence,
-                "arguments": self._claim_argument_block(
-                    primary_claim=claim,
-                    related_claims=relations.supportive_claims,
-                    default_reasoning="The statement is directly grounded in the linked evidence item.",
-                    confidence=support_confidence,
+        support_block = self._claim_argument_block(
+            primary_claim=claim,
+            related_claims=relations.supportive_claims,
+            default_reasoning="The statement is directly grounded in the linked evidence item.",
+            confidence=support_confidence,
+        )[0]
+        challenge_block = self._claim_argument_block(
+            primary_claim=claim,
+            related_claims=relations.conflicting_claims,
+            default_reasoning="The confidence band alone does not establish that this claim wins against the conflict set.",
+            confidence=challenge_confidence,
+            opposing=True,
+        )[0]
+        rounds = self._build_heuristic_full_panel_rounds(
+            subject_name=claim.subject,
+            support_confidence=support_confidence,
+            challenge_confidence=challenge_confidence,
+            verdict=verdict,
+            decisive_evidence=decisive_evidence,
+            winning_arguments=winning_arguments,
+            minority_opinion=minority_opinion,
+            conditions=conditions,
+            focus="the evidence claim",
+            role_claims={
+                "advocate": (
+                    str(support_block.get("claim", claim.statement)),
+                    str(support_block.get("reasoning", "")),
                 ),
-                "rebuttals": [],
-                "concessions": [],
-            },
-            {
-                "round_number": 1,
-                "role": "risk_analyst",
-                "position": "OPPOSE" if verdict != "ACCEPTED" else "CONDITIONAL",
-                "confidence": challenge_confidence,
-                "arguments": self._claim_argument_block(
-                    primary_claim=claim,
-                    related_claims=relations.conflicting_claims,
-                    default_reasoning="The confidence band alone does not establish that this claim wins against the conflict set.",
-                    confidence=challenge_confidence,
-                    opposing=True,
+                "challenger": (
+                    str(challenge_block.get("claim", "The current claim still faces conflict risk.")),
+                    str(challenge_block.get("reasoning", "")),
                 ),
-                "rebuttals": [],
-                "concessions": [],
+                "intel_analyst": (
+                    f"Evidence title: {evidence.title if evidence is not None else 'unknown'}.",
+                    "The evidence assessor checks the source trail, related claims, and conflict set before promotion.",
+                ),
+                "econ_analyst": (
+                    winning_arguments[0],
+                    "The economic view treats this claim as an input whose downstream cost depends on confidence quality.",
+                ),
+                "social_impact": (
+                    str(challenge_block.get("claim", "The claim needs human review before downstream adoption.")),
+                    "The social view considers reputational and decision-quality impact if an uncertain claim is promoted.",
+                ),
             },
-            {
-                "round_number": 2,
-                "role": "opportunist",
-                "position": self._verdict_position(verdict),
-                "confidence": max(support_confidence, challenge_confidence),
-                "arguments": [
-                    {
-                        "claim": f"Final verdict: {verdict}.",
-                        "evidence_ids": decisive_evidence,
-                        "reasoning": f"Evidence title: {evidence.title if evidence is not None else 'unknown'}.",
-                        "strength": "STRONG",
-                    }
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            },
-        ]
+        )
 
         # Generate planning recommendations
         claim_recommendations = self._generate_recommendations(
@@ -1009,6 +986,8 @@ class DebateAdjudicationMixin:
             trigger_type=payload.trigger_type,
             context=llm_context,
             evidence_ids=evidence_ids[:5],
+            debate_mode=payload.debate_mode,
+            domain_id=payload.domain_id or run.domain_id,
         )
         if llm_rounds is not None:
             return self._build_assessment_from_llm_rounds(
@@ -1091,108 +1070,191 @@ class DebateAdjudicationMixin:
         minority_opinion = (risks or ["The challenger found limited contradictory evidence."])[0]
 
         subject_name = await self._run_subject_name(session, run)
+
+        def make_round(
+            round_number: int,
+            role: str,
+            position: str,
+            confidence: float,
+            claim: str,
+            reasoning: str,
+            *,
+            strength: str = "MODERATE",
+            rebuttals: list[dict[str, Any]] | None = None,
+            concessions: list[dict[str, Any]] | None = None,
+        ) -> dict[str, Any]:
+            return {
+                "round_number": round_number,
+                "role": role,
+                "position": position,
+                "confidence": confidence,
+                "arguments": [
+                    {
+                        "claim": claim,
+                        "evidence_ids": decisive_evidence,
+                        "reasoning": reasoning,
+                        "strength": strength,
+                    }
+                ],
+                "rebuttals": rebuttals or [],
+                "concessions": concessions or [],
+            }
+
+        support_claim = winning_arguments[0]
+        risk_claim = minority_opinion
+        role_claims = {
+            "advocate": (
+                support_claim,
+                f"The run for {subject_name} closed with supportive signals in the final state.",
+            ),
+            "intel_analyst": (
+                evidence_statements[0]
+                if evidence_statements
+                else "The evidence set is sufficient for a provisional intelligence read.",
+                "The evidence assessor cross-checks source statements and flags remaining information gaps.",
+            ),
+            "geo_expert": (
+                positives[1] if len(positives) > 1 else support_claim,
+                "The geopolitical view connects the run outcome to theater posture and alliance constraints.",
+            ),
+            "econ_analyst": (
+                positives[2] if len(positives) > 2 else support_claim,
+                "The economic view weighs resource cost, throughput, and opportunity cost in the final state.",
+            ),
+            "military_strategist": (
+                positives[0] if positives else support_claim,
+                "The military view evaluates readiness, logistics, and operational feasibility.",
+            ),
+            "tech_foresight": (
+                matched_rules[0] if matched_rules else "Technical assumptions did not overturn the run path.",
+                "The technical view checks whether infrastructure and capability assumptions remain plausible.",
+            ),
+            "social_impact": (
+                risks[0] if risks else "Civilian and social impact remain within the review band.",
+                "The social view keeps civilian, legitimacy, and public response constraints visible.",
+            ),
+        }
         rounds = [
-            {
-                "round_number": 1,
-                "role": "strategist",
-                "position": "SUPPORT",
-                "confidence": support_confidence,
-                "arguments": [
-                    {
-                        "claim": argument,
-                        "evidence_ids": decisive_evidence,
-                        "reasoning": f"The run for {subject_name} closed with supportive signals in the final state.",
-                        "strength": "STRONG" if index == 0 else "MODERATE",
-                    }
-                    for index, argument in enumerate(
-                        (positives or ["The run maintained a coherent action path."])[:3]
-                    )
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            },
-            {
-                "round_number": 1,
-                "role": "risk_analyst",
-                "position": "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
-                "confidence": challenge_confidence,
-                "arguments": [
-                    {
-                        "claim": argument,
-                        "evidence_ids": decisive_evidence,
-                        "reasoning": "Residual operational risk prevents a clean endorsement.",
-                        "strength": "STRONG" if index == 0 else "MODERATE",
-                    }
-                    for index, argument in enumerate(
-                        (risks or ["Contradictory signals were limited but not zero."])[:3]
-                    )
-                ],
-                "rebuttals": [],
-                "concessions": [],
-            },
-            {
-                "round_number": 2,
-                "role": "strategist",
-                "position": "SUPPORT",
-                "confidence": self._clamp(support_confidence - 0.03, minimum=0.2, maximum=0.92),
-                "arguments": [
-                    {
-                        "claim": "The supportive indicators still outweigh the unresolved risks.",
-                        "evidence_ids": decisive_evidence,
-                        "reasoning": "The matched rules and completed actions show a consistent execution path.",
-                        "strength": "MODERATE",
-                    }
-                ],
-                "rebuttals": [
-                    {
-                        "target_argument_idx": 0,
-                        "counter": minority_opinion,
-                        "evidence_ids": decisive_evidence,
-                    }
-                ],
-                "concessions": [],
-            },
-            {
-                "round_number": 2,
-                "role": "risk_analyst",
-                "position": "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
-                "confidence": self._clamp(challenge_confidence - 0.03, minimum=0.15, maximum=0.9),
-                "arguments": [
-                    {
-                        "claim": "The downside case still remains operationally relevant.",
-                        "evidence_ids": decisive_evidence,
-                        "reasoning": "Open risk factors should remain visible in the final recommendation.",
-                        "strength": "MODERATE",
-                    }
-                ],
-                "rebuttals": [
-                    {
-                        "target_argument_idx": 0,
-                        "counter": winning_arguments[0],
-                        "evidence_ids": decisive_evidence,
-                    }
-                ],
-                "concessions": [],
-            },
-            {
-                "round_number": 3,
-                "role": "opportunist",
-                "position": self._verdict_position(verdict),
-                "confidence": max(support_confidence, challenge_confidence),
-                "arguments": [
-                    {
-                        "claim": f"Final verdict: {verdict}.",
-                        "evidence_ids": decisive_evidence,
-                        "reasoning": "The opportunist weighted final-state metrics, matched rules, and unresolved shocks.",
-                        "strength": "STRONG",
-                    }
-                ],
-                "rebuttals": [],
-                "concessions": (
-                    [{"argument_idx": 0, "reason": conditions[0]}] if conditions else []
-                ),
-            },
+            make_round(
+                1,
+                role,
+                "SUPPORT" if role != "social_impact" else "CONDITIONAL",
+                support_confidence if role != "social_impact" else (support_confidence + challenge_confidence) / 2,
+                role_claims[role][0],
+                role_claims[role][1],
+                strength="STRONG" if role == "advocate" else "MODERATE",
+            )
+            for role in (
+                "advocate",
+                "intel_analyst",
+                "geo_expert",
+                "econ_analyst",
+                "military_strategist",
+                "tech_foresight",
+                "social_impact",
+            )
         ]
+        rounds.extend(
+            [
+                make_round(
+                    2,
+                    "challenger",
+                    "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
+                    challenge_confidence,
+                    risk_claim,
+                    "The challenger pressure-tests the full expert panel and keeps unresolved downside visible.",
+                    strength="STRONG" if risks else "MODERATE",
+                    rebuttals=[
+                        {
+                            "target_argument_idx": 0,
+                            "counter": winning_arguments[0],
+                            "evidence_ids": decisive_evidence,
+                        }
+                    ],
+                ),
+                make_round(
+                    2,
+                    "intel_analyst",
+                    "CONDITIONAL",
+                    self._clamp((support_confidence + challenge_confidence) / 2, 0.2, 0.9),
+                    "Fact check: the cited evidence supports a provisional verdict but should stay attached to the next refresh.",
+                    "The evidence assessor revisits the first-round claims and marks what needs source refresh.",
+                    strength="MODERATE",
+                ),
+            ]
+        )
+        for role in (
+            "advocate",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ):
+            label = debate_role_label(role)
+            rounds.append(
+                make_round(
+                    3,
+                    role,
+                    "SUPPORT" if role != "social_impact" else "CONDITIONAL",
+                    self._clamp(support_confidence - 0.03, 0.2, 0.92),
+                    f"{label} revised view: the main conclusion remains supportable with explicit monitoring.",
+                    f"{label} responds to challenger pressure by preserving the strongest evidence and narrowing weaker claims.",
+                    rebuttals=[
+                        {
+                            "target_argument_idx": 0,
+                            "counter": risk_claim,
+                            "evidence_ids": decisive_evidence,
+                        }
+                    ],
+                )
+            )
+
+        for custom_agent in self._get_custom_agents():
+            role_key = str(custom_agent.get("role_key", "custom_agent"))
+            name = str(custom_agent.get("name", role_key))
+            description = str(custom_agent.get("description", ""))[:180]
+            rounds.append(
+                make_round(
+                    1,
+                    role_key,
+                    "CONDITIONAL",
+                    self._clamp((support_confidence + challenge_confidence) / 2, 0.2, 0.9),
+                    f"{name} participated in the expert panel.",
+                    description
+                    or "The custom agent contributed a specialized perspective to the debate.",
+                )
+            )
+            rounds.append(
+                make_round(
+                    3,
+                    role_key,
+                    "CONDITIONAL",
+                    self._clamp((support_confidence + challenge_confidence) / 2 - 0.02, 0.2, 0.9),
+                    f"{name} revised its view after challenger pressure.",
+                    "The custom agent acknowledged the shared debate history and preserved its key monitoring point.",
+                    rebuttals=[
+                        {
+                            "target_argument_idx": 0,
+                            "counter": risk_claim,
+                            "evidence_ids": decisive_evidence,
+                        }
+                    ],
+                )
+            )
+
+        rounds.append(
+            make_round(
+                4,
+                "arbitrator",
+                self._verdict_position(verdict),
+                max(support_confidence, challenge_confidence),
+                f"Final verdict: {verdict}.",
+                "The arbitrator weighted all nine built-in agent perspectives, custom agent inputs, final-state metrics, matched rules, and unresolved shocks.",
+                strength="STRONG",
+                concessions=([{"argument_idx": 0, "reason": conditions[0]}] if conditions else []),
+            )
+        )
 
         # Generate planning recommendations
         run_recommendations = self._generate_recommendations(
@@ -1417,6 +1479,228 @@ class DebateAdjudicationMixin:
             f"Support confidence: {support_confidence:.0%}, Challenge confidence: {challenge_confidence:.0%}. "
             f"Key recommendations: {rec_text}."
         )
+
+    def _build_heuristic_full_panel_rounds(
+        self,
+        *,
+        subject_name: str,
+        support_confidence: float,
+        challenge_confidence: float,
+        verdict: str,
+        decisive_evidence: list[str],
+        winning_arguments: list[str],
+        minority_opinion: str | None,
+        conditions: list[str] | None,
+        focus: str,
+        role_claims: dict[str, tuple[str, str]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Build a deterministic full-panel debate when LLM debate is unavailable."""
+
+        support_claim = (winning_arguments or [f"{focus} remains supportable."])[0]
+        risk_claim = minority_opinion or f"{focus} still has unresolved downside risk."
+        role_claims = role_claims or {}
+
+        default_claims = {
+            "advocate": (
+                support_claim,
+                f"The strategic support case for {subject_name} remains coherent under the available evidence.",
+            ),
+            "intel_analyst": (
+                decisive_evidence[0] if decisive_evidence else f"{focus} needs source refresh.",
+                "The intelligence assessor validates the available evidence and flags missing corroboration.",
+            ),
+            "geo_expert": (
+                support_claim,
+                "The geopolitical perspective checks alliance, geography, and external posture constraints.",
+            ),
+            "econ_analyst": (
+                support_claim,
+                "The economic perspective weighs resource cost, opportunity cost, and sustainability.",
+            ),
+            "military_strategist": (
+                support_claim,
+                "The military perspective evaluates readiness, feasibility, logistics, and escalation exposure.",
+            ),
+            "tech_foresight": (
+                support_claim,
+                "The technical perspective tests whether capability and infrastructure assumptions remain plausible.",
+            ),
+            "social_impact": (
+                risk_claim,
+                "The social perspective keeps civilian, legitimacy, and stakeholder-response constraints visible.",
+            ),
+        }
+        default_claims.update(role_claims)
+        challenger_claim, challenger_reasoning = role_claims.get(
+            "challenger",
+            (
+                risk_claim,
+                "The challenger pressure-tests every first-round expert claim and preserves unresolved downside.",
+            ),
+        )
+
+        def make_round(
+            round_number: int,
+            role: str,
+            position: str,
+            confidence: float,
+            claim: str,
+            reasoning: str,
+            *,
+            strength: str = "MODERATE",
+            rebuttals: list[dict[str, Any]] | None = None,
+            concessions: list[dict[str, Any]] | None = None,
+        ) -> dict[str, Any]:
+            return {
+                "round_number": round_number,
+                "role": role,
+                "position": position,
+                "confidence": confidence,
+                "arguments": [
+                    {
+                        "claim": claim,
+                        "evidence_ids": decisive_evidence[:3],
+                        "reasoning": reasoning,
+                        "strength": strength,
+                    }
+                ],
+                "rebuttals": rebuttals or [],
+                "concessions": concessions or [],
+            }
+
+        rounds = [
+            make_round(
+                1,
+                role,
+                "SUPPORT" if role != "social_impact" else "CONDITIONAL",
+                support_confidence
+                if role != "social_impact"
+                else self._clamp((support_confidence + challenge_confidence) / 2, 0.2, 0.9),
+                default_claims[role][0],
+                default_claims[role][1],
+                strength="STRONG" if role == "advocate" else "MODERATE",
+            )
+            for role in (
+                "advocate",
+                "intel_analyst",
+                "geo_expert",
+                "econ_analyst",
+                "military_strategist",
+                "tech_foresight",
+                "social_impact",
+            )
+        ]
+        rounds.extend(
+            [
+                make_round(
+                    2,
+                    "challenger",
+                    "OPPOSE" if verdict == "REJECTED" else "CONDITIONAL",
+                    challenge_confidence,
+                    challenger_claim,
+                    challenger_reasoning,
+                    strength="STRONG",
+                    rebuttals=[
+                        {
+                            "target_argument_idx": 0,
+                            "counter": support_claim,
+                            "evidence_ids": decisive_evidence[:3],
+                        }
+                    ],
+                ),
+                make_round(
+                    2,
+                    "intel_analyst",
+                    "CONDITIONAL",
+                    self._clamp((support_confidence + challenge_confidence) / 2, 0.2, 0.9),
+                    "Fact check: the evidence supports a provisional verdict, but confidence depends on refresh quality.",
+                    "The evidence assessor revisits all first-round claims and marks what needs source review.",
+                ),
+            ]
+        )
+
+        for role in (
+            "advocate",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ):
+            label = debate_role_label(role)
+            rounds.append(
+                make_round(
+                    3,
+                    role,
+                    "SUPPORT" if role != "social_impact" else "CONDITIONAL",
+                    self._clamp(support_confidence - 0.03, 0.2, 0.92),
+                    f"{label} revised view: {focus} remains supportable with explicit monitoring.",
+                    f"{label} keeps supported claims, narrows weak assumptions, and responds to the challenger.",
+                    rebuttals=[
+                        {
+                            "target_argument_idx": 0,
+                            "counter": risk_claim,
+                            "evidence_ids": decisive_evidence[:3],
+                        }
+                    ],
+                    concessions=(
+                        [{"argument_idx": 0, "reason": conditions[0]}]
+                        if conditions and role == "advocate"
+                        else []
+                    ),
+                )
+            )
+
+        for custom_agent in self._get_custom_agents():
+            role_key = str(custom_agent.get("role_key", "custom_agent"))
+            name = str(custom_agent.get("name", role_key))
+            description = str(custom_agent.get("description", ""))[:180]
+            custom_confidence = self._clamp(
+                (support_confidence + challenge_confidence) / 2, 0.2, 0.9
+            )
+            rounds.append(
+                make_round(
+                    1,
+                    role_key,
+                    "CONDITIONAL",
+                    custom_confidence,
+                    f"{name} participated in the expert panel.",
+                    description
+                    or "The custom agent contributed a specialized independent perspective.",
+                )
+            )
+            rounds.append(
+                make_round(
+                    3,
+                    role_key,
+                    "CONDITIONAL",
+                    self._clamp(custom_confidence - 0.02, 0.2, 0.9),
+                    f"{name} revised its view after challenger pressure.",
+                    "The custom agent acknowledged the shared debate history and preserved its key monitoring point.",
+                    rebuttals=[
+                        {
+                            "target_argument_idx": 0,
+                            "counter": risk_claim,
+                            "evidence_ids": decisive_evidence[:3],
+                        }
+                    ],
+                )
+            )
+
+        rounds.append(
+            make_round(
+                4,
+                "arbitrator",
+                self._verdict_position(verdict),
+                max(support_confidence, challenge_confidence),
+                f"Final verdict: {verdict}.",
+                "The arbitrator weighted all nine built-in roles, custom inputs, challenged claims, conditions, and minority concerns.",
+                strength="STRONG",
+                concessions=([{"argument_idx": 0, "reason": conditions[0]}] if conditions else []),
+            )
+        )
+        rounds.sort(key=lambda item: debate_round_sort_key(item["round_number"], item["role"]))
+        return rounds
 
     def _verdict_position(self, verdict: str) -> str:
         if verdict == "ACCEPTED":

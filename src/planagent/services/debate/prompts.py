@@ -363,7 +363,7 @@ def _build_full_round_plan(
 ) -> list[tuple[int, str, str]]:
     """Full 4-round debate with all roles (original behavior)."""
     plan = list(round_plan)
-    _add_custom_agents(plan, custom_agents)
+    _add_custom_agents(plan, custom_agents, domain_id)
     return plan
 
 
@@ -413,10 +413,10 @@ def _build_fast_round_plan(
     ]
 
     # Insert custom agents
-    for ca in custom_agents or []:
+    for ca in _sort_custom_agents(custom_agents, domain_id):
         role_key = ca["role_key"]
         name = ca["name"]
-        icon = ca.get("icon", "🤖")
+        icon = ca.get("icon", "[custom]")
         description = ca.get("description", "")
         desc_brief = description[:200] + ("..." if len(description) > 200 else "")
         fast_plan.insert(-1, (1, role_key, f"【第1轮·立论】{icon} {name}：{desc_brief}"))
@@ -444,23 +444,113 @@ def select_roles_for_domain(domain_id: str | None) -> list[str]:
 def _add_custom_agents(
     plan: list[tuple[int, str, str]],
     custom_agents: list[dict[str, Any]] | None,
+    domain_id: str | None = None,
 ) -> None:
     """Insert custom agents into round 1 and round 3."""
-    for ca in custom_agents or []:
+    for ca in _sort_custom_agents(custom_agents, domain_id):
         role_key = ca["role_key"]
         name = ca["name"]
-        icon = ca.get("icon", "🤖")
+        icon = ca.get("icon", "[custom]")
         description = ca.get("description", "")
         desc_brief = description[:200] + ("..." if len(description) > 200 else "")
-        plan.insert(
-            -1,
+        domain_hint = _custom_agent_domain_hint(ca, domain_id)
+        role_intro = "independent specialist" if domain_hint == "independent" else domain_hint
+        plan.append(
             (1, role_key, f"【第1轮·立论】{icon} {name}：{desc_brief}"),
         )
-        plan.insert(
-            -1,
+        plan.append(
             (
                 3,
                 role_key,
-                f"【第3轮·修订】{icon} {name}：请根据质询反馈修订你的分析。要求：回应其他角色的跨域观点，修正被质疑的论点。",
+                f"【第3轮·修订】{icon} {name}：请作为{role_intro}根据质询反馈修订你的分析。要求：回应其他角色的跨域观点，修正被质疑的论点。",
             ),
         )
+    plan.sort(key=lambda item: _round_plan_sort_key(item[0], item[1]))
+
+
+def _sort_custom_agents(
+    custom_agents: list[dict[str, Any]] | None,
+    domain_id: str | None,
+) -> list[dict[str, Any]]:
+    def priority_value(agent: dict[str, Any]) -> int:
+        raw = agent.get("priority", 50)
+        if isinstance(raw, str):
+            return {"high": 10, "medium": 50, "low": 90}.get(raw.lower(), 50)
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return 50
+
+    def domain_rank(agent: dict[str, Any]) -> int:
+        domains = {
+            str(item).lower()
+            for item in (
+                agent.get("domains")
+                or agent.get("domain_tags")
+                or agent.get("tags")
+                or []
+            )
+        }
+        if not domains:
+            return 1
+        if domain_id and domain_id.lower() in domains:
+            return 0
+        if domains & {"all", "auto", "general", "global"}:
+            return 1
+        return 2
+
+    return sorted(
+        custom_agents or [],
+        key=lambda agent: (
+            domain_rank(agent),
+            priority_value(agent),
+            str(agent.get("name") or agent.get("role_key") or ""),
+        ),
+    )
+
+
+def _custom_agent_domain_hint(agent: dict[str, Any], domain_id: str | None) -> str:
+    domains = [
+        str(item)
+        for item in (
+            agent.get("domains")
+            or agent.get("domain_tags")
+            or agent.get("tags")
+            or []
+        )
+    ]
+    if domain_id and domain_id in domains:
+        return f"{domain_id} specialist"
+    if domains:
+        return ", ".join(domains[:3]) + " specialist"
+    return "independent"
+
+
+def _round_plan_sort_key(round_number: int, role: str) -> tuple[int, int, str]:
+    role_order = {
+        1: [
+            "advocate",
+            "intel_analyst",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ],
+        2: ["challenger", "intel_analyst"],
+        3: [
+            "advocate",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ],
+        4: ["arbitrator"],
+    }
+    order = role_order.get(round_number, [])
+    return (
+        round_number,
+        order.index(role) if role in order else 80,
+        role,
+    )

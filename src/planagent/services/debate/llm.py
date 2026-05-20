@@ -6,6 +6,7 @@ from planagent.services.openai_client import DebatePositionPayload
 from planagent.services.providers import AnthropicProvider
 
 from .prompts import debate_role_instruction
+from .roles import DEBATE_ROLE_DISPLAY, registry_role_for_debate
 
 
 class DebateLLMMixin:
@@ -194,29 +195,13 @@ class DebateLLMMixin:
         """从 Agent Registry 获取角色的 provider 配置"""
         if self.agent_registry is None:
             return None
-        role_map = {
-            "advocate": "advocate",
-            "strategist": "advocate",
-            "challenger": "challenger",
-            "risk_analyst": "challenger",
-            "arbitrator": "arbitrator",
-            "opportunist": "arbitrator",
-            "intel_analyst": "challenger",
-            "geo_expert": "advocate",
-            "econ_analyst": "advocate",
-            "military_strategist": "advocate",
-            "tech_foresight": "advocate",
-            "social_impact": "advocate",
-        }
         # Custom agents use their role_key directly
         if role.startswith("custom_"):
             try:
                 return self.agent_registry.get_provider_config(role)
             except Exception:
                 return None
-        agent_role = role_map.get(role)
-        if agent_role is None:
-            return None
+        agent_role = registry_role_for_debate(role)
         try:
             return self.agent_registry.get_provider_config(agent_role)
         except Exception:
@@ -316,18 +301,7 @@ class DebateLLMMixin:
         opponent_arguments: list[dict[str, Any]] | None = None,
         own_previous: list[dict[str, Any]] | None = None,
     ) -> str:
-        _ROLE_DISPLAY = {
-            "advocate": "战略支持者🟢",
-            "challenger": "风险挑战者🔴",
-            "arbitrator": "首席仲裁官⚖️",
-            "intel_analyst": "情报分析师🔍",
-            "geo_expert": "地缘政治专家🌍",
-            "econ_analyst": "经济分析师💰",
-            "military_strategist": "军事战略家⚔️",
-            "tech_foresight": "技术前瞻者🔮",
-            "social_impact": "社会影响评估师👥",
-        }
-        role_display = _ROLE_DISPLAY.get(role, role)
+        role_display = DEBATE_ROLE_DISPLAY.get(role, role)
 
         opponent_text = ""
         if opponent_arguments:

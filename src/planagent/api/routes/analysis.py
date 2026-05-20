@@ -139,6 +139,7 @@ async def analyze_content_stream(
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+@router.post("/debates/trigger/stream")
 @router.post("/debate/stream")
 async def debate_stream(
     payload: DebateTriggerRequest,

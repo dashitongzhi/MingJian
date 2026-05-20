@@ -30,6 +30,7 @@ from planagent.domain.models import (
     DebateVerdictRecord,
 )
 from planagent.services.chart_generation import ChartGenerationService
+from planagent.services.debate.roles import debate_record_sort_key
 
 
 _logger = logging.getLogger(__name__)
@@ -525,11 +526,12 @@ class ExportService:
                     .where(DebateRoundRecord.debate_id == debate_id)
                     .order_by(
                         DebateRoundRecord.round_number.asc(),
-                        DebateRoundRecord.role.asc(),
+                        DebateRoundRecord.created_at.asc(),
                     )
                 )
             ).all()
         )
+        round_records.sort(key=debate_record_sort_key)
 
         # ── Build debate_data for chart generation ──────────
         rounds_by_number: dict[int, dict] = {}

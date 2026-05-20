@@ -238,10 +238,11 @@ def test_replay_includes_timeline(monkeypatch, tmp_path: Path) -> None:
         assert replay["debate_id"] == debate_id
         assert replay["total_rounds"] > 0
         assert len(replay["timeline"]) > 0
+        assert len(replay["events"]) == len(replay["timeline"])
         assert len(replay["rounds_by_number"]) > 0
 
         # Each timeline event should have event_type
-        for event in replay["timeline"]:
+        for event in replay["events"]:
             assert "event_type" in event
             assert "timestamp" in event
 
@@ -314,6 +315,31 @@ def test_timeline(monkeypatch, tmp_path: Path) -> None:
         for event in timeline["events"]:
             assert "event_type" in event
             assert "timestamp" in event
+
+
+def test_stream_trigger_alias(monkeypatch, tmp_path: Path) -> None:
+    """/debates/trigger/stream should be compatible with the legacy stream endpoint."""
+    _setup_app(monkeypatch, tmp_path)
+
+    with TestClient(create_app()) as client:
+        run_id, _ = _create_run_with_debate(client)
+
+        with client.stream(
+            "POST",
+            "/debates/trigger/stream",
+            json={
+                "run_id": run_id,
+                "topic": "Should the stream endpoint run a full debate?",
+                "trigger_type": "manual",
+                "target_type": "run",
+            },
+        ) as resp:
+            assert resp.status_code == 200
+            body = "".join(resp.iter_text())
+
+        assert "event: debate_round_start" in body
+        assert "event: debate_round_complete" in body
+        assert "event: debate_verdict" in body
 
 
 def test_summary_includes_turning_points(monkeypatch, tmp_path: Path) -> None:

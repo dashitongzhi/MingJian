@@ -94,7 +94,19 @@ def test_workbench_and_debate_flow(monkeypatch, tmp_path: Path) -> None:
         assert debate_payload["id"]
         assert debate_payload["topic"].startswith("Should Blue Shield")
         assert debate_payload["verdict"] is not None
-        assert len(debate_payload["rounds"]) == 5
+        expected_roles = {
+            "advocate",
+            "challenger",
+            "arbitrator",
+            "intel_analyst",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        }
+        assert len(debate_payload["rounds"]) >= len(expected_roles)
+        assert expected_roles.issubset({item["role"] for item in debate_payload["rounds"]})
         assert debate_payload["verdict"]["verdict"] in {"ACCEPTED", "REJECTED", "CONDITIONAL"}
 
         second_debate_response = client.post(
