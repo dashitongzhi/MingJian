@@ -651,6 +651,8 @@ class StrategicAssistantResponse(APIModel):
     debate: DebateDetailRead | None = None
     workbench: RunWorkbenchRead
     panel_discussion: list[PanelDiscussionMessageRead] = Field(default_factory=list)
+    workflow: dict[str, Any] = Field(default_factory=dict)
+    monitoring: dict[str, Any] = Field(default_factory=dict)
     generated_at: datetime
 
 
