@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, TYPE_CHECKING
+from typing import Any, Protocol, TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,11 +14,37 @@ if TYPE_CHECKING:
     from planagent.domain.models import SourceChangeRecord, SourceCursorState
 
 
+class ChangeDetectionHook(Protocol):
+    async def after_change_detected(
+        self,
+        *,
+        session: AsyncSession,
+        state: SourceCursorState,
+        record: SourceChangeRecord,
+    ) -> None: ...
+
+
+class NoOpChangeDetectionHook:
+    async def after_change_detected(
+        self,
+        *,
+        session: AsyncSession,
+        state: SourceCursorState,
+        record: SourceChangeRecord,
+    ) -> None:
+        _ = session, state, record
+
+
 class ChangeDetectionService:
     """变化检测——对比新旧数据源内容，判定变化类型和重要性。"""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        change_hook: ChangeDetectionHook | None = None,
+    ) -> None:
         self.settings = settings
+        self.change_hook = change_hook or NoOpChangeDetectionHook()
 
     async def detect_change(
         self,
@@ -77,6 +103,11 @@ class ChangeDetectionService:
             significance=significance,
             diff_summary=diff_summary,
             changed_fields=self._detect_changed_fields(old_hash, stable_new_hash),
+        )
+        await self.change_hook.after_change_detected(
+            session=session,
+            state=state,
+            record=record,
         )
         session.add(record)
         await session.flush()
