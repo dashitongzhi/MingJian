@@ -189,7 +189,13 @@ class DebateLLMMixin:
         return role_providers.get(role, "openai").strip().lower() or "openai"
 
     def _get_custom_agents(self) -> list[dict[str, Any]]:
-        return []
+        """Get custom agent configs from the agent registry or YAML."""
+        try:
+            from planagent.services.agent_registry import load_custom_agent_configs
+
+            return load_custom_agent_configs()
+        except Exception:
+            return []
 
     def _get_agent_registry_config(self, role: str) -> dict[str, str] | None:
         """从 Agent Registry 获取角色的 provider 配置"""
@@ -327,7 +333,8 @@ class DebateLLMMixin:
             "2. 置信度（0-1之间的浮点数）\n"
             "3. 最多3条论证（每条包含：claim-论点声明、evidence_ids-引用的证据ID、"
             "reasoning-推理过程、strength-论点强度0-1）\n"
-            "4. 可选的反驳（target_argument_idx-目标论点索引、counter-反驳内容）\n"
+            "4. 可选的反驳/质询（target_argument_idx-目标论点索引、target_role-目标角色、"
+            "question-直接质询问题、counter-反驳内容或预期回答）\n"
             "5. 可选的让步（argument_idx-论点索引、reason-让步原因）\n"
             "请尽量使用提供的evidence_ids。如果进行了跨域分析，在reasoning中明确标注关联领域。"
         )

@@ -174,15 +174,25 @@ class WatchIngestWorker(Worker):
         )
         significance = self._max_significance(change_records)
         change_summary = self._change_summary(change_records)
+        evidence_impact = self._evidence_impact_assessment(
+            rule=rule,
+            change_records=change_records,
+            qualified_sources=qualified_sources,
+            change_summary=change_summary,
+        )
         if rule.incremental_enabled:
             threshold = rule.change_significance_threshold
             significance_order = {"none": 0, "low": 1, "medium": 2, "high": 3}
-            if significance_order.get(significance, 0) < significance_order.get(threshold, 2):
+            if (
+                significance_order.get(significance, 0) < significance_order.get(threshold, 2)
+                and not evidence_impact["should_refresh"]
+            ):
                 await self._mark_poll_success(session, rule)
                 return {
                     "skipped": True,
                     "reason": "below_threshold",
                     "significance": significance,
+                    "evidence_impact": evidence_impact,
                 }
 
         for change_record in change_records:
@@ -195,6 +205,8 @@ class WatchIngestWorker(Worker):
                     "change_id": change_record.id,
                     "source_type": state.source_type if state is not None else "unknown",
                     "significance": change_record.significance,
+                    "impact_score": evidence_impact["score"],
+                    "impact_level": evidence_impact["level"],
                 },
             )
             # Push notification for significant changes
@@ -213,6 +225,8 @@ class WatchIngestWorker(Worker):
                             "rule_id": rule.id,
                             "change_id": change_record.id,
                             "significance": change_record.significance,
+                            "impact_score": evidence_impact["score"],
+                            "impact_level": evidence_impact["level"],
                         },
                     )
                 except Exception:
@@ -234,9 +248,14 @@ class WatchIngestWorker(Worker):
             session,
             change_summary,
             significance,
+            evidence_impact,
         )
 
-        threshold_met = self._threshold_met(rule, qualified_sources)
+        threshold_met = (
+            self._threshold_met(rule, qualified_sources)
+            or significance == "high"
+            or evidence_impact["should_refresh"]
+        )
         if rule.auto_trigger_simulation and threshold_met:
             if rule.domain_id == "military":
                 force_name = rule.query[:60]
@@ -273,6 +292,8 @@ class WatchIngestWorker(Worker):
                         topic=f"Should the posture for {rule.query} be adjusted?",
                         trigger_type="pivot_decision",
                         target_type="run",
+                        context_lines=self._evidence_impact_context_lines(evidence_impact),
+                        domain_id=rule.domain_id,
                     ),
                 )
                 debate_id = debate.id
@@ -295,6 +316,8 @@ class WatchIngestWorker(Worker):
                         "rule_id": rule.id,
                         "debate_id": debate_id,
                         "simulation_run_id": simulation_run_id,
+                        "impact_score": evidence_impact["score"],
+                        "impact_level": evidence_impact["level"],
                     },
                 )
             except Exception:
@@ -309,6 +332,7 @@ class WatchIngestWorker(Worker):
             "debate_id": debate_id,
             "change_records": len(change_records),
             "significance": significance,
+            "evidence_impact": evidence_impact,
         }
 
     async def _maybe_trigger_re_debate(
@@ -317,8 +341,9 @@ class WatchIngestWorker(Worker):
         session,
         change_summary: str | None,
         significance: str,
+        evidence_impact: dict[str, Any],
     ) -> str | None:
-        if significance != "high" or not rule.auto_trigger_debate:
+        if not rule.auto_trigger_debate or not evidence_impact["should_refresh"]:
             return None
 
         try:
@@ -366,8 +391,11 @@ class WatchIngestWorker(Worker):
                         "Auto-triggered by watch-ingest-worker after a high-significance source change.",
                         f"Strategic session id: {strategic_session.id}",
                         f"Domain id: {strategic_session.domain_id or rule.domain_id}",
+                        f"Source significance: {significance}",
                         f"Change summary: {summary}",
+                        *self._evidence_impact_context_lines(evidence_impact),
                     ],
+                    domain_id=strategic_session.domain_id or rule.domain_id,
                 ),
             )
             return debate.id
@@ -448,6 +476,107 @@ class WatchIngestWorker(Worker):
             return None
         chosen = max(changed, key=lambda record: order.get(record.significance, 0))
         return chosen.diff_summary
+
+    def _evidence_impact_assessment(
+        self,
+        *,
+        rule: WatchRule,
+        change_records: list,
+        qualified_sources: list,
+        change_summary: str | None,
+    ) -> dict[str, Any]:
+        changed_records = [record for record in change_records if record.change_type != "unchanged"]
+        significance_order = {"none": 0.0, "low": 0.25, "medium": 0.5, "high": 0.72}
+        max_significance = max(
+            (significance_order.get(record.significance, 0.0) for record in changed_records),
+            default=0.0,
+        )
+        source_scores = [self._source_score(rule, source) for source in qualified_sources]
+        max_source_score = max(source_scores, default=0.0)
+        score = max_significance
+        score += min(len(changed_records) * 0.06, 0.18)
+        score += min(len(qualified_sources) * 0.04, 0.16)
+        score += max_source_score * 0.18
+
+        text_parts = [change_summary or ""]
+        text_parts.extend(str(record.diff_summary or "") for record in changed_records)
+        text_parts.extend(
+            f"{getattr(source, 'title', '')} {getattr(source, 'summary', '')}"
+            for source in qualified_sources[:8]
+        )
+        haystack = " ".join(text_parts).lower()
+        shock_terms = {
+            "breakthrough",
+            "collapse",
+            "cancel",
+            "blocked",
+            "delay",
+            "lawsuit",
+            "sanction",
+            "attack",
+            "escalation",
+            "bankruptcy",
+            "outage",
+            "breach",
+            "短缺",
+            "中断",
+            "推迟",
+            "取消",
+            "制裁",
+            "攻击",
+            "升级",
+            "破产",
+            "泄露",
+            "突发",
+            "重大",
+        }
+        matched_terms = sorted(term for term in shock_terms if term in haystack)
+        if matched_terms:
+            score += min(0.08 + len(matched_terms) * 0.03, 0.2)
+        if max_source_score >= max(float(rule.trigger_threshold or 0.0), 0.65):
+            score += 0.08
+
+        score = round(max(0.0, min(score, 1.0)), 4)
+        if score >= 0.72:
+            level = "high"
+        elif score >= 0.48:
+            level = "medium"
+        elif score > 0.0:
+            level = "low"
+        else:
+            level = "none"
+
+        refresh_threshold = min(max(float(rule.trigger_threshold or 0.0), 0.55), 0.8)
+        reasons = []
+        if max_significance:
+            reasons.append(f"source significance contributes {max_significance:.2f}")
+        if changed_records:
+            reasons.append(f"{len(changed_records)} changed source group(s)")
+        if max_source_score:
+            reasons.append(f"top source importance score is {max_source_score:.2f}")
+        if matched_terms:
+            reasons.append("shock terms: " + ", ".join(matched_terms[:5]))
+
+        return {
+            "score": score,
+            "level": level,
+            "should_refresh": score >= refresh_threshold,
+            "refresh_threshold": refresh_threshold,
+            "reasons": reasons,
+            "changed_records": len(changed_records),
+            "qualified_sources": len(qualified_sources),
+            "top_source_score": round(max_source_score, 4),
+        }
+
+    def _evidence_impact_context_lines(self, evidence_impact: dict[str, Any]) -> list[str]:
+        reasons = evidence_impact.get("reasons") or []
+        return [
+            "Auto-triggered because new evidence impact exceeded the refresh threshold.",
+            f"Evidence impact score: {evidence_impact.get('score')} "
+            f"({evidence_impact.get('level')}); "
+            f"threshold: {evidence_impact.get('refresh_threshold')}.",
+            "Impact reasons: " + ("; ".join(str(reason) for reason in reasons) or "none"),
+        ]
 
     def _source_type_from_step(self, message: str) -> str:
         lowered = message.lower()

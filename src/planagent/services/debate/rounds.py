@@ -190,7 +190,12 @@ class DebateRoundMixin:
     ) -> AsyncIterator[DebateStreamEvent]:
         completed_rounds: list[dict[str, Any]] = []
         round_plan = build_round_plan(
-            self._get_custom_agents(), mode=debate_mode, domain_id=domain_id
+            self._get_custom_agents(),
+            mode=debate_mode,
+            domain_id=domain_id,
+            topic=topic,
+            context=context,
+            evidence_count=len(evidence_ids),
         )
 
         for round_number, role, instruction in round_plan:
@@ -300,6 +305,25 @@ class DebateRoundMixin:
                     lines.append(f"- {claim} | {reasoning}")
             return "\n".join(lines)
 
+        def pending_cross_questions() -> str:
+            lines: list[str] = []
+            for item in completed_rounds:
+                for rebuttal in item.get("rebuttals", []) or []:
+                    target_role = str(
+                        rebuttal.get("target_role")
+                        or rebuttal.get("target")
+                        or rebuttal.get("to_role")
+                        or ""
+                    )
+                    if target_role and target_role != role:
+                        continue
+                    question = rebuttal.get("question") or rebuttal.get("counter")
+                    if not question:
+                        continue
+                    source_role = str(item.get("role", "unknown"))
+                    lines.append(f"- From {source_role}: {str(question)[:220]}")
+            return "\n".join(lines)
+
         opponent_rounds = [
             item
             for item in completed_rounds
@@ -308,10 +332,12 @@ class DebateRoundMixin:
             or (role == "arbitrator")
         ]
         history = debate_history()
+        cross_questions = pending_cross_questions()
         return {
             "context": (
                 f"{instruction}\n\n"
                 f"Debate history so far:\n{history or 'No prior debate rounds.'}\n\n"
+                f"Pending cross-examination questions for this role:\n{cross_questions or 'None.'}\n\n"
                 f"Original context:\n{context}"
             ),
             "opponent_arguments": argument_refs(opponent_rounds) if opponent_rounds else None,

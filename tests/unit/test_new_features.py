@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,9 +16,11 @@ from planagent.services.notification import (
 from planagent.services.export import ExportService
 from planagent.services.debate.prompts import (
     build_round_plan,
+    infer_debate_complexity,
     select_roles_for_domain,
 )
 from planagent.services.decision_feedback import DecisionFeedbackService, AccuracyReport
+from planagent.workers.watch_ingest import WatchIngestWorker
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -399,6 +402,65 @@ class TestDebateOptimization:
     def test_select_roles_for_unknown_domain(self):
         roles = select_roles_for_domain("unknown_domain")
         assert "advocate" in roles  # Core always included
+
+    def test_dynamic_round_plan_uses_domain_and_cross_exam(self):
+        plan = build_round_plan(
+            mode="full",
+            domain_id="corporate",
+            topic="Should we adjust pricing?",
+            context="Short market note.",
+            evidence_count=1,
+        )
+        roles = [r[1] for r in plan]
+        instructions = [r[2] for r in plan]
+        assert "econ_analyst" in roles
+        assert "military_strategist" not in roles
+        assert any("交叉质询" in instruction for instruction in instructions)
+
+    def test_complex_round_plan_keeps_full_panel_with_cross_exam_protocol(self):
+        plan = build_round_plan(
+            mode="full",
+            domain_id="military",
+            topic="military escalation supply chain sanctions conflict",
+            context="complex context " * 120,
+            evidence_count=8,
+        )
+        roles = [r[1] for r in plan]
+        assert infer_debate_complexity("military escalation", "complex context " * 120, 8) == "complex"
+        assert "military_strategist" in roles
+        assert "social_impact" in roles
+        assert any("target_role" in instruction for round_number, _, instruction in plan if round_number == 2)
+
+    def test_evidence_impact_can_auto_refresh_on_shock_terms(self):
+        worker = WatchIngestWorker.__new__(WatchIngestWorker)
+        impact = worker._evidence_impact_assessment(
+            rule=SimpleNamespace(
+                trigger_threshold=0.5,
+                exclude_keywords=[],
+                keywords=["供应链"],
+                entity_tags=[],
+                query="供应链 disruption",
+            ),
+            change_records=[
+                SimpleNamespace(
+                    change_type="updated",
+                    significance="medium",
+                    diff_summary="重大供应链中断",
+                )
+            ],
+            qualified_sources=[
+                SimpleNamespace(
+                    title="Major supply chain disruption",
+                    summary="供应链中断 is affecting core assumptions.",
+                    metadata={},
+                    published_at="2026-01-01",
+                )
+            ],
+            change_summary="重大供应链中断",
+        )
+        assert impact["should_refresh"] is True
+        assert impact["level"] in {"medium", "high"}
+        assert impact["score"] >= impact["refresh_threshold"]
 
 
 # ═══════════════════════════════════════════════════════════════
