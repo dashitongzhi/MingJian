@@ -1,6 +1,7 @@
 import { api } from './client'
 
 type ApiRecord = Record<string, unknown>
+type CommunityExportFormat = 'md' | 'html'
 type AssistantSessionRecord = ApiRecord & {
   id: string
   title: string
@@ -188,7 +189,15 @@ export const workbenchApi = {
   getReplayPackage: (runId: string) => api.get(`/runs/${runId}/replay-package`),
   listJarvisRuns: (runId?: string) => api.get<unknown[]>(`/jarvis/runs${runId ? `?run_id=${encodeURIComponent(runId)}` : ''}`),
   createJarvisRun: (data: unknown) => api.post('/jarvis/runs', data),
-  exportAssistantSession: (sessionId: string) => api.get(`/export/assistant/session/${sessionId}`),
-  exportSimulation: (runId: string) => api.get(`/export/simulation/${runId}`),
+  exportAssistantSession: (sessionId: string, format: CommunityExportFormat = 'md') =>
+    api.download(
+      `/export/assistant/session/${encodeURIComponent(sessionId)}?format=${format}`,
+      `planagent_${sessionId.slice(0, 8)}.${format}`,
+    ),
+  exportSimulation: (runId: string, format: CommunityExportFormat = 'md') =>
+    api.download(
+      `/export/simulation/${encodeURIComponent(runId)}?format=${format}`,
+      `simulation_${runId.slice(0, 8)}.${format}`,
+    ),
   notificationStats: () => api.get('/stats'),
 }

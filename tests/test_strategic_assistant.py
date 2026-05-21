@@ -83,6 +83,9 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
         assert body["debate"]["verdict"]["verdict"] in {"ACCEPTED", "REJECTED", "CONDITIONAL"}
         assert body["panel_discussion"]
         assert body["workbench"]["run_id"] == body["simulation_run"]["id"]
+        assert body["workflow"]["first_result_ready"] is True
+        assert body["workflow"]["user_can_decide"] is True
+        assert body["monitoring"]["status"] == "active"
 
         daily_response = client.post("/assistant/daily-brief", json=payload)
         assert daily_response.status_code == 200
@@ -177,7 +180,39 @@ def test_strategic_session_persists_briefs_and_runs(monkeypatch, tmp_path: Path)
             json={**payload, "session_id": session_id},
         )
         assert run_response.status_code == 201
-        assert run_response.json()["session_id"] == session_id
+        run_body = run_response.json()
+        assert run_body["session_id"] == session_id
+
+        export_md_response = client.get(
+            f"/export/assistant/session/{session_id}",
+            params={"format": "md"},
+        )
+        assert export_md_response.status_code == 200
+        assert "text/markdown" in export_md_response.headers["content-type"]
+        assert "工作流状态" in export_md_response.text
+        assert "监控状态" in export_md_response.text
+
+        export_html_response = client.get(
+            f"/export/assistant/session/{session_id}",
+            params={"format": "html"},
+        )
+        assert export_html_response.status_code == 200
+        assert "text/html" in export_html_response.headers["content-type"]
+        assert "<html" in export_html_response.text
+
+        debate_export_response = client.get(
+            f"/export/debate/{run_body['debate']['id']}",
+            params={"format": "md"},
+        )
+        assert debate_export_response.status_code == 200
+        assert "辩论报告" in debate_export_response.text
+
+        simulation_export_response = client.get(
+            f"/export/simulation/{run_body['simulation_run']['id']}",
+            params={"format": "html"},
+        )
+        assert simulation_export_response.status_code == 200
+        assert "text/html" in simulation_export_response.headers["content-type"]
 
         list_response = client.get("/assistant/sessions", params={"tenant_id": "founder-lab"})
         assert list_response.status_code == 200
@@ -257,5 +292,6 @@ def test_strategic_watch_worker_refreshes_due_session(monkeypatch, tmp_path: Pat
         detail_response = client.get(f"/assistant/sessions/{session_id}")
         assert detail_response.status_code == 200
         detail_body = detail_response.json()
-        assert len(detail_body["daily_briefs"]) == 1
+        assert len(detail_body["recent_runs"]) == 1
+        assert detail_body["recent_runs"][0]["debate_id"]
         assert detail_body["session"]["next_refresh_at"] is not None

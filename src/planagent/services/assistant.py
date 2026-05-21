@@ -269,15 +269,6 @@ class StrategicAssistantService:
                 final_result = StrategicAssistantResponse.model_validate(event.payload)
         if final_result is None:
             raise RuntimeError("Strategic assistant finished without a result payload.")
-        try:
-            await self._auto_create_watch_rule(
-                session,
-                payload.topic,
-                final_result.domain_id,
-                payload.tick_count,
-            )
-        except Exception:
-            await session.rollback()
         return final_result
 
     async def stream(
@@ -405,7 +396,34 @@ class StrategicAssistantService:
         for message in panel_discussion:
             yield self._event("discussion", message.model_dump(mode="json"))
 
+        session_record: StrategicSession | None = None
+        try:
+            session_record = await self._ensure_session_record(
+                session,
+                payload,
+                domain_id,
+                subject_id,
+                subject_name,
+            )
+        except Exception as exc:
+            _logger.warning("session ensure failed", exc_info=True)
+            try_errors.append(f"session_ensure: {exc}")
+            try:
+                await session.rollback()
+            except Exception:
+                _logger.warning("session rollback failed after ensure error", exc_info=True)
+
+        monitoring = await self._ensure_continuous_monitoring(
+            session=session,
+            payload=payload,
+            topic=payload.topic,
+            domain_id=domain_id,
+            session_id=session_record.id if session_record is not None else payload.session_id,
+        )
+        yield self._event("continuous_monitoring", monitoring)
+
         result = StrategicAssistantResponse(
+            session_id=session_record.id if session_record is not None else None,
             topic=payload.topic,
             domain_id=domain_id,
             subject_id=subject_id,
@@ -419,19 +437,17 @@ class StrategicAssistantService:
             debate=debate,
             workbench=workbench,
             panel_discussion=panel_discussion,
+            workflow=self._workflow_summary(
+                analysis_result=analysis_result,
+                debate_id=debate_id,
+                monitoring=monitoring,
+            ),
+            monitoring=monitoring,
             generated_at=datetime.now(timezone.utc),
         )
 
         try:
-            session_record = await self._ensure_session_record(
-                session,
-                payload,
-                domain_id,
-                subject_id,
-                subject_name,
-            )
             if session_record is not None:
-                result.session_id = session_record.id
                 await self._store_run_snapshot(session, session_record, result)
         except Exception as exc:
             _logger.warning("session persist failed", exc_info=True)
@@ -440,17 +456,6 @@ class StrategicAssistantService:
                 await session.rollback()
             except Exception:
                 _logger.warning("session rollback failed after persist error", exc_info=True)
-
-        try:
-            await self._auto_create_watch_rule(
-                session, payload.topic, domain_id, payload.tick_count
-            )
-        except Exception:
-            _logger.warning("auto watch rule creation failed", exc_info=True)
-            try:
-                await session.rollback()
-            except Exception:
-                _logger.warning("session rollback failed after watch rule error", exc_info=True)
 
         if try_errors:
             yield self._event(
@@ -609,12 +614,10 @@ class StrategicAssistantService:
         topic: str,
         domain_id: str,
         tick_count: int | None,
-    ) -> None:
-        existing = await session.scalar(
-            select(WatchRule.id).where(WatchRule.query == topic).limit(1)
-        )
+    ) -> WatchRule:
+        existing = await session.scalar(select(WatchRule).where(WatchRule.query == topic).limit(1))
         if existing is not None:
-            return
+            return existing
 
         now = utc_now()
         rule = WatchRule(
@@ -640,6 +643,111 @@ class StrategicAssistantService:
         )
         session.add(rule)
         await session.commit()
+        await session.refresh(rule)
+        return rule
+
+    async def _ensure_continuous_monitoring(
+        self,
+        session: AsyncSession,
+        payload: StrategicAssistantRequest,
+        topic: str,
+        domain_id: str,
+        session_id: str | None,
+    ) -> dict[str, Any]:
+        base = {
+            "edition": "community",
+            "mode": "local_24h",
+            "enabled": payload.auto_refresh_enabled,
+            "poll_interval_minutes": 60,
+            "auto_trigger_simulation": True,
+            "auto_trigger_debate": True,
+            "tenant_id": payload.tenant_id,
+            "preset_id": payload.preset_id,
+            "session_id": session_id,
+        }
+        if not payload.auto_refresh_enabled:
+            return {
+                **base,
+                "status": "disabled",
+                "created": False,
+                "message": "Local 24-hour monitoring is disabled for this strategic session.",
+            }
+        try:
+            rule = await self._auto_create_watch_rule(session, topic, domain_id, payload.tick_count)
+            return {
+                **base,
+                "status": "active",
+                "created": rule.created_at == rule.updated_at,
+                "watch_rule_id": rule.id,
+                "next_poll_at": rule.next_poll_at.isoformat()
+                if rule.next_poll_at is not None
+                else None,
+                "message": (
+                    "Community 24-hour monitoring is active. Scheduled refreshes and material "
+                    "source changes will update this local decision workflow."
+                ),
+            }
+        except Exception as exc:
+            _logger.warning("auto watch rule creation failed", exc_info=True)
+            try:
+                await session.rollback()
+            except Exception:
+                _logger.warning("session rollback failed after watch rule error", exc_info=True)
+            return {
+                **base,
+                "status": "failed",
+                "created": False,
+                "error": {"code": "watch_rule_create_failed", "message": str(exc)},
+                "message": "The first recommendation is ready, but local 24-hour monitoring could not be attached.",
+            }
+
+    def _workflow_summary(
+        self,
+        *,
+        analysis_result: AnalysisResponse,
+        debate_id: str | None,
+        monitoring: dict[str, Any],
+    ) -> dict[str, Any]:
+        source_types = sorted({source.source_type for source in analysis_result.sources})
+        return {
+            "status": "continuous_monitoring_active"
+            if monitoring.get("status") == "active"
+            else "first_result_ready",
+            "user_can_decide": True,
+            "first_result_ready": True,
+            "phases": [
+                {
+                    "key": "evidence_collection",
+                    "label": "多源信息采集",
+                    "status": "complete",
+                    "count": len(analysis_result.sources),
+                    "source_types": source_types,
+                },
+                {
+                    "key": "multi_agent_debate",
+                    "label": "多智能体辩论",
+                    "status": "complete" if debate_id else "skipped",
+                    "debate_id": debate_id,
+                },
+                {
+                    "key": "first_recommendation",
+                    "label": "首次建议",
+                    "status": "complete",
+                },
+                {
+                    "key": "continuous_monitoring",
+                    "label": "24小时监控更新",
+                    "status": monitoring.get("status", "unknown"),
+                    "watch_rule_id": monitoring.get("watch_rule_id"),
+                    "next_poll_at": monitoring.get("next_poll_at"),
+                },
+            ],
+            "coverage": {
+                "source_count": len(analysis_result.sources),
+                "source_types": source_types,
+                "debate_id": debate_id,
+            },
+        }
 
     async def create_session(
         self,

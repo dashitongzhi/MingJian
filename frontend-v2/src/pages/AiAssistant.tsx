@@ -1,15 +1,39 @@
 import { useState, useRef, useEffect } from 'react'
-import { MessageSquare, Plus, Send, Edit3, Check, Loader2, Bot, User } from 'lucide-react'
-import { Card, CardHeader } from '../components/ui/Card'
+import { Activity, Bot, Check, Download, Edit3, GitBranch, Loader2, MessageSquare, Plus, Radio, Send, ShieldCheck, User } from 'lucide-react'
+import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
-import { assistantApi } from '../api/endpoints'
+import { assistantApi, workbenchApi } from '../api/endpoints'
 import { useApi, useApiAction } from '../hooks/useApi'
 
 interface Session { id: string; title?: string; created_at: string; message_count?: number }
 interface Message { role: string; content: string; created_at?: string }
-interface SessionDetail { id: string; title?: string; messages?: Message[]; [key: string]: unknown }
+interface SessionDetail { id: string; title?: string; messages?: Message[]; recent_runs?: unknown[]; [key: string]: unknown }
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function displayStatus(value: unknown) {
+  const status = String(value || 'pending')
+  if (status === 'complete') return '完成'
+  if (status === 'active') return '运行中'
+  if (status === 'blocked') return '受限'
+  if (status === 'failed') return '失败'
+  if (status === 'skipped') return '跳过'
+  if (status === 'pending') return '待检查'
+  return status
+}
+
+function formatDateTime(value: unknown) {
+  if (typeof value !== 'string' || !value) return '待调度'
+  return new Date(value).toLocaleString()
+}
 
 export default function AiAssistant() {
   const { data: sessions, loading, error, reload } = useApi(() => assistantApi.listSessions())
@@ -17,6 +41,8 @@ export default function AiAssistant() {
   const [activeSession, setActiveSession] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const { data: sessionDetail, reload: reloadSession } = useApi(
@@ -33,6 +59,11 @@ export default function AiAssistant() {
 
   const detail = (sessionDetail || {}) as SessionDetail
   const messages = (detail.messages || []) as Message[]
+  const latestRun = asRecord(asArray(detail.recent_runs)[0])
+  const latestResult = asRecord(latestRun.result)
+  const workflow = asRecord(latestResult.workflow)
+  const monitoring = asRecord(latestResult.monitoring)
+  const phases = asArray(workflow.phases).map(asRecord)
 
   // Auto-scroll
   useEffect(() => {
@@ -71,10 +102,42 @@ export default function AiAssistant() {
     setEditingTitle(false)
   }
 
+  const handleExport = async () => {
+    if (!activeSession) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      await workbenchApi.exportAssistantSession(activeSession, 'md')
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : '导出失败')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorBanner message={error} onRetry={reload} />
 
   const sessionList = (sessions || []) as Session[]
+  const headerAction = editingTitle ? (
+    <div className="flex items-center gap-2">
+      <input value={titleInput} onChange={(e) => setTitleInput(e.target.value)}
+        className="bg-slate-800/40 border border-slate-700/50 rounded px-2 py-0.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50" />
+      <button onClick={handleSaveTitle} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3.5 h-3.5" /></button>
+    </div>
+  ) : activeSession ? (
+    <div className="flex items-center gap-2">
+      <button onClick={handleExport} disabled={exporting}
+        className="p-1 rounded hover:bg-slate-800/40 text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-50"
+        title="导出 Markdown 报告">
+        {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+      </button>
+      <button onClick={() => { setEditingTitle(true); setTitleInput((detail.title as string) || '') }}
+        className="p-1 rounded hover:bg-slate-800/40 text-slate-500 hover:text-slate-300 transition-colors">
+        <Edit3 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  ) : undefined
 
   return (
     <div className="space-y-8">
@@ -125,19 +188,65 @@ export default function AiAssistant() {
                   ? (detail.title as string) || '会话详情'
                   : '新会话'
             }
-            action={activeSession && !editingTitle ? (
-              <button onClick={() => { setEditingTitle(true); setTitleInput((detail.title as string) || '') }}
-                className="p-1 rounded hover:bg-slate-800/40 text-slate-500 hover:text-slate-300 transition-colors">
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            ) : editingTitle ? (
-              <div className="flex items-center gap-2">
-                <input value={titleInput} onChange={(e) => setTitleInput(e.target.value)}
-                  className="bg-slate-800/40 border border-slate-700/50 rounded px-2 py-0.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500/50" />
-                <button onClick={handleSaveTitle} className="p-0.5 text-emerald-400 hover:text-emerald-300"><Check className="w-3.5 h-3.5" /></button>
-              </div>
-            ) : undefined}
+            action={headerAction}
           />
+
+          {(phases.length > 0 || Object.keys(monitoring).length > 0 || exportError) && (
+            <CardBody className="border-b border-slate-800/60 bg-slate-950/20">
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.3fr_0.7fr]">
+                <div className="rounded-lg border border-slate-800/70 bg-slate-950/35 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                      <GitBranch className="h-4 w-4 text-blue-300" />
+                      决策工作流
+                    </div>
+                    <span className="rounded-md border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300">
+                      {workflow.user_can_decide ? '可辅助决策' : '处理中'}
+                    </span>
+                  </div>
+                  <div className="mt-4 grid gap-2 md:grid-cols-4">
+                    {phases.map((phase) => (
+                      <div key={String(phase.key)} className="min-h-[92px] rounded-md border border-slate-800/70 bg-slate-900/35 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-slate-200">{String(phase.label || phase.key)}</span>
+                          <ShieldCheck className={`h-4 w-4 ${phase.status === 'complete' || phase.status === 'active' ? 'text-emerald-300' : 'text-amber-300'}`} />
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500">{displayStatus(phase.status)}</div>
+                        {phase.count !== undefined && <div className="mt-1 text-xs text-slate-600">证据 {String(phase.count)}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  {exportError && <div className="mt-3 text-xs text-red-300">{exportError}</div>}
+                </div>
+                <div className="rounded-lg border border-slate-800/70 bg-slate-950/35 p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                    <Radio className="h-4 w-4 text-emerald-300" />
+                    24小时监控
+                  </div>
+                  <div className="mt-3 space-y-2 text-xs text-slate-500">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>状态</span>
+                      <span className={`rounded border px-2 py-1 ${monitoring.status === 'active' ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300' : 'border-amber-400/20 bg-amber-500/10 text-amber-300'}`}>
+                        {displayStatus(monitoring.status)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>轮询间隔</span>
+                      <span className="text-slate-300">{String(monitoring.poll_interval_minutes || '—')} 分钟</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>下次更新</span>
+                      <span className="text-right text-slate-300">{formatDateTime(monitoring.next_poll_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 text-slate-600">
+                      <Activity className="h-3.5 w-3.5" />
+                      本地短期监控用于首轮建议后的变化提醒
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardBody>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">

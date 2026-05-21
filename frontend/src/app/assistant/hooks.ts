@@ -5,6 +5,7 @@ import useSWR, { mutate as globalMutate } from "swr";
 import {
   fetchSessionDetail,
   fetchSessions,
+  exportAssistantSession,
   streamAssistant,
   type AnalysisStep,
   type AssistantResult,
@@ -379,8 +380,17 @@ export function useAssistantController() {
     }
   }, [topic, domainId, subjectName, tickCount, refreshSessions, t]);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     if (!result) return;
+
+    if (result.session_id) {
+      try {
+        await exportAssistantSession(result.session_id, "md");
+        return;
+      } catch (err) {
+        console.warn("Backend assistant export failed, falling back to local markdown", err);
+      }
+    }
 
     const report = `# PlanAgent Analysis Report
 

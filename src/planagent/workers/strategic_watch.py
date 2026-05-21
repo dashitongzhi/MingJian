@@ -67,7 +67,7 @@ class StrategicWatchWorker(Worker):
                         await self._mark_failure(session, session_record.id, "session_not_found")
                         failed += 1
                         continue
-                    await self.service.daily_brief(session, payload)
+                    await self.service.run(session, payload)
                     refreshed += 1
                 except Exception as exc:
                     await self._mark_failure(

@@ -41,6 +41,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   throw lastError
 }
 
+function filenameFromDisposition(disposition: string | null, fallback: string) {
+  if (!disposition) return fallback
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  if (encoded) return decodeURIComponent(encoded)
+  const plain = disposition.match(/filename="?([^"]+)"?/i)?.[1]
+  return plain || fallback
+}
+
+async function download(path: string, fallbackFilename: string): Promise<void> {
+  const res = await fetch(`${BASE}${path}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`API ${res.status}: ${body}`)
+  }
+  const blob = await res.blob()
+  const filename = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackFilename)
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -50,4 +76,5 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  download,
 }

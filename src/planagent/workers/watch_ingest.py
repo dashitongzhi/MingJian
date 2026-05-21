@@ -24,6 +24,7 @@ from planagent.domain.models import (
 )
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
+from planagent.services.assistant import StrategicAssistantService
 from planagent.services.change_detection import ChangeDetectionService
 from planagent.services.debate import DebateService
 from planagent.services.notification import NotificationService, NotificationPriority
@@ -31,6 +32,7 @@ from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.simulation import SimulationService
 from planagent.services.source_state import SourceStateService
+from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
 
@@ -65,6 +67,13 @@ class WatchIngestWorker(Worker):
             settings, event_bus, rule_registry, openai_service
         )
         self.debate_service = DebateService(settings, event_bus, openai_service)
+        self.assistant_service = StrategicAssistantService(
+            analysis_service=self.analysis_service,
+            pipeline_service=self.pipeline_service,
+            simulation_service=self.simulation_service,
+            debate_service=self.debate_service,
+            workbench_service=WorkbenchService(),
+        )
 
     async def run_once(self) -> dict[str, object]:
         database = get_database()
@@ -229,15 +238,17 @@ class WatchIngestWorker(Worker):
         )
 
         simulation_run_id = None
-        debate_id = await self._maybe_trigger_re_debate(
+        full_refresh = await self._maybe_refresh_strategic_session(
             rule,
             session,
             change_summary,
             significance,
         )
+        debate_id = full_refresh.get("debate_id")
+        simulation_run_id = full_refresh.get("simulation_run_id")
 
         threshold_met = self._threshold_met(rule, qualified_sources)
-        if rule.auto_trigger_simulation and threshold_met:
+        if rule.auto_trigger_simulation and threshold_met and not full_refresh:
             if rule.domain_id == "military":
                 force_name = rule.query[:60]
                 force_id = rule.query[:40].lower().replace(" ", "-")
@@ -307,19 +318,21 @@ class WatchIngestWorker(Worker):
             "threshold_met": threshold_met,
             "simulation_run_id": simulation_run_id,
             "debate_id": debate_id,
+            "strategic_session_id": full_refresh.get("session_id"),
+            "run_snapshot_id": full_refresh.get("run_snapshot_id"),
             "change_records": len(change_records),
             "significance": significance,
         }
 
-    async def _maybe_trigger_re_debate(
+    async def _maybe_refresh_strategic_session(
         self,
         rule: WatchRule,
         session,
         change_summary: str | None,
         significance: str,
-    ) -> str | None:
+    ) -> dict[str, str]:
         if significance != "high" or not rule.auto_trigger_debate:
-            return None
+            return {}
 
         try:
             strategic_session = (
@@ -338,47 +351,38 @@ class WatchIngestWorker(Worker):
                 )
             ).first()
             if strategic_session is None:
-                return None
+                return {}
 
+            payload = await self.assistant_service.load_session_payload(
+                session,
+                strategic_session.id,
+            )
+            if payload is None:
+                return {}
+
+            result = await self.assistant_service.run(session, payload)
             latest_snapshot = (
                 await session.scalars(
                     select(StrategicRunSnapshot)
-                    .where(
-                        StrategicRunSnapshot.session_id == strategic_session.id,
-                        StrategicRunSnapshot.simulation_run_id.is_not(None),
-                    )
+                    .where(StrategicRunSnapshot.session_id == strategic_session.id)
                     .order_by(StrategicRunSnapshot.generated_at.desc())
                     .limit(1)
                 )
             ).first()
-            if latest_snapshot is None or latest_snapshot.simulation_run_id is None:
-                return None
-
-            summary = change_summary or "High-significance source change detected."
-            debate = await self.debate_service.trigger_debate(
-                session,
-                DebateTriggerRequest(
-                    run_id=latest_snapshot.simulation_run_id,
-                    topic=f"Should the strategy for {strategic_session.topic} be revised?",
-                    trigger_type="pivot_decision",
-                    target_type="run",
-                    context_lines=[
-                        "Auto-triggered by watch-ingest-worker after a high-significance source change.",
-                        f"Strategic session id: {strategic_session.id}",
-                        f"Domain id: {strategic_session.domain_id or rule.domain_id}",
-                        f"Change summary: {summary}",
-                    ],
-                ),
-            )
-            return debate.id
+            return {
+                "session_id": strategic_session.id,
+                "simulation_run_id": result.simulation_run.id,
+                "debate_id": result.debate.id if result.debate is not None else "",
+                "run_snapshot_id": latest_snapshot.id if latest_snapshot is not None else "",
+            }
         except Exception as exc:
             await session.rollback()
             logger.warning(
-                "Failed to auto-trigger re-debate for watch rule %s: %s",
+                "Failed to refresh strategic session for watch rule %s: %s",
                 rule.id,
                 f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
             )
-            return None
+            return {}
 
     async def _detect_source_changes(
         self,

@@ -638,6 +638,46 @@ class PanelDiscussionMessageRead(APIModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class WorkflowPhaseRead(APIModel):
+    key: str
+    label: str
+    status: str
+    count: int | None = None
+    source_types: list[str] = Field(default_factory=list)
+    debate_id: str | None = None
+    watch_rule_id: str | None = None
+    next_poll_at: str | None = None
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
+class AssistantWorkflowRead(APIModel):
+    status: str = "first_result_ready"
+    user_can_decide: bool = False
+    first_result_ready: bool = False
+    phases: list[WorkflowPhaseRead] = Field(default_factory=list)
+    coverage: dict[str, Any] = Field(default_factory=dict)
+
+
+class MonitoringAttachmentRead(APIModel):
+    edition: str = "community"
+    mode: str = "local_24h"
+    gate: str | None = None
+    feature: str | None = None
+    enabled: bool = False
+    status: str = "disabled"
+    created: bool = False
+    poll_interval_minutes: int | None = None
+    auto_trigger_simulation: bool = False
+    auto_trigger_debate: bool = False
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    session_id: str | None = None
+    watch_rule_id: str | None = None
+    next_poll_at: str | None = None
+    message: str | None = None
+    error: dict[str, Any] | None = None
+
+
 class StrategicAssistantResponse(APIModel):
     session_id: str | None = None
     topic: str
@@ -651,8 +691,8 @@ class StrategicAssistantResponse(APIModel):
     debate: DebateDetailRead | None = None
     workbench: RunWorkbenchRead
     panel_discussion: list[PanelDiscussionMessageRead] = Field(default_factory=list)
-    workflow: dict[str, Any] = Field(default_factory=dict)
-    monitoring: dict[str, Any] = Field(default_factory=dict)
+    workflow: AssistantWorkflowRead = Field(default_factory=AssistantWorkflowRead)
+    monitoring: MonitoringAttachmentRead = Field(default_factory=MonitoringAttachmentRead)
     generated_at: datetime
 
 

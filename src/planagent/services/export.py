@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,49 @@ class ExportService:
         _append("---")
         _append("")
 
+        # Workflow Section
+        workflow = result.get("workflow") or {}
+        if isinstance(workflow, dict) and workflow:
+            _append("## 工作流状态")
+            _append("")
+            _append(f"- **当前状态**: {workflow.get('status', 'unknown')}")
+            _append(f"- **可辅助决策**: {'是' if workflow.get('user_can_decide') else '否'}")
+            phases = workflow.get("phases") or []
+            if phases:
+                _append("")
+                _append("### 阶段进度")
+                _append("")
+                for phase in phases:
+                    if not isinstance(phase, dict):
+                        continue
+                    label = phase.get("label") or phase.get("key") or "阶段"
+                    status = phase.get("status") or "unknown"
+                    detail = []
+                    if phase.get("count") is not None:
+                        detail.append(f"数量: {phase.get('count')}")
+                    if phase.get("next_poll_at"):
+                        detail.append(f"下次更新: {phase.get('next_poll_at')}")
+                    suffix = f" ({'; '.join(detail)})" if detail else ""
+                    _append(f"- **{label}**: {status}{suffix}")
+                _append("")
+
+        monitoring = result.get("monitoring") or {}
+        if isinstance(monitoring, dict) and monitoring:
+            _append("## 监控状态")
+            _append("")
+            _append(f"- **版本**: {monitoring.get('edition', 'unknown')}")
+            _append(f"- **模式**: {monitoring.get('mode', 'local')}")
+            _append(f"- **状态**: {monitoring.get('status', 'unknown')}")
+            if monitoring.get("watch_rule_id"):
+                _append(f"- **监控规则**: {monitoring.get('watch_rule_id')}")
+            if monitoring.get("poll_interval_minutes") is not None:
+                _append(f"- **轮询间隔**: {monitoring.get('poll_interval_minutes')} 分钟")
+            if monitoring.get("next_poll_at"):
+                _append(f"- **下次更新**: {monitoring.get('next_poll_at')}")
+            if monitoring.get("message"):
+                _append(f"- **说明**: {monitoring.get('message')}")
+            _append("")
+
         # Analysis Section
         analysis = result.get("analysis", {})
         if analysis:
@@ -94,9 +138,10 @@ class ExportService:
                     _append(f"- {rf}")
                 _append("")
 
-            confidence = analysis.get("confidence_score", 0)
-            _append(f"**综合置信度**: {confidence:.1%}")
-            _append("")
+            confidence = analysis.get("confidence_score")
+            if isinstance(confidence, (int, float)):
+                _append(f"**综合置信度**: {confidence:.1%}")
+                _append("")
 
             sources = analysis.get("sources", [])
             if sources:
@@ -118,16 +163,30 @@ class ExportService:
             _append("")
 
             verdict = debate.get("verdict")
-            if verdict:
+            verdict_data = verdict if isinstance(verdict, dict) else {}
+            if verdict_data:
+                _append(f"**裁决结论**: {verdict_data.get('verdict', 'N/A')}")
+                if verdict_data.get("conclusion_summary"):
+                    _append("")
+                    _append(str(verdict_data["conclusion_summary"]))
+                verdict_confidence = verdict_data.get("confidence")
+                if isinstance(verdict_confidence, (int, float)):
+                    _append("")
+                    _append(f"**裁决置信度**: {verdict_confidence:.1%}")
+                _append("")
+            elif verdict:
                 _append(f"**裁决结论**: {verdict}")
                 _append("")
 
-            verdict_confidence = debate.get("verdict_confidence", 0)
-            _append(f"**裁决置信度**: {verdict_confidence:.1%}")
-            _append("")
+            verdict_confidence = debate.get("verdict_confidence")
+            if isinstance(verdict_confidence, (int, float)) and not verdict_data:
+                _append(f"**裁决置信度**: {verdict_confidence:.1%}")
+                _append("")
 
             rounds = debate.get("rounds", [])
             for rd in rounds:
+                if not isinstance(rd, dict):
+                    continue
                 round_num = rd.get("round_number", "?")
                 round_phase = rd.get("phase", "unknown")
                 _append(f"### 第{round_num}轮 · {round_phase}")
@@ -135,6 +194,8 @@ class ExportService:
 
                 messages = rd.get("messages", [])
                 for msg in messages:
+                    if not isinstance(msg, dict):
+                        continue
                     role = msg.get("role", "unknown")
                     stance = msg.get("stance", "")
                     content = msg.get("content", "")
@@ -143,20 +204,39 @@ class ExportService:
                     _append(content)
                     _append("")
 
-            recommendations = debate.get("recommendations", [])
+                if not messages and rd.get("position"):
+                    _append(f"**[{rd.get('role', 'agent')}]**")
+                    _append("")
+                    _append(str(rd.get("position", "")))
+                    _append("")
+
+            recommendations = (
+                debate.get("recommendations") or verdict_data.get("recommendations") or []
+            )
             if recommendations:
                 _append("### 辩论建议")
                 _append("")
                 for i, r in enumerate(recommendations, 1):
-                    _append(f"{i}. {r}")
+                    if isinstance(r, dict):
+                        text = r.get("title") or r.get("summary") or r.get("text") or r
+                    else:
+                        text = r
+                    _append(f"{i}. {text}")
                 _append("")
 
-            risk_factors = debate.get("risk_factors", [])
+            risk_factors = debate.get("risk_factors") or verdict_data.get("risk_factors") or []
             if risk_factors:
                 _append("### 辩论风险提示")
                 _append("")
                 for rf in risk_factors:
                     _append(f"- {rf}")
+                _append("")
+
+            minority_opinion = verdict_data.get("minority_opinion")
+            if minority_opinion:
+                _append("### 少数意见")
+                _append("")
+                _append(str(minority_opinion))
                 _append("")
 
         # Simulation Section
@@ -180,15 +260,29 @@ class ExportService:
             _append("")
 
             report_body = latest_report.get("report_body", "")
+            sections = latest_report.get("sections") if isinstance(latest_report, dict) else {}
+            sections = sections if isinstance(sections, dict) else {}
             if report_body:
                 _append(report_body)
                 _append("")
 
-            executive_summary = latest_report.get("executive_summary", "")
+            executive_summary = (
+                latest_report.get("executive_summary", "")
+                or sections.get("executive_summary", "")
+                or latest_report.get("summary", "")
+            )
             if executive_summary:
                 _append("### 摘要")
                 _append("")
                 _append(executive_summary)
+                _append("")
+
+            strategy_recommendations = sections.get("strategy_recommendations") or []
+            if strategy_recommendations:
+                _append("### 报告建议")
+                _append("")
+                for i, item in enumerate(strategy_recommendations, 1):
+                    _append(f"{i}. {item}")
                 _append("")
 
         # Panel Discussion
@@ -222,11 +316,32 @@ class ExportService:
                 _append("")
                 metrics = kpi.get("metrics", [])
                 for m in metrics:
-                    name = m.get("name", "Unknown")
-                    start = m.get("start_value", "N/A")
-                    end = m.get("end_value", "N/A")
+                    name = m.get("name") or m.get("metric") or "Unknown"
+                    start = m.get("start_value", m.get("start", "N/A"))
+                    end = m.get("end_value", m.get("end", "N/A"))
                     delta = m.get("delta", "N/A")
                     _append(f"- **{name}**: {start} → {end} (变化: {delta})")
+                _append("")
+
+        recommendation_versions = result.get("recommendation_versions") or []
+        if recommendation_versions:
+            _append("---")
+            _append("")
+            _append("## 七、建议版本")
+            _append("")
+            for version in recommendation_versions[:10]:
+                if not isinstance(version, dict):
+                    continue
+                number = version.get("version_number", "?")
+                trigger = version.get("trigger_type", "update")
+                significance = version.get("significance", "none")
+                summary = version.get("recommendation_summary", "")
+                _append(f"### v{number} · {trigger} · {significance}")
+                _append("")
+                if version.get("change_summary"):
+                    _append(f"- 变化说明: {version.get('change_summary')}")
+                if summary:
+                    _append(str(summary))
                 _append("")
 
         _append("---")
@@ -271,7 +386,40 @@ class ExportService:
             _append("")
             _append("## 最终裁决")
             _append("")
-            _append(verdict)
+            verdict_data = verdict if isinstance(verdict, dict) else {}
+            if verdict_data:
+                _append(str(verdict_data.get("verdict", "N/A")))
+                if verdict_data.get("conclusion_summary"):
+                    _append("")
+                    _append(str(verdict_data["conclusion_summary"]))
+                confidence = verdict_data.get("confidence")
+                if isinstance(confidence, (int, float)):
+                    _append("")
+                    _append(f"**置信度**: {confidence:.1%}")
+            else:
+                _append(str(verdict))
+
+            recommendations = debate_data.get("recommendations") or verdict_data.get(
+                "recommendations"
+            )
+            if recommendations:
+                _append("")
+                _append("### 建议")
+                _append("")
+                for i, item in enumerate(recommendations, 1):
+                    if isinstance(item, dict):
+                        text = item.get("title") or item.get("summary") or item.get("text") or item
+                    else:
+                        text = item
+                    _append(f"{i}. {text}")
+
+            risk_factors = debate_data.get("risk_factors") or verdict_data.get("risk_factors")
+            if risk_factors:
+                _append("")
+                _append("### 风险提示")
+                _append("")
+                for item in risk_factors:
+                    _append(f"- {item}")
 
         return "\n".join(lines)
 
@@ -330,6 +478,87 @@ class ExportService:
         return "\n".join(lines)
 
     # ── PDF Export ────────────────────────────────────────────
+
+    def md_to_html(self, md_content: str, title: str = "PlanAgent Report") -> str:
+        """Convert Markdown content to a self-contained HTML report."""
+        html_content = markdown2.markdown(
+            md_content,
+            extras=[
+                "tables",
+                "fenced-code-blocks",
+                "code-friendly",
+                "header-ids",
+                "toc",
+                "metadata",
+            ],
+        )
+        safe_title = escape(title)
+        return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{safe_title}</title>
+    <style>
+        body {{
+            margin: 0;
+            background: #f8f4ed;
+            color: #201a17;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC",
+                         "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            line-height: 1.72;
+        }}
+        main {{
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 44px 24px 72px;
+        }}
+        h1, h2, h3 {{ line-height: 1.25; }}
+        h1 {{
+            font-size: 32px;
+            border-bottom: 1px solid #d7c7b7;
+            padding-bottom: 16px;
+        }}
+        h2 {{
+            margin-top: 34px;
+            font-size: 22px;
+            border-bottom: 1px solid #e5d8ca;
+            padding-bottom: 8px;
+        }}
+        h3 {{ margin-top: 24px; font-size: 16px; }}
+        a {{ color: #9a4f2f; }}
+        blockquote {{
+            margin: 16px 0;
+            border-left: 3px solid #b8653f;
+            padding: 8px 16px;
+            background: #fffaf3;
+        }}
+        code, pre {{
+            background: #241f1b;
+            color: #f5eee5;
+            border-radius: 6px;
+        }}
+        code {{ padding: 2px 5px; }}
+        pre {{ padding: 14px; overflow-x: auto; }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }}
+        th, td {{
+            border: 1px solid #decec0;
+            padding: 8px 10px;
+            text-align: left;
+        }}
+        th {{ background: #efe3d5; }}
+    </style>
+</head>
+<body>
+<main>
+{html_content}
+</main>
+</body>
+</html>"""
 
     def md_to_pdf(self, md_content: str, title: str = "PlanAgent Report") -> bytes:
         """Convert Markdown content to PDF bytes using weasyprint."""

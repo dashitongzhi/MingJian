@@ -8,6 +8,29 @@ export async function fetch_<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiFetch = fetch_;
 
+function filenameFromDisposition(disposition: string | null, fallback: string) {
+  if (!disposition) return fallback;
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) return decodeURIComponent(encoded);
+  const plain = disposition.match(/filename="?([^"]+)"?/i)?.[1];
+  return plain || fallback;
+}
+
+export async function downloadFile(path: string, fallbackFilename: string): Promise<void> {
+  const res = await fetch(`${API}${path}`);
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text().catch(() => "")}`);
+  const blob = await res.blob();
+  const filename = filenameFromDisposition(res.headers.get("Content-Disposition"), fallbackFilename);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export interface AnalysisSource { source_type: string; title: string; url: string; summary: string; published_at: string | null }
 export interface AnalysisStep { stage: string; message: string; detail: string | null }
 export interface AnalysisResponse { query: string; domain_id: string; summary: string; reasoning_steps: AnalysisStep[]; findings: string[]; recommendations: string[]; sources: AnalysisSource[]; generated_at: string }
@@ -32,7 +55,10 @@ export interface StrategicSessionDetail { session: StrategicSession; daily_brief
 export interface KPIMetric { metric: string; start: number | null; end: number | null; delta: number | null }
 export interface WorkbenchData { run_id: string; domain_id: string; timeline: Array<{ event_id: string; event_type: string; tick: number | null; title: string }>; geo_map: { theater: string | null; assets: Array<{ name: string; asset_type: string; latitude: number; longitude: number }> }; evidence_graph?: { nodes: Array<{ node_id: string; label: string; node_type: string; metadata?: Record<string, unknown> }>; edges: Array<{ source_id: string; target_id: string; relation_type: string }> }; prediction_versions?: WorkbenchPredictionVersion[]; kpi_comparator: { metrics: KPIMetric[] }; debate_records: Array<{ debate_id: string; topic: string; verdict: string | null; confidence: number | null }> }
 export interface GeneratedReport { id: string; title: string; summary: string }
-export interface AssistantResult { session_id: string | null; topic: string; domain_id: string; subject_name: string; analysis: AnalysisResponse; ingest_run: IngestRun; simulation_run: SimulationRun; latest_report: GeneratedReport | null; debate: DebateDetail | null; workbench: WorkbenchData; panel_discussion: PanelMessage[]; generated_at: string }
+export interface WorkflowPhase { key: string; label: string; status: string; count?: number | null; source_types: string[]; debate_id?: string | null; watch_rule_id?: string | null; next_poll_at?: string | null; detail: Record<string, unknown> }
+export interface AssistantWorkflow { status: string; user_can_decide: boolean; first_result_ready: boolean; phases: WorkflowPhase[]; coverage: Record<string, unknown> }
+export interface MonitoringAttachment { edition: string; mode: string; gate?: string | null; feature?: string | null; enabled: boolean; status: string; created: boolean; poll_interval_minutes?: number | null; auto_trigger_simulation: boolean; auto_trigger_debate: boolean; tenant_id?: string | null; preset_id?: string | null; session_id?: string | null; watch_rule_id?: string | null; next_poll_at?: string | null; message?: string | null; error?: Record<string, unknown> | null }
+export interface AssistantResult { session_id: string | null; topic: string; domain_id: string; subject_name: string; analysis: AnalysisResponse; ingest_run: IngestRun; simulation_run: SimulationRun; latest_report: GeneratedReport | null; debate: DebateDetail | null; workbench: WorkbenchData; panel_discussion: PanelMessage[]; workflow: AssistantWorkflow; monitoring: MonitoringAttachment; generated_at: string }
 export interface WorkbenchDecisionData {
   session: StrategicSession;
   generated_at: string | null;
@@ -75,6 +101,12 @@ export const fetchKnowledgeGraph = (limit = 100) => fetch_<{ nodes: Array<{ node
 export const searchKnowledge = (q: string) => fetch_<Array<{ node_id: string; label: string; score: number }>>(`/knowledge/search?q=${encodeURIComponent(q)}`);
 export const fetchScoreboard = () => fetch_<PredictionScoreboard>("/hypotheses/scoreboard");
 export const fetchSourceReputations = () => fetch_<SourceReputation[]>("/sources/reputation");
+export type AssistantExportFormat = "md" | "html";
+export const exportAssistantSession = (sessionId: string, format: AssistantExportFormat = "md") =>
+  downloadFile(
+    `/export/assistant/session/${encodeURIComponent(sessionId)}?format=${format}`,
+    `planagent_${sessionId.slice(0, 8)}.${format}`,
+  );
 
 // ── Custom Sources ──────────────────────────────────────────
 export interface CustomSource {

@@ -7,10 +7,6 @@ import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Toaster } from "sonner";
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "明鉴 (MingJian) — Decision Intelligence",
@@ -36,7 +32,7 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh" className={cn("font-sans", geist.variable)} suppressHydrationWarning>
+    <html lang="zh" className="font-sans" suppressHydrationWarning>
       <body className="min-h-screen" suppressHydrationWarning>
         <ThemeProvider>
           <LanguageProvider>
