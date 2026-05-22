@@ -71,6 +71,7 @@ from planagent.services.startup import (
     load_agent_startup_ingest_payload,
     load_agent_startup_simulation_payload,
 )
+from planagent.services.recommendations import RecommendationVersionService
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
@@ -327,6 +328,7 @@ async def create_watch_rule(
 ) -> WatchRuleRead:
     now = utc_now()
     rule = WatchRule(
+        session_id=payload.session_id,
         name=payload.name,
         domain_id=payload.domain_id,
         query=payload.query,
@@ -574,6 +576,38 @@ async def trigger_watch_rule(
         rule.lease_owner = None
         rule.lease_expires_at = None
         rule.next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
+        recommendation_version_id = None
+        if rule.session_id is not None:
+            recommendation_service = RecommendationVersionService()
+            recommendation = await recommendation_service.create_version(
+                session,
+                session_id=rule.session_id,
+                watch_rule_id=rule.id,
+                tenant_id=rule.tenant_id,
+                preset_id=rule.preset_id,
+                trigger_type="manual_trigger",
+                significance="none",
+                recommendation_summary=_watch_recommendation_summary(
+                    analysis.recommendations,
+                    analysis.summary,
+                    debate_id,
+                    simulation_run_id,
+                ),
+                result_payload={
+                    "kind": "watch_manual_trigger",
+                    "analysis": analysis.model_dump(mode="json"),
+                    "sources_fetched": len(analysis.sources),
+                    "threshold_met": threshold_met,
+                },
+                source_snapshot=await recommendation_service.source_snapshot(
+                    session,
+                    watch_rule_id=rule.id,
+                ),
+                ingest_run_id=ingest_run.id,
+                simulation_run_id=simulation_run_id,
+                debate_id=debate_id,
+            )
+            recommendation_version_id = recommendation.id
         await session.commit()
 
         return WatchRuleTriggerRead(
@@ -584,6 +618,7 @@ async def trigger_watch_rule(
             sources_fetched=len(analysis.sources),
             simulation_run_id=simulation_run_id,
             debate_id=debate_id,
+            recommendation_version_id=recommendation_version_id,
         )
     except Exception as exc:
         rule.last_poll_error = f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
@@ -665,6 +700,23 @@ def _watch_source_score(rule: WatchRule, source: AnalysisSourceRead) -> float:
     if source.published_at:
         score += 0.1
     return round(max(0.0, min(score, 1.0)), 4)
+
+
+def _watch_recommendation_summary(
+    recommendations: list[str],
+    summary: str,
+    debate_id: str | None,
+    simulation_run_id: str | None,
+) -> str:
+    cleaned = [" ".join(item.split()) for item in recommendations if item]
+    base = "；".join(cleaned[:3]) if cleaned else " ".join(str(summary or "").split())
+    actions = []
+    if simulation_run_id is not None:
+        actions.append("已生成新推演")
+    if debate_id is not None:
+        actions.append("已完成重新辩论")
+    suffix = f"（{', '.join(actions)}）" if actions else ""
+    return f"{base[:500]}{suffix}" or "监控刷新完成，暂无明确建议变化。"
 
 
 # ── Sources ──────────────────────────────────────────────────────────────────

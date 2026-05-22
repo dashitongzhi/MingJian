@@ -16,6 +16,8 @@ from planagent.domain.api import (
 )
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import (
+    RawSourceItem,
+    RecommendationVersion,
     SourceCursorState,
     StrategicRunSnapshot,
     StrategicSession,
@@ -24,13 +26,16 @@ from planagent.domain.models import (
 )
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
+from planagent.services.assistant import StrategicAssistantService
 from planagent.services.change_detection import ChangeDetectionService
 from planagent.services.debate import DebateService
 from planagent.services.notification import NotificationService, NotificationPriority
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
+from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.simulation import SimulationService
 from planagent.services.source_state import SourceStateService
+from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
 
@@ -65,6 +70,14 @@ class WatchIngestWorker(Worker):
             settings, event_bus, rule_registry, openai_service
         )
         self.debate_service = DebateService(settings, event_bus, openai_service)
+        self.assistant_service = StrategicAssistantService(
+            analysis_service=self.analysis_service,
+            pipeline_service=self.pipeline_service,
+            simulation_service=self.simulation_service,
+            debate_service=self.debate_service,
+            workbench_service=WorkbenchService(),
+        )
+        self.recommendation_service = RecommendationVersionService()
 
     async def run_once(self) -> dict[str, object]:
         database = get_database()
@@ -79,6 +92,7 @@ class WatchIngestWorker(Worker):
             ingest_runs = 0
             simulation_runs = 0
             debate_runs = 0
+            recommendation_updates = 0
 
             for rule in claimed_rules:
                 rule_id = rule.id
@@ -91,6 +105,8 @@ class WatchIngestWorker(Worker):
                         simulation_runs += 1
                     if result.get("debate_id"):
                         debate_runs += 1
+                    if result.get("recommendation_version_id"):
+                        recommendation_updates += 1
                 except Exception as exc:
                     await session.rollback()
                     await self._mark_failure(
@@ -107,9 +123,24 @@ class WatchIngestWorker(Worker):
             "ingest_runs": ingest_runs,
             "simulation_runs": simulation_runs,
             "debate_runs": debate_runs,
+            "recommendation_updates": recommendation_updates,
         }
 
     async def _poll_rule(self, session, rule: WatchRule) -> dict:
+        if self._community_window_expired(rule):
+            rule.enabled = False
+            rule.lease_owner = None
+            rule.lease_expires_at = None
+            rule.last_poll_error = None
+            rule.next_poll_at = None
+            rule.updated_at = utc_now()
+            await session.commit()
+            return {
+                "skipped": True,
+                "reason": "community_24h_window_expired",
+                "watch_rule_id": rule.id,
+            }
+
         source_state_service = SourceStateService(self.settings)
         change_service = ChangeDetectionService(self.settings)
         analysis_request = AnalysisRequest(
@@ -187,12 +218,27 @@ class WatchIngestWorker(Worker):
                 significance_order.get(significance, 0) < significance_order.get(threshold, 2)
                 and not evidence_impact["should_refresh"]
             ):
+                recommendation_version_id = await self._store_recommendation_version(
+                    session=session,
+                    rule=rule,
+                    analysis=analysis,
+                    change_records=change_records,
+                    change_summary=change_summary,
+                    significance=significance,
+                    evidence_impact=evidence_impact,
+                    threshold_met=False,
+                    ingest_run_id=None,
+                    simulation_run_id=None,
+                    debate_id=None,
+                    trigger_type="scheduled_refresh",
+                )
                 await self._mark_poll_success(session, rule)
                 return {
                     "skipped": True,
                     "reason": "below_threshold",
                     "significance": significance,
                     "evidence_impact": evidence_impact,
+                    "recommendation_version_id": recommendation_version_id,
                 }
 
         for change_record in change_records:
@@ -241,22 +287,27 @@ class WatchIngestWorker(Worker):
                 items=items,
             ),
         )
+        await self._link_change_records_to_raw_items(session, ingest_run.id, change_records)
 
         simulation_run_id = None
-        debate_id = await self._maybe_trigger_re_debate(
+        debate_id = None
+        full_refresh = await self._maybe_refresh_strategic_session(
             rule,
             session,
             change_summary,
             significance,
             evidence_impact,
         )
+        if full_refresh:
+            simulation_run_id = full_refresh.get("simulation_run_id") or None
+            debate_id = full_refresh.get("debate_id") or None
 
         threshold_met = (
             self._threshold_met(rule, qualified_sources)
             or significance == "high"
             or evidence_impact["should_refresh"]
         )
-        if rule.auto_trigger_simulation and threshold_met:
+        if rule.auto_trigger_simulation and threshold_met and not full_refresh:
             if rule.domain_id == "military":
                 force_name = rule.query[:60]
                 force_id = rule.query[:40].lower().replace(" ", "-")
@@ -298,6 +349,22 @@ class WatchIngestWorker(Worker):
                 )
                 debate_id = debate.id
 
+        recommendation_version_id = full_refresh.get("recommendation_version_id") or None
+        if recommendation_version_id is None:
+            recommendation_version_id = await self._store_recommendation_version(
+                session=session,
+                rule=rule,
+                analysis=analysis,
+                change_records=change_records,
+                change_summary=change_summary,
+                significance=significance,
+                evidence_impact=evidence_impact,
+                threshold_met=threshold_met,
+                ingest_run_id=ingest_run.id,
+                simulation_run_id=simulation_run_id,
+                debate_id=debate_id,
+            )
+
         await self._mark_poll_success(session, rule)
 
         # Push notification for re-analysis results
@@ -330,83 +397,194 @@ class WatchIngestWorker(Worker):
             "threshold_met": threshold_met,
             "simulation_run_id": simulation_run_id,
             "debate_id": debate_id,
+            "recommendation_version_id": recommendation_version_id,
+            "strategic_session_id": full_refresh.get("session_id"),
+            "run_snapshot_id": full_refresh.get("run_snapshot_id"),
             "change_records": len(change_records),
             "significance": significance,
             "evidence_impact": evidence_impact,
         }
 
-    async def _maybe_trigger_re_debate(
+    async def _maybe_refresh_strategic_session(
         self,
         rule: WatchRule,
         session,
         change_summary: str | None,
         significance: str,
         evidence_impact: dict[str, Any],
-    ) -> str | None:
+    ) -> dict[str, str]:
         if not rule.auto_trigger_debate or not evidence_impact["should_refresh"]:
-            return None
+            return {}
 
         try:
-            strategic_session = (
-                await session.scalars(
-                    select(StrategicSession)
-                    .where(
-                        StrategicSession.topic == rule.query,
-                        StrategicSession.domain_id == rule.domain_id,
-                        StrategicSession.tenant_id == rule.tenant_id,
-                        StrategicSession.preset_id == rule.preset_id,
-                    )
-                    .order_by(
-                        StrategicSession.updated_at.desc(), StrategicSession.created_at.desc()
-                    )
-                    .limit(1)
-                )
-            ).first()
+            strategic_session = await self._find_strategic_session(session, rule)
             if strategic_session is None:
-                return None
+                return {}
 
+            payload = await self.assistant_service.load_session_payload(
+                session,
+                strategic_session.id,
+            )
+            if payload is None:
+                return {}
+
+            result = await self.assistant_service.run(
+                session,
+                payload,
+                recommendation_trigger_type="source_change",
+                recommendation_significance=significance,
+            )
             latest_snapshot = (
                 await session.scalars(
                     select(StrategicRunSnapshot)
-                    .where(
-                        StrategicRunSnapshot.session_id == strategic_session.id,
-                        StrategicRunSnapshot.simulation_run_id.is_not(None),
-                    )
+                    .where(StrategicRunSnapshot.session_id == strategic_session.id)
                     .order_by(StrategicRunSnapshot.generated_at.desc())
                     .limit(1)
                 )
             ).first()
-            if latest_snapshot is None or latest_snapshot.simulation_run_id is None:
-                return None
-
-            summary = change_summary or "High-significance source change detected."
-            debate = await self.debate_service.trigger_debate(
-                session,
-                DebateTriggerRequest(
-                    run_id=latest_snapshot.simulation_run_id,
-                    topic=f"Should the strategy for {strategic_session.topic} be revised?",
-                    trigger_type="pivot_decision",
-                    target_type="run",
-                    context_lines=[
-                        "Auto-triggered by watch-ingest-worker after a high-significance source change.",
-                        f"Strategic session id: {strategic_session.id}",
-                        f"Domain id: {strategic_session.domain_id or rule.domain_id}",
-                        f"Source significance: {significance}",
-                        f"Change summary: {summary}",
-                        *self._evidence_impact_context_lines(evidence_impact),
-                    ],
-                    domain_id=strategic_session.domain_id or rule.domain_id,
-                ),
-            )
-            return debate.id
+            latest_recommendation = (
+                await session.scalars(
+                    select(RecommendationVersion)
+                    .where(RecommendationVersion.session_id == strategic_session.id)
+                    .order_by(RecommendationVersion.generated_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            return {
+                "session_id": strategic_session.id,
+                "simulation_run_id": result.simulation_run.id,
+                "debate_id": result.debate.id if result.debate is not None else "",
+                "run_snapshot_id": latest_snapshot.id if latest_snapshot is not None else "",
+                "recommendation_version_id": latest_recommendation.id
+                if latest_recommendation is not None
+                else "",
+            }
         except Exception as exc:
             await session.rollback()
             logger.warning(
-                "Failed to auto-trigger re-debate for watch rule %s: %s",
+                "Failed to refresh strategic session for watch rule %s: %s",
                 rule.id,
                 f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
             )
+            return {}
+
+    async def _find_strategic_session(self, session, rule: WatchRule) -> StrategicSession | None:
+        if rule.session_id is not None:
+            record = await session.get(StrategicSession, rule.session_id)
+            if record is not None:
+                return record
+        return (
+            await session.scalars(
+                select(StrategicSession)
+                .where(
+                    StrategicSession.topic == rule.query,
+                    StrategicSession.domain_id == rule.domain_id,
+                    StrategicSession.tenant_id == rule.tenant_id,
+                    StrategicSession.preset_id == rule.preset_id,
+                )
+                .order_by(StrategicSession.updated_at.desc(), StrategicSession.created_at.desc())
+                .limit(1)
+            )
+        ).first()
+
+    async def _store_recommendation_version(
+        self,
+        *,
+        session,
+        rule: WatchRule,
+        analysis,
+        change_records: list,
+        change_summary: str | None,
+        significance: str,
+        evidence_impact: dict[str, Any],
+        threshold_met: bool,
+        ingest_run_id: str | None,
+        simulation_run_id: str | None,
+        debate_id: str | None,
+        trigger_type: str | None = None,
+    ) -> str | None:
+        strategic_session = await self._find_strategic_session(session, rule)
+        session_id = rule.session_id or (strategic_session.id if strategic_session else None)
+        if session_id is None:
             return None
+
+        changed_records = [record for record in change_records if record.change_type != "unchanged"]
+        source_change_ids = [record.id for record in changed_records]
+        trigger_source_change_id = source_change_ids[0] if source_change_ids else None
+        resolved_trigger_type = trigger_type or (
+            "source_change"
+            if significance in {"medium", "high"} or changed_records
+            else "scheduled_refresh"
+        )
+        recommendation = await self.recommendation_service.create_version(
+            session,
+            session_id=session_id,
+            watch_rule_id=rule.id,
+            tenant_id=rule.tenant_id,
+            preset_id=rule.preset_id,
+            trigger_type=resolved_trigger_type,
+            trigger_source_change_id=trigger_source_change_id,
+            source_change_ids=source_change_ids,
+            significance=significance,
+            change_summary=change_summary,
+            recommendation_summary=self._recommendation_summary(
+                analysis=analysis,
+                significance=significance,
+                change_summary=change_summary,
+                threshold_met=threshold_met,
+                simulation_run_id=simulation_run_id,
+                debate_id=debate_id,
+            ),
+            result_payload={
+                "kind": "watch_update",
+                "analysis": analysis.model_dump(mode="json"),
+                "threshold_met": threshold_met,
+                "evidence_impact": evidence_impact,
+                "change_records": len(change_records),
+                "changed_records": len(changed_records),
+            },
+            source_snapshot=await self.recommendation_service.source_snapshot(
+                session,
+                watch_rule_id=rule.id,
+            ),
+            ingest_run_id=ingest_run_id,
+            simulation_run_id=simulation_run_id,
+            debate_id=debate_id,
+        )
+        return recommendation.id
+
+    def _recommendation_summary(
+        self,
+        *,
+        analysis,
+        significance: str,
+        change_summary: str | None,
+        threshold_met: bool,
+        simulation_run_id: str | None,
+        debate_id: str | None,
+    ) -> str:
+        recommendations = [" ".join(item.split()) for item in analysis.recommendations if item]
+        if recommendations:
+            base = "；".join(recommendations[:3])
+        elif change_summary:
+            base = change_summary
+        else:
+            base = " ".join(str(analysis.summary or "").split())
+        if significance == "high":
+            prefix = "检测到高重要度突发变化"
+        elif significance == "medium":
+            prefix = "检测到中等重要度变化"
+        elif threshold_met:
+            prefix = "监控条件已满足"
+        else:
+            prefix = "固定监控刷新完成"
+        actions = []
+        if simulation_run_id is not None:
+            actions.append("已生成新推演")
+        if debate_id is not None:
+            actions.append("已完成重新辩论")
+        suffix = f"（{', '.join(actions)}）" if actions else ""
+        return f"{prefix}: {base[:500]}{suffix}"
 
     async def _detect_source_changes(
         self,
@@ -448,6 +626,38 @@ class WatchIngestWorker(Worker):
             )
             records.append(record)
         return records
+
+    async def _link_change_records_to_raw_items(
+        self,
+        session,
+        ingest_run_id: str,
+        change_records: list,
+    ) -> None:
+        if not change_records:
+            return
+        raw_items = list(
+            (
+                await session.scalars(
+                    select(RawSourceItem)
+                    .where(RawSourceItem.ingest_run_id == ingest_run_id)
+                    .order_by(RawSourceItem.created_at.desc())
+                )
+            ).all()
+        )
+        if not raw_items:
+            return
+        by_source_type: dict[str, str] = {}
+        for raw in raw_items:
+            by_source_type.setdefault(raw.source_type, raw.id)
+        for record in change_records:
+            if record.new_raw_source_item_id is not None:
+                continue
+            state = await session.get(SourceCursorState, record.source_state_id)
+            if state is None:
+                continue
+            raw_id = by_source_type.get(state.source_type)
+            if raw_id is not None:
+                record.new_raw_source_item_id = raw_id
 
     def _group_sources_for_change_detection(
         self,
@@ -659,13 +869,26 @@ class WatchIngestWorker(Worker):
             )
         return "\n\n".join(parts)
 
+    def _community_window_expired(self, rule: WatchRule) -> bool:
+        created_at = rule.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=utc_now().tzinfo)
+        return utc_now() - created_at >= timedelta(hours=24)
+
     async def _mark_poll_success(self, session, rule: WatchRule) -> None:
         now = utc_now()
+        expires_at = rule.created_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=now.tzinfo)
+        expires_at = expires_at + timedelta(hours=24)
         rule.last_poll_at = now
         rule.last_poll_error = None
         rule.lease_owner = None
         rule.lease_expires_at = None
-        rule.next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
+        next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
+        rule.next_poll_at = next_poll_at if next_poll_at < expires_at else None
+        if rule.next_poll_at is None:
+            rule.enabled = False
         await session.commit()
 
     async def _claim_due_rules(

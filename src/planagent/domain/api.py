@@ -767,10 +767,32 @@ class StrategicRunSnapshotRead(APIModel):
     generated_at: datetime
 
 
+class RecommendationVersionRead(APIModel):
+    id: str
+    session_id: str
+    watch_rule_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    version_number: int
+    trigger_type: str
+    trigger_source_change_id: str | None = None
+    source_change_ids: list[str] = Field(default_factory=list)
+    significance: str = "none"
+    change_summary: str | None = None
+    recommendation_summary: str
+    result_payload: dict[str, Any] = Field(default_factory=dict)
+    source_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+    ingest_run_id: str | None = None
+    simulation_run_id: str | None = None
+    debate_id: str | None = None
+    generated_at: datetime
+
+
 class StrategicSessionDetailRead(APIModel):
     session: StrategicSessionRead
     daily_briefs: list[StrategicBriefRecordRead] = Field(default_factory=list)
     recent_runs: list[StrategicRunSnapshotRead] = Field(default_factory=list)
+    recommendation_versions: list[RecommendationVersionRead] = Field(default_factory=list)
 
 
 StrategicRunSnapshotRead.model_rebuild()
@@ -864,6 +886,7 @@ class OpenAITestResponse(APIModel):
 
 
 class WatchRuleCreate(APIModel):
+    session_id: str | None = None
     name: str = Field(min_length=1)
     domain_id: Literal["corporate", "military"]
     query: str = Field(min_length=1)
@@ -889,13 +912,14 @@ class WatchRuleCreate(APIModel):
     auto_trigger_debate: bool = False
     tick_count: int = Field(default=0, ge=0)
     incremental_enabled: bool = True
-    force_full_refresh_every_minutes: int = Field(default=24 * 60, ge=1, le=24 * 60 * 30)
+    force_full_refresh_every_minutes: int = Field(default=24 * 60, ge=1, le=24 * 60)
     change_significance_threshold: Literal["none", "low", "medium", "high"] = "medium"
     tenant_id: str | None = None
     preset_id: str | None = None
 
 
 class WatchRuleUpdate(APIModel):
+    session_id: str | None = None
     name: str | None = None
     query: str | None = None
     source_types: list[str] | None = None
@@ -911,12 +935,13 @@ class WatchRuleUpdate(APIModel):
     auto_trigger_debate: bool | None = None
     tick_count: int | None = Field(default=None, ge=0)
     incremental_enabled: bool | None = None
-    force_full_refresh_every_minutes: int | None = Field(default=None, ge=1, le=24 * 60 * 30)
+    force_full_refresh_every_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
     change_significance_threshold: Literal["none", "low", "medium", "high"] | None = None
 
 
 class WatchRuleRead(APIModel):
     id: str
+    session_id: str | None = None
     name: str
     domain_id: str
     query: str
@@ -954,6 +979,7 @@ class WatchRuleTriggerRead(APIModel):
     sources_fetched: int = 0
     simulation_run_id: str | None = None
     debate_id: str | None = None
+    recommendation_version_id: str | None = None
     error: str | None = None
 
 
@@ -1231,12 +1257,15 @@ class SourceCursorStateRead(APIModel):
     source_type: str
     source_url_or_query: str
     cursor: str | None = None
+    health_status: str = "pending"
     etag: str | None = None
     last_modified: str | None = None
     last_seen_hash: str | None = None
     last_seen_raw_source_item_id: str | None = None
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
+    last_checked_at: datetime | None = None
+    last_change_at: datetime | None = None
     consecutive_failures: int = 0
     created_at: datetime
     updated_at: datetime

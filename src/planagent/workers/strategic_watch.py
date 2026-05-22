@@ -22,7 +22,7 @@ from planagent.workers.base import Worker, WorkerDescription
 class StrategicWatchWorker(Worker):
     description = WorkerDescription(
         worker_id="strategic-watch-worker",
-        summary="Refreshes saved strategic sessions that are due for their next daily brief.",
+        summary="Refreshes saved strategic sessions and produces scheduled recommendation updates.",
         consumes=(),
         produces=(),
     )
@@ -67,7 +67,17 @@ class StrategicWatchWorker(Worker):
                         await self._mark_failure(session, session_record.id, "session_not_found")
                         failed += 1
                         continue
-                    await self.service.daily_brief(session, payload)
+                    await self.service.daily_brief(
+                        session,
+                        payload,
+                        store_recommendation_version=False,
+                    )
+                    await self.service.run(
+                        session,
+                        payload,
+                        recommendation_trigger_type="scheduled_refresh",
+                        recommendation_significance="none",
+                    )
                     refreshed += 1
                 except Exception as exc:
                     await self._mark_failure(

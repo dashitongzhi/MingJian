@@ -16,6 +16,7 @@ from planagent.domain.api import (
     AnalysisRequest,
     AnalysisResponse,
     DebateTriggerRequest,
+    RecommendationVersionRead,
     StrategicAssistantRequest,
     StrategicAssistantResponse,
     StrategicSessionDetailRead,
@@ -226,6 +227,27 @@ async def get_strategic_session_detail(
     if detail is None:
         raise HTTPException(status_code=404, detail=f"Strategic session {session_id} not found.")
     return detail
+
+
+@router.get(
+    "/assistant/session/{session_id}/recommendations",
+    response_model=list[RecommendationVersionRead],
+)
+async def list_assistant_recommendation_versions(
+    session_id: str,
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=100),
+    session: AsyncSession = Depends(get_session),
+) -> list[RecommendationVersionRead]:
+    service = get_assistant_service(request)
+    versions = await service.list_recommendation_versions(
+        session,
+        session_id=session_id,
+        limit=limit,
+    )
+    if versions is None:
+        raise HTTPException(status_code=404, detail=f"Strategic session {session_id} not found.")
+    return versions
 
 
 @router.post("/assistant/daily-brief", response_model=AnalysisResponse)

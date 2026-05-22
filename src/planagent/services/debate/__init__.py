@@ -428,6 +428,16 @@ class DebateService(
                     "verdict": assessment.verdict,
                     "confidence": verdict.confidence,
                 }
+                revision_records = await self.check_and_apply_revisions(
+                    session=session,
+                    debate_id=debate_id,
+                    rounds=assessment.rounds,
+                )
+                if revision_records:
+                    completed_payload["revisions"] = [
+                        {"role": r["role"], "confidence_drop": r["confidence_drop"]}
+                        for r in revision_records
+                    ]
                 session.add(
                     EventArchive(topic=EventTopic.DEBATE_COMPLETED.value, payload=completed_payload)
                 )

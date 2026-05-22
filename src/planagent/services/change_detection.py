@@ -7,6 +7,7 @@ from typing import Any, Protocol, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import Settings
+from planagent.domain.models import utc_now
 from planagent.services.openai_client import resolve_openclaw_model_selector
 from planagent.services.providers.openai_provider import OpenAIProvider
 
@@ -104,6 +105,9 @@ class ChangeDetectionService:
             diff_summary=diff_summary,
             changed_fields=self._detect_changed_fields(old_hash, stable_new_hash),
         )
+        if change_type != "unchanged":
+            state.last_change_at = utc_now()
+            state.health_status = "changed"
         await self.change_hook.after_change_detected(
             session=session,
             state=state,

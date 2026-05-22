@@ -855,6 +855,9 @@ class StrategicSession(Base):
 
     briefs: Mapped[list["StrategicBriefRecord"]] = relationship(back_populates="session")
     run_snapshots: Mapped[list["StrategicRunSnapshot"]] = relationship(back_populates="session")
+    recommendation_versions: Mapped[list["RecommendationVersion"]] = relationship(
+        back_populates="session"
+    )
     user_decisions: Mapped[list["UserDecision"]] = relationship(back_populates="session")
 
 
@@ -926,10 +929,46 @@ class StrategicRunSnapshot(Base):
     session: Mapped[StrategicSession] = relationship(back_populates="run_snapshots")
 
 
+class RecommendationVersion(Base):
+    __tablename__ = "recommendation_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("strategic_sessions.id"), nullable=False, index=True
+    )
+    watch_rule_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("watch_rules.id"), index=True
+    )
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    trigger_source_change_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("source_change_records.id"), index=True
+    )
+    source_change_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    significance: Mapped[str] = mapped_column(String(16), default="none", nullable=False)
+    change_summary: Mapped[str | None] = mapped_column(Text)
+    recommendation_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    result_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    source_snapshot: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    ingest_run_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    simulation_run_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    debate_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False, index=True
+    )
+
+    session: Mapped[StrategicSession] = relationship(back_populates="recommendation_versions")
+
+
 class WatchRule(Base):
     __tablename__ = "watch_rules"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("strategic_sessions.id"), index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     domain_id: Mapped[str] = mapped_column(String(32), nullable=False)
     query: Mapped[str] = mapped_column(Text, nullable=False)
@@ -1264,12 +1303,15 @@ class SourceCursorState(Base):
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     cursor: Mapped[str | None] = mapped_column(Text)
+    health_status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
     etag: Mapped[str | None] = mapped_column(String(256))
     last_modified: Mapped[str | None] = mapped_column(String(256))
     last_seen_hash: Mapped[str | None] = mapped_column(String(64))
     last_seen_raw_source_item_id: Mapped[str | None] = mapped_column(String(36))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_change_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False

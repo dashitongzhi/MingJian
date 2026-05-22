@@ -74,6 +74,7 @@ class SourceStateService:
             raise LookupError(f"Source cursor state {state_id} was not found.")
 
         now = utc_now()
+        state.last_checked_at = now
         if success:
             if cursor is not None:
                 state.cursor = cursor
@@ -87,9 +88,11 @@ class SourceStateService:
                 state.last_seen_raw_source_item_id = raw_source_item_id
             state.last_success_at = now
             state.consecutive_failures = 0
+            state.health_status = "healthy"
         else:
             state.consecutive_failures = int(state.consecutive_failures or 0) + 1
             state.last_failure_at = now
+            state.health_status = "failed" if state.consecutive_failures >= 3 else "degraded"
 
         state.updated_at = now
         await session.flush()
@@ -143,6 +146,7 @@ class SourceStateService:
             state.last_modified = None
             state.last_seen_hash = None
             state.last_seen_raw_source_item_id = None
+            state.health_status = "pending"
             state.updated_at = now
 
         from planagent.domain.models import WatchRule

@@ -83,6 +83,24 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
         assert body["debate"]["verdict"]["verdict"] in {"ACCEPTED", "REJECTED", "CONDITIONAL"}
         assert body["panel_discussion"]
         assert body["workbench"]["run_id"] == body["simulation_run"]["id"]
+        assert body["session_id"]
+        assert body["workflow"]["research_agents"]["agent_count"] >= 0
+        assert body["workflow"]["consensus"]["status"] in {
+            "broadly_accepted",
+            "contested",
+            "skipped",
+        }
+        assert body["workflow"]["recommendation_version"]["version_number"] == 1
+        assert body["monitoring"]["mode"] == "community_24h"
+        assert body["monitoring"]["watch_rule_id"]
+
+        versions_response = client.get(
+            f"/assistant/session/{body['session_id']}/recommendations"
+        )
+        assert versions_response.status_code == 200
+        versions = versions_response.json()
+        assert versions
+        assert versions[0]["trigger_type"] == "initial_result"
 
         daily_response = client.post("/assistant/daily-brief", json=payload)
         assert daily_response.status_code == 200
@@ -258,4 +276,7 @@ def test_strategic_watch_worker_refreshes_due_session(monkeypatch, tmp_path: Pat
         assert detail_response.status_code == 200
         detail_body = detail_response.json()
         assert len(detail_body["daily_briefs"]) == 1
+        assert len(detail_body["recent_runs"]) == 1
+        assert detail_body["recommendation_versions"]
+        assert detail_body["recommendation_versions"][0]["trigger_type"] == "scheduled_refresh"
         assert detail_body["session"]["next_refresh_at"] is not None
