@@ -403,7 +403,7 @@ class TestDebateOptimization:
         roles = select_roles_for_domain("unknown_domain")
         assert "advocate" in roles  # Core always included
 
-    def test_dynamic_round_plan_uses_domain_and_cross_exam(self):
+    def test_full_round_plan_keeps_public_core_roles_and_cross_exam(self):
         plan = build_round_plan(
             mode="full",
             domain_id="corporate",
@@ -414,7 +414,8 @@ class TestDebateOptimization:
         roles = [r[1] for r in plan]
         instructions = [r[2] for r in plan]
         assert "econ_analyst" in roles
-        assert "military_strategist" not in roles
+        assert "military_strategist" in roles
+        assert "social_impact" in roles
         assert any("交叉质询" in instruction for instruction in instructions)
 
     def test_complex_round_plan_keeps_full_panel_with_cross_exam_protocol(self):

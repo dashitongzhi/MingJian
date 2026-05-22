@@ -368,33 +368,15 @@ def _build_full_round_plan(
     context: str | None = None,
     evidence_count: int = 0,
 ) -> list[tuple[int, str, str]]:
-    """Build a full debate with dynamic depth and cross-examination."""
-    complexity = infer_debate_complexity(topic, context, evidence_count)
-    selected_roles = select_roles_for_domain(domain_id, complexity=complexity)
+    """Build the full public-core debate with all standard roles.
 
-    if complexity == "complex":
-        plan = list(round_plan)
-        _apply_cross_exam_protocol(plan)
-        _add_custom_agents(plan, custom_agents, domain_id)
-        return plan
-
-    round1 = [role for role in selected_roles if role not in {"challenger", "arbitrator"}]
-    expert_roles = [role for role in round1 if role not in {"advocate", "intel_analyst"}]
-    plan = []
-    for role in round1:
-        plan.append((1, role, _round1_instruction(role)))
-
-    cross_roles = ["challenger"]
-    if complexity == "standard" and "intel_analyst" in selected_roles:
-        cross_roles.append("intel_analyst")
-    for role in cross_roles:
-        plan.append((2, role, _cross_exam_instruction(role, round1)))
-
-    revision_roles = ["advocate", *expert_roles[:2]]
-    for role in dict.fromkeys(revision_roles):
-        plan.append((3, role, _revision_instruction(role)))
-
-    plan.append((4, "arbitrator", _arbitration_instruction()))
+    Community, Cloud, and Enterprise share the same public decision workflow:
+    full mode must not silently trim the standard expert panel.  Callers that
+    explicitly need a cheaper run can choose ``mode="fast"``.
+    """
+    _ = (topic, context, evidence_count)
+    plan = list(round_plan)
+    _apply_cross_exam_protocol(plan)
     _add_custom_agents(plan, custom_agents, domain_id)
     return plan
 

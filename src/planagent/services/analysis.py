@@ -472,7 +472,7 @@ class AutomatedAnalysisService:
         combined: list[AnalysisSourceRead] = []
         seen: set[tuple[str, str]] = set()
         attempts: list[dict[str, Any]] = []
-        min_results_before_refine = max(2, min(limit, (limit + 1) // 2))
+        min_results_before_refine = 1 if limit <= 1 else max(2, min(limit, (limit + 1) // 2))
 
         for query_index, query_variant in enumerate(plan.queries):
             await emit(

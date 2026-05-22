@@ -195,6 +195,9 @@ class DataSourceProvider(ABC):
         requested = {_canonical_source_type(item) for item in payload.source_types}
         if requested:
             return self.key in requested
+        include_field = _SOURCE_INCLUDE_FIELDS.get(self.key)
+        if include_field is not None:
+            return bool(getattr(payload, include_field, self.default_enabled))
         return self.default_enabled
 
     def request_limit(self, payload: AnalysisRequest) -> int:
@@ -205,8 +208,11 @@ class DataSourceProvider(ABC):
             if isinstance(value, int) or str(value).isdigit()
         }
         if self.key in limits:
-            return max(0, min(limits[self.key], 25))
-        return self.default_limit
+            return _bounded_source_limit(limits[self.key])
+        limit_field = _SOURCE_LIMIT_FIELDS.get(self.key)
+        if limit_field is not None:
+            return _bounded_source_limit(getattr(payload, limit_field, self.default_limit))
+        return _bounded_source_limit(self.default_limit)
 
     # ── shared helpers ─────────────────────────────────────────────────
 
@@ -253,7 +259,39 @@ _SOURCE_TYPE_ALIASES: dict[str, str] = {
     "red": "xiaohongshu",
 }
 
+_SOURCE_INCLUDE_FIELDS: dict[str, str] = {
+    "google_news": "include_google_news",
+    "reddit": "include_reddit",
+    "hacker_news": "include_hacker_news",
+    "github": "include_github",
+    "rss": "include_rss_feeds",
+    "gdelt": "include_gdelt",
+    "weather": "include_weather",
+    "aviation": "include_aviation",
+    "x": "include_x",
+}
+
+_SOURCE_LIMIT_FIELDS: dict[str, str] = {
+    "google_news": "max_news_items",
+    "reddit": "max_reddit_items",
+    "hacker_news": "max_tech_items",
+    "github": "max_github_items",
+    "rss": "max_rss_items",
+    "gdelt": "max_gdelt_items",
+    "weather": "max_weather_items",
+    "aviation": "max_aviation_items",
+    "x": "max_x_items",
+}
+
 
 def _canonical_source_type(value: str) -> str:
     normalized = DataSourceProvider.clean_text(value).lower().replace("-", "_").replace(".", "_")
     return _SOURCE_TYPE_ALIASES.get(normalized, normalized)
+
+
+def _bounded_source_limit(value: Any) -> int:
+    try:
+        limit = int(value)
+    except (TypeError, ValueError):
+        limit = 0
+    return max(0, min(limit, 25))
