@@ -10,9 +10,10 @@ from typing import Any
 from zoneinfo import ZoneInfo
 from zoneinfo import ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from planagent.config import get_settings
 from planagent.domain.api import (
     AnalysisRequest,
     AnalysisResponse,
@@ -50,6 +51,7 @@ from planagent.services.debate import DebateService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.simulation import SimulationService
+from planagent.services.source_state import SourceStateService
 from planagent.services.workbench import WorkbenchService
 
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -427,6 +429,7 @@ class StrategicAssistantService:
                 analysis=analysis_result,
                 debate=debate,
                 debate_suggestion=debate_suggestion,
+                monitoring={"status": "not_persisted", "mode": "community_24h"},
             ),
             monitoring={"status": "not_persisted", "mode": "community_24h"},
             generated_at=datetime.now(timezone.utc),
@@ -454,13 +457,25 @@ class StrategicAssistantService:
                     preset_id=session_record.preset_id,
                 )
                 result.monitoring = self._monitoring_payload(watch_rule)
+                result.workflow = self._workflow_metadata(
+                    analysis=analysis_result,
+                    debate=debate,
+                    debate_suggestion=debate_suggestion,
+                    monitoring=result.monitoring,
+                )
+                previous_count = await session.scalar(
+                    select(func.count())
+                    .select_from(RecommendationVersion)
+                    .where(RecommendationVersion.session_id == session_record.id)
+                )
                 recommendation_version = await self.recommendation_service.create_version(
                     session,
                     session_id=session_record.id,
                     watch_rule_id=watch_rule.id if watch_rule is not None else None,
                     tenant_id=session_record.tenant_id,
                     preset_id=session_record.preset_id,
-                    trigger_type=recommendation_trigger_type or "initial_result",
+                    trigger_type=recommendation_trigger_type
+                    or ("initial_result" if int(previous_count or 0) == 0 else "manual_run"),
                     significance=recommendation_significance or "none",
                     recommendation_summary=self._assistant_recommendation_summary(result),
                     result_payload=result.model_dump(mode="json"),
@@ -673,6 +688,14 @@ class StrategicAssistantService:
                 existing.session_id = session_id
                 existing.updated_at = utc_now()
                 await session.flush()
+            await SourceStateService(get_settings()).seed_watch_rule_sources(
+                session,
+                watch_rule_id=existing.id,
+                query=existing.query,
+                source_types=existing.source_types or [],
+                tenant_id=existing.tenant_id,
+                preset_id=existing.preset_id,
+            )
             return existing
 
         now = utc_now()
@@ -702,6 +725,14 @@ class StrategicAssistantService:
         )
         session.add(rule)
         await session.flush()
+        await SourceStateService(get_settings()).seed_watch_rule_sources(
+            session,
+            watch_rule_id=rule.id,
+            query=rule.query,
+            source_types=rule.source_types or [],
+            tenant_id=rule.tenant_id,
+            preset_id=rule.preset_id,
+        )
         return rule
 
     async def create_session(
@@ -1074,19 +1105,25 @@ class StrategicAssistantService:
         analysis: AnalysisResponse,
         debate,
         debate_suggestion: DebateSuggestion,
+        monitoring: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         source_types = sorted({source.source_type for source in analysis.sources})
         consensus = self._debate_consensus_payload(debate)
+        monitoring = monitoring or {"status": "unknown"}
+        debate_id = debate.id if debate is not None else None
         return {
-            "version": "community_decision_workflow_v1",
+            "version": "complete_decision_workflow_v1",
             "mode": "complete_initial_result",
+            "status": "first_result_ready",
+            "user_can_decide": True,
+            "first_result_ready": True,
             "stages": [
                 {"id": "research_agents", "status": "completed"},
                 {"id": "evidence_ingest", "status": "completed"},
                 {"id": "simulation", "status": "completed"},
                 {"id": "debate_center", "status": "completed" if debate else "skipped"},
                 {"id": "consensus", "status": consensus["status"]},
-                {"id": "monitoring", "status": "active_when_session_persisted"},
+                {"id": "monitoring", "status": monitoring.get("status", "unknown")},
             ],
             "research_agents": {
                 "agent_count": len(source_types),
@@ -1099,6 +1136,32 @@ class StrategicAssistantService:
                 "reasons": debate_suggestion.reasons,
             },
             "consensus": consensus,
+            "phases": [
+                {
+                    "key": "evidence_collection",
+                    "label": "多源信息采集",
+                    "status": "complete",
+                    "count": len(analysis.sources),
+                },
+                {
+                    "key": "multi_agent_debate",
+                    "label": "多智能体辩论",
+                    "status": "complete" if debate_id else "skipped",
+                    "debate_id": debate_id,
+                },
+                {
+                    "key": "first_recommendation",
+                    "label": "首次建议",
+                    "status": "complete",
+                },
+                {
+                    "key": "local_monitoring",
+                    "label": "24 小时监控",
+                    "status": monitoring.get("status", "unknown"),
+                    "watch_rule_id": monitoring.get("watch_rule_id"),
+                    "next_poll_at": monitoring.get("next_poll_at"),
+                },
+            ],
         }
 
     def _debate_consensus_payload(self, debate) -> dict[str, Any]:

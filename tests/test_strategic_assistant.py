@@ -84,6 +84,9 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
         assert body["panel_discussion"]
         assert body["workbench"]["run_id"] == body["simulation_run"]["id"]
         assert body["session_id"]
+        assert body["workflow"]["version"] == "complete_decision_workflow_v1"
+        assert body["workflow"]["first_result_ready"] is True
+        assert body["workflow"]["user_can_decide"] is True
         assert body["workflow"]["research_agents"]["agent_count"] >= 0
         assert body["workflow"]["consensus"]["status"] in {
             "broadly_accepted",
@@ -91,8 +94,30 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
             "skipped",
         }
         assert body["workflow"]["recommendation_version"]["version_number"] == 1
+        phase_keys = {phase["key"] for phase in body["workflow"]["phases"]}
+        assert {
+            "evidence_collection",
+            "multi_agent_debate",
+            "first_recommendation",
+            "local_monitoring",
+        }.issubset(phase_keys)
         assert body["monitoring"]["mode"] == "community_24h"
         assert body["monitoring"]["watch_rule_id"]
+
+        source_response = client.get(
+            f"/watch/rules/{body['monitoring']['watch_rule_id']}/sources"
+        )
+        assert source_response.status_code == 200
+        source_types = {item["source_type"] for item in source_response.json()}
+        assert {
+            "google_news",
+            "reddit",
+            "hacker_news",
+            "github",
+            "rss",
+            "gdelt",
+            "aviation",
+        }.issubset(source_types)
 
         versions_response = client.get(
             f"/assistant/session/{body['session_id']}/recommendations"

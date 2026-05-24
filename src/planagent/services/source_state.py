@@ -56,6 +56,31 @@ class SourceStateService:
         await session.flush()
         return state
 
+    async def seed_watch_rule_sources(
+        self,
+        session: AsyncSession,
+        *,
+        watch_rule_id: str,
+        query: str,
+        source_types: list[str],
+        tenant_id: str | None = None,
+        preset_id: str | None = None,
+    ) -> list[SourceCursorState]:
+        """Ensure each configured watch source has a cursor state row."""
+        states: list[SourceCursorState] = []
+        for source_type in sorted({item for item in source_types if item}):
+            states.append(
+                await self.get_or_create_state(
+                    session,
+                    source_type=source_type,
+                    source_url_or_query=query,
+                    watch_rule_id=watch_rule_id,
+                    tenant_id=tenant_id,
+                    preset_id=preset_id,
+                )
+            )
+        return states
+
     async def update_after_fetch(
         self,
         session: AsyncSession,

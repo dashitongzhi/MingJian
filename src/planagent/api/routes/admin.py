@@ -33,6 +33,7 @@ from planagent.domain.api import (
     RuntimeQueueHealthRead,
     SimulationRunCreate,
     SimulationRunRead,
+    SourceCursorStateRead,
     WatchRuleCreate,
     WatchRuleRead,
     WatchRuleTriggerRead,
@@ -49,6 +50,7 @@ from planagent.domain.models import (
     NormalizedItem,
     RawSourceItem,
     SimulationRun,
+    SourceCursorState,
     SourceHealth,
     SourceSnapshot,
     StateSnapshotRecord,
@@ -72,6 +74,7 @@ from planagent.services.startup import (
     load_agent_startup_simulation_payload,
 )
 from planagent.services.recommendations import RecommendationVersionService
+from planagent.services.source_state import SourceStateService
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
@@ -321,6 +324,17 @@ async def openai_test(
 # ── Watch Rules ──────────────────────────────────────────────────────────────
 
 
+async def _seed_watch_rule_sources(session: AsyncSession, rule: WatchRule) -> None:
+    await SourceStateService(get_settings()).seed_watch_rule_sources(
+        session,
+        watch_rule_id=rule.id,
+        query=rule.query,
+        source_types=rule.source_types or [],
+        tenant_id=rule.tenant_id,
+        preset_id=rule.preset_id,
+    )
+
+
 @router.post("/watch/rules", response_model=WatchRuleRead, status_code=201)
 async def create_watch_rule(
     payload: WatchRuleCreate,
@@ -351,6 +365,8 @@ async def create_watch_rule(
         next_poll_at=now,
     )
     session.add(rule)
+    await session.flush()
+    await _seed_watch_rule_sources(session, rule)
     await session.commit()
     await session.refresh(rule)
     return WatchRuleRead.model_validate(rule)
@@ -405,6 +421,26 @@ async def get_watch_rule(
     return WatchRuleRead.model_validate(rule)
 
 
+@router.get("/watch/rules/{rule_id}/sources", response_model=list[SourceCursorStateRead])
+async def list_watch_rule_sources(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> list[SourceCursorStateRead]:
+    rule = await session.get(WatchRule, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Watch rule not found.")
+    rows = list(
+        (
+            await session.scalars(
+                select(SourceCursorState)
+                .where(SourceCursorState.watch_rule_id == rule_id)
+                .order_by(SourceCursorState.source_type.asc(), SourceCursorState.updated_at.desc())
+            )
+        ).all()
+    )
+    return [SourceCursorStateRead.model_validate(row) for row in rows]
+
+
 @router.get("/admin/watch-rules/{rule_id}", response_model=WatchRuleRead, include_in_schema=False)
 @router.get("/watch-rules/{rule_id}", response_model=WatchRuleRead, include_in_schema=False)
 async def get_watch_rule_alias(
@@ -424,8 +460,11 @@ async def update_watch_rule(
     rule = await session.get(WatchRule, rule_id)
     if rule is None:
         raise HTTPException(status_code=404, detail="Watch rule not found.")
-    for field_name, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field_name, value in updates.items():
         setattr(rule, field_name, value)
+    if "source_types" in updates:
+        await _seed_watch_rule_sources(session, rule)
     await session.commit()
     await session.refresh(rule)
     return WatchRuleRead.model_validate(rule)
