@@ -10,9 +10,9 @@ LOG_DIR="${PLANAGENT_LOG_DIR:-/tmp}"
 if [[ -n "${PLANAGENT_LOCAL_WORKERS:-}" ]]; then
   WORKERS="${PLANAGENT_LOCAL_WORKERS}"
 elif [[ "${DB_URL}" == sqlite* ]]; then
-  WORKERS="watch-ingest-worker strategic-watch-worker prediction-revision-worker"
+  WORKERS="watch-ingest-worker"
 else
-  WORKERS="watch-ingest-worker strategic-watch-worker prediction-revision-worker knowledge-worker graph-worker review-worker calibration-worker"
+  WORKERS="watch-ingest-worker knowledge-worker review-worker"
 fi
 ALL_WORKERS="watch-ingest-worker strategic-watch-worker prediction-revision-worker knowledge-worker graph-worker review-worker calibration-worker ingest-worker simulation-worker report-worker"
 

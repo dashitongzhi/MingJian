@@ -132,14 +132,17 @@ class JarvisOrchestrator:
         targets = TASK_ROUTES.get(task.task_type, ["primary"])
         steps = await asyncio.gather(*[self._execute_target(t, task) for t in targets])
         result.steps = list(steps)
-        review_step = await self._self_review(task, result.steps)
+        retry_steps = await self._retry_failed_targets(task, result.steps)
+        result.steps.extend(retry_steps)
+        final_target_steps = self._latest_target_steps(result.steps)
+        review_step = await self._self_review(task, final_target_steps)
         result.steps.append(review_step)
         repair_step = self._repair_plan(task, result.steps)
         result.steps.append(repair_step)
 
-        success = sum(1 for s in steps if s.status == "success")
-        fail = sum(1 for s in steps if s.status == "failed")
-        skipped = sum(1 for s in steps if s.status == "skipped")
+        success = sum(1 for s in final_target_steps if s.status == "success")
+        fail = sum(1 for s in final_target_steps if s.status == "failed")
+        skipped = sum(1 for s in final_target_steps if s.status == "skipped")
         review_output = review_step.output or {}
         result.critical_issues = fail + int(review_output.get("critical_issues", 0) or 0)
         result.validation_dimensions = {
@@ -148,13 +151,13 @@ class JarvisOrchestrator:
         }
         if fail > 0 and success == 0:
             result.status, result.verdict, result.pass_score = "FAILED", "FAIL", 0
-        elif skipped == len(steps):
+        elif skipped == len(final_target_steps):
             result.status, result.verdict, result.pass_score = "COMPLETED", "PASS", 88
         elif fail > 0:
             result.status, result.verdict, result.pass_score = (
                 "PARTIAL",
                 "CONDITIONAL_PASS",
-                max(40, int(88 * success / len(steps))),
+                max(40, int(88 * success / len(final_target_steps))),
             )
         else:
             result.status, result.verdict, result.pass_score = "COMPLETED", "PASS", 88
@@ -169,6 +172,26 @@ class JarvisOrchestrator:
                 {"jarvis_task_id": task_id, "status": result.status},
             )
         return result
+
+    def _latest_target_steps(self, steps: list[JarvisStepResult]) -> list[JarvisStepResult]:
+        latest_by_target: dict[str, JarvisStepResult] = {}
+        for step in steps:
+            if step.step.startswith("validate_"):
+                latest_by_target[step.target] = step
+        return list(latest_by_target.values())
+
+    async def _retry_failed_targets(
+        self,
+        task: JarvisTask,
+        steps: list[JarvisStepResult],
+    ) -> list[JarvisStepResult]:
+        failed_targets = [step.target for step in steps if step.status == "failed"]
+        if not failed_targets:
+            return []
+        retry_steps = await asyncio.gather(
+            *[self._execute_target(target, task, retry_attempt=1) for target in failed_targets]
+        )
+        return list(retry_steps)
 
     async def _self_review(
         self,
@@ -347,11 +370,16 @@ class JarvisOrchestrator:
             status.setdefault("source_coverage", "ok")
         return status
 
-    async def _execute_target(self, target: str, task: JarvisTask) -> JarvisStepResult:
+    async def _execute_target(
+        self,
+        target: str,
+        task: JarvisTask,
+        retry_attempt: int = 0,
+    ) -> JarvisStepResult:
         start = time.monotonic()
         provider = self._get_provider(target)
         model = self._get_model(target)
-        step_name = f"validate_{target}"
+        step_name = f"validate_{target}" if retry_attempt == 0 else f"validate_{target}_retry"
         if not self._openai.is_configured(target):
             return JarvisStepResult(
                 step=step_name,

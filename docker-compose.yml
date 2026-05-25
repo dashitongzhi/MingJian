@@ -6,7 +6,8 @@ version: "3.9"
 services:
   # ── Database ───────────────────────────────────────────────
   postgres:
-    image: pgvector/pgvector:pg16
+    build:
+      context: ./docker/postgres
     container_name: planagent-postgres
     environment:
       POSTGRES_USER: planagent
@@ -16,6 +17,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U planagent"]
       interval: 5s
@@ -36,6 +38,25 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Object Storage ────────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2026-05-13T14-27-54Z
+    container_name: planagent-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: planagent
+      MINIO_ROOT_PASSWORD: planagent-minio-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # ── API Server ─────────────────────────────────────────────
   api:
     build:
@@ -45,14 +66,22 @@ services:
     command: uvicorn planagent.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     volumes:
       - ./exports:/app/exports
@@ -80,14 +109,22 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-ingest
     command: python -m planagent.worker_cli ingest-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -97,14 +134,22 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-knowledge
     command: python -m planagent.worker_cli knowledge-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -114,14 +159,22 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-simulation
     command: python -m planagent.worker_cli simulation-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -131,14 +184,22 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-report
     command: python -m planagent.worker_cli report-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -148,65 +209,100 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-watch
     command: python -m planagent.worker_cli watch-ingest-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-strategic:
+    profiles: ["advanced"]
     build:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-strategic
     command: python -m planagent.worker_cli strategic-watch-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-prediction:
+    profiles: ["advanced"]
     build:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-prediction
     command: python -m planagent.worker_cli prediction-revision-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-graph:
+    profiles: ["advanced"]
     build:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-graph
     command: python -m planagent.worker_cli graph-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -216,24 +312,35 @@ services:
       dockerfile: Dockerfile
     container_name: planagent-worker-review
     command: python -m planagent.worker_cli review-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
+      PLANAGENT_MINIO_ENDPOINT: minio:9000
+      PLANAGENT_MINIO_ACCESS_KEY: planagent
+      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-calibration:
+    profiles: ["advanced"]
     build:
       context: .
       dockerfile: Dockerfile
     container_name: planagent-worker-calibration
     command: python -m planagent.worker_cli calibration-worker --loop
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
@@ -247,3 +354,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  miniodata:

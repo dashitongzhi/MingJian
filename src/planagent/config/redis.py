@@ -9,3 +9,5 @@ class RedisSettings(BaseModel):
     url: str
     event_bus_backend: str
     stream_maxlen: int
+    stream_pending_idle_ms: int = 60000
+    stream_retry_base_seconds: float = 1.0

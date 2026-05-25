@@ -48,6 +48,8 @@ class BaseAppSettings(BaseSettings):
     inline_simulation_default: bool = True
     api_cache_ttl_seconds: int = 300
     stream_maxlen: int = 10000
+    stream_pending_idle_ms: int = 60000
+    stream_retry_base_seconds: float = 1.0
     x_bearer_token: str | None = None
     x_base_url: str = "https://api.x.com/2"
     linux_do_base_url: str = "https://linux.do"
@@ -112,6 +114,8 @@ class BaseAppSettings(BaseSettings):
             url=self.redis_url,
             event_bus_backend=self.event_bus_backend,
             stream_maxlen=self.stream_maxlen,
+            stream_pending_idle_ms=self.stream_pending_idle_ms,
+            stream_retry_base_seconds=self.stream_retry_base_seconds,
         )
 
     @property

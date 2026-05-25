@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+from typing import Any
 
 import planagent.simulation  # noqa: F401
 from planagent.config import get_settings
@@ -181,25 +182,15 @@ async def _run_stream_worker(
             result = await worker.run_once()
         except Exception as exc:
             for event in events:
-                await _record_dead_letter(
+                await _retry_or_dead_letter_event(
+                    event_bus,
                     worker_name,
-                    event.topic,
                     consumer_name,
-                    event.message_id,
-                    event.payload,
+                    event,
                     exc,
+                    settings.worker_max_attempts,
+                    settings.stream_retry_base_seconds,
                 )
-                await event_bus.publish_dead_letter(
-                    event.topic,
-                    {
-                        "group": worker_name,
-                        "consumer": consumer_name,
-                        "message_id": event.message_id,
-                        "payload": event.payload,
-                        "error": str(exc),
-                    },
-                )
-                await event_bus.ack(event.topic, worker_name, event.message_id)
             continue
         print(
             json.dumps(
@@ -219,12 +210,58 @@ async def _ack_events(event_bus: object, worker_name: str, events: list[Consumed
         await event_bus.ack(event.topic, worker_name, event.message_id)
 
 
+async def _retry_or_dead_letter_event(
+    event_bus: object,
+    worker_name: str,
+    consumer_name: str,
+    event: ConsumedEvent,
+    exc: Exception,
+    max_attempts: int,
+    retry_base_seconds: float,
+) -> None:
+    payload = dict(event.payload)
+    metadata = payload.get("_worker") if isinstance(payload.get("_worker"), dict) else {}
+    attempts = int(metadata.get("attempts", 1) or 1)
+    next_attempt = attempts + 1
+    if next_attempt <= max(1, max_attempts):
+        payload["_worker"] = {
+            **metadata,
+            "attempts": next_attempt,
+            "last_error": f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+        }
+        await asyncio.sleep(max(0.0, retry_base_seconds) * min(8, 2 ** max(0, attempts - 1)))
+        await event_bus.publish(event.topic, payload)
+        await event_bus.ack(event.topic, worker_name, event.message_id)
+        return
+
+    await _record_dead_letter(
+        worker_name,
+        event.topic,
+        consumer_name,
+        event.message_id,
+        event.payload,
+        exc,
+    )
+    await event_bus.publish_dead_letter(
+        event.topic,
+        {
+            "group": worker_name,
+            "consumer": consumer_name,
+            "message_id": event.message_id,
+            "payload": event.payload,
+            "attempts": attempts,
+            "error": str(exc),
+        },
+    )
+    await event_bus.ack(event.topic, worker_name, event.message_id)
+
+
 async def _record_dead_letter(
     worker_name: str,
     topic: str | None,
     consumer_name: str | None,
     message_id: str | None,
-    payload: dict,
+    payload: dict[str, Any],
     exc: Exception,
 ) -> None:
     database = get_database()

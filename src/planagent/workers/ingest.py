@@ -6,6 +6,7 @@ from planagent.domain.enums import EventTopic
 from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
+from planagent.services.runtime import RuntimeMonitorService
 from planagent.workers.base import Worker, WorkerDescription
 
 
@@ -32,8 +33,26 @@ class IngestWorker(Worker):
     async def run_once(self) -> dict[str, object]:
         database = get_database()
         async with database.session() as session:
+            queue_health = await RuntimeMonitorService(
+                self.settings.backpressure_pending_threshold
+            ).collect_queue_health(session)
+            if queue_health.backpressure_active:
+                setter = getattr(self.event_bus, "set_backpressure_signal", None)
+                if setter is not None:
+                    await setter(
+                        True,
+                        "queue pending or reclaimable work exceeded backpressure threshold",
+                    )
+                return {
+                    "processed_runs": 0,
+                    "backpressure_active": True,
+                    "threshold": self.settings.backpressure_pending_threshold,
+                }
+            setter = getattr(self.event_bus, "set_backpressure_signal", None)
+            if setter is not None:
+                await setter(False, "queue pressure normalized")
             processed_runs = await self.service.process_queued_runs(
                 session,
                 worker_id=self.worker_instance_id,
             )
-        return {"processed_runs": processed_runs}
+        return {"processed_runs": processed_runs, "backpressure_active": False}

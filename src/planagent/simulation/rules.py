@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib
+import importlib.util
+import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
@@ -15,18 +18,39 @@ class RuleEffect:
 
 
 @dataclass(frozen=True)
+class RuleCondition:
+    field: str
+    op: str
+    value: Any
+
+
+@dataclass(frozen=True)
 class RuleSpec:
     rule_id: str
     domain: str
     action_id: str
     priority: int
     trigger_keywords: tuple[str, ...]
+    trigger_conditions: tuple[RuleCondition, ...]
     effects: tuple[RuleEffect, ...]
     explanation_template: str
+    handler_id: str | None = None
 
     def matches(self, statement: str) -> bool:
         lowered = statement.lower()
         return any(keyword.lower() in lowered for keyword in self.trigger_keywords)
+
+
+RuleHandler = Callable[[dict[str, Any], dict[str, Any]], list[RuleEffect] | list[dict[str, Any]]]
+_RULE_HANDLERS: dict[str, RuleHandler] = {}
+
+
+def rule_handler(rule_id: str) -> Callable[[RuleHandler], RuleHandler]:
+    def decorator(func: RuleHandler) -> RuleHandler:
+        _RULE_HANDLERS[rule_id] = func
+        return func
+
+    return decorator
 
 
 class RuleRegistry:
@@ -34,6 +58,7 @@ class RuleRegistry:
         self.rules_root = rules_root
         self._cache: dict[str, list[RuleSpec]] = {}
         self._calibration_weights: dict[str, float] = {}
+        self._loaded_python_modules: set[str] = set()
 
     @property
     def calibration_weights(self) -> dict[str, float]:
@@ -66,9 +91,13 @@ class RuleRegistry:
             self._cache[domain_id] = self._load_domain(domain_id)
         return self._cache[domain_id]
 
+    def get_handler(self, rule_id: str) -> RuleHandler | None:
+        return _RULE_HANDLERS.get(rule_id)
+
     def reload(self) -> tuple[list[str], int]:
         self._cache.clear()
         self._calibration_weights.clear()
+        self._loaded_python_modules.clear()
         domains: list[str] = []
         total = 0
         if self.rules_root.exists():
@@ -86,6 +115,7 @@ class RuleRegistry:
         if not domain_root.exists():
             return []
 
+        self._load_python_handlers(domain_root, domain_id)
         rules: list[RuleSpec] = []
         for yaml_path in sorted(domain_root.rglob("*.yaml")):
             with yaml_path.open("r", encoding="utf-8") as handle:
@@ -97,6 +127,18 @@ class RuleRegistry:
 
     def _parse_rule(self, raw_rule: dict[str, Any]) -> RuleSpec:
         trigger = raw_rule.get("trigger", {})
+        conditions = tuple(
+            RuleCondition(
+                field=str(condition.get("field", "")),
+                op=str(condition.get("op", "eq")),
+                value=condition.get("value"),
+            )
+            for condition in trigger.get("conditions", [])
+            if isinstance(condition, dict)
+        )
+        condition_keywords = tuple(
+            str(condition.value) for condition in conditions if condition.value is not None
+        )
         effects = tuple(
             RuleEffect(
                 target=effect["target"],
@@ -105,18 +147,46 @@ class RuleRegistry:
             )
             for effect in raw_rule.get("effects", [])
         )
+        rule_id = raw_rule["id"]
+        action_id = raw_rule.get("action_id") or raw_rule.get("action") or "monitor"
         return RuleSpec(
-            rule_id=raw_rule["id"],
+            rule_id=rule_id,
             domain=raw_rule["domain"],
-            action_id=raw_rule["action_id"],
+            action_id=action_id,
             priority=int(raw_rule.get("priority", 50)),
-            trigger_keywords=tuple(trigger.get("keywords", [])),
+            trigger_keywords=tuple(trigger.get("keywords", ())) + condition_keywords,
+            trigger_conditions=conditions,
             effects=effects,
             explanation_template=raw_rule.get(
                 "explanation_template",
                 "Rule {rule_id} matched the current evidence and selected {action_id}.",
             ),
+            handler_id=raw_rule.get("handler") or (rule_id if rule_id in _RULE_HANDLERS else None),
         )
+
+    def _load_python_handlers(self, domain_root: Path, domain_id: str) -> None:
+        for python_path in sorted(domain_root.rglob("*.py")):
+            module_key = str(python_path.resolve())
+            if module_key in self._loaded_python_modules:
+                continue
+            module_name = f"planagent_dynamic_rules.{domain_id}.{python_path.stem}"
+            spec = importlib.util.spec_from_file_location(module_name, python_path)
+            if spec is None or spec.loader is None:
+                continue
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self._loaded_python_modules.add(module_key)
+
+        for module_name in _configured_rule_modules():
+            if module_name in self._loaded_python_modules:
+                continue
+            importlib.import_module(module_name)
+            self._loaded_python_modules.add(module_name)
+
+
+def _configured_rule_modules() -> list[str]:
+    raw = os.getenv("PLANAGENT_RULE_MODULES", "")
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 _rule_registry: RuleRegistry | None = None

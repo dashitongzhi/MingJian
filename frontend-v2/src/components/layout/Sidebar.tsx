@@ -1,7 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Activity,
-  BarChart3,
   Bot,
   BriefcaseBusiness,
   ChevronLeft,
@@ -36,8 +35,7 @@ const MENU_ITEMS: MenuItem[] = [
   { label: '辩论中心', icon: MessageSquare, path: '/debate' },
   { label: '场景模拟', icon: FlaskConical, path: '/simulation' },
   { label: '证据库', icon: Library, path: '/evidence' },
-  { label: '预测追踪', icon: BarChart3, path: '/predictions' },
-  { label: '监控中心', icon: Activity, path: '/monitoring' },
+  { label: '24小时监控', icon: Activity, path: '/dashboard' },
   { label: '数据源', icon: Database, path: '/sources' },
   { label: '报告中心', icon: FileText, path: '/reports' },
 ]

@@ -90,6 +90,17 @@ class InMemoryEventBus:
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
         await self.publish(f"{topic}.dlq", payload)
 
+    async def set_backpressure_signal(
+        self,
+        active: bool,
+        reason: str,
+        ttl_seconds: int = 60,
+    ) -> None:
+        return None
+
+    async def is_backpressure_active(self) -> bool:
+        return False
+
     async def close(self) -> None:
         return None
 
@@ -224,6 +235,32 @@ class RedisStreamEventBus:
 
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
         await self.publish(f"{topic}.dlq", payload)
+
+    async def set_backpressure_signal(
+        self,
+        active: bool,
+        reason: str,
+        ttl_seconds: int = 60,
+    ) -> None:
+        key = "signal:backpressure"
+        if active:
+            await self.client.set(
+                key,
+                json.dumps({"active": True, "reason": reason}, ensure_ascii=True),
+                ex=max(1, ttl_seconds),
+            )
+            return
+        await self.client.delete(key)
+
+    async def is_backpressure_active(self) -> bool:
+        raw = await self.client.get("signal:backpressure")
+        if not raw:
+            return False
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return True
+        return bool(payload.get("active", True)) if isinstance(payload, dict) else True
 
     async def close(self) -> None:
         await self.client.aclose()

@@ -8,8 +8,6 @@ import Agents from './pages/Agents'
 import Debate from './pages/Debate'
 import Simulation from './pages/Simulation'
 import Evidence from './pages/Evidence'
-import Predictions from './pages/Predictions'
-import Monitoring from './pages/Monitoring'
 import Sources from './pages/Sources'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
@@ -27,11 +25,11 @@ export default function App() {
           <Route path="/debate" element={<Debate />} />
           <Route path="/simulation" element={<Simulation />} />
           <Route path="/evidence" element={<Evidence />} />
-          <Route path="/predictions" element={<Predictions />} />
-          <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/sources" element={<Sources />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/predictions" element={<Navigate to="/reports" replace />} />
+          <Route path="/monitoring" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
     </ErrorBoundary>
