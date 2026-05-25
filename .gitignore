@@ -58,8 +58,10 @@ pure-react-app/node_modules/
 pure-react-app/dist/
 
 # Docker local compose
-docker-compose.yml
-docker/
+!docker-compose.yml
+docker/*
+!docker/postgres/
+!docker/postgres/**
 
 # Test reports
 docs/release_impact_test_report.md
