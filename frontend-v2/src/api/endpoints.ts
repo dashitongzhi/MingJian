@@ -175,6 +175,7 @@ export const monitoringApi = {
     api.get<unknown[]>(`/sources/states?watch_rule_id=${encodeURIComponent(id)}`),
   getDashboard: () => api.get('/monitoring/dashboard'),
   getQueueHealth: () => api.get('/admin/runtime/queues'),
+  getPlatformTopology: () => api.get('/admin/runtime/platform-topology'),
   getAnalysisCache: () => api.get('/admin/analysis/cache'),
   getKnowledgeGraph: () => api.get('/knowledge/graph'),
   searchKnowledge: (q: string) => api.get(`/knowledge/search?q=${encodeURIComponent(q)}`),

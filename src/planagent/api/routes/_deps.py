@@ -17,10 +17,12 @@ from planagent.services.assistant import StrategicAssistantService
 from planagent.services.debate import DebateService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
+from planagent.services.platform_topology import PlatformTopologyService
 from planagent.services.runtime import RuntimeMonitorService
 from planagent.services.simulation import SimulationService
 from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import get_rule_registry
+from planagent.simulation.domain_packs import registry as domain_pack_registry
 
 
 _CACHED_SERVICE_ATTRS = (
@@ -30,6 +32,7 @@ _CACHED_SERVICE_ATTRS = (
     "debate_service",
     "workbench_service",
     "runtime_monitor_service",
+    "platform_topology_service",
     "assistant_service",
 )
 _last_app_state = None
@@ -65,6 +68,13 @@ def _cache_business_services(state: object) -> None:
     if not hasattr(state, "runtime_monitor_service"):
         state.runtime_monitor_service = RuntimeMonitorService(
             settings.backpressure_pending_threshold
+        )
+    if not hasattr(state, "platform_topology_service"):
+        state.platform_topology_service = PlatformTopologyService(
+            settings,
+            state.event_bus,
+            state.rule_registry,
+            domain_pack_registry,
         )
     if not hasattr(state, "assistant_service"):
         state.assistant_service = StrategicAssistantService(
@@ -167,6 +177,18 @@ def get_runtime_monitor_service() -> RuntimeMonitorService:
             get_settings().backpressure_pending_threshold
         )
     return state.runtime_monitor_service  # type: ignore[no-any-return]  # app.state 动态属性
+
+
+def get_platform_topology_service(request: Request) -> PlatformTopologyService:
+    ensure_app_services(request)
+    if not hasattr(request.app.state, "platform_topology_service"):
+        request.app.state.platform_topology_service = PlatformTopologyService(
+            get_settings(),
+            request.app.state.event_bus,
+            request.app.state.rule_registry,
+            domain_pack_registry,
+        )
+    return request.app.state.platform_topology_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def _analysis_cache_key(payload: object) -> str:

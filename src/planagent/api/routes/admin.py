@@ -29,6 +29,7 @@ from planagent.domain.api import (
     OpenAIStatusResponse,
     OpenAITestRequest,
     OpenAITestResponse,
+    PlatformTopologyRead,
     RuleReloadResponse,
     RuntimeQueueHealthRead,
     SimulationRunCreate,
@@ -62,6 +63,7 @@ from planagent.api.routes._deps import (
     ensure_app_services,
     get_analysis_service,
     get_debate_service,
+    get_platform_topology_service,
     get_pipeline_service,
     get_runtime_monitor_service,
     get_simulation_service,
@@ -249,6 +251,12 @@ async def runtime_queue_health(
 ) -> RuntimeQueueHealthRead:
     service = get_runtime_monitor_service()
     return await service.collect_queue_health(session, tenant_id=tenant_id, preset_id=preset_id)
+
+
+@router.get("/admin/runtime/platform-topology", response_model=PlatformTopologyRead)
+async def runtime_platform_topology(request: Request) -> PlatformTopologyRead:
+    service = get_platform_topology_service(request)
+    return await service.collect()
 
 
 @router.get("/admin/analysis/cache")

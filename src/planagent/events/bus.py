@@ -51,6 +51,8 @@ class InMemoryEventBus:
         self._events: dict[str, list[ConsumedEvent]] = {}
         self._acked: set[str] = set()
         self._counter: int = 0
+        self._backpressure_active: bool = False
+        self._backpressure_reason: str | None = None
 
     async def publish(self, topic: str, payload: dict[str, Any]) -> None:
         self._counter += 1
@@ -96,10 +98,17 @@ class InMemoryEventBus:
         reason: str,
         ttl_seconds: int = 60,
     ) -> None:
-        return None
+        self._backpressure_active = active
+        self._backpressure_reason = reason if active else None
 
     async def is_backpressure_active(self) -> bool:
-        return False
+        return self._backpressure_active
+
+    async def backpressure_status(self) -> dict[str, object]:
+        return {
+            "active": self._backpressure_active,
+            "reason": self._backpressure_reason,
+        }
 
     async def close(self) -> None:
         return None
@@ -261,6 +270,21 @@ class RedisStreamEventBus:
         except json.JSONDecodeError:
             return True
         return bool(payload.get("active", True)) if isinstance(payload, dict) else True
+
+    async def backpressure_status(self) -> dict[str, object]:
+        raw = await self.client.get("signal:backpressure")
+        if not raw:
+            return {"active": False, "reason": None}
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return {"active": True, "reason": "unparseable backpressure signal"}
+        if not isinstance(payload, dict):
+            return {"active": True, "reason": "invalid backpressure signal"}
+        return {
+            "active": bool(payload.get("active", True)),
+            "reason": payload.get("reason"),
+        }
 
     async def close(self) -> None:
         await self.client.aclose()

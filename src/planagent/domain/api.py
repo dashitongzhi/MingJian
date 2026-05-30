@@ -588,6 +588,26 @@ class RuntimeQueueHealthRead(APIModel):
     backpressure_active: bool = False
 
 
+class PlatformTopologyComponentRead(APIModel):
+    name: str
+    status: str
+    detail: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlatformTopologyRead(APIModel):
+    generated_at: datetime
+    ready: bool
+    edition: str = "community"
+    database: PlatformTopologyComponentRead
+    object_storage: PlatformTopologyComponentRead
+    event_bus: PlatformTopologyComponentRead
+    rules: PlatformTopologyComponentRead
+    domain_packs: PlatformTopologyComponentRead
+    workflow: PlatformTopologyComponentRead
+    issues: list[str] = Field(default_factory=list)
+
+
 class StrategicAssistantRequest(APIModel):
     topic: str = Field(min_length=1)
     domain_id: Literal["auto", "corporate", "military"] = "auto"

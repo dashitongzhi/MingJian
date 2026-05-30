@@ -144,6 +144,7 @@ class JarvisOrchestrator:
         fail = sum(1 for s in final_target_steps if s.status == "failed")
         skipped = sum(1 for s in final_target_steps if s.status == "skipped")
         review_output = review_step.output or {}
+        warning_issues = int(review_output.get("warning_issues", 0) or 0)
         result.critical_issues = fail + int(review_output.get("critical_issues", 0) or 0)
         result.validation_dimensions = {
             **dict(VALIDATION_DIMENSIONS),
@@ -166,12 +167,53 @@ class JarvisOrchestrator:
             result.status = "PARTIAL"
             result.verdict = "CONDITIONAL_PASS"
             result.pass_score = min(result.pass_score, 72)
+        elif warning_issues > 0 and result.status == "COMPLETED":
+            result.status = "PARTIAL"
+            result.verdict = "CONDITIONAL_PASS"
+            result.pass_score = min(result.pass_score, 80)
         if self._event_bus:
-            await self._event_bus.publish(
-                EventTopic.SIMULATION_COMPLETED.value,
-                {"jarvis_task_id": task_id, "status": result.status},
-            )
+            await self._publish_closure_events(task, result)
         return result
+
+    async def _publish_closure_events(self, task: JarvisTask, result: JarvisResult) -> None:
+        if self._event_bus is None:
+            return
+        repair_step = next((step for step in result.steps if step.step == "repair_plan"), None)
+        repair_actions = []
+        if repair_step is not None and isinstance(repair_step.output, dict):
+            repair_actions = list(repair_step.output.get("actions") or [])
+        base_payload = {
+            "jarvis_task_id": result.task_id,
+            "task_type": task.task_type,
+            "run_id": task.run_id or task.payload.get("run_id"),
+            "target_id": task.target_id,
+            "status": result.status,
+            "verdict": result.verdict,
+            "pass_score": result.pass_score,
+            "critical_issues": result.critical_issues,
+        }
+        if result.verdict in {"FAIL", "CONDITIONAL_PASS"} or result.critical_issues > 0:
+            await self._event_bus.publish(
+                EventTopic.VERIFICATION_FAILED.value,
+                {
+                    **base_payload,
+                    "repair_actions": repair_actions,
+                },
+            )
+        if any(action.get("action") != "continue_monitoring" for action in repair_actions):
+            await self._event_bus.publish(
+                EventTopic.JARVIS_REPAIR_REQUESTED.value,
+                {
+                    **base_payload,
+                    "repair_actions": repair_actions,
+                    "auto_repair_ready": True,
+                },
+            )
+            return
+        await self._event_bus.publish(
+            EventTopic.SIMULATION_COMPLETED.value,
+            {"jarvis_task_id": result.task_id, "status": result.status},
+        )
 
     def _latest_target_steps(self, steps: list[JarvisStepResult]) -> list[JarvisStepResult]:
         latest_by_target: dict[str, JarvisStepResult] = {}

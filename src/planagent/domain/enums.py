@@ -42,6 +42,7 @@ class EventTopic(StrEnum):
     SCENARIO_COMPLETED = "scenario.completed"
     REPORT_GENERATED = "report.generated"
     VERIFICATION_FAILED = "verification.failed"
+    JARVIS_REPAIR_REQUESTED = "jarvis.repair_requested"
     DEBATE_TRIGGERED = "debate.triggered"
     DEBATE_COMPLETED = "debate.completed"
     DEBATE_AUTO_TRIGGER = "debate.auto_trigger"
