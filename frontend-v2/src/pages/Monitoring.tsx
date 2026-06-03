@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2, Cpu, Gauge, Layers3, RefreshCw, ShieldAlert, Signal } from 'lucide-react'
+import { Activity, CheckCircle2, Cpu, Database, Gauge, Layers3, RefreshCw, ShieldAlert, Signal } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
@@ -26,6 +26,7 @@ export default function Monitoring() {
   const { data: rules, loading, error, reload } = useApi(() => monitoringApi.listWatchRules())
   const { data: dashboard } = useApi(() => monitoringApi.getDashboard())
   const { data: queues } = useApi(() => monitoringApi.getQueueHealth())
+  const { data: platformTopology } = useApi(() => monitoringApi.getPlatformTopology())
   const { data: calibration } = useApi(() => reportApi.getCalibration())
   const { data: calibrationHistory } = useApi(() => reportApi.getCalibrationHistory())
   const { data: sourceChanges } = useApi(() => sourcesApi.listChanges())
@@ -41,6 +42,12 @@ export default function Monitoring() {
   const changeList = asArray(sourceChanges)
   const graphRecord = asRecord(graph)
   const dashboardRecord = asRecord(dashboard)
+  const topology = asRecord(platformTopology)
+  const topologyIssues = asArray(topology.issues)
+  const database = asRecord(topology.database)
+  const storage = asRecord(topology.object_storage)
+  const eventBus = asRecord(topology.event_bus)
+  const workflow = asRecord(topology.workflow)
   const nodeCount = asArray(graphRecord.nodes).length
   const edgeCount = asArray(graphRecord.edges).length
   const activeRules = ruleList.filter((rule) => asRecord(rule).enabled !== false).length
@@ -109,6 +116,22 @@ export default function Monitoring() {
         </Card>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader title="平台拓扑" action={<span className={`cockpit-pill ${topology.ready === false ? 'cockpit-pill-warn' : 'cockpit-pill-success'}`}>{topology.ready === false ? 'attention' : 'ready'}</span>} />
+            <CardBody className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <DetailStat label="版本" value={topology.edition ?? 'community'} />
+                <DetailStat label="问题" value={topologyIssues.length} />
+                <DetailStat label="数据库" value={database.status} />
+                <DetailStat label="对象存储" value={storage.status} />
+              </div>
+              <div className="flex items-center gap-2 rounded-md border border-slate-800/70 bg-slate-950/35 px-3 py-2 text-xs text-slate-400">
+                <Database className="h-4 w-4 text-emerald-300" />
+                <span>{String(eventBus.detail ?? 'Redis Streams / DLQ / backpressure')}</span>
+              </div>
+              <div className="text-xs leading-5 text-slate-500">{String(workflow.detail ?? 'decision workflow wired')}</div>
+            </CardBody>
+          </Card>
           <Card>
             <CardHeader title="控制面摘要" />
             <CardBody className="grid grid-cols-2 gap-2">
