@@ -58,6 +58,7 @@ class BaseAppSettings(BaseSettings):
     douyin_provider_base_url: str | None = None
     douyin_provider_api_key: str | None = None
     anthropic_api_key: str | None = None
+    anthropic_base_url: str | None = None
     anthropic_model: str = ""
     debate_advocate_provider: str = "openai"
     debate_challenger_provider: str = "anthropic"

@@ -145,6 +145,7 @@ class DebateLLMMixin:
             return None
         provider = AnthropicProvider(
             api_key=self.settings.resolved_anthropic_api_key,
+            base_url=self.settings.resolved_anthropic_base_url,
             timeout=self.settings.openai_timeout_seconds,
         )
         try:
@@ -246,7 +247,7 @@ class DebateLLMMixin:
             selected_model = model or self.settings.anthropic_model
             if not selected_model:
                 return None
-            provider = AnthropicProvider(api_key=api_key, timeout=45.0)
+            provider = AnthropicProvider(api_key=api_key, base_url=base_url or None, timeout=45.0)
             try:
                 _, parsed = await provider.generate_json(
                     model=selected_model,
