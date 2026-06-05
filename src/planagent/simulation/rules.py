@@ -95,19 +95,32 @@ class RuleRegistry:
         return _RULE_HANDLERS.get(rule_id)
 
     def reload(self) -> tuple[list[str], int]:
-        self._cache.clear()
-        self._calibration_weights.clear()
-        self._loaded_python_modules.clear()
+        previous_cache = dict(self._cache)
+        previous_calibration_weights = dict(self._calibration_weights)
+        previous_loaded_modules = set(self._loaded_python_modules)
+        previous_handlers = dict(_RULE_HANDLERS)
+
+        self._cache = {}
+        self._calibration_weights = {}
+        self._loaded_python_modules = set()
         domains: list[str] = []
         total = 0
-        if self.rules_root.exists():
-            for candidate in sorted(
-                path.name for path in self.rules_root.iterdir() if path.is_dir()
-            ):
-                rules = self.get_rules(candidate)
-                if rules:
-                    domains.append(candidate)
-                    total += len(rules)
+        try:
+            if self.rules_root.exists():
+                for candidate in sorted(
+                    path.name for path in self.rules_root.iterdir() if path.is_dir()
+                ):
+                    rules = self.get_rules(candidate)
+                    if rules:
+                        domains.append(candidate)
+                        total += len(rules)
+        except Exception:
+            self._cache = previous_cache
+            self._calibration_weights = previous_calibration_weights
+            self._loaded_python_modules = previous_loaded_modules
+            _RULE_HANDLERS.clear()
+            _RULE_HANDLERS.update(previous_handlers)
+            raise
         return domains, total
 
     def _load_domain(self, domain_id: str) -> list[RuleSpec]:

@@ -80,6 +80,21 @@ class WatchIngestWorker(Worker):
         self.recommendation_service = RecommendationVersionService()
 
     async def run_once(self) -> dict[str, object]:
+        active_getter = getattr(self.event_bus, "is_backpressure_active", None)
+        if active_getter is not None and await active_getter():
+            return {
+                "claimed_rules": 0,
+                "polled": 0,
+                "failed": 0,
+                "ingest_runs": 0,
+                "simulation_runs": 0,
+                "debate_runs": 0,
+                "recommendation_updates": 0,
+                "backpressure_active": True,
+                "reason": "event_bus_backpressure_signal",
+                "threshold": self.settings.backpressure_pending_threshold,
+            }
+
         database = get_database()
         async with database.session() as session:
             claimed_rules = await self._claim_due_rules(

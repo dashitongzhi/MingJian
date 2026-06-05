@@ -160,6 +160,15 @@ async def _run_stream_worker(
     )
 
     while True:
+        refresh_backpressure = getattr(event_bus, "refresh_backpressure", None)
+        if refresh_backpressure is not None:
+            await refresh_backpressure(
+                topics=consumes,
+                group=worker_name,
+                pending_threshold=settings.backpressure_pending_threshold,
+                ttl_seconds=max(30, settings.stream_consumer_block_ms // 1000 * 3),
+            )
+
         events = await event_bus.reclaim_pending(
             topics=consumes,
             group=worker_name,
@@ -229,6 +238,7 @@ async def _retry_or_dead_letter_event(
             "attempts": next_attempt,
             "last_error": f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
         }
+        payload["attempt"] = next_attempt
         await asyncio.sleep(max(0.0, retry_base_seconds) * min(8, 2 ** max(0, attempts - 1)))
         await event_bus.publish(event.topic, payload)
         await event_bus.ack(event.topic, worker_name, event.message_id)
@@ -250,6 +260,7 @@ async def _retry_or_dead_letter_event(
             "message_id": event.message_id,
             "payload": event.payload,
             "attempts": attempts,
+            "attempt": attempts,
             "error": str(exc),
         },
     )

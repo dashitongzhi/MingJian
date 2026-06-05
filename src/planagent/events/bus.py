@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
 import json
+import uuid
 from typing import Any, Protocol
 
 import redis.asyncio as redis
@@ -41,7 +44,59 @@ class EventBus(Protocol):
 
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None: ...
 
+    async def refresh_backpressure(
+        self,
+        *,
+        topics: list[str],
+        group: str,
+        pending_threshold: int,
+        ttl_seconds: int = 60,
+    ) -> dict[str, object]: ...
+
     async def close(self) -> None: ...
+
+
+def build_event_envelope(
+    topic: str,
+    payload: dict[str, Any],
+    *,
+    attempt: int | None = None,
+) -> dict[str, Any]:
+    """Attach the common stream contract without replacing caller payload fields."""
+    enriched = dict(payload)
+    now = datetime.now(timezone.utc).isoformat()
+    metadata = enriched.get("_worker") if isinstance(enriched.get("_worker"), dict) else {}
+    resolved_attempt = _resolve_attempt(enriched, metadata, attempt)
+    session_id = _first_present(
+        enriched,
+        "session_id",
+        "strategic_session_id",
+        "run_id",
+        "simulation_run_id",
+    )
+    tenant_id = _first_present(enriched, "tenant_id")
+    workspace_id = _first_present(enriched, "workspace_id")
+    provided_correlation_id = _first_present(enriched, "correlation_id", "request_id")
+    correlation_id = provided_correlation_id or str(uuid.uuid4())
+    idempotency_key = enriched.get("idempotency_key")
+    if not isinstance(idempotency_key, str) or not idempotency_key.strip():
+        idempotency_key = _build_idempotency_key(
+            topic, enriched, session_id, provided_correlation_id
+        )
+
+    enriched.setdefault("event_id", str(uuid.uuid4()))
+    enriched.setdefault("correlation_id", correlation_id)
+    enriched.setdefault("session_id", session_id)
+    enriched.setdefault("edition", _edition_from_payload(enriched))
+    enriched.setdefault("tenant_id", tenant_id)
+    enriched.setdefault("workspace_id", workspace_id)
+    if attempt is not None or "attempts" in metadata or "attempts" in enriched:
+        enriched["attempt"] = resolved_attempt
+    else:
+        enriched.setdefault("attempt", resolved_attempt)
+    enriched.setdefault("created_at", now)
+    enriched.setdefault("idempotency_key", idempotency_key)
+    return enriched
 
 
 class InMemoryEventBus:
@@ -57,7 +112,11 @@ class InMemoryEventBus:
     async def publish(self, topic: str, payload: dict[str, Any]) -> None:
         self._counter += 1
         message_id = f"mem-{self._counter}"
-        event = ConsumedEvent(topic=topic, message_id=message_id, payload=payload)
+        event = ConsumedEvent(
+            topic=topic,
+            message_id=message_id,
+            payload=build_event_envelope(topic, payload),
+        )
         self._events.setdefault(topic, []).append(event)
 
     async def consume(
@@ -92,6 +151,32 @@ class InMemoryEventBus:
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
         await self.publish(f"{topic}.dlq", payload)
 
+    async def pending_count(self, topics: list[str], group: str) -> int:
+        total = 0
+        for topic in topics:
+            for event in self._events.get(topic, []):
+                if f"{group}:{event.message_id}" not in self._acked:
+                    total += 1
+        return total
+
+    async def refresh_backpressure(
+        self,
+        *,
+        topics: list[str],
+        group: str,
+        pending_threshold: int,
+        ttl_seconds: int = 60,
+    ) -> dict[str, object]:
+        pending = await self.pending_count(topics, group)
+        active = pending > pending_threshold
+        reason = (
+            f"pending={pending} exceeded threshold={pending_threshold} for group={group}"
+            if active
+            else "pending work is below threshold"
+        )
+        await self.set_backpressure_signal(active, reason, ttl_seconds=ttl_seconds)
+        return {"active": active, "reason": reason if active else None, "pending": pending}
+
     async def set_backpressure_signal(
         self,
         active: bool,
@@ -122,9 +207,10 @@ class RedisStreamEventBus:
         self.maxlen = maxlen
 
     async def publish(self, topic: str, payload: dict[str, Any]) -> None:
+        enriched = build_event_envelope(topic, payload)
         await self.client.xadd(
             f"stream:{topic}",
-            {"payload": json.dumps(payload, ensure_ascii=True)},
+            {"payload": json.dumps(enriched, ensure_ascii=True)},
             maxlen=self.maxlen,
             approximate=True,
         )
@@ -245,6 +331,58 @@ class RedisStreamEventBus:
     async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
         await self.publish(f"{topic}.dlq", payload)
 
+    async def pending_count(self, topics: list[str], group: str) -> int:
+        total = 0
+        for topic in topics:
+            stream_key = self._stream_key(topic)
+            pending = 0
+            try:
+                summary = await self.client.xpending(stream_key, group)
+            except redis.ResponseError as exc:
+                if "NOGROUP" in str(exc):
+                    total += int(await self.client.xlen(stream_key) or 0)
+                    continue
+                raise
+            if isinstance(summary, dict):
+                pending = int(summary.get("pending", 0) or 0)
+            elif isinstance(summary, (list, tuple)) and summary:
+                pending = int(summary[0] or 0)
+            total += pending + await self._group_lag(stream_key, group)
+        return total
+
+    async def _group_lag(self, stream_key: str, group: str) -> int:
+        try:
+            groups = await self.client.xinfo_groups(stream_key)
+        except redis.ResponseError:
+            return 0
+        for item in groups:
+            name = item.get("name") if isinstance(item, dict) else None
+            if name != group:
+                continue
+            try:
+                return max(0, int(item.get("lag") or 0))
+            except (TypeError, ValueError):
+                return 0
+        return 0
+
+    async def refresh_backpressure(
+        self,
+        *,
+        topics: list[str],
+        group: str,
+        pending_threshold: int,
+        ttl_seconds: int = 60,
+    ) -> dict[str, object]:
+        pending = await self.pending_count(topics, group)
+        active = pending > pending_threshold
+        reason = (
+            f"pending={pending} exceeded threshold={pending_threshold} for group={group}"
+            if active
+            else "pending work is below threshold"
+        )
+        await self.set_backpressure_signal(active, reason, ttl_seconds=ttl_seconds)
+        return {"active": active, "reason": reason if active else None, "pending": pending}
+
     async def set_backpressure_signal(
         self,
         active: bool,
@@ -333,3 +471,61 @@ def build_event_bus(settings: Settings) -> EventBus:
     if settings.event_bus_backend.lower() == "redis":
         return RedisStreamEventBus(settings.redis_url, settings.stream_maxlen)
     return InMemoryEventBus()
+
+
+def _first_present(payload: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = payload.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _edition_from_payload(payload: dict[str, Any]) -> str:
+    edition = payload.get("edition")
+    if isinstance(edition, str) and edition.strip():
+        return edition.strip().lower()
+    if payload.get("license_id") or payload.get("policy_id"):
+        return "enterprise"
+    if payload.get("workspace_id") or payload.get("subscription_id"):
+        return "cloud"
+    return "community"
+
+
+def _build_idempotency_key(
+    topic: str,
+    payload: dict[str, Any],
+    session_id: str | None,
+    correlation_id: str | None,
+) -> str:
+    explicit_source = _first_present(payload, "source_id", "provider", "source")
+    explicit_item = _first_present(payload, "item_hash", "raw_item_id", "evidence_id", "claim_id")
+    if explicit_source and explicit_item:
+        return f"{explicit_source}:{explicit_item}"
+    stable_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"event_id", "created_at", "attempt", "_worker"}
+    }
+    raw = json.dumps(stable_payload, sort_keys=True, default=str, ensure_ascii=True)
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+    scope = session_id or correlation_id or "global"
+    return f"{topic}:{scope}:{digest}"
+
+
+def _resolve_attempt(
+    payload: dict[str, Any],
+    metadata: dict[str, Any],
+    explicit_attempt: int | None,
+) -> int:
+    for candidate in (explicit_attempt, metadata.get("attempts"), payload.get("attempts"), 1):
+        if candidate is None or candidate == "":
+            continue
+        try:
+            return max(1, int(candidate))
+        except (TypeError, ValueError):
+            continue
+    return 1

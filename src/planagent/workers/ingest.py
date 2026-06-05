@@ -31,6 +31,15 @@ class IngestWorker(Worker):
         self.service = PhaseOnePipelineService(settings, event_bus, openai_service)
 
     async def run_once(self) -> dict[str, object]:
+        active_getter = getattr(self.event_bus, "is_backpressure_active", None)
+        if active_getter is not None and await active_getter():
+            return {
+                "processed_runs": 0,
+                "backpressure_active": True,
+                "reason": "event_bus_backpressure_signal",
+                "threshold": self.settings.backpressure_pending_threshold,
+            }
+
         database = get_database()
         async with database.session() as session:
             queue_health = await RuntimeMonitorService(
