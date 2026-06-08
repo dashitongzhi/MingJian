@@ -43,7 +43,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-xl border border-blue-400/12 bg-[radial-gradient(circle_at_62%_0%,rgba(37,99,235,0.34),transparent_42%),linear-gradient(135deg,rgba(2,6,23,0.3),rgba(15,23,42,0.08))] px-2 py-2">
+      <section className="cockpit-hero px-2 py-2">
         <div className="px-2 py-3 md:px-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
