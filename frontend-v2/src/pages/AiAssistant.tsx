@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Activity,
   Bot,
@@ -74,6 +75,8 @@ function decisionLabel(value: unknown) {
 }
 
 export default function AiAssistant() {
+  const [searchParams] = useSearchParams()
+  const sessionParam = searchParams.get('session')
   const { data: sessions, loading, error, reload } = useApi(() => assistantApi.listSessions())
   const [input, setInput] = useState('')
   const [activeSession, setActiveSession] = useState<string | null>(null)
@@ -97,6 +100,12 @@ export default function AiAssistant() {
   const { execute: createDecision, loading: deciding, error: decisionError } = useApiAction(
     (decision: string) => reportApi.createDecision({ session_id: activeSession, decision })
   )
+
+  useEffect(() => {
+    if (sessionParam && sessionParam !== activeSession) {
+      setActiveSession(sessionParam)
+    }
+  }, [sessionParam, activeSession])
 
   const detail = (sessionDetail || {}) as SessionDetail
   const messages = (detail.messages || []) as Message[]
