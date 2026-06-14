@@ -91,6 +91,7 @@ class SourceStateService:
         last_modified: str | None = None,
         content_hash: str | None = None,
         raw_source_item_id: str | None = None,
+        preserve_changed: bool = False,
     ) -> None:
         """抓取成功/失败后更新游标状态。"""
         SourceCursorStateModel = self._source_cursor_state_model()
@@ -113,7 +114,7 @@ class SourceStateService:
                 state.last_seen_raw_source_item_id = raw_source_item_id
             state.last_success_at = now
             state.consecutive_failures = 0
-            state.health_status = "healthy"
+            state.health_status = "changed" if preserve_changed else "healthy"
         else:
             state.consecutive_failures = int(state.consecutive_failures or 0) + 1
             state.last_failure_at = now

@@ -180,7 +180,15 @@ class PlatformTopologyService:
     def _domain_packs_component(self, issues: list[str]) -> PlatformTopologyComponentRead:
         loaded_modules = self.domain_pack_registry.discover()
         packs = sorted(pack.domain_id for pack in self.domain_pack_registry.all())
-        missing_builtin = sorted({"corporate", "military"} - set(packs))
+        expected_builtin = {"corporate"}
+        if os.getenv("PLANAGENT_ENABLE_MILITARY_DOMAIN_PACK", "").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            expected_builtin.add("military")
+        missing_builtin = sorted(expected_builtin - set(packs))
         for domain_id in missing_builtin:
             issues.append(f"missing built-in domain pack: {domain_id}")
         return PlatformTopologyComponentRead(

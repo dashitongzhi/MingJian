@@ -114,7 +114,8 @@ def test_domain_pack_discovery_keeps_builtin_packs_idempotent() -> None:
     loaded = registry.discover()
     after = {pack.domain_id for pack in registry.all()}
 
-    assert {"corporate", "military"}.issubset(after)
+    assert "corporate" in after
+    assert "planagent.simulation.domain_packs.military.pack" not in loaded
     assert before.issubset(after)
     assert loaded == []
 
@@ -177,9 +178,28 @@ rules:
     stream_topics = {item["topic"] for item in topology.event_bus.metadata["streams"]}
     assert EventTopic.JARVIS_REPAIR_REQUESTED.value in stream_topics
     assert topology.rules.metadata["rule_counts"] == {"corporate": 1}
-    assert {"corporate", "military"}.issubset(set(topology.domain_packs.metadata["packs"]))
+    assert "corporate" in set(topology.domain_packs.metadata["packs"])
     assert "multi_agent_debate" in topology.workflow.metadata["steps"]
     assert topology.workflow.metadata["monitoring_contract"] == "24h_local_window"
+
+
+def test_extension_points_are_available_for_private_editions() -> None:
+    from planagent.extensions import (
+        AgentExtensionRegistry,
+        NoopNotificationBackend,
+        NoopPredictionHooks,
+        SourceExtensionRegistry,
+    )
+
+    source_registry = SourceExtensionRegistry()
+    agent_registry = AgentExtensionRegistry()
+    source_registry.register("private_source", object())
+    agent_registry.register("private_agent", object())
+
+    assert "private_source" in source_registry.all()
+    assert "private_agent" in agent_registry.all()
+    assert NoopPredictionHooks().before_reforecast({"topic": "x"}) == {"topic": "x"}
+    assert NoopNotificationBackend().send("audit", {"ok": True}) is None
 
 
 def test_postgres_extension_topology_is_declared_in_init_and_migration() -> None:

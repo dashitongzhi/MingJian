@@ -638,6 +638,7 @@ class WatchIngestWorker(Worker):
                 success=True,
                 content_hash=content_hash,
                 raw_source_item_id=None,
+                preserve_changed=record.change_type != "unchanged",
             )
             records.append(record)
         return records
