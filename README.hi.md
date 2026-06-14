@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
-
 # 明鉴 (MingJian)
 
 ### *स्पष्ट देखें, बुद्धिमत्ता से निर्णय लें*
@@ -13,7 +11,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-646CFF.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
@@ -21,10 +19,6 @@
 **🌐 भाषा चयन / Language Selection**
 
 [**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
-
----
-
-![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
 
 </div>
 
@@ -337,7 +331,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # 4. Install frontend dependencies
-cd frontend
+cd frontend-v2
 npm install
 cd ..
 
@@ -354,7 +348,7 @@ alembic upgrade head
 uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 
 # 8. Start frontend (in a new terminal)
-cd frontend
+cd frontend-v2
 npm run dev
 # Open http://localhost:3000
 ```
@@ -383,13 +377,12 @@ npm run dev
 
  पैकेज | संस्करण | उद्देश्य |
 ---------|---------|---------|
- **Next.js** | 15+ | React फ्रेमवर्क |
+ **Vite** | 8+ | फ्रंटएंड बिल्ड टूल |
  **React** | 19+ | UI लाइब्रेरी |
- **TypeScript** | 5.8+ | टाइप सुरक्षा |
- **Tailwind CSS** | 4.1+ | यूटिलिटी-फर्स्ट CSS |
- **SWR** | 2.3+ | डेटा फ़ेचिंग |
- **Recharts** | 2.15+ | चार्टिंग लाइब्रेरी |
- **Zustand** | 5.0+ | स्टेट प्रबंधन |
+ **TypeScript** | 6.0+ | टाइप सुरक्षा |
+ **Tailwind CSS** | 4.2+ | यूटिलिटी-फर्स्ट CSS |
+ **React Router** | 7+ | क्लाइंट-साइड रूटिंग |
+ **Recharts** | 3.8+ | चार्टिंग लाइब्रेरी |
 
 ### डेवलपमेंट निर्भरताएँ
 
@@ -486,23 +479,14 @@ src/planagent/
 **फ्रंटएंड — सब-कंपोनेंट संरचना**
 
 ```
-frontend/src/app/
-├── assistant/           # (1665 पंक्तियाँ) → 5 सब-कंपोनेंट में विभाजित
-│   ├── page.tsx
-│   ├── ChatPanel.tsx
-│   ├── ProcessPanel.tsx
-│   ├── SourcePanel.tsx
-│   ├── DebatePanel.tsx
-│   └── hooks.ts
-├── debate/              # (1091 पंक्तियाँ) → 4 सब-कंपोनेंट में विभाजित
-│   ├── page.tsx
-│   ├── RoundTimeline.tsx
-│   ├── AgentCard.tsx
-│   └── utils.ts
-└── __tests__/           # Vitest टेस्ट
-    ├── components/
-    ├── api/
-    └── lib/
+frontend-v2/src/
+├── components/
+│   ├── layout/          # ऐप शेल, साइडबार और नेविगेशन
+│   └── ui/              # साझा कॉकपिट सतहें और स्थिति घटक
+├── pages/               # डैशबोर्ड, असिस्टेंट, मॉनिटरिंग, रिपोर्ट, सेटिंग्स
+├── api/                 # API एंडपॉइंट सहायक
+├── hooks/               # थीम और ऐप-स्तरीय React hooks
+└── main.tsx             # Vite एंट्री पॉइंट
 ```
 
 ---
@@ -524,9 +508,9 @@ pytest -v
 ```
 
 ```bash
-# फ्रंटएंड टेस्ट (16 कंपोनेंट टेस्ट, 0.55s)
-cd frontend
-npx vitest run
+# फ्रंटएंड बिल्ड
+cd frontend-v2
+npm run build
 ```
 
 ### स्ट्रेस टेस्ट परिणाम
@@ -596,7 +580,7 @@ git push origin feature/amazing-feature
 ## 🙏 आभार
 
 - [FastAPI](https://fastapi.tiangolo.com/) - उच्च-प्रदर्शन एसिंक API
-- [Next.js](https://nextjs.org/) - React फ्रेमवर्क
+- [Vite](https://vite.dev/) - फ्रंटएंड बिल्ड टूल
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - डेटाबेस
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - इवेंट स्ट्रीमिंग
 - [MinIO](https://min.io/) - ऑब्जेक्ट स्टोरेज

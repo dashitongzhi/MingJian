@@ -75,10 +75,10 @@ export function MetricCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="cockpit-kicker truncate">{label}</p>
-          <p className="mt-3 text-3xl font-semibold text-slate-50">{metricNumber(value)}</p>
+          <p className="mono-data mt-3 text-3xl font-semibold text-slate-50">{metricNumber(value)}</p>
           {hint && <p className="mt-1 truncate text-xs text-slate-500">{hint}</p>}
         </div>
-        {icon && <div className={`cockpit-metric-icon grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${tones[tone]}`}>{icon}</div>}
+	        {icon && <div className={`cockpit-metric-icon grid h-10 w-10 shrink-0 place-items-center rounded-[16px] border ${tones[tone]}`}>{icon}</div>}
       </div>
     </Card>
   )
@@ -102,7 +102,7 @@ export function ProgressBar({ value, tone = 'blue' }: { value?: number | null; t
 
 export function JsonBlock({ value }: { value: unknown }) {
   return (
-    <pre className="max-h-72 overflow-auto rounded-lg border border-slate-800/70 bg-slate-950/45 p-3 text-xs leading-5 text-slate-400">
+	    <pre className="mono-data max-h-72 overflow-auto rounded-[18px] border border-slate-800/70 bg-slate-950/45 p-3 text-xs leading-5 text-slate-400">
       {JSON.stringify(value, null, 2)}
     </pre>
   )
@@ -123,11 +123,11 @@ export function ExpandableRecord({ item, eyebrow }: { item: unknown; eyebrow?: s
       >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            {eyebrow && <span className="rounded border border-blue-400/18 bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-300">{eyebrow}</span>}
+	            {eyebrow && <span className="rounded-full border border-blue-400/18 bg-blue-500/10 px-2.5 py-0.5 text-[11px] text-blue-300">{eyebrow}</span>}
             <p className="truncate text-sm font-medium text-slate-100">{title}</p>
           </div>
-          {summary && <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{summary}</p>}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
+          {summary && <p className="editorial-copy mt-1 line-clamp-2 text-xs leading-5">{summary}</p>}
+          <div className="mono-data mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
             {textValue(record.status, '') && <span>状态 {textValue(record.status)}</span>}
             {textValue(record.created_at ?? record.updated_at, '') && <span>{formatDate(record.created_at ?? record.updated_at)}</span>}
             {textValue(record.source ?? record.domain_id ?? record.trigger_type, '') && <span>{textValue(record.source ?? record.domain_id ?? record.trigger_type)}</span>}

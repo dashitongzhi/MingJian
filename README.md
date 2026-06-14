@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
-
 # 明鉴 (MingJian)
 
 ### *See Clearly, Judge Wisely*
@@ -13,7 +11,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-646CFF.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
@@ -21,10 +19,6 @@
 **🌐 Language Selection / 语言选择**
 
 [**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
-
----
-
-![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
 
 </div>
 
@@ -235,7 +229,7 @@ Use this path if you want to run the backend and frontend directly on your machi
 
 #### Frontend Directory Policy
 
-`frontend-v2/` is the active Vite frontend for new UI work. `frontend/` is the legacy Next.js app kept for compatibility, while `frontend-new/` and `pure-react-app/` are historical experiment directories and should not receive new product work unless they are explicitly revived.
+`frontend-v2/` is the active Vite frontend. The older `frontend/` and `frontend-new/` experiments have been retired, so new product UI, builds, and Docker development should target `frontend-v2/`.
 
 #### Prerequisites
 
@@ -345,7 +339,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # 4. Install frontend dependencies
-cd frontend
+cd frontend-v2
 npm install
 cd ..
 
@@ -362,7 +356,7 @@ alembic upgrade head
 uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 
 # 8. Start frontend (in a new terminal)
-cd frontend
+cd frontend-v2
 npm run dev
 # Open http://localhost:3000
 ```
@@ -391,13 +385,12 @@ npm run dev
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| **Next.js** | 15+ | React framework |
+| **Vite** | 8+ | Frontend build tool |
 | **React** | 19+ | UI library |
-| **TypeScript** | 5.8+ | Type safety |
-| **Tailwind CSS** | 4.1+ | Utility-first CSS |
-| **SWR** | 2.3+ | Data fetching |
-| **Recharts** | 2.15+ | Charting library |
-| **Zustand** | 5.0+ | State management |
+| **TypeScript** | 6.0+ | Type safety |
+| **Tailwind CSS** | 4.2+ | Utility-first CSS |
+| **React Router** | 7+ | Client-side routing |
+| **Recharts** | 3.8+ | Charting library |
 
 ### Development Dependencies
 
@@ -492,26 +485,14 @@ src/planagent/
 
 **Frontend:**
 ```
-frontend/src/
-├── app/
-│   ├── assistant/       # AI Assistant (was 1665-line page → 5 subcomponents)
-│   │   ├── page.tsx     # Thin wrapper
-│   │   ├── ChatPanel.tsx
-│   │   ├── ProcessPanel.tsx
-│   │   ├── SourcePanel.tsx
-│   │   ├── DebatePanel.tsx
-│   │   └── hooks.ts
-│   ├── debate/          # Debate view (was 1091-line page → 4 subcomponents)
-│   │   ├── page.tsx     # Thin wrapper
-│   │   ├── RoundTimeline.tsx
-│   │   ├── AgentCard.tsx
-│   │   └── utils.ts
-│   └── ...
-├── __tests__/           # Vitest test suite
-│   ├── components/      # Component tests
-│   ├── api/             # API layer tests
-│   └── lib/             # Utility tests
-└── vitest.config.ts
+frontend-v2/src/
+├── components/
+│   ├── layout/          # App shell, sidebar, navigation chrome
+│   └── ui/              # Shared cockpit surfaces and status components
+├── pages/               # Dashboard, assistant, monitoring, reports, settings
+├── api/                 # API endpoint helpers
+├── hooks/               # Theme and app-level React hooks
+└── main.tsx             # Vite entry point
 ```
 
 ---
@@ -529,9 +510,8 @@ python -m pytest tests/ -v
 
 ### Frontend Tests (Vitest)
 ```bash
-cd frontend
-npm test          # Run once
-npm run test:watch  # Watch mode
+cd frontend-v2
+npm run build
 ```
 
 ### Stress Test
@@ -607,7 +587,7 @@ This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) f
 ## 🙏 Acknowledgments
 
 - [FastAPI](https://fastapi.tiangolo.com/) - High-performance async APIs
-- [Next.js](https://nextjs.org/) - React framework
+- [Vite](https://vite.dev/) - Frontend build tooling
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - Database
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - Event streaming
 - [MinIO](https://min.io/) - Object storage

@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 图标">
-
 # 明鉴 (MingJian)
 
 ### *明察秋毫，鉴往知来*
@@ -13,7 +11,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-646CFF.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
@@ -21,10 +19,6 @@
 **🌐 语言选择 / Language Selection**
 
 [**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
-
----
-
-![明鉴 平台概览](frontend/public/mingjian-hero.jpg)
 
 </div>
 
@@ -335,7 +329,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # 4. 安装前端依赖
-cd frontend
+cd frontend-v2
 npm install
 cd ..
 
@@ -352,7 +346,7 @@ alembic upgrade head
 uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 
 # 8. 启动前端（在新终端中）
-cd frontend
+cd frontend-v2
 npm run dev
 # 打开 http://localhost:3000
 ```
@@ -381,13 +375,12 @@ npm run dev
 
  包名 | 版本 | 用途 |
 ------|------|------|
- **Next.js** | 15+ | React框架 |
+ **Vite** | 8+ | 前端构建工具 |
  **React** | 19+ | UI库 |
- **TypeScript** | 5.8+ | 类型安全 |
- **Tailwind CSS** | 4.1+ | 实用优先的CSS |
- **SWR** | 2.3+ | 数据获取 |
- **Recharts** | 2.15+ | 图表库 |
- **Zustand** | 5.0+ | 状态管理 |
+ **TypeScript** | 6.0+ | 类型安全 |
+ **Tailwind CSS** | 4.2+ | 实用优先的CSS |
+ **React Router** | 7+ | 客户端路由 |
+ **Recharts** | 3.8+ | 图表库 |
 
 ### 开发依赖
 
@@ -484,26 +477,14 @@ src/planagent/
 **前端结构：**
 
 ```
-frontend/src/
-├── app/
-│   ├── assistant/       # AI助手（原1665行页面 → 5个子组件）
-│   │   ├── page.tsx     # 精简入口
-│   │   ├── ChatPanel.tsx
-│   │   ├── ProcessPanel.tsx
-│   │   ├── SourcePanel.tsx
-│   │   ├── DebatePanel.tsx
-│   │   └── hooks.ts
-│   ├── debate/          # 辩论视图（原1091行页面 → 4个子组件）
-│   │   ├── page.tsx     # 精简入口
-│   │   ├── RoundTimeline.tsx
-│   │   ├── AgentCard.tsx
-│   │   └── utils.ts
-│   └── ...
-├── __tests__/           # Vitest测试套件
-│   ├── components/      # 组件测试
-│   ├── api/             # API层测试
-│   └── lib/             # 工具函数测试
-└── vitest.config.ts
+frontend-v2/src/
+├── components/
+│   ├── layout/          # 应用外壳、侧边栏、导航框架
+│   └── ui/              # 共享驾驶舱界面和状态组件
+├── pages/               # 仪表盘、助手、监控、报告、设置
+├── api/                 # API 端点辅助函数
+├── hooks/               # 主题和应用级 React hooks
+└── main.tsx             # Vite 入口
 ```
 
 ---
@@ -515,8 +496,7 @@ frontend/src/
 - 运行集成测试: `python -m pytest tests/ -v`
 
 **前端测试 (Vitest)**
-- `cd frontend && npm test`
-- `cd frontend && npm run test:watch`
+- `cd frontend-v2 && npm run build`
 
 **压力测试**
 - 7维压力测试（需要后端运行）: `python tests/stress_test.py`
@@ -588,7 +568,7 @@ git push origin feature/amazing-feature
 ## 🙏 致谢
 
 - [FastAPI](https://fastapi.tiangolo.com/) - 高性能异步API
-- [Next.js](https://nextjs.org/) - React框架
+- [Vite](https://vite.dev/) - 前端构建工具
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - 数据库
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - 事件流
 - [MinIO](https://min.io/) - 对象存储

@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
-
 # 明鉴 (MingJian)
 
 ### *明察秋毫、鑑往知来*
@@ -13,7 +11,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-646CFF.svg)](https://vite.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
@@ -21,10 +19,6 @@
 **🌐 言語選択 / Language Selection**
 
 [**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
-
----
-
-![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
 
 </div>
 
@@ -340,7 +334,7 @@ source .venv/bin/activate  # Windowsの場合: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # 4. フロントエンドの依存関係をインストール
-cd frontend
+cd frontend-v2
 npm install
 cd ..
 
@@ -357,7 +351,7 @@ alembic upgrade head
 uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 
 # 8. フロントエンドを起動（新しいターミナルで）
-cd frontend
+cd frontend-v2
 npm run dev
 # http://localhost:3000 を開く
 ```
@@ -386,13 +380,12 @@ npm run dev
 
  パッケージ | バージョン | 用途 |
 ---------|---------|---------|
- **Next.js** | 15+ | Reactフレームワーク |
+ **Vite** | 8+ | フロントエンドビルドツール |
  **React** | 19+ | UIライブラリ |
- **TypeScript** | 5.8+ | 型安全性 |
- **Tailwind CSS** | 4.1+ | ユーティリティファーストCSS |
- **SWR** | 2.3+ | データフェッチング |
- **Recharts** | 2.15+ | チャートライブラリ |
- **Zustand** | 5.0+ | 状態管理 |
+ **TypeScript** | 6.0+ | 型安全性 |
+ **Tailwind CSS** | 4.2+ | ユーティリティファーストCSS |
+ **React Router** | 7+ | クライアントサイドルーティング |
+ **Recharts** | 3.8+ | チャートライブラリ |
 
 ### 開発用依存関係
 
@@ -489,23 +482,14 @@ src/planagent/
 **フロントエンド — サブコンポーネント構造**
 
 ```
-frontend/src/app/
-├── assistant/           # (1665行) → 5サブコンポーネントに分割
-│   ├── page.tsx
-│   ├── ChatPanel.tsx
-│   ├── ProcessPanel.tsx
-│   ├── SourcePanel.tsx
-│   ├── DebatePanel.tsx
-│   └── hooks.ts
-├── debate/              # (1091行) → 4サブコンポーネントに分割
-│   ├── page.tsx
-│   ├── RoundTimeline.tsx
-│   ├── AgentCard.tsx
-│   └── utils.ts
-└── __tests__/           # Vitestテスト
-    ├── components/
-    ├── api/
-    └── lib/
+frontend-v2/src/
+├── components/
+│   ├── layout/          # アプリシェル、サイドバー、ナビゲーション
+│   └── ui/              # 共通コックピットサーフェスと状態コンポーネント
+├── pages/               # ダッシュボード、アシスタント、監視、レポート、設定
+├── api/                 # APIエンドポイントヘルパー
+├── hooks/               # テーマとアプリレベルのReact hooks
+└── main.tsx             # Viteエントリーポイント
 ```
 
 ---
@@ -527,9 +511,9 @@ pytest -v
 ```
 
 ```bash
-# フロントエンドテスト (16コンポーネントテスト, 0.55秒)
-cd frontend
-npx vitest run
+# フロントエンドビルド
+cd frontend-v2
+npm run build
 ```
 
 ### ストレステスト結果
@@ -599,7 +583,7 @@ git push origin feature/amazing-feature
 ## 🙏 謝辞
 
 - [FastAPI](https://fastapi.tiangolo.com/) - 高性能非同期API
-- [Next.js](https://nextjs.org/) - Reactフレームワーク
+- [Vite](https://vite.dev/) - フロントエンドビルドツール
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - データベース
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - イベントストリーミング
 - [MinIO](https://min.io/) - オブジェクトストレージ

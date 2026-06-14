@@ -141,16 +141,16 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="cockpit-kicker">Decision Workspace</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-normal text-slate-50">你现在要判断什么？</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">提交一个真实决策问题，明鉴会创建战略会话，调度证据采集、推演、辩论和报告生成，并在助手页沉淀为可追踪的决策工作流。</p>
+                <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-50 sm:text-3xl md:text-4xl">你现在要判断什么？</h1>
+                <p className="editorial-copy mt-3 max-w-2xl text-base leading-7">提交一个真实决策问题，明鉴会创建战略会话，调度证据采集、推演、辩论和报告生成，并在助手页沉淀为可追踪的决策工作流。</p>
               </div>
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-400/18 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
+	              <div className="flex items-center gap-2 rounded-full border border-emerald-400/18 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
                 {health ? '后端在线' : loading ? '控制面同步中' : '后端状态未知'}
               </div>
             </div>
 
-            <form onSubmit={handleStartDecision} className="mt-6 rounded-lg border border-slate-800/70 bg-slate-950/26 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+	            <form onSubmit={handleStartDecision} className="mt-6 rounded-[24px] border border-slate-800/70 bg-slate-950/26 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
               <textarea
                 value={decisionText}
                 onChange={(event) => {
@@ -158,19 +158,19 @@ export default function Dashboard() {
                   setLocalError(null)
                 }}
                 rows={5}
-                className="min-h-[136px] w-full resize-none rounded-md border-0 bg-transparent px-3 py-3 text-base leading-7 text-slate-100 placeholder:text-slate-600 focus:outline-none"
+	                className="editorial-copy min-h-[136px] w-full resize-none rounded-[18px] border-0 bg-transparent px-3 py-3 text-base leading-7 placeholder:text-slate-600 focus:outline-none"
                 placeholder="例如：我们是否应该进入某个市场、采购某项技术、调整定价、回应竞品动作？"
               />
               <div className="flex flex-col gap-3 border-t border-slate-800/70 px-2 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="rounded border border-slate-800/70 bg-slate-950/28 px-2 py-1">证据采集</span>
-                  <span className="rounded border border-slate-800/70 bg-slate-950/28 px-2 py-1">多智能体辩论</span>
-                  <span className="rounded border border-slate-800/70 bg-slate-950/28 px-2 py-1">版本化建议</span>
+	                  <span className="rounded-full border border-slate-800/70 bg-slate-950/28 px-2.5 py-1">证据采集</span>
+	                  <span className="rounded-full border border-slate-800/70 bg-slate-950/28 px-2.5 py-1">多智能体辩论</span>
+	                  <span className="rounded-full border border-slate-800/70 bg-slate-950/28 px-2.5 py-1">版本化建议</span>
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="glass-button inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+	                  className="primary-ink-button inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {submitting ? '正在创建工作流' : '开始决策分析'}
@@ -180,7 +180,7 @@ export default function Dashboard() {
             </form>
 
             {submitError && (
-              <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+	              <div className="mt-3 rounded-[18px] border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                 {submitError}
               </div>
             )}
@@ -194,7 +194,7 @@ export default function Dashboard() {
                     key={item.label}
                     type="button"
                     onClick={() => applyTemplate(index)}
-                    className={`rounded-lg border p-3 text-left transition ${selected ? 'border-amber-400/32 bg-amber-500/10 text-slate-100' : 'border-slate-800/70 bg-slate-950/20 text-slate-400 hover:bg-amber-500/8 hover:text-slate-200'}`}
+	                    className={`rounded-[18px] border p-3 text-left transition ${selected ? 'border-amber-400/32 bg-amber-500/10 text-slate-100' : 'paper-row text-slate-400 hover:bg-amber-500/8 hover:text-slate-200'}`}
                   >
                     <div className="flex items-center gap-2">
                       <Icon className={selected ? 'h-4 w-4 text-amber-300' : 'h-4 w-4 text-slate-500'} />
@@ -207,7 +207,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-800/70 bg-slate-950/24 p-4">
+	          <div className="rounded-[22px] border border-slate-800/70 bg-slate-950/24 p-4">
             <div className="flex items-center justify-between">
               <p className="cockpit-kicker">Artifact Preview</p>
               <FileText className="h-4 w-4 text-slate-500" />
@@ -219,10 +219,10 @@ export default function Dashboard() {
                 ['3', 'Decision Brief', '推荐动作、置信度、风险和监控规则'],
               ].map(([step, title, body]) => (
                 <div key={title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
-                  <span className="grid h-7 w-7 place-items-center rounded-md border border-amber-400/18 bg-amber-500/10 text-xs font-semibold text-amber-300">{step}</span>
+	                  <span className="mono-data grid h-7 w-7 place-items-center rounded-full border border-amber-400/18 bg-amber-500/10 text-xs font-semibold text-amber-300">{step}</span>
                   <div>
                     <p className="text-sm font-semibold text-slate-200">{title}</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">{body}</p>
+                    <p className="editorial-copy mt-1 text-xs leading-5">{body}</p>
                   </div>
                 </div>
               ))}
