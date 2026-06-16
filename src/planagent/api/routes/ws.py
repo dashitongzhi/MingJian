@@ -7,10 +7,12 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
+from planagent.config import get_settings
 from planagent.db import get_database
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import StrategicRunSnapshot
 from planagent.events.bus import ConsumedEvent, EventBus
+from planagent.services.auth import AuthConfig, AuthService
 
 
 router = APIRouter()
@@ -210,8 +212,37 @@ class NotificationManager:
 notification_manager = NotificationManager()
 
 
+def _get_auth_service(websocket: WebSocket) -> AuthService:
+    if not hasattr(websocket.app.state, "auth_service"):
+        settings = get_settings()
+        websocket.app.state.auth_service = AuthService(
+            AuthConfig(
+                secret_key=settings.auth.secret_key,
+                database_url=settings.db.url,
+                environment=settings.env,
+            )
+        )
+    return websocket.app.state.auth_service
+
+
+def _websocket_token(websocket: WebSocket) -> str:
+    query_token = websocket.query_params.get("token")
+    if query_token:
+        return query_token
+    authorization = websocket.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() == "bearer" and token:
+        return token
+    return ""
+
+
 @router.websocket("/ws/notifications")
 async def notifications_websocket(websocket: WebSocket) -> None:
+    token = _websocket_token(websocket)
+    if not token or _get_auth_service(websocket).verify_token(token) is None:
+        await websocket.close(code=1008)
+        return
+
     await notification_manager.connect(websocket, websocket.app.state.event_bus)
     try:
         while True:

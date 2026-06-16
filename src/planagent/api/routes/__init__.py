@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from planagent.api.routes.analysis import router as analysis_router
 from planagent.api.routes.agents import router as agents_router
@@ -18,10 +18,11 @@ from planagent.api.routes.auth import router as auth_router
 from planagent.api.routes.export import router as export_router
 from planagent.api.routes.notifications import router as notifications_router
 from planagent.api.routes.stats import router as stats_router
+from planagent.api.routes.auth import get_current_user_payload
 
 router = APIRouter()
 router.include_router(analysis_router, tags=["Analysis & Assistant"])
-router.include_router(agents_router)
+router.include_router(agents_router, dependencies=[Depends(get_current_user_payload)])
 router.include_router(debate_votes_router)
 router.include_router(debate_replay_router, tags=["Debate Replay"])
 router.include_router(debate_interrupt_router, tags=["Debate Interrupts"])
@@ -33,6 +34,6 @@ router.include_router(monitoring_router)
 router.include_router(prediction_router)
 router.include_router(sources_router)
 router.include_router(auth_router)
-router.include_router(export_router)
+router.include_router(export_router, dependencies=[Depends(get_current_user_payload)])
 router.include_router(notifications_router)
 router.include_router(stats_router)

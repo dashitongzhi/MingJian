@@ -60,6 +60,8 @@ def _get_auth_service(request: Request) -> AuthService:
         settings = get_settings()
         config = AuthConfig(
             secret_key=getattr(settings, "auth_secret_key", "") or "",
+            database_url=settings.db.url,
+            environment=settings.env,
         )
         request.app.state.auth_service = AuthService(config)
     return request.app.state.auth_service  # type: ignore[no-any-return]  # app.state 动态属性

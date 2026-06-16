@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import jwt
 
+from planagent.domain.models import Base
 from planagent.services.auth import AuthConfig, AuthService, UserRole
 
 
@@ -16,20 +17,33 @@ from planagent.services.auth import AuthConfig, AuthService, UserRole
 @pytest.fixture()
 def auth_service():
     """创建一个不自动创建默认 admin 的 AuthService。"""
-    svc = AuthService.__new__(AuthService)
-    svc.config = AuthConfig(secret_key="test-secret-key-for-unit-tests", algorithm="HS256")
-    svc._users = {}
-    svc._username_index = {}
-    svc._email_index = {}
-    svc._revoked_tokens = set()
-    svc._refresh_tokens = {}
-    return svc
+    return AuthService(
+        AuthConfig(
+            secret_key="test-secret-key-for-unit-tests",
+            algorithm="HS256",
+            create_default_admin=False,
+        )
+    )
 
 
 @pytest.fixture()
 def auth_service_with_admin():
     """创建一个包含默认 admin 用户的 AuthService。"""
     svc = AuthService(config=AuthConfig(secret_key="test-secret-key"))
+    return svc
+
+
+def make_db_auth_service(db_url: str) -> AuthService:
+    svc = AuthService(
+        AuthConfig(
+            secret_key="test-secret-key-for-unit-tests",
+            algorithm="HS256",
+            database_url=db_url,
+            environment="test",
+            create_default_admin=False,
+        )
+    )
+    Base.metadata.create_all(svc._engine)
     return svc
 
 
@@ -133,6 +147,15 @@ class TestTokenGeneration:
         assert payload is not None
         assert payload["sub"] == auth_service._username_index["u3"]
         assert payload["type"] == "access"
+
+    def test_verify_token_returns_none_for_missing_user(self, auth_service: AuthService):
+        """用户不存在时旧 access token 应失效。"""
+        user = auth_service.create_user("u3b", "u3b@test.com", "pass")
+        tokens = auth_service.authenticate("u3b", "pass")
+        auth_service._users.pop(user.id)
+        auth_service._username_index.pop(user.username)
+        auth_service._email_index.pop(user.email)
+        assert auth_service.verify_token(tokens.access_token) is None
 
     def test_verify_token_returns_none_for_refresh(self, auth_service: AuthService):
         """verify_token 不应该接受 refresh token。"""
@@ -337,6 +360,14 @@ class TestDefaultAdmin:
         tokens = auth_service_with_admin.authenticate("admin", "wrong-password")
         assert tokens is None
 
+    def test_default_admin_password_not_logged(self, caplog):
+        """默认 admin 日志不应泄漏随机明文密码。"""
+        with caplog.at_level("WARNING"):
+            AuthService(config=AuthConfig(secret_key="test-secret-key"))
+        messages = "\n".join(record.getMessage() for record in caplog.records)
+        assert "password:" not in messages
+        assert "CHANGE THIS IMMEDIATELY" not in messages
+
 
 # ---------------------------------------------------------------------------
 # 用户管理辅助方法
@@ -390,3 +421,43 @@ class TestUserManagement:
         user = auth_service.create_user("in1", "in1@test.com", "pass")
         auth_service.deactivate_user(user.id)
         assert auth_service.authenticate("in1", "pass") is None
+
+
+class TestPersistentAuthStore:
+    """测试 DB 持久化用户、refresh token、revoked token。"""
+
+    def test_users_survive_service_restart(self, tmp_path):
+        db_url = f"sqlite:///{tmp_path / 'auth.db'}"
+        svc1 = make_db_auth_service(db_url)
+        user = svc1.create_user("persisted", "persisted@test.com", "pass")
+
+        svc2 = make_db_auth_service(db_url)
+        found = svc2.get_user(user.id)
+        assert found is not None
+        assert found.username == "persisted"
+        assert svc2.authenticate("persisted", "pass") is not None
+
+    def test_refresh_token_survives_service_restart(self, tmp_path):
+        db_url = f"sqlite:///{tmp_path / 'auth.db'}"
+        svc1 = make_db_auth_service(db_url)
+        svc1.create_user("refresh", "refresh@test.com", "pass")
+        tokens = svc1.authenticate("refresh", "pass")
+
+        svc2 = make_db_auth_service(db_url)
+        refreshed = svc2.refresh_access_token(tokens.refresh_token)
+        assert refreshed is not None
+        assert svc2.verify_token(refreshed.access_token) is not None
+
+    def test_revoked_token_survives_service_restart(self, tmp_path):
+        db_url = f"sqlite:///{tmp_path / 'auth.db'}"
+        svc1 = make_db_auth_service(db_url)
+        svc1.create_user("revoked", "revoked@test.com", "pass")
+        tokens = svc1.authenticate("revoked", "pass")
+        svc1.revoke_token(tokens.access_token)
+
+        svc2 = make_db_auth_service(db_url)
+        assert svc2.verify_token(tokens.access_token) is None
+
+    def test_production_requires_secret_key(self):
+        with pytest.raises(RuntimeError, match="PLANAGENT_AUTH_SECRET_KEY"):
+            AuthService(AuthConfig(secret_key="", environment="production"))

@@ -68,6 +68,7 @@ from planagent.api.routes._deps import (
     get_runtime_monitor_service,
     get_simulation_service,
 )
+from planagent.api.routes.auth import require_role
 from planagent.services.startup import (
     AGENT_STARTUP_PRESET_ID,
     build_startup_kpi_pack,
@@ -77,10 +78,12 @@ from planagent.services.startup import (
 )
 from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.source_state import SourceStateService
+from planagent.services.auth import UserRole
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
 router = APIRouter()
+_ADMIN_ONLY = [Depends(require_role(UserRole.ADMIN))]
 
 
 # ── Jarvis ───────────────────────────────────────────────────────────────────
@@ -94,7 +97,12 @@ def _get_jarvis(request: Request) -> JarvisOrchestrator:
     )
 
 
-@router.post("/jarvis/runs", response_model=JarvisRunRead, status_code=201)
+@router.post(
+    "/jarvis/runs",
+    response_model=JarvisRunRead,
+    status_code=201,
+    dependencies=_ADMIN_ONLY,
+)
 async def create_jarvis_run(
     payload: JarvisRunCreate,
     request: Request,
@@ -136,12 +144,12 @@ async def create_jarvis_run(
     return JarvisRunRead.model_validate(record)
 
 
-@router.get("/jarvis/profiles")
+@router.get("/jarvis/profiles", dependencies=_ADMIN_ONLY)
 async def get_jarvis_profiles(request: Request) -> dict[str, Any]:
     return _get_jarvis(request).get_profiles()
 
 
-@router.post("/jarvis/test", response_model=None)
+@router.post("/jarvis/test", response_model=None, dependencies=_ADMIN_ONLY)
 async def test_jarvis_target(
     target: str = Query(default="primary"), request: Request = None
 ) -> dict[str, Any]:
@@ -149,7 +157,7 @@ async def test_jarvis_target(
     return await _get_jarvis(request).test_target(target)
 
 
-@router.get("/jarvis/runs", response_model=list[JarvisRunRead])
+@router.get("/jarvis/runs", response_model=list[JarvisRunRead], dependencies=_ADMIN_ONLY)
 async def list_jarvis_runs(
     run_id: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
@@ -166,7 +174,10 @@ async def list_jarvis_runs(
 
 
 @router.post(
-    "/presets/agent-startup/runs", response_model=AgentStartupPresetRunRead, status_code=201
+    "/presets/agent-startup/runs",
+    response_model=AgentStartupPresetRunRead,
+    status_code=201,
+    dependencies=_ADMIN_ONLY,
 )
 async def create_agent_startup_preset_runs(
     payload: AgentStartupPresetRunCreate,
@@ -237,13 +248,17 @@ async def create_agent_startup_preset_runs(
 # ── Admin ────────────────────────────────────────────────────────────────────
 
 
-@router.post("/admin/rules/reload", response_model=RuleReloadResponse)
+@router.post("/admin/rules/reload", response_model=RuleReloadResponse, dependencies=_ADMIN_ONLY)
 async def reload_rules(request: Request) -> RuleReloadResponse:
     domains, total = request.app.state.rule_registry.reload()
     return RuleReloadResponse(domains=domains, rules_loaded=total)
 
 
-@router.get("/admin/runtime/queues", response_model=RuntimeQueueHealthRead)
+@router.get(
+    "/admin/runtime/queues",
+    response_model=RuntimeQueueHealthRead,
+    dependencies=_ADMIN_ONLY,
+)
 async def runtime_queue_health(
     tenant_id: str | None = None,
     preset_id: str | None = None,
@@ -253,13 +268,17 @@ async def runtime_queue_health(
     return await service.collect_queue_health(session, tenant_id=tenant_id, preset_id=preset_id)
 
 
-@router.get("/admin/runtime/platform-topology", response_model=PlatformTopologyRead)
+@router.get(
+    "/admin/runtime/platform-topology",
+    response_model=PlatformTopologyRead,
+    dependencies=_ADMIN_ONLY,
+)
 async def runtime_platform_topology(request: Request) -> PlatformTopologyRead:
     service = get_platform_topology_service(request)
     return await service.collect()
 
 
-@router.get("/admin/analysis/cache")
+@router.get("/admin/analysis/cache", dependencies=_ADMIN_ONLY)
 async def analysis_cache_status(
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
@@ -304,13 +323,21 @@ async def analysis_cache_status(
     }
 
 
-@router.get("/admin/openai/status", response_model=OpenAIStatusResponse)
+@router.get(
+    "/admin/openai/status",
+    response_model=OpenAIStatusResponse,
+    dependencies=_ADMIN_ONLY,
+)
 async def openai_status(request: Request) -> OpenAIStatusResponse:
     ensure_app_services(request)
     return request.app.state.openai_service.status()  # type: ignore[no-any-return]  # app.state 动态属性
 
 
-@router.post("/admin/openai/test", response_model=OpenAITestResponse)
+@router.post(
+    "/admin/openai/test",
+    response_model=OpenAITestResponse,
+    dependencies=_ADMIN_ONLY,
+)
 async def openai_test(
     payload: OpenAITestRequest,
     request: Request,
@@ -769,7 +796,7 @@ def _watch_recommendation_summary(
 # ── Sources ──────────────────────────────────────────────────────────────────
 
 
-@router.get("/sources/health")
+@router.get("/sources/health", dependencies=_ADMIN_ONLY)
 async def list_source_health(
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
@@ -790,7 +817,7 @@ async def list_source_health(
     ]
 
 
-@router.get("/sources/snapshots")
+@router.get("/sources/snapshots", dependencies=_ADMIN_ONLY)
 async def list_source_snapshots(
     tenant_id: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
@@ -819,7 +846,7 @@ async def list_source_snapshots(
 # ── Knowledge Graph ──────────────────────────────────────────────────────────
 
 
-@router.get("/knowledge/graph", response_model=EvidenceGraphRead)
+@router.get("/knowledge/graph", response_model=EvidenceGraphRead, dependencies=_ADMIN_ONLY)
 async def get_knowledge_graph(
     tenant_id: str | None = None,
     preset_id: str | None = None,
@@ -875,7 +902,11 @@ async def get_knowledge_graph(
     )
 
 
-@router.get("/knowledge/search", response_model=list[KnowledgeSearchResultRead])
+@router.get(
+    "/knowledge/search",
+    response_model=list[KnowledgeSearchResultRead],
+    dependencies=_ADMIN_ONLY,
+)
 async def search_knowledge_graph(
     q: str = Query(min_length=1),
     tenant_id: str | None = None,
@@ -890,7 +921,7 @@ async def search_knowledge_graph(
 # ── Hypotheses Scoreboard ────────────────────────────────────────────────────
 
 
-@router.get("/hypotheses/scoreboard")
+@router.get("/hypotheses/scoreboard", dependencies=_ADMIN_ONLY)
 async def hypotheses_scoreboard(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
@@ -930,7 +961,7 @@ async def hypotheses_scoreboard(
 # ── Calibration ──────────────────────────────────────────────────────────────
 
 
-@router.get("/calibration", response_model=list[CalibrationRead])
+@router.get("/calibration", response_model=list[CalibrationRead], dependencies=_ADMIN_ONLY)
 async def list_calibration(
     domain_id: str | None = None,
     tenant_id: str | None = None,
@@ -945,7 +976,12 @@ async def list_calibration(
     return [CalibrationRead.model_validate(r) for r in records]
 
 
-@router.post("/calibration/compute", response_model=CalibrationRead, status_code=201)
+@router.post(
+    "/calibration/compute",
+    response_model=CalibrationRead,
+    status_code=201,
+    dependencies=_ADMIN_ONLY,
+)
 async def compute_calibration(
     payload: CalibrationComputeRequest,
     session: AsyncSession = Depends(get_session),

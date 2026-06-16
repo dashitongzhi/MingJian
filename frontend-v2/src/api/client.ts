@@ -1,5 +1,6 @@
 const BASE = '/api'
 const NETWORK_RETRY_DELAYS_MS = [300, 800, 1500]
+const AUTH_TOKEN_KEYS = ['mingjian_access_token', 'planagent_access_token', 'auth_token']
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -7,6 +8,30 @@ function sleep(ms: number) {
 
 function isNetworkFailure(error: unknown) {
   return error instanceof TypeError && error.message === 'Failed to fetch'
+}
+
+function authToken() {
+  for (const key of AUTH_TOKEN_KEYS) {
+    const token = window.localStorage.getItem(key)
+    if (token) return token
+  }
+  return ''
+}
+
+function requestHeaders(headers?: HeadersInit) {
+  const token = authToken()
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...headers,
+  }
+}
+
+function handleUnauthorized() {
+  for (const key of AUTH_TOKEN_KEYS) {
+    window.localStorage.removeItem(key)
+  }
+  window.dispatchEvent(new CustomEvent('mingjian:auth-expired'))
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -17,11 +42,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   for (let attempt = 0; attempt <= NETWORK_RETRY_DELAYS_MS.length; attempt += 1) {
     try {
       const res = await fetch(`${BASE}${path}`, {
-        headers: { 'Content-Type': 'application/json', ...init?.headers },
+        headers: requestHeaders(init?.headers),
         ...init,
       })
 
       if (!res.ok) {
+        if (res.status === 401) handleUnauthorized()
         const body = await res.text().catch(() => '')
         throw new Error(`API ${res.status}: ${body}`)
       }
