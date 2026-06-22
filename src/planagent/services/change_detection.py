@@ -105,9 +105,11 @@ class ChangeDetectionService:
             diff_summary=diff_summary,
             changed_fields=self._detect_changed_fields(old_hash, stable_new_hash),
         )
-        if change_type != "unchanged":
-            state.last_change_at = utc_now()
-            state.health_status = "changed"
+        if change_type == "unchanged":
+            return record
+
+        state.last_change_at = utc_now()
+        state.health_status = "changed"
         await self.change_hook.after_change_detected(
             session=session,
             state=state,
