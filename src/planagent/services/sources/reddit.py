@@ -84,8 +84,11 @@ class RedditProvider(DataSourceProvider):
             "https://www.reddit.com/search.json"
             f"?q={quote_plus(search_query)}&sort=relevance&t=week&type=link&raw_json=1&limit={limit}"
         )
+        headers = {"User-Agent": self.settings.source_http_user_agent, "Accept": "application/json"}
         async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
-            response = await client.get(url, headers={"User-Agent": "PlanAgent/0.1"})
+            response = await client.get(url, headers=headers)
+            if response.status_code == 403:
+                raise RuntimeError("Reddit blocked the public search request (HTTP 403)")
             response.raise_for_status()
 
         payload = response.json()

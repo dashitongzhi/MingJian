@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.db import get_session
 from planagent.domain.models import (
-    PredictionVersion,
+    PredictionBacktestRecord,
     PredictionRevisionJob,
     SimulationRun,
 )
@@ -34,14 +34,29 @@ async def get_dashboard_stats(
         or 0
     )
 
-    # 预测准确率（活跃预测版本的平均置信度）
-    avg_confidence = (
-        await session.scalar(
-            select(func.avg(PredictionVersion.confidence)).where(
-                PredictionVersion.status == "ACTIVE"
+    verified_counts = {"CONFIRMED": 0, "REFUTED": 0, "PARTIAL": 0}
+    rows = (
+        await session.execute(
+            select(
+                PredictionBacktestRecord.verification_status,
+                func.count(PredictionBacktestRecord.id),
             )
+            .where(PredictionBacktestRecord.verification_status.in_(verified_counts))
+            .group_by(PredictionBacktestRecord.verification_status)
         )
-    ) or 0.0
+    ).all()
+    for status, count in rows:
+        verified_counts[str(status)] = int(count or 0)
+    verified_total = sum(verified_counts.values())
+    prediction_accuracy = (
+        round(
+            ((verified_counts["CONFIRMED"] + 0.5 * verified_counts["PARTIAL"]) / verified_total)
+            * 100,
+            0,
+        )
+        if verified_total
+        else None
+    )
 
     # 待处理项（待处理的修正任务）
     pending_items = int(
@@ -57,6 +72,8 @@ async def get_dashboard_stats(
 
     return {
         "active_sessions": active_sessions,
-        "prediction_accuracy": round(avg_confidence * 100, 0) if avg_confidence else 87,
+        "prediction_accuracy": prediction_accuracy,
+        "prediction_accuracy_sample_size": verified_total,
+        "prediction_accuracy_status": "verified" if verified_total else "no_verified_samples",
         "pending_items": pending_items,
     }

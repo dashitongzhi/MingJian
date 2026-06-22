@@ -137,12 +137,15 @@ class SourceStateService:
         if last_success_at is None and last_failure_at is None:
             return True
 
-        if (
-            last_failure_at is not None
-            and (last_success_at is None or last_failure_at > last_success_at)
-            and int(state.consecutive_failures or 0) < 5
+        if last_failure_at is not None and (
+            last_success_at is None or last_failure_at > last_success_at
         ):
-            return True
+            failures = int(state.consecutive_failures or 0)
+            threshold = max(1, int(self.settings.source_failure_circuit_breaker_threshold))
+            if failures < threshold:
+                return True
+            backoff_minutes = self._failure_backoff_minutes(failures, threshold)
+            return utc_now() - last_failure_at >= timedelta(minutes=backoff_minutes)
 
         if last_success_at is None:
             return False
@@ -212,6 +215,12 @@ class SourceStateService:
         if len(normalized) == 64 and all(char in "0123456789abcdefABCDEF" for char in normalized):
             return normalized.lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _failure_backoff_minutes(self, failures: int, threshold: int) -> int:
+        base_minutes = max(1, int(self.settings.source_failure_backoff_base_minutes))
+        max_minutes = max(base_minutes, int(self.settings.source_failure_backoff_max_minutes))
+        exponent = min(max(failures - threshold, 0), 8)
+        return min(max_minutes, base_minutes * (2**exponent))
 
     def _source_cursor_state_model(self) -> type[SourceCursorState]:
         from planagent.domain.models import SourceCursorState

@@ -43,7 +43,8 @@ class IngestWorker(Worker):
         database = get_database()
         async with database.session() as session:
             queue_health = await RuntimeMonitorService(
-                self.settings.backpressure_pending_threshold
+                self.settings.backpressure_pending_threshold,
+                self.settings.runtime_recent_error_window_hours,
             ).collect_queue_health(session)
             if queue_health.backpressure_active:
                 setter = getattr(self.event_bus, "set_backpressure_signal", None)

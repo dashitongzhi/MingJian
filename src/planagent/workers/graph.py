@@ -387,8 +387,9 @@ WITH expanded AS (
     SQRT(SUM((a.elem)::float * (a.elem)::float)) AS node_norm
   FROM knowledge_graph_nodes n,
     jsonb_array_elements(n.embedding::jsonb) WITH ORDINALITY a(elem, idx)
-  CROSS JOIN unnest(:query_vector::float[]) WITH ORDINALITY b(elem, idx)
+  CROSS JOIN jsonb_array_elements_text(CAST(:query_vector AS jsonb)) WITH ORDINALITY b(elem, idx)
   WHERE a.idx = b.idx
+    AND (:tenant_id IS NULL OR n.tenant_id = :tenant_id)
   GROUP BY n.id
 )
 SELECT node_key, label, node_type, node_metadata,
@@ -401,10 +402,11 @@ LIMIT :limit
 # Native pgvector query — uses the <=> cosine-distance operator for index-backed search.
 _PGVECTOR_SIMILARITY_SQL = """
 SELECT node_key, label, node_type, node_metadata,
-       1 - (embedding_vector <=> :query_vector::vector) AS score
+       1 - (embedding_vector <=> CAST(:query_vector AS vector)) AS score
 FROM knowledge_graph_nodes
 WHERE embedding_vector IS NOT NULL
-ORDER BY embedding_vector <=> :query_vector::vector
+  AND (:tenant_id IS NULL OR tenant_id = :tenant_id)
+ORDER BY embedding_vector <=> CAST(:query_vector AS vector)
 LIMIT :limit
 """
 
@@ -425,6 +427,7 @@ async def search_nodes_sql(
         try:
             node_query = text(_PGVECTOR_SIMILARITY_SQL).bindparams(
                 query_vector=vec_literal,
+                tenant_id=tenant_id,
                 limit=limit,
             )
             result = await session.execute(node_query)
@@ -452,6 +455,7 @@ async def search_nodes_sql(
         node_query = text(_PG_SIMILARITY_SQL).bindparams(
             query_vector=json.dumps(query_vector),
             query_norm=norm,
+            tenant_id=tenant_id,
             limit=limit,
         )
         result = await session.execute(node_query)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -25,8 +26,13 @@ from planagent.services.startup import normalize_tenant_id
 
 
 class RuntimeMonitorService:
-    def __init__(self, backpressure_pending_threshold: int = 1000) -> None:
+    def __init__(
+        self,
+        backpressure_pending_threshold: int = 1000,
+        recent_error_window_hours: int = 24,
+    ) -> None:
         self.backpressure_pending_threshold = backpressure_pending_threshold
+        self.recent_error_window_hours = max(1, int(recent_error_window_hours))
 
     async def collect_queue_health(
         self,
@@ -46,6 +52,7 @@ class RuntimeMonitorService:
             session,
             select(func.count()).select_from(DeadLetterEvent),
         )
+        recent_error_cutoff = now - timedelta(hours=self.recent_error_window_hours)
         degraded_sources = [
             {
                 "source_type": item.source_type,
@@ -55,7 +62,13 @@ class RuntimeMonitorService:
             }
             for item in (
                 await session.scalars(
-                    select(SourceHealth).where(SourceHealth.status.in_(["ERROR", "DEGRADED"]))
+                    select(SourceHealth).where(
+                        SourceHealth.status.in_(["ERROR", "DEGRADED"]),
+                        or_(
+                            SourceHealth.last_failure_at.is_(None),
+                            SourceHealth.last_failure_at >= recent_error_cutoff,
+                        ),
+                    )
                 )
             ).all()
         ]

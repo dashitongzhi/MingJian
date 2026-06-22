@@ -67,7 +67,8 @@ def _cache_business_services(state: object) -> None:
         state.workbench_service = WorkbenchService()
     if not hasattr(state, "runtime_monitor_service"):
         state.runtime_monitor_service = RuntimeMonitorService(
-            settings.backpressure_pending_threshold
+            settings.backpressure_pending_threshold,
+            settings.runtime_recent_error_window_hours,
         )
     if not hasattr(state, "platform_topology_service"):
         state.platform_topology_service = PlatformTopologyService(
@@ -174,7 +175,8 @@ def get_runtime_monitor_service() -> RuntimeMonitorService:
     state = _get_state_or_fallback()
     if not hasattr(state, "runtime_monitor_service"):
         state.runtime_monitor_service = RuntimeMonitorService(
-            get_settings().backpressure_pending_threshold
+            get_settings().backpressure_pending_threshold,
+            get_settings().runtime_recent_error_window_hours,
         )
     return state.runtime_monitor_service  # type: ignore[no-any-return]  # app.state 动态属性
 

@@ -17,6 +17,10 @@ class GDELTProvider(DataSourceProvider):
     agent_icon = "🌍"
     task_desc = "正在搜索 GDELT 全球事件数据库"
 
+    @property
+    def fallback_keys(self) -> list[str]:
+        return ["google_news", "rss"]
+
     # ── MCP metadata ─────────────────────────────────────────────────
     mcp_name = "gdelt_search"
     mcp_description = (
@@ -82,8 +86,11 @@ class GDELTProvider(DataSourceProvider):
             "maxrecords": str(min(max(limit, 1), 10)),
             "sort": "HybridRel",
         }
+        headers = {"User-Agent": self.settings.source_http_user_agent, "Accept": "application/json"}
         async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
-            response = await client.get(url, params=params, headers={"User-Agent": "PlanAgent/0.1"})
+            response = await client.get(url, params=params, headers=headers)
+            if response.status_code == 429:
+                raise RuntimeError("GDELT rate limited the request (HTTP 429)")
             response.raise_for_status()
         payload = response.json()
         results: list[AnalysisSourceRead] = []

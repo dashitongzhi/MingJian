@@ -164,6 +164,7 @@ class SourceRegistry:
             adapters.append(
                 _SourceAdapter(
                     provider=provider,
+                    providers=self._providers,
                     payload=payload,
                     query=query,
                     domain_id=domain_id,
@@ -207,16 +208,18 @@ class _SourceAdapter:
     _fetch_related_sources loop that expects (key, label, fetcher) tuples.
     """
 
-    __slots__ = ("provider", "payload", "query", "domain_id")
+    __slots__ = ("provider", "providers", "payload", "query", "domain_id")
 
     def __init__(
         self,
         provider: DataSourceProvider,
+        providers: dict[str, DataSourceProvider],
         payload: AnalysisRequest,
         query: str,
         domain_id: str,
     ) -> None:
         self.provider = provider
+        self.providers = providers
         self.payload = payload
         self.query = query
         self.domain_id = domain_id
@@ -266,4 +269,25 @@ class _SourceAdapter:
     ) -> list[AnalysisSourceRead]:
         """Fetch using an explicit query variant for autonomous research agents."""
         effective_limit = limit if limit is not None else self.limit
-        return await self.provider.fetch(query, effective_limit, self.domain_id)
+        candidates = [self.provider.key, *self.provider.fallback_keys]
+        first_error: Exception | None = None
+        for key in candidates:
+            provider = self.providers.get(key)
+            if provider is None or provider.is_available() is not None:
+                continue
+            try:
+                results = await provider.fetch(query, effective_limit, self.domain_id)
+            except Exception as exc:
+                if first_error is None:
+                    first_error = exc
+                logger.warning(
+                    "Provider %s failed (%s), trying fallback",
+                    key,
+                    f"{type(exc).__name__}: {str(exc)[:120]}",
+                )
+                continue
+            if results:
+                return results
+        if first_error is not None:
+            raise first_error
+        return []

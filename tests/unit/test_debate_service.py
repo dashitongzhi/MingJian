@@ -591,3 +591,51 @@ class TestDebateHelpers:
         assert result["position"] == "SUPPORT"
         assert result["confidence"] == 0.8
         assert "Arg1" in result["key_arguments"]
+
+    def test_fallback_stream_round_is_context_specific(self, debate_service):
+        """LLM 单轮失败时应生成可审计的上下文论点，而不是占位文本。"""
+        round_payload = debate_service._fallback_stream_round(
+            round_number=1,
+            role="advocate",
+            topic="Should MingJian ship monitored recommendations",
+            context=(
+                "Subject: MingJian Cloud\n"
+                "Evidence: source cursor health changed after refresh\n"
+                "Report summary: recommendation timeline updated"
+            ),
+            evidence_ids=["ev-cursor", "ev-report"],
+            completed_rounds=[],
+        )
+
+        argument = round_payload["arguments"][0]
+        combined_text = f"{argument['claim']} {argument['reasoning']}"
+        assert "did not return a structured debate payload" not in combined_text
+        assert "neutral fallback" not in combined_text
+        assert "MingJian" in argument["claim"]
+        assert argument["evidence_ids"] == ["ev-cursor", "ev-report"]
+        assert argument["fallback_generated"] is True
+        assert any("Subject: MingJian Cloud" in item for item in argument["context_signals"])
+
+    def test_challenger_fallback_rebuts_prior_claim(self, debate_service):
+        """挑战方 fallback 应引用前序论点并形成交叉质询。"""
+        round_payload = debate_service._fallback_stream_round(
+            round_number=2,
+            role="challenger",
+            topic="Approve the source-change recommendation",
+            context="Evidence: source refresh has one stale provider",
+            evidence_ids=["ev-stale-provider"],
+            completed_rounds=[
+                {
+                    "arguments": [
+                        {
+                            "claim": "The recommendation is safe because source health is green.",
+                        }
+                    ]
+                }
+            ],
+        )
+
+        assert round_payload["position"] == "OPPOSE"
+        assert round_payload["arguments"][0]["fallback_generated"] is True
+        assert round_payload["rebuttals"]
+        assert "source health is green" in round_payload["rebuttals"][0]["counter"]

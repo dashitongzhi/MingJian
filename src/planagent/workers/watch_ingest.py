@@ -619,11 +619,26 @@ class WatchIngestWorker(Worker):
                 tenant_id=rule.tenant_id,
                 preset_id=rule.preset_id,
             )
+            if not await source_state_service.should_fetch(
+                session,
+                state,
+                force_full_refresh_every_minutes=rule.force_full_refresh_every_minutes,
+            ):
+                continue
             content_text = self._change_detection_text(rule, source_items)
             content_hash = change_service.compute_content_hash(
                 content_text,
                 sources=source_items,
             )
+            if state.last_seen_hash == content_hash:
+                await source_state_service.update_after_fetch(
+                    session,
+                    state.id,
+                    success=True,
+                    content_hash=content_hash,
+                    raw_source_item_id=None,
+                )
+                continue
             record = await change_service.detect_change(
                 session,
                 state,

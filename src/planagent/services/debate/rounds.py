@@ -262,7 +262,14 @@ class DebateRoundMixin:
             own_previous=messages["own_previous"],
         )
         if position is None:
-            return self._fallback_stream_round(round_number, role, evidence_ids)
+            return self._fallback_stream_round(
+                round_number=round_number,
+                role=role,
+                topic=topic,
+                context=context,
+                evidence_ids=evidence_ids,
+                completed_rounds=completed_rounds,
+            )
         return self._position_to_round_payload(round_number, role, position, evidence_ids)
 
     def _build_round_messages(
@@ -371,29 +378,116 @@ class DebateRoundMixin:
 
     def _fallback_stream_round(
         self,
+        *,
         round_number: int,
         role: str,
+        topic: str,
+        context: str,
         evidence_ids: list[str],
+        completed_rounds: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         position = "OPPOSE" if role == "challenger" else "CONDITIONAL"
         if role == "advocate" and round_number == 1:
             position = "SUPPORT"
+        context_signals = self._fallback_context_signals(context)
+        primary_signal = context_signals[0] if context_signals else topic
+        prior_claim = self._fallback_prior_claim(completed_rounds or [])
+        role_label = role.replace("_", " ")
+        if role in {"challenger", "risk_analyst", "intel_analyst"}:
+            claim = f"{role_label} flags a verification risk in {topic}: {primary_signal}"
+            reasoning = (
+                "The fallback round preserved the adversarial review because the cited context "
+                "still needs confirmation against source freshness, conflict claims, and "
+                "downstream decision impact."
+            )
+            strength = "MODERATE" if evidence_ids else "WEAK"
+            rebuttals = [
+                {
+                    "target_argument_idx": 0,
+                    "counter": prior_claim
+                    or f"The supportive case for {topic} has not yet resolved this risk.",
+                    "evidence_ids": evidence_ids[:3],
+                }
+            ]
+            concessions: list[dict[str, Any]] = []
+        elif role in {"arbitrator", "opportunist"}:
+            claim = f"{role_label} keeps {topic} conditional pending the decisive evidence check."
+            reasoning = (
+                "The fallback arbitration weighs the available context signals and keeps the "
+                "verdict conditional until the debate has a fully structured support and "
+                "challenge record."
+            )
+            strength = "MODERATE" if evidence_ids else "WEAK"
+            rebuttals = []
+            concessions = [
+                {
+                    "argument_idx": 0,
+                    "reason": f"Recheck this context signal before promotion: {primary_signal}",
+                }
+            ]
+        else:
+            claim = f"{role_label} supports a provisional read on {topic}: {primary_signal}"
+            reasoning = (
+                "The fallback round anchors the role's position to the provided debate context, "
+                "then narrows the claim to a provisional recommendation that should be refreshed "
+                "when the model response becomes available."
+            )
+            strength = "MODERATE" if evidence_ids else "WEAK"
+            rebuttals = []
+            concessions = []
         return {
             "round_number": round_number,
             "role": role,
             "position": position,
-            "confidence": 0.5,
+            "confidence": 0.56 if evidence_ids else 0.48,
             "arguments": [
                 {
-                    "claim": f"{role} did not return a structured debate payload.",
+                    "claim": claim,
                     "evidence_ids": evidence_ids[:3],
-                    "reasoning": "The stream preserved the debate sequence with a neutral fallback round.",
-                    "strength": "WEAK",
+                    "reasoning": reasoning,
+                    "strength": strength,
+                    "fallback_generated": True,
+                    "context_signals": context_signals,
                 }
             ],
-            "rebuttals": [],
-            "concessions": [],
+            "rebuttals": rebuttals,
+            "concessions": concessions,
         }
+
+    def _fallback_context_signals(self, context: str, limit: int = 3) -> list[str]:
+        signals: list[str] = []
+        preferred_prefixes = (
+            "Claim:",
+            "Evidence:",
+            "Evidence title:",
+            "Subject:",
+            "Final state:",
+            "Matched rules:",
+            "Shocks:",
+            "Report summary:",
+            "Strongest support:",
+            "Strongest conflict:",
+            "Trigger context:",
+        )
+        for raw_line in context.splitlines():
+            line = " ".join(raw_line.strip().split())
+            if not line:
+                continue
+            if line.startswith(preferred_prefixes):
+                signals.append(line[:240])
+            elif not signals and len(line) >= 24:
+                signals.append(line[:240])
+            if len(signals) >= limit:
+                break
+        return list(dict.fromkeys(signals))
+
+    def _fallback_prior_claim(self, completed_rounds: list[dict[str, Any]]) -> str | None:
+        for round_payload in reversed(completed_rounds):
+            for argument in round_payload.get("arguments", []) or []:
+                claim = str(argument.get("claim", "")).strip()
+                if claim:
+                    return claim[:240]
+        return None
 
     async def _persist_stream_round(
         self,

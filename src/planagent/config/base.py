@@ -41,7 +41,12 @@ class BaseAppSettings(BaseSettings):
     source_snapshot_dir: Path = Field(default=Path("source_snapshots"))
     additional_rss_feeds: str = ""
     source_failure_degraded_threshold: int = 5
+    source_failure_circuit_breaker_threshold: int = 10
+    source_failure_backoff_base_minutes: int = 5
+    source_failure_backoff_max_minutes: int = 360
+    source_http_user_agent: str = "MingJian/0.1 (+https://mingjian.kralai.tech)"
     backpressure_pending_threshold: int = 1000
+    runtime_recent_error_window_hours: int = 24
     graph_embedding_dimensions: int = 64
     analysis_cache_enabled: bool = True
     inline_ingest_default: bool = True
@@ -65,6 +70,8 @@ class BaseAppSettings(BaseSettings):
     debate_arbitrator_provider: str = "openai"
     accepted_claim_confidence: float = 0.70
     review_claim_confidence_floor: float = 0.45
+    review_auto_process_confidence: float = 0.62
+    review_conditional_accept_confidence: float = 0.575
     source_snapshot_retention_days: int = 90
     report_retention_days: int = 30
     default_corporate_ticks: int = 6
