@@ -1,6 +1,15 @@
+import { clearAuthTokens, readAuthToken, readRefreshToken, storeAuthTokens } from '../lib/auth'
+
 const BASE = '/api'
+const REQUEST_TIMEOUT_MS = 30_000
 const NETWORK_RETRY_DELAYS_MS = [300, 800, 1500]
-const AUTH_TOKEN_KEYS = ['mingjian_access_token', 'planagent_access_token', 'auth_token']
+
+type TokenRefreshResponse = {
+  access_token: string
+  refresh_token: string
+}
+
+let refreshSessionPromise: Promise<boolean> | null = null
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -10,44 +19,97 @@ function isNetworkFailure(error: unknown) {
   return error instanceof TypeError && error.message === 'Failed to fetch'
 }
 
-function authToken() {
-  for (const key of AUTH_TOKEN_KEYS) {
-    const token = window.localStorage.getItem(key)
-    if (token) return token
+function isAbortFailure(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const upstreamSignal = init?.signal
+
+  if (upstreamSignal?.aborted) {
+    controller.abort()
   }
-  return ''
+
+  const abortFromUpstream = () => controller.abort()
+  upstreamSignal?.addEventListener('abort', abortFromUpstream, { once: true })
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeout)
+    upstreamSignal?.removeEventListener('abort', abortFromUpstream)
+  }
 }
 
 function requestHeaders(headers?: HeadersInit) {
-  const token = authToken()
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...headers,
-  }
+  const merged = new Headers(headers)
+  if (!merged.has('Content-Type')) merged.set('Content-Type', 'application/json')
+  const token = readAuthToken()
+  if (token) merged.set('Authorization', `Bearer ${token}`)
+  return merged
 }
 
-function handleUnauthorized() {
-  for (const key of AUTH_TOKEN_KEYS) {
-    window.localStorage.removeItem(key)
-  }
+function expireAuthSession() {
+  clearAuthTokens()
   window.dispatchEvent(new CustomEvent('mingjian:auth-expired'))
+}
+
+async function refreshAuthSession() {
+  const refreshToken = readRefreshToken()
+  if (!refreshToken) return false
+
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = (async () => {
+      const res = await fetchWithTimeout(`${BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+
+      if (!res.ok) return false
+
+      const body = (await res.json()) as TokenRefreshResponse
+      if (!body.access_token || !body.refresh_token) return false
+      storeAuthTokens(body.access_token, body.refresh_token)
+      return true
+    })().finally(() => {
+      refreshSessionPromise = null
+    })
+  }
+
+  return refreshSessionPromise
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method || 'GET').toUpperCase()
   const retryNetworkFailure = method === 'GET' || method === 'HEAD'
+  let authRetryAvailable = !path.startsWith('/auth/refresh')
   let lastError: unknown
 
   for (let attempt = 0; attempt <= NETWORK_RETRY_DELAYS_MS.length; attempt += 1) {
     try {
-      const res = await fetch(`${BASE}${path}`, {
-        headers: requestHeaders(init?.headers),
+      const res = await fetchWithTimeout(`${BASE}${path}`, {
         ...init,
+        headers: requestHeaders(init?.headers),
       })
 
       if (!res.ok) {
-        if (res.status === 401) handleUnauthorized()
+        if (res.status === 401 && authRetryAvailable) {
+          authRetryAvailable = false
+          const refreshed = await refreshAuthSession()
+          if (refreshed) {
+            attempt -= 1
+            continue
+          }
+          expireAuthSession()
+        } else if (res.status === 401) {
+          expireAuthSession()
+        }
         const body = await res.text().catch(() => '')
         throw new Error(`API ${res.status}: ${body}`)
       }
@@ -64,7 +126,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (isNetworkFailure(lastError)) {
     throw new Error('网络连接失败，请确认后端服务已启动后重试')
   }
+  if (isAbortFailure(lastError)) {
+    throw new Error('请求超时，请稍后重试')
+  }
   throw lastError
+}
+
+function filenameFromDisposition(disposition: string | null, fallback: string) {
+  if (!disposition) return fallback
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  if (encoded) return decodeURIComponent(encoded)
+  const plain = disposition.match(/filename="?([^"]+)"?/i)?.[1]
+  return plain || fallback
+}
+
+async function download(path: string, fallbackFilename: string): Promise<void> {
+  let res = await fetchWithTimeout(`${BASE}${path}`, { headers: requestHeaders() })
+  if (res.status === 401) {
+    const refreshed = await refreshAuthSession()
+    if (refreshed) {
+      res = await fetchWithTimeout(`${BASE}${path}`, { headers: requestHeaders() })
+    } else {
+      expireAuthSession()
+    }
+  }
+  if (!res.ok) {
+    if (res.status === 401) expireAuthSession()
+    const body = await res.text().catch(() => '')
+    throw new Error(`API ${res.status}: ${body}`)
+  }
+  const blob = await res.blob()
+  const filename = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackFilename)
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
 }
 
 export const api = {
@@ -76,4 +176,5 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  download,
 }
