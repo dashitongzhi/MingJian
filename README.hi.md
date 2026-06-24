@@ -1,58 +1,92 @@
 <div align="center">
 
-# 明鉴 (MingJian)
+<br />
+
+# 明鉴 MingJian
 
 ### *स्पष्ट देखें, बुद्धिमत्ता से निर्णय लें*
 
-**AI-संचालित मल्टी-एजेंट प्लेटफ़ॉर्म | प्रमाण-आधारित परिदृश्य सिमुलेशन और रणनीतिक निर्णय लेना**
+**प्रमाण-आधारित निर्णय, मल्टी-एजेंट बहस, परिदृश्य सिमुलेशन और ऑडिट योग्य सिफारिशों के लिए एक ओपन-सोर्स रणनीतिक इंटेलिजेंस कॉकपिट।**
 
 ---
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Vite](https://img.shields.io/badge/Vite-frontend-646CFF.svg)](https://vite.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
+[![Edition](https://img.shields.io/badge/Edition-Community%20OSS-1f6f5b.svg)](#edition-boundary)
+[![License](https://img.shields.io/badge/License-Apache%202.0-2f6f9f.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-2b6cb0.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-0f766e.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-3b82f6.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-7c3aed.svg)](https://vite.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-2563eb.svg)](https://www.typescriptlang.org/)
 
-**🌐 भाषा चयन / Language Selection**
+**Language / भाषा**
 
-[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
+[English](README.md) · [中文](README.zh-CN.md) · [हिन्दी](README.hi.md) · [日本語](README.ja.md)
+
+<br />
+
+| Signal | MingJian क्या देता है |
+| --- | --- |
+| Evidence first | हर सिफारिश स्रोतों, निकाले गए दावों और replayable traces से जुड़ी रहती है। |
+| Debate, not monologue | विशेष भूमिका वाले agents उत्तर लौटाने से पहले धारणाओं को चुनौती देते हैं। |
+| Local sovereignty | Community स्थानीय रूप से चलती है, open-source code, local data control और 24-hour monitoring window के साथ। |
+| Decision memory | Sessions, recommendation versions, refreshes, source health और user outcomes जुड़े रहते हैं। |
 
 </div>
 
 ---
 
-## 🌟 明鉴 क्यों चुनें?
+## Product Read
 
-> **"पहला ओपन-सोर्स प्लेटफ़ॉर्म जो प्रमाण-आधारित विश्लेषण, मल्टी-एजेंट बहस, और रीयल-टाइम सिमुलेशन को एकीकृत कार्यक्षेत्र में जोड़ता है।"**
+MingJian उन लोगों के लिए है जिन्हें अनिश्चितता में महत्वपूर्ण निर्णय लेने होते हैं: founders, analysts, operators, researchers, strategists और वे teams जिन्हें blind trust नहीं बल्कि inspectable evidence चाहिए।
 
-明鉴 केवल एक और AI उपकरण नहीं है — यह संगठनों द्वारा रणनीतिक निर्णय लेने के तरीके में एक **प्रतिमान बदलाव** है। 10+ रीयल-टाइम डेटा स्रोतों, प्रतिस्पर्धी मल्टी-एजेंट बहस, और निर्धारक निर्णय ट्रेस को मिलाकर, 明鉴 उस "ब्लैक बॉक्स" समस्या को समाप्त करता है जो पारंपरिक AI प्रणालियों को परेशान करती है।
+यह product experience chat box से अधिक strategic intelligence cockpit जैसा है। User decision-support request देता है; MingJian evidence gather करता है, analysis और simulation चलाता है, debate council बुलाता है, first recommendation देता है, और बाद के source changes व recommendation versions को जोड़कर रखता है।
 
 ---
 
-## 🎯 आज की बुद्धिमान विश्लेषण प्रणालियों की समस्या
+## Edition Boundary
 
-वर्तमान AI विश्लेषण प्रणालियाँ — ChatGPT से लेकर एंटरप्राइज़ कोपायलट तक — एक ही मूलभूत दोष साझा करती हैं:
+| Edition | Distribution | Core Workflow | Commercial Layer |
+| --- | --- | --- | --- |
+| **Community** | Apache 2.0 self-hosted upstream | Full public decision workflow with 24-hour local monitoring | None |
+| **Cloud** | Hosted SaaS subscription | Superset of Community public core | Subscription, metering, tenant operations |
+| **Enterprise** | Private / on-prem deployment | Superset of Community public core | License, audit, governance, private connectors |
 
-- ❌ **भ्रम को तथ्य मानना** — LLM बिना वास्तविक डेटा के आधार के आत्मविश्वास से आँकड़े, स्रोत और निष्कर्ष गढ़ते हैं। आप सत्य को कल्पना से अलग नहीं कर सकते।
-- ❌ **एकल-मॉडल अंधे धब्बे** — एक मॉडल, एक विश्वदृष्टि। कोई जिरह नहीं, कोई प्रतिस्पर्धी चुनौती नहीं, कोई दूसरी राय नहीं। पूर्वाग्रह अनदेखे रह जाते हैं।
-- ❌ **ब्लैक बॉक्स तर्क** — आपको उत्तर मिलता है, लेकिन *कैसे*? कोई प्रमाण श्रृंखला नहीं, कोई स्रोत श्रेय नहीं, तर्क की ऑडिट या पुनरुत्पादन का कोई तरीका नहीं।
-- ❌ **पुराना ज्ञान, कोई प्रमाण नहीं** — मॉडल समय में जमे प्रशिक्षण डेटा पर निर्भर करते हैं। वे समाचार, बाज़ार या सेंसर से लाइव इंटेलिजेंस प्राप्त नहीं कर सकते — वे *जानने* के बजाय *अनुमान लगाते* हैं।
-- ❌ **कोई स्व-सुधार नहीं** — AI आउटपुट फायर-एंड-फॉरगेट हैं। त्रुटियाँ चुपचाप फैलती हैं। कोई समीक्षा लूप नहीं, कोई गुणवत्ता गेट नहीं, कोई पुनरावृत्ति परिशोधन नहीं।
-- ❌ **खंडित कार्यप्रवाह** — डेटा संग्रह, विश्लेषण, बहस और रिपोर्टिंग अलग-अलग उपकरणों में रहते हैं। हर हैंडऑफ़ पर संदर्भ खो जाता है।
-- ❌ **शून्य पुनरुत्पादनशीलता** — एक ही प्रश्न दो बार चलाएँ, अलग उत्तर मिलें। कोई निर्धारक ट्रेस नहीं, कोई निर्णय लॉग नहीं, कोई जवाबदेही नहीं।
+यह repository **Community** edition है। इसमें Cloud subscription surfaces, Enterprise-only governance code या proprietary mobile entry point नहीं जोड़े जाने चाहिए जब तक उन्हें explicitly public न किया जाए।
 
-## 💡 明鉴 इसे कैसे हल करता है
+---
 
-明鉴 अनुमान को **प्रमाण** से, राय को **बहस** से, और ब्लैक बॉक्स को **ट्रेस** से बदलता है:
+## Decision Workflow
 
-- ✅ **प्रमाण-आधारित** — प्रत्येक विश्लेषण 10+ स्रोतों (Google News, Reddit, GitHub, GDELT, X/Twitter, और अधिक) से रीयल-टाइम डेटा पर आधारित है। कोई भ्रम नहीं, कोई मनगढ़ंत बात नहीं।
-- ✅ **मल्टी-एजेंट प्रतिस्पर्धी बहस** — GPT, Gemini, Claude, और Grok केवल सहमत नहीं होते — वे एक-दूसरे को **चुनौती** देते हैं। अंधे धब्बे उजागर होते हैं, पूर्वाग्रहों को चुनौती मिलती है।
-- ✅ **पूर्ण ऑडिट ट्रेल** — हर कदम दर्ज किया जाता है: परामर्श किए गए स्रोत, किए गए तर्क, लिए गए निर्णय। पूर्णतः पारदर्शी, पूर्णतः पुनरुत्पादनीय।
-- ✅ **रीयल-टाइम इंटेलिजेंस** — लाइव डेटा इनजेशन, स्ट्रीमिंग विश्लेषण, और तत्काल अंतर्दृष्टि वितरण। कोई जमा हुआ प्रशिक्षण डेटा नहीं।
-- ✅ **स्व-उपचार पाइपलाइन** — Jarvis इंजन अपने आउटपुट की समीक्षा, आलोचना और पुनरावृत्ति करता है जब तक गुणवत्ता थ्रेसहोल्ड पूरे नहीं हो जाते। त्रुटियाँ आप तक पहुँचने से पहले पकड़ी जाती हैं।
+```text
+Question
+  -> source discovery
+  -> evidence extraction
+  -> analysis and simulation
+  -> role-based debate
+  -> recommendation
+  -> version timeline
+  -> scheduled / source-change refresh
+  -> decision record and outcome feedback
+```
+
+| Stage | Purpose | User-visible proof |
+| --- | --- | --- |
+| Gather | News, code, social और public data feeds से multi-source evidence collect करना। | Source list, cursor health, last checked time. |
+| Reason | Evidence को arguments, risks, simulations और structured claims में बदलना। | Analysis artifacts, report sections, debate rounds. |
+| Debate | Role-based agents से critique, revise और arbitrate करवाना। | Advocate, challenger और arbiter traces. |
+| Remember | Sessions, recommendation versions, refresh triggers और outcomes persist करना। | Timeline, recommendation history, feedback records. |
+
+---
+
+## What Makes It Different
+
+| Old AI Analysis | MingJian |
+| --- | --- |
+| One answer, little context. | Evidence chain, debate trail और recommendation versions. |
+| Single-model blind spots. | Support, challenge और arbitration roles के साथ multi-agent critique. |
+| Static responses. | Scheduled refresh और source-change updates. |
+| Hard to audit. | Deterministic traces, source attribution और decision records. |
+| Generic workflow. | Strategy, risk, market, policy, technical, social और security perspectives. |
 
 ---
 

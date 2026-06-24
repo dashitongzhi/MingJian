@@ -1,58 +1,92 @@
 <div align="center">
 
-# 明鉴 (MingJian)
+<br />
+
+# 明鉴 MingJian
 
 ### *明察秋毫、鑑往知来*
 
-**AI駆動マルチエージェントプラットフォーム | 証拠駆動シナリオシミュレーションと戦略的意思決定**
+**証拠に基づく意思決定、マルチエージェント討論、シナリオシミュレーション、監査可能な推薦のためのオープンソース戦略インテリジェンス・コックピット。**
 
 ---
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Vite](https://img.shields.io/badge/Vite-frontend-646CFF.svg)](https://vite.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
+[![Edition](https://img.shields.io/badge/Edition-Community%20OSS-1f6f5b.svg)](#エディション境界)
+[![License](https://img.shields.io/badge/License-Apache%202.0-2f6f9f.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-2b6cb0.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-0f766e.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-3b82f6.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-7c3aed.svg)](https://vite.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-2563eb.svg)](https://www.typescriptlang.org/)
 
-**🌐 言語選択 / Language Selection**
+**Language / 言語**
 
-[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
+[English](README.md) · [中文](README.zh-CN.md) · [हिन्दी](README.hi.md) · [日本語](README.ja.md)
+
+<br />
+
+| Signal | MingJian が提供するもの |
+| --- | --- |
+| Evidence first | すべての推薦が収集ソース、抽出された主張、再生可能なトレースに接続されます。 |
+| Debate, not monologue | 専門ロールのエージェントが、回答前に前提を検証します。 |
+| Local sovereignty | Community はローカルで実行でき、オープンソースコード、ローカルデータ管理、24時間監視ウィンドウを備えます。 |
+| Decision memory | セッション、推薦バージョン、更新、ソース健全性、ユーザー結果を一続きに保持します。 |
 
 </div>
 
 ---
 
-## 🌟 なぜ明鉴を選ぶのか？
+## Product Read
 
-> **「証拠駆動分析、マルチエージェントディベート、リアルタイムシミュレーションを一つの統合ワークスペースに結合した最初のオープンソースプラットフォーム」**
+MingJian は、不確実性の中で重要な判断を下す人のために作られています。創業者、アナリスト、運用担当者、研究者、戦略チーム、そして「信じるだけの答え」ではなく検証可能な証拠を必要とするチーム向けです。
 
-明鉴は単なるAIツールではありません — 組織が戦略的意思決定を行う方法における**パラダイムシフト**です。10以上のリアルタイムデータソース、対立型マルチエージェントディベート、そして決定論的な意思決定トレースを組み合わせることで、明鉴は従来のAIシステムを悩ませる「ブラックボックス」問題を排除します。
+体験はチャットボックスというより、戦略インテリジェンス・コックピットです。ユーザーが意思決定支援リクエストを出すと、MingJian は証拠収集、分析、シミュレーション、討論評議会、最初の推薦を実行し、その後のソース変化や推薦バージョンも記録します。
 
 ---
 
-## 🎯 現在のインテリジェント分析の問題点
+## エディション境界
 
-現在のAI分析システム — ChatGPTからエンタープライズコパイロットまで — すべてが同じ根本的な欠陥を持っています：
+| Edition | Distribution | Core Workflow | Commercial Layer |
+| --- | --- | --- | --- |
+| **Community** | Apache 2.0 self-hosted upstream | 24時間ローカル監視を含む完全な公共意思決定ワークフロー | None |
+| **Cloud** | Hosted SaaS subscription | Community 公共コアのスーパーセット | Subscription, metering, tenant operations |
+| **Enterprise** | Private / on-prem deployment | Community 公共コアのスーパーセット | License, audit, governance, private connectors |
 
-- ❌ **ハルシネーションを事実として扱う** — LLMは統計情報、出典、結論を実データに基づかずに自信を持ってでっち上げます。真実と虚構の区別がつきません。
-- ❌ **単一モデルのブラインドスポット** — 一つのモデル、一つの世界観。相互検証もなく、対立的な挑戦もなく、第二の意見もありません。バイアスは検出されません。
-- ❌ **ブラックボックスの推論** — 答えは得られますが、*どのように*？証拠の連鎖も、出典の帰属もなく、ロジックの監査や再現もできません。
-- ❌ **古い知識、証拠なし** — モデルは時間的に凍結されたトレーニングデータに依存しています。ニュース、市場、センサーからリアルタイムインテリジェンスを取得できません — *知る*のではなく*推測*しているのです。
-- ❌ **自己修正なし** — AIの出力は「発射して忘れる」方式です。エラーは黙って伝播します。レビューループも、品質ゲートも、反復的な精査もありません。
-- ❌ **断片化したワークフロー** — データ収集、分析、ディベート、レポート作成が別々のツールで行われます。各引き継ぎのたびにコンテキストが失われます。
-- ❌ **再現性ゼロ** — 同じクエリを2回実行すると、異なる答えが返されます。決定論的なトレースも、意思決定ログも、説明責任もありません。
+このリポジトリは **Community** edition です。Cloud subscription surfaces、Enterprise-only governance code、proprietary mobile entry point は、明示的に公開する決定がない限り追加しません。
 
-## 💡 明鉴の解決策
+---
 
-明鉴は推測を**証拠**に、意見を**ディベート**に、ブラックボックスを**トレース**に置き換えます：
+## Decision Workflow
 
-- ✅ **証拠に基づく** — すべての分析が10以上のソース（Google News、Reddit、GitHub、GDELT、X/Twitterなど）からのリアルタイムデータに基づいて構築されます。ハルシネーションも捏造もありません。
-- ✅ **マルチエージェント対立型ディベート** — GPT、Gemini、Claude、Grokは単に同意するだけでなく、お互いに**挑戦**します。ブラインドスポットが露呈し、バイアスに異議が唱えられます。
-- ✅ **完全な監査証跡** — すべてのステップが記録されます：参照したソース、行われた議論、意思決定。完全に透明で、完全に再現可能です。
-- ✅ **リアルタイムインテリジェンス** — ライブデータの取り込み、ストリーミング分析、即時インサイトの提供。凍結されたトレーニングデータはありません。
-- ✅ **自己修復パイプライン** — Jarvisエンジンが自らの出力をレビュー、批評、反復し、品質しきい値に達するまで実行します。エラーはあなたの手に届く前に検出されます。
+```text
+Question
+  -> source discovery
+  -> evidence extraction
+  -> analysis and simulation
+  -> role-based debate
+  -> recommendation
+  -> version timeline
+  -> scheduled / source-change refresh
+  -> decision record and outcome feedback
+```
+
+| Stage | Purpose | User-visible proof |
+| --- | --- | --- |
+| Gather | ニュース、コード、ソーシャル、公開データから多元的な証拠を集める。 | Source list, cursor health, last checked time. |
+| Reason | 証拠を論点、リスク、シミュレーション、構造化された主張へ変換する。 | Analysis artifacts, report sections, debate rounds. |
+| Debate | ロール別エージェントが批評、修正、仲裁する。 | Advocate, challenger, arbiter traces. |
+| Remember | セッション、推薦バージョン、更新トリガー、結果を永続化する。 | Timeline, recommendation history, feedback records. |
+
+---
+
+## What Makes It Different
+
+| Old AI Analysis | MingJian |
+| --- | --- |
+| One answer, little context. | Evidence chain, debate trail, recommendation versions. |
+| Single-model blind spots. | Support, challenge, arbitration roles による multi-agent critique. |
+| Static responses. | Scheduled refresh と source-change updates. |
+| Hard to audit. | Deterministic traces, source attribution, decision records. |
+| Generic workflow. | Strategy, risk, market, policy, technical, social, security perspectives. |
 
 ---
 
