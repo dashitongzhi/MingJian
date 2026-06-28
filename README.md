@@ -24,6 +24,15 @@
 
 <br />
 
+<img src="docs/assets/mingjian-brand-poster.png" alt="明鉴中文品牌海报：证据先于观点" width="760" />
+
+<br />
+
+<sub>证据先于观点 · 多源求证 · 多方辩论 · 持续校验</sub>
+
+<br />
+<br />
+
 | Signal | What MingJian Delivers |
 | --- | --- |
 | Evidence first | Every recommendation is grounded in collected sources, extracted claims, and replayable traces. |
