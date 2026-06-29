@@ -3,18 +3,24 @@ name: Codex PR Review
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+        type: number
 
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: codex-pr-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+  group: codex-pr-review-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   codex-review:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +30,20 @@ jobs:
           script: |
             const fs = require("fs");
             const { owner, repo } = context.repo;
-            const pr = context.payload.pull_request;
+            let pr = context.payload.pull_request;
+
+            if (!pr) {
+              const prNumber = Number(core.getInput("pr_number"));
+              if (!Number.isInteger(prNumber) || prNumber <= 0) {
+                throw new Error(`Invalid pr_number input: ${core.getInput("pr_number")}`);
+              }
+              const response = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+              pr = response.data;
+            }
 
             const diffResponse = await github.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
               owner,
@@ -88,6 +107,7 @@ ${clippedDiff}
 `;
 
             fs.writeFileSync(".codex-pr-review-prompt.md", prompt);
+            fs.writeFileSync(".codex-pr-review-pr-number", String(pr.number));
 
       - name: Run Codex review
         id: codex
@@ -107,13 +127,13 @@ ${clippedDiff}
           script: |
             const fs = require("fs");
             const marker = "<!-- codex-pr-review -->";
+            const issue_number = Number(fs.readFileSync(".codex-pr-review-pr-number", "utf8").trim());
             const body = `${marker}
 ## Codex PR Review
 
 ${fs.readFileSync(".codex-pr-review.md", "utf8").trim()}
 `;
             const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
               repo,
