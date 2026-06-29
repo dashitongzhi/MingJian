@@ -15,7 +15,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: codex-pr-review-${{ github.repository }}-${{ github.run_id }}
+  group: codex-pr-review-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -49,13 +49,6 @@ jobs:
               process.exit(0);
             }
 
-            const diffResponse = await github.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
-              owner,
-              repo,
-              pull_number: pr.number,
-              headers: { accept: "application/vnd.github.v3.diff" },
-            });
-
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner,
               repo,
@@ -67,12 +60,34 @@ jobs:
               .map((file) => `- ${file.status} ${file.filename} (+${file.additions}/-${file.deletions})`)
               .join("\n");
 
-            const diff = String(diffResponse.data || "");
             const maxDiffChars = 180000;
+            let remainingDiffChars = maxDiffChars;
+            let diffWasTruncated = false;
+            const diffSections = [];
+
+            for (const file of files) {
+              const header = [
+                `diff --git a/${file.filename} b/${file.filename}`,
+                `# status=${file.status} additions=${file.additions} deletions=${file.deletions}`,
+              ].join("\n");
+              const patch = file.patch || "[Patch unavailable from GitHub, likely binary or too large.]";
+              const section = `${header}\n${patch}\n`;
+
+              if (section.length > remainingDiffChars) {
+                if (remainingDiffChars > 500) {
+                  diffSections.push(section.slice(0, remainingDiffChars));
+                }
+                diffWasTruncated = true;
+                break;
+              }
+
+              diffSections.push(section);
+              remainingDiffChars -= section.length;
+            }
+
             const clippedDiff =
-              diff.length > maxDiffChars
-                ? diff.slice(0, maxDiffChars) + "\n\n[Diff truncated for review budget.]"
-                : diff;
+              diffSections.join("\n") +
+              (diffWasTruncated ? "\n\n[Diff truncated for review budget.]" : "");
 
             const prompt = `You are reviewing a GitHub pull request for ${owner}/${repo}.
 
