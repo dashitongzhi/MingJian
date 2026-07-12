@@ -106,6 +106,7 @@ class AuthService:
         self._revoked_tokens = OrderedDict() if self._db_enabled else set()
         self._max_revoked_tokens: int = 100_000
         self._refresh_tokens: dict[str, str] = {}  # token_hash -> user_id
+        self._token_epoch = 0
 
         if self.config.create_default_admin:
             self._ensure_default_admin()
@@ -265,7 +266,13 @@ class AuthService:
             while len(self._revoked_tokens) > self._max_revoked_tokens:
                 self._revoked_tokens.popitem(last=False)
         else:
-            self._revoked_tokens.add(token_hash)
+            if token_hash not in self._revoked_tokens:
+                if len(self._revoked_tokens) >= self._max_revoked_tokens:
+                    self._token_epoch += 1
+                    self._revoked_tokens.clear()
+                    self._refresh_tokens.clear()
+                else:
+                    self._revoked_tokens.add(token_hash)
         self._refresh_tokens.pop(token_hash, None)
 
     # ── Token Operations ──────────────────────────────────────
@@ -282,6 +289,7 @@ class AuthService:
             "email": user.email,
             "role": user.role.value,
             "type": "access",
+            "epoch": self._token_epoch,
             "iss": self.config.issuer,
             "iat": now,
             "exp": now + timedelta(minutes=self.config.access_token_expire_minutes),
@@ -295,6 +303,7 @@ class AuthService:
             "jti": str(uuid.uuid4()),
             "sub": user.id,
             "type": "refresh",
+            "epoch": self._token_epoch,
             "iss": self.config.issuer,
             "iat": now,
             "exp": now + timedelta(days=self.config.refresh_token_expire_days),
@@ -334,6 +343,8 @@ class AuthService:
                 algorithms=[self.config.algorithm],
             )
             if payload.get("type") != "access":
+                return None
+            if not self._db_enabled and payload.get("epoch") != self._token_epoch:
                 return None
 
             # Check user still exists and is active
@@ -411,6 +422,8 @@ class AuthService:
                 algorithms=[self.config.algorithm],
             )
             if payload.get("type") != "refresh":
+                return None
+            if not self._db_enabled and payload.get("epoch") != self._token_epoch:
                 return None
         except jwt.InvalidTokenError:
             return None

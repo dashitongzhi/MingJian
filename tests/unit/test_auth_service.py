@@ -373,6 +373,29 @@ class TestTokenRevocation:
 
         assert auth_service.refresh_access_token(tokens.refresh_token) is None
 
+    def test_nonpersistent_cache_saturation_invalidates_existing_tokens(
+        self, auth_service: AuthService
+    ):
+        """A full in-memory denylist invalidates all old tokens instead of evicting revocations."""
+        auth_service._max_revoked_tokens = 1
+        auth_service.create_user("epoch", "epoch@test.com", "pass")
+        first_tokens = auth_service.authenticate("epoch", "pass")
+        second_tokens = auth_service.authenticate("epoch", "pass")
+        assert first_tokens is not None
+        assert second_tokens is not None
+
+        auth_service.revoke_token(first_tokens.access_token)
+        auth_service.revoke_token(second_tokens.access_token)
+
+        assert len(auth_service._revoked_tokens) == 0
+        assert auth_service.verify_token(first_tokens.access_token) is None
+        assert auth_service.verify_token(second_tokens.access_token) is None
+        assert auth_service.refresh_access_token(first_tokens.refresh_token) is None
+
+        renewed_tokens = auth_service.authenticate("epoch", "pass")
+        assert renewed_tokens is not None
+        assert auth_service.verify_token(renewed_tokens.access_token) is not None
+
 
 # ---------------------------------------------------------------------------
 # 默认 admin
