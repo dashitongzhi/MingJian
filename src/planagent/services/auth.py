@@ -457,7 +457,9 @@ def _hash_token(token: str) -> str:
 
 def _token_expires_at(token: str, secret_key: str, algorithm: str) -> datetime | None:
     try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm], options={"verify_exp": False})
+        payload = jwt.decode(
+            token, secret_key, algorithms=[algorithm], options={"verify_exp": False}
+        )
     except jwt.InvalidTokenError:
         return None
     exp = payload.get("exp")
@@ -467,9 +469,8 @@ def _token_expires_at(token: str, secret_key: str, algorithm: str) -> datetime |
 
 
 def _sync_database_url(database_url: str) -> str:
-    return (
-        database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
-        .replace("sqlite+aiosqlite://", "sqlite://")
+    return database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://").replace(
+        "sqlite+aiosqlite://", "sqlite://"
     )
 
 
