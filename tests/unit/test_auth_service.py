@@ -339,8 +339,10 @@ class TestTokenRevocation:
         # u_b 的 token 应仍然有效
         assert auth_service.verify_token(tokens_b.access_token) is not None
 
-    def test_revoked_access_token_cache_evicts_oldest_entry(self, auth_service: AuthService):
-        """The fast in-memory access-token denylist remains bounded."""
+    def test_persistent_revocation_survives_cache_eviction(self, tmp_path):
+        """The bounded cache cannot revalidate an unexpired revoked access token."""
+        db_url = f"sqlite:///{tmp_path / 'bounded-auth.db'}"
+        auth_service = make_db_auth_service(db_url)
         auth_service._max_revoked_tokens = 2
         auth_service.create_user("bounded", "bounded@test.com", "pass")
         tokens = [auth_service.authenticate("bounded", "pass") for _ in range(3)]
@@ -353,12 +355,12 @@ class TestTokenRevocation:
         assert _hash_token(tokens[0].access_token) not in auth_service._revoked_tokens
         assert _hash_token(tokens[1].access_token) in auth_service._revoked_tokens
         assert _hash_token(tokens[2].access_token) in auth_service._revoked_tokens
+        assert auth_service.verify_token(tokens[0].access_token) is None
 
     def test_revoked_refresh_token_cannot_recover_after_access_cache_eviction(
         self, auth_service: AuthService
     ):
         """Refresh-token revocation is not weakened by access-cache eviction."""
-        auth_service._max_revoked_tokens = 1
         auth_service.create_user("refresh-bound", "refresh-bound@test.com", "pass")
         tokens = auth_service.authenticate("refresh-bound", "pass")
         assert tokens is not None

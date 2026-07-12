@@ -102,7 +102,8 @@ class AuthService:
         self._users: dict[str, User] = {}  # user_id -> User
         self._username_index: dict[str, str] = {}  # username -> user_id
         self._email_index: dict[str, str] = {}  # email -> user_id
-        self._revoked_tokens: OrderedDict[str, None] = OrderedDict()  # token_hash -> None
+        self._revoked_tokens: set[str] | OrderedDict[str, None]
+        self._revoked_tokens = OrderedDict() if self._db_enabled else set()
         self._max_revoked_tokens: int = 100_000
         self._refresh_tokens: dict[str, str] = {}  # token_hash -> user_id
 
@@ -249,9 +250,8 @@ class AuthService:
         return self._create_token_pair(user)
 
     def revoke_token(self, token: str) -> None:
-        """Revoke a token without retaining an unbounded access-token cache."""
+        """Revoke a token while preserving revocation semantics in every mode."""
         token_hash = _hash_token(token)
-        token_type = _token_type(token, self.config.secret_key, self.config.algorithm)
         expires_at = _token_expires_at(token, self.config.secret_key, self.config.algorithm)
         if self._db_enabled:
             with self._session() as session:
@@ -261,10 +261,11 @@ class AuthService:
                 if session.get(AuthRevokedToken, token_hash) is None:
                     session.add(AuthRevokedToken(token_hash=token_hash, expires_at=expires_at))
                 session.commit()
-        if token_type != "refresh":
             self._revoked_tokens[token_hash] = None
             while len(self._revoked_tokens) > self._max_revoked_tokens:
                 self._revoked_tokens.popitem(last=False)
+        else:
+            self._revoked_tokens.add(token_hash)
         self._refresh_tokens.pop(token_hash, None)
 
     # ── Token Operations ──────────────────────────────────────
@@ -463,15 +464,6 @@ def _token_expires_at(token: str, secret_key: str, algorithm: str) -> datetime |
     if exp is None:
         return None
     return datetime.fromtimestamp(float(exp), tz=timezone.utc)
-
-
-def _token_type(token: str, secret_key: str, algorithm: str) -> str | None:
-    try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm], options={"verify_exp": False})
-    except jwt.InvalidTokenError:
-        return None
-    token_type = payload.get("type")
-    return token_type if isinstance(token_type, str) else None
 
 
 def _sync_database_url(database_url: str) -> str:
