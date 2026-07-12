@@ -6,7 +6,7 @@ import pytest
 import jwt
 
 from planagent.domain.models import Base
-from planagent.services.auth import AuthConfig, AuthService, UserRole
+from planagent.services.auth import AuthConfig, AuthService, UserRole, _hash_token
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +338,38 @@ class TestTokenRevocation:
         assert auth_service.verify_token(tokens_a.access_token) is None
         # u_b 的 token 应仍然有效
         assert auth_service.verify_token(tokens_b.access_token) is not None
+
+    def test_revoked_access_token_cache_evicts_oldest_entry(self, auth_service: AuthService):
+        """The fast in-memory access-token denylist remains bounded."""
+        auth_service._max_revoked_tokens = 2
+        auth_service.create_user("bounded", "bounded@test.com", "pass")
+        tokens = [auth_service.authenticate("bounded", "pass") for _ in range(3)]
+        assert all(token is not None for token in tokens)
+
+        for token in tokens:
+            auth_service.revoke_token(token.access_token)
+
+        assert len(auth_service._revoked_tokens) == 2
+        assert _hash_token(tokens[0].access_token) not in auth_service._revoked_tokens
+        assert _hash_token(tokens[1].access_token) in auth_service._revoked_tokens
+        assert _hash_token(tokens[2].access_token) in auth_service._revoked_tokens
+
+    def test_revoked_refresh_token_cannot_recover_after_access_cache_eviction(
+        self, auth_service: AuthService
+    ):
+        """Refresh-token revocation is not weakened by access-cache eviction."""
+        auth_service._max_revoked_tokens = 1
+        auth_service.create_user("refresh-bound", "refresh-bound@test.com", "pass")
+        tokens = auth_service.authenticate("refresh-bound", "pass")
+        assert tokens is not None
+
+        auth_service.revoke_token(tokens.refresh_token)
+        for _ in range(2):
+            access_tokens = auth_service.authenticate("refresh-bound", "pass")
+            assert access_tokens is not None
+            auth_service.revoke_token(access_tokens.access_token)
+
+        assert auth_service.refresh_access_token(tokens.refresh_token) is None
 
 
 # ---------------------------------------------------------------------------
