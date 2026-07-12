@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 import jwt
 
-from planagent.domain.models import Base
+from planagent.domain.models import Base, utc_now
 from planagent.services.auth import AuthConfig, AuthService, UserRole, _hash_token
 
 
@@ -373,28 +375,20 @@ class TestTokenRevocation:
 
         assert auth_service.refresh_access_token(tokens.refresh_token) is None
 
-    def test_nonpersistent_cache_saturation_invalidates_existing_tokens(
+    def test_nonpersistent_revocations_prune_only_expired_access_tokens(
         self, auth_service: AuthService
     ):
-        """A full in-memory denylist invalidates all old tokens instead of evicting revocations."""
-        auth_service._max_revoked_tokens = 1
-        auth_service.create_user("epoch", "epoch@test.com", "pass")
-        first_tokens = auth_service.authenticate("epoch", "pass")
-        second_tokens = auth_service.authenticate("epoch", "pass")
-        assert first_tokens is not None
-        assert second_tokens is not None
+        """In-memory cleanup never evicts an unexpired revoked access token."""
+        auth_service.create_user("prune", "prune@test.com", "pass")
+        tokens = auth_service.authenticate("prune", "pass")
+        assert tokens is not None
+        auth_service._revoked_tokens["expired"] = utc_now() - timedelta(seconds=1)
 
-        auth_service.revoke_token(first_tokens.access_token)
-        auth_service.revoke_token(second_tokens.access_token)
+        auth_service.revoke_token(tokens.access_token)
 
-        assert len(auth_service._revoked_tokens) == 0
-        assert auth_service.verify_token(first_tokens.access_token) is None
-        assert auth_service.verify_token(second_tokens.access_token) is None
-        assert auth_service.refresh_access_token(first_tokens.refresh_token) is None
-
-        renewed_tokens = auth_service.authenticate("epoch", "pass")
-        assert renewed_tokens is not None
-        assert auth_service.verify_token(renewed_tokens.access_token) is not None
+        assert "expired" not in auth_service._revoked_tokens
+        assert _hash_token(tokens.access_token) in auth_service._revoked_tokens
+        assert auth_service.verify_token(tokens.access_token) is None
 
 
 # ---------------------------------------------------------------------------

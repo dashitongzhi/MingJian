@@ -102,11 +102,9 @@ class AuthService:
         self._users: dict[str, User] = {}  # user_id -> User
         self._username_index: dict[str, str] = {}  # username -> user_id
         self._email_index: dict[str, str] = {}  # email -> user_id
-        self._revoked_tokens: set[str] | OrderedDict[str, None]
-        self._revoked_tokens = OrderedDict() if self._db_enabled else set()
+        self._revoked_tokens: OrderedDict[str, datetime | None] = OrderedDict()
         self._max_revoked_tokens: int = 100_000
         self._refresh_tokens: dict[str, str] = {}  # token_hash -> user_id
-        self._token_epoch = 0
 
         if self.config.create_default_admin:
             self._ensure_default_admin()
@@ -251,8 +249,9 @@ class AuthService:
         return self._create_token_pair(user)
 
     def revoke_token(self, token: str) -> None:
-        """Revoke a token while preserving revocation semantics in every mode."""
+        """Revoke a token while retaining access-token revocations until expiry."""
         token_hash = _hash_token(token)
+        token_type = _token_type(token, self.config.secret_key, self.config.algorithm)
         expires_at = _token_expires_at(token, self.config.secret_key, self.config.algorithm)
         if self._db_enabled:
             with self._session() as session:
@@ -266,13 +265,9 @@ class AuthService:
             while len(self._revoked_tokens) > self._max_revoked_tokens:
                 self._revoked_tokens.popitem(last=False)
         else:
-            if token_hash not in self._revoked_tokens:
-                if len(self._revoked_tokens) >= self._max_revoked_tokens:
-                    self._token_epoch += 1
-                    self._revoked_tokens.clear()
-                    self._refresh_tokens.clear()
-                else:
-                    self._revoked_tokens.add(token_hash)
+            self._prune_expired_revocations()
+            if token_type == "access" and expires_at and expires_at > utc_now():
+                self._revoked_tokens[token_hash] = expires_at
         self._refresh_tokens.pop(token_hash, None)
 
     # ── Token Operations ──────────────────────────────────────
@@ -289,7 +284,6 @@ class AuthService:
             "email": user.email,
             "role": user.role.value,
             "type": "access",
-            "epoch": self._token_epoch,
             "iss": self.config.issuer,
             "iat": now,
             "exp": now + timedelta(minutes=self.config.access_token_expire_minutes),
@@ -303,7 +297,6 @@ class AuthService:
             "jti": str(uuid.uuid4()),
             "sub": user.id,
             "type": "refresh",
-            "epoch": self._token_epoch,
             "iss": self.config.issuer,
             "iat": now,
             "exp": now + timedelta(days=self.config.refresh_token_expire_days),
@@ -343,8 +336,6 @@ class AuthService:
                 algorithms=[self.config.algorithm],
             )
             if payload.get("type") != "access":
-                return None
-            if not self._db_enabled and payload.get("epoch") != self._token_epoch:
                 return None
 
             # Check user still exists and is active
@@ -423,8 +414,6 @@ class AuthService:
             )
             if payload.get("type") != "refresh":
                 return None
-            if not self._db_enabled and payload.get("epoch") != self._token_epoch:
-                return None
         except jwt.InvalidTokenError:
             return None
 
@@ -450,6 +439,17 @@ class AuthService:
             with self._session() as session:
                 return session.get(AuthRevokedToken, token_hash) is not None
         return False
+
+    def _prune_expired_revocations(self) -> None:
+        """Remove expired in-memory access-token revocations."""
+        now = utc_now()
+        expired = [
+            token_hash
+            for token_hash, expires_at in self._revoked_tokens.items()
+            if expires_at is not None and _as_utc(expires_at) <= now
+        ]
+        for token_hash in expired:
+            self._revoked_tokens.pop(token_hash, None)
 
     # ── Authorization Helpers ─────────────────────────────────
 
@@ -479,6 +479,17 @@ def _token_expires_at(token: str, secret_key: str, algorithm: str) -> datetime |
     if exp is None:
         return None
     return datetime.fromtimestamp(float(exp), tz=timezone.utc)
+
+
+def _token_type(token: str, secret_key: str, algorithm: str) -> str | None:
+    try:
+        payload = jwt.decode(
+            token, secret_key, algorithms=[algorithm], options={"verify_exp": False}
+        )
+    except jwt.InvalidTokenError:
+        return None
+    token_type = payload.get("type")
+    return token_type if isinstance(token_type, str) else None
 
 
 def _sync_database_url(database_url: str) -> str:
