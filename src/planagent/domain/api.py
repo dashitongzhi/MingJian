@@ -483,6 +483,10 @@ class DebateReplayRead(APIModel):
         default_factory=list,
         description="按时间顺序排列的所有发言",
     )
+    events: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="前端可直接消费的回放事件列表，兼容 timeline",
+    )
     verdict: DebateVerdictRead | None = None
     created_at: datetime
     updated_at: datetime
@@ -584,6 +588,26 @@ class RuntimeQueueHealthRead(APIModel):
     backpressure_active: bool = False
 
 
+class PlatformTopologyComponentRead(APIModel):
+    name: str
+    status: str
+    detail: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlatformTopologyRead(APIModel):
+    generated_at: datetime
+    ready: bool
+    edition: str = "community"
+    database: PlatformTopologyComponentRead
+    object_storage: PlatformTopologyComponentRead
+    event_bus: PlatformTopologyComponentRead
+    rules: PlatformTopologyComponentRead
+    domain_packs: PlatformTopologyComponentRead
+    workflow: PlatformTopologyComponentRead
+    issues: list[str] = Field(default_factory=list)
+
+
 class StrategicAssistantRequest(APIModel):
     topic: str = Field(min_length=1)
     domain_id: Literal["auto", "corporate", "military"] = "auto"
@@ -647,6 +671,8 @@ class StrategicAssistantResponse(APIModel):
     debate: DebateDetailRead | None = None
     workbench: RunWorkbenchRead
     panel_discussion: list[PanelDiscussionMessageRead] = Field(default_factory=list)
+    workflow: dict[str, Any] = Field(default_factory=dict)
+    monitoring: dict[str, Any] = Field(default_factory=dict)
     generated_at: datetime
 
 
@@ -761,10 +787,32 @@ class StrategicRunSnapshotRead(APIModel):
     generated_at: datetime
 
 
+class RecommendationVersionRead(APIModel):
+    id: str
+    session_id: str
+    watch_rule_id: str | None = None
+    tenant_id: str | None = None
+    preset_id: str | None = None
+    version_number: int
+    trigger_type: str
+    trigger_source_change_id: str | None = None
+    source_change_ids: list[str] = Field(default_factory=list)
+    significance: str = "none"
+    change_summary: str | None = None
+    recommendation_summary: str
+    result_payload: dict[str, Any] = Field(default_factory=dict)
+    source_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+    ingest_run_id: str | None = None
+    simulation_run_id: str | None = None
+    debate_id: str | None = None
+    generated_at: datetime
+
+
 class StrategicSessionDetailRead(APIModel):
     session: StrategicSessionRead
     daily_briefs: list[StrategicBriefRecordRead] = Field(default_factory=list)
     recent_runs: list[StrategicRunSnapshotRead] = Field(default_factory=list)
+    recommendation_versions: list[RecommendationVersionRead] = Field(default_factory=list)
 
 
 StrategicRunSnapshotRead.model_rebuild()
@@ -858,6 +906,7 @@ class OpenAITestResponse(APIModel):
 
 
 class WatchRuleCreate(APIModel):
+    session_id: str | None = None
     name: str = Field(min_length=1)
     domain_id: Literal["corporate", "military"]
     query: str = Field(min_length=1)
@@ -883,13 +932,14 @@ class WatchRuleCreate(APIModel):
     auto_trigger_debate: bool = False
     tick_count: int = Field(default=0, ge=0)
     incremental_enabled: bool = True
-    force_full_refresh_every_minutes: int = Field(default=24 * 60, ge=1, le=24 * 60 * 30)
+    force_full_refresh_every_minutes: int = Field(default=24 * 60, ge=1, le=24 * 60)
     change_significance_threshold: Literal["none", "low", "medium", "high"] = "medium"
     tenant_id: str | None = None
     preset_id: str | None = None
 
 
 class WatchRuleUpdate(APIModel):
+    session_id: str | None = None
     name: str | None = None
     query: str | None = None
     source_types: list[str] | None = None
@@ -905,12 +955,13 @@ class WatchRuleUpdate(APIModel):
     auto_trigger_debate: bool | None = None
     tick_count: int | None = Field(default=None, ge=0)
     incremental_enabled: bool | None = None
-    force_full_refresh_every_minutes: int | None = Field(default=None, ge=1, le=24 * 60 * 30)
+    force_full_refresh_every_minutes: int | None = Field(default=None, ge=1, le=24 * 60)
     change_significance_threshold: Literal["none", "low", "medium", "high"] | None = None
 
 
 class WatchRuleRead(APIModel):
     id: str
+    session_id: str | None = None
     name: str
     domain_id: str
     query: str
@@ -948,6 +999,7 @@ class WatchRuleTriggerRead(APIModel):
     sources_fetched: int = 0
     simulation_run_id: str | None = None
     debate_id: str | None = None
+    recommendation_version_id: str | None = None
     error: str | None = None
 
 
@@ -1225,12 +1277,15 @@ class SourceCursorStateRead(APIModel):
     source_type: str
     source_url_or_query: str
     cursor: str | None = None
+    health_status: str = "pending"
     etag: str | None = None
     last_modified: str | None = None
     last_seen_hash: str | None = None
     last_seen_raw_source_item_id: str | None = None
     last_success_at: datetime | None = None
     last_failure_at: datetime | None = None
+    last_checked_at: datetime | None = None
+    last_change_at: datetime | None = None
     consecutive_failures: int = 0
     created_at: datetime
     updated_at: datetime
@@ -1251,82 +1306,3 @@ class SourceChangeRecordRead(APIModel):
     claim_ids: list
     prediction_revision_job_ids: list
     created_at: datetime
-
-
-# ── 批量任务 API 模型 ────────────────────────────────────────────────────────
-
-
-class BatchProposalInput(APIModel):
-    """单个方案输入"""
-
-    title: str = Field(min_length=1, max_length=255, description="方案标题")
-    description: str = Field(min_length=1, description="方案详细描述")
-
-
-class BatchTaskSubmitRequest(APIModel):
-    """批量任务提交请求"""
-
-    title: str = Field(min_length=1, max_length=255, description="批量任务标题")
-    decision_point: str = Field(min_length=1, description="决策点描述")
-    proposals: list[BatchProposalInput] = Field(min_length=1, description="方案列表")
-    trigger_type: str = Field(default="manual", description="触发类型")
-    tenant_id: str | None = None
-    preset_id: str | None = None
-
-
-class BatchSubTaskRead(APIModel):
-    """批量子任务读取"""
-
-    id: str
-    batch_id: str
-    index: int
-    proposal_title: str
-    proposal_description: str
-    topic: str
-    status: str
-    debate_id: str | None = None
-    simulation_run_id: str | None = None
-    verdict: str | None = None
-    confidence: float | None = None
-    result_summary: str | None = None
-    error_message: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    completed_at: datetime | None = None
-
-
-class BatchTaskRead(APIModel):
-    """批量任务读取"""
-
-    id: str
-    title: str
-    decision_point: str
-    trigger_type: str
-    status: str
-    total_tasks: int
-    completed_tasks: int
-    failed_tasks: int
-    tenant_id: str | None = None
-    preset_id: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    completed_at: datetime | None = None
-
-
-class BatchTaskDetailRead(APIModel):
-    """批量任务详情（含子任务列表）"""
-
-    id: str
-    title: str
-    decision_point: str
-    trigger_type: str
-    status: str
-    total_tasks: int
-    completed_tasks: int
-    failed_tasks: int
-    tenant_id: str | None = None
-    preset_id: str | None = None
-    sub_tasks: list[BatchSubTaskRead] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
-    completed_at: datetime | None = None

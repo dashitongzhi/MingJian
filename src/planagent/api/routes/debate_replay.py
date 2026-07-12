@@ -22,7 +22,7 @@ def _get_replay_service(request: Request) -> DebateReplayService:
     """Lazily create and cache the DebateReplayService on app state."""
     if not hasattr(request.app.state, "debate_replay_service"):
         request.app.state.debate_replay_service = DebateReplayService()
-    return request.app.state.debate_replay_service
+    return request.app.state.debate_replay_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 # ── GET /debates/{debate_id}/replay ──────────────────────────────────────────

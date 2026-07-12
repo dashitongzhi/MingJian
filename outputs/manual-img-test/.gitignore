@@ -1,0 +1,11 @@
+# Generated presentation/image test artifacts are local only.
+*.pptx
+*.ppt
+img.png
+
+# Local build dependencies.
+node_modules/
+
+# Temporary Office and OS files.
+~$*
+.DS_Store

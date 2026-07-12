@@ -33,6 +33,11 @@ class Database:
         return self.engine.dialect.name == "sqlite"
 
     async def init_models(self) -> None:
+        """仅负责表创建（create_all），不做结构变更。
+
+        所有表结构变更（新增列、修改约束等）均通过 Alembic 迁移脚本统一管理。
+        请运行 `alembic upgrade head` 来应用数据库迁移。
+        """
         async with self.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
         self._initialized = True
@@ -59,12 +64,14 @@ def get_database() -> Database:
     global _db_instance
     if _db_instance is None:
         settings = get_settings()
+        # 使用结构化数据库配置子模型
+        db_settings = settings.db
         _db_instance = Database(
-            settings.database_url,
-            settings.sql_echo,
-            pool_size=settings.db_pool_size,
-            max_overflow=settings.db_max_overflow,
-            pool_recycle=settings.db_pool_recycle,
+            db_settings.url,
+            db_settings.sql_echo,
+            pool_size=db_settings.pool_size,
+            max_overflow=db_settings.max_overflow,
+            pool_recycle=db_settings.pool_recycle,
         )
     return _db_instance
 

@@ -10,15 +10,17 @@ from typing import Any
 from zoneinfo import ZoneInfo
 from zoneinfo import ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from planagent.config import get_settings
 from planagent.domain.api import (
     AnalysisRequest,
     AnalysisResponse,
     DebateTriggerRequest,
     IngestRunCreate,
     PanelDiscussionMessageRead,
+    RecommendationVersionRead,
     SimulationRunCreate,
     StrategicBriefRecordRead,
     StrategicAssistantRequest,
@@ -35,6 +37,7 @@ from planagent.domain.models import (
     Hypothesis,
     NormalizedItem,
     PredictionVersion,
+    RecommendationVersion,
     RawSourceItem,
     StrategicBriefRecord,
     StrategicRunSnapshot,
@@ -46,7 +49,9 @@ from planagent.domain.types import GeneratedReportModel
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.debate import DebateService
 from planagent.services.pipeline import PhaseOnePipelineService
+from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.simulation import SimulationService
+from planagent.services.source_state import SourceStateService
 from planagent.services.workbench import WorkbenchService
 
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -257,33 +262,34 @@ class StrategicAssistantService:
         self.simulation_service = simulation_service
         self.debate_service = debate_service
         self.workbench_service = workbench_service
+        self.recommendation_service = RecommendationVersionService()
 
     async def run(
         self,
         session: AsyncSession,
         payload: StrategicAssistantRequest,
+        recommendation_trigger_type: str | None = None,
+        recommendation_significance: str | None = None,
     ) -> StrategicAssistantResponse:
         final_result: StrategicAssistantResponse | None = None
-        async for event in self.stream(session, payload):
+        async for event in self.stream(
+            session,
+            payload,
+            recommendation_trigger_type=recommendation_trigger_type,
+            recommendation_significance=recommendation_significance,
+        ):
             if event.event == "assistant_result":
                 final_result = StrategicAssistantResponse.model_validate(event.payload)
         if final_result is None:
             raise RuntimeError("Strategic assistant finished without a result payload.")
-        try:
-            await self._auto_create_watch_rule(
-                session,
-                payload.topic,
-                final_result.domain_id,
-                payload.tick_count,
-            )
-        except Exception:
-            await session.rollback()
         return final_result
 
     async def stream(
         self,
         session: AsyncSession,
         payload: StrategicAssistantRequest,
+        recommendation_trigger_type: str | None = None,
+        recommendation_significance: str | None = None,
     ) -> AsyncIterator[AssistantEvent]:
         analysis_payload = self._build_analysis_request(payload)
         analysis_result: AnalysisResponse | None = None
@@ -419,9 +425,18 @@ class StrategicAssistantService:
             debate=debate,
             workbench=workbench,
             panel_discussion=panel_discussion,
+            workflow=self._workflow_metadata(
+                analysis=analysis_result,
+                debate=debate,
+                debate_suggestion=debate_suggestion,
+                monitoring={"status": "not_persisted", "mode": "community_24h"},
+            ),
+            monitoring={"status": "not_persisted", "mode": "community_24h"},
             generated_at=datetime.now(timezone.utc),
         )
 
+        watch_rule: WatchRule | None = None
+        recommendation_version: RecommendationVersion | None = None
         try:
             session_record = await self._ensure_session_record(
                 session,
@@ -432,6 +447,52 @@ class StrategicAssistantService:
             )
             if session_record is not None:
                 result.session_id = session_record.id
+                watch_rule = await self._auto_create_watch_rule(
+                    session,
+                    payload.topic,
+                    domain_id,
+                    payload.tick_count,
+                    session_id=session_record.id,
+                    tenant_id=session_record.tenant_id,
+                    preset_id=session_record.preset_id,
+                )
+                result.monitoring = self._monitoring_payload(watch_rule)
+                result.workflow = self._workflow_metadata(
+                    analysis=analysis_result,
+                    debate=debate,
+                    debate_suggestion=debate_suggestion,
+                    monitoring=result.monitoring,
+                )
+                previous_count = await session.scalar(
+                    select(func.count())
+                    .select_from(RecommendationVersion)
+                    .where(RecommendationVersion.session_id == session_record.id)
+                )
+                recommendation_version = await self.recommendation_service.create_version(
+                    session,
+                    session_id=session_record.id,
+                    watch_rule_id=watch_rule.id if watch_rule is not None else None,
+                    tenant_id=session_record.tenant_id,
+                    preset_id=session_record.preset_id,
+                    trigger_type=recommendation_trigger_type
+                    or ("initial_result" if int(previous_count or 0) == 0 else "manual_run"),
+                    significance=recommendation_significance or "none",
+                    recommendation_summary=self._assistant_recommendation_summary(result),
+                    result_payload=result.model_dump(mode="json"),
+                    source_snapshot=await self.recommendation_service.source_snapshot(
+                        session,
+                        watch_rule_id=watch_rule.id if watch_rule is not None else None,
+                    ),
+                    ingest_run_id=ingest_run.id,
+                    simulation_run_id=simulation_run.id,
+                    debate_id=debate.id if debate is not None else None,
+                )
+                result.workflow["recommendation_version"] = {
+                    "id": recommendation_version.id,
+                    "version_number": recommendation_version.version_number,
+                    "trigger_type": recommendation_version.trigger_type,
+                    "significance": recommendation_version.significance,
+                }
                 await self._store_run_snapshot(session, session_record, result)
         except Exception as exc:
             _logger.warning("session persist failed", exc_info=True)
@@ -440,17 +501,6 @@ class StrategicAssistantService:
                 await session.rollback()
             except Exception:
                 _logger.warning("session rollback failed after persist error", exc_info=True)
-
-        try:
-            await self._auto_create_watch_rule(
-                session, payload.topic, domain_id, payload.tick_count
-            )
-        except Exception:
-            _logger.warning("auto watch rule creation failed", exc_info=True)
-            try:
-                await session.rollback()
-            except Exception:
-                _logger.warning("session rollback failed after watch rule error", exc_info=True)
 
         if try_errors:
             yield self._event(
@@ -588,6 +638,7 @@ class StrategicAssistantService:
         self,
         session: AsyncSession,
         payload: StrategicAssistantRequest,
+        store_recommendation_version: bool = True,
     ) -> AnalysisResponse:
         analysis_payload = self._build_analysis_request(payload)
         analysis = await self.analysis_service.analyze(analysis_payload)
@@ -600,7 +651,12 @@ class StrategicAssistantService:
             subject_name,
         )
         if session_record is not None:
-            await self._store_daily_brief(session, session_record, analysis)
+            await self._store_daily_brief(
+                session,
+                session_record,
+                analysis,
+                store_recommendation_version=store_recommendation_version,
+            )
         return analysis
 
     async def _auto_create_watch_rule(
@@ -609,15 +665,42 @@ class StrategicAssistantService:
         topic: str,
         domain_id: str,
         tick_count: int | None,
-    ) -> None:
-        existing = await session.scalar(
-            select(WatchRule.id).where(WatchRule.query == topic).limit(1)
-        )
+        *,
+        session_id: str | None = None,
+        tenant_id: str | None = None,
+        preset_id: str | None = None,
+    ) -> WatchRule:
+        existing = (
+            await session.scalars(
+                select(WatchRule)
+                .where(
+                    WatchRule.query == topic,
+                    WatchRule.domain_id == domain_id,
+                    WatchRule.tenant_id == tenant_id,
+                    WatchRule.preset_id == preset_id,
+                )
+                .order_by(WatchRule.updated_at.desc())
+                .limit(1)
+            )
+        ).first()
         if existing is not None:
-            return
+            if session_id is not None and existing.session_id != session_id:
+                existing.session_id = session_id
+                existing.updated_at = utc_now()
+                await session.flush()
+            await SourceStateService(get_settings()).seed_watch_rule_sources(
+                session,
+                watch_rule_id=existing.id,
+                query=existing.query,
+                source_types=existing.source_types or [],
+                tenant_id=existing.tenant_id,
+                preset_id=existing.preset_id,
+            )
+            return existing
 
         now = utc_now()
         rule = WatchRule(
+            session_id=session_id,
             name=topic[:255],
             domain_id=domain_id,
             query=topic,
@@ -636,10 +719,21 @@ class StrategicAssistantService:
             change_significance_threshold="medium",
             enabled=True,
             tick_count=tick_count or 0,
+            tenant_id=tenant_id,
+            preset_id=preset_id,
             next_poll_at=now,
         )
         session.add(rule)
-        await session.commit()
+        await session.flush()
+        await SourceStateService(get_settings()).seed_watch_rule_sources(
+            session,
+            watch_rule_id=rule.id,
+            query=rule.query,
+            source_types=rule.source_types or [],
+            tenant_id=rule.tenant_id,
+            preset_id=rule.preset_id,
+        )
+        return rule
 
     async def create_session(
         self,
@@ -706,6 +800,11 @@ class StrategicAssistantService:
             ).all()
         )
         latest_predictions = await self._latest_prediction_versions_by_run(session, run_rows)
+        recommendation_rows = await self.recommendation_service.list_versions(
+            session,
+            session_id=session_id,
+            limit=run_limit,
+        )
         return StrategicSessionDetailRead(
             session=StrategicSessionRead.model_validate(session_record),
             daily_briefs=[self._brief_record_read(item) for item in brief_rows],
@@ -716,7 +815,27 @@ class StrategicAssistantService:
                 )
                 for item in run_rows
             ],
+            recommendation_versions=[
+                RecommendationVersionRead.model_validate(item) for item in recommendation_rows
+            ],
         )
+
+    async def list_recommendation_versions(
+        self,
+        session: AsyncSession,
+        *,
+        session_id: str,
+        limit: int = 50,
+    ) -> list[RecommendationVersionRead] | None:
+        session_record = await session.get(StrategicSession, session_id)
+        if session_record is None:
+            return None
+        rows = await self.recommendation_service.list_versions(
+            session,
+            session_id=session_id,
+            limit=limit,
+        )
+        return [RecommendationVersionRead.model_validate(row) for row in rows]
 
     async def load_session_payload(
         self,
@@ -739,7 +858,10 @@ class StrategicAssistantService:
         force_create: bool = False,
     ) -> StrategicSession | None:
         should_persist = (
-            force_create or payload.session_id is not None or payload.session_name is not None
+            force_create
+            or payload.auto_refresh_enabled
+            or payload.session_id is not None
+            or payload.session_name is not None
         )
         if not should_persist:
             return None
@@ -790,6 +912,8 @@ class StrategicAssistantService:
         session: AsyncSession,
         session_record: StrategicSession,
         analysis: AnalysisResponse,
+        *,
+        store_recommendation_version: bool = True,
     ) -> StrategicBriefRecordRead:
         pending_hypotheses = await self._recent_hypotheses(
             session,
@@ -843,6 +967,20 @@ class StrategicAssistantService:
                 reference=analysis.generated_at,
             )
         session.add(record)
+        if store_recommendation_version:
+            await self.recommendation_service.create_version(
+                session,
+                session_id=session_record.id,
+                tenant_id=session_record.tenant_id,
+                preset_id=session_record.preset_id,
+                trigger_type="daily_brief",
+                significance="none",
+                recommendation_summary=self._brief_recommendation_summary(analysis),
+                result_payload={
+                    "kind": "daily_brief",
+                    "analysis": analysis.model_dump(mode="json"),
+                },
+            )
         await session.commit()
         return self._brief_record_read(record)
 
@@ -938,6 +1076,153 @@ class StrategicAssistantService:
             max_aviation_items=preferences.get("max_aviation_items", 1),
             max_x_items=preferences.get("max_x_items", 3),
         )
+
+    def _brief_recommendation_summary(self, analysis: AnalysisResponse) -> str:
+        recommendations = [self._clean_text(item) for item in analysis.recommendations if item]
+        if recommendations:
+            return "；".join(recommendations[:3])
+        return self._clean_text(analysis.summary) or "本次固定刷新未发现足以改变建议的明确信号。"
+
+    def _assistant_recommendation_summary(self, result: StrategicAssistantResponse) -> str:
+        if result.debate is not None and result.debate.verdict is not None:
+            verdict = result.debate.verdict
+            titles = []
+            for item in verdict.recommendations[:3]:
+                title = self._clean_text(item.title or item.rationale or "")
+                if title:
+                    titles.append(title)
+            if titles:
+                return "；".join(titles)
+            if verdict.conclusion_summary:
+                return self._clean_text(verdict.conclusion_summary)[:500]
+        if result.latest_report is not None and result.latest_report.summary:
+            return self._clean_text(result.latest_report.summary)[:500]
+        return self._clean_text(result.analysis.summary)[:500]
+
+    def _workflow_metadata(
+        self,
+        *,
+        analysis: AnalysisResponse,
+        debate,
+        debate_suggestion: DebateSuggestion,
+        monitoring: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        source_types = sorted({source.source_type for source in analysis.sources})
+        consensus = self._debate_consensus_payload(debate)
+        monitoring = monitoring or {"status": "unknown"}
+        debate_id = debate.id if debate is not None else None
+        return {
+            "version": "complete_decision_workflow_v1",
+            "mode": "complete_initial_result",
+            "status": "first_result_ready",
+            "user_can_decide": True,
+            "first_result_ready": True,
+            "stages": [
+                {"id": "research_agents", "status": "completed"},
+                {"id": "evidence_ingest", "status": "completed"},
+                {"id": "simulation", "status": "completed"},
+                {"id": "debate_center", "status": "completed" if debate else "skipped"},
+                {"id": "consensus", "status": consensus["status"]},
+                {"id": "monitoring", "status": monitoring.get("status", "unknown")},
+            ],
+            "research_agents": {
+                "agent_count": len(source_types),
+                "source_types": source_types,
+                "sources_collected": len(analysis.sources),
+            },
+            "debate_suggestion": {
+                "warranted": debate_suggestion.warranted,
+                "confidence": round(debate_suggestion.confidence, 4),
+                "reasons": debate_suggestion.reasons,
+            },
+            "consensus": consensus,
+            "phases": [
+                {
+                    "key": "evidence_collection",
+                    "label": "多源信息采集",
+                    "status": "complete",
+                    "count": len(analysis.sources),
+                },
+                {
+                    "key": "multi_agent_debate",
+                    "label": "多智能体辩论",
+                    "status": "complete" if debate_id else "skipped",
+                    "debate_id": debate_id,
+                },
+                {
+                    "key": "first_recommendation",
+                    "label": "首次建议",
+                    "status": "complete",
+                },
+                {
+                    "key": "local_monitoring",
+                    "label": "24 小时监控",
+                    "status": monitoring.get("status", "unknown"),
+                    "watch_rule_id": monitoring.get("watch_rule_id"),
+                    "next_poll_at": monitoring.get("next_poll_at"),
+                },
+            ],
+        }
+
+    def _debate_consensus_payload(self, debate) -> dict[str, Any]:
+        if debate is None or debate.verdict is None:
+            return {
+                "status": "skipped",
+                "agreement_score": 0.0,
+                "roles_considered": 0,
+                "minority_opinion": None,
+            }
+        roles = {round_item.role for round_item in debate.rounds}
+        support = sum(
+            1
+            for round_item in debate.rounds
+            if str(round_item.position).upper() in {"SUPPORT", "ACCEPT", "ACCEPTED"}
+        )
+        challenge = sum(
+            1
+            for round_item in debate.rounds
+            if str(round_item.position).upper() in {"CHALLENGE", "REJECT", "REJECTED"}
+        )
+        verdict_score = {
+            "ACCEPTED": 0.92,
+            "CONDITIONAL": 0.78,
+            "REJECTED": 0.72,
+        }.get(str(debate.verdict.verdict).upper(), 0.65)
+        if support or challenge:
+            balance = support / max(support + challenge, 1)
+            role_score = 0.55 + abs(balance - 0.5) * 0.5
+        else:
+            role_score = 0.7
+        agreement_score = round(min(max((verdict_score + role_score) / 2, 0.0), 0.98), 4)
+        status = "broadly_accepted" if agreement_score >= 0.78 else "contested"
+        return {
+            "status": status,
+            "agreement_score": agreement_score,
+            "roles_considered": len(roles),
+            "rounds_completed": len(debate.rounds),
+            "verdict": debate.verdict.verdict,
+            "confidence": debate.verdict.confidence,
+            "minority_opinion": debate.verdict.minority_opinion,
+        }
+
+    def _monitoring_payload(self, watch_rule: WatchRule | None) -> dict[str, Any]:
+        if watch_rule is None:
+            return {"status": "inactive", "mode": "community_24h"}
+        created_at = self._normalize_datetime(watch_rule.created_at) or utc_now()
+        expires_at = created_at + timedelta(hours=24)
+        now = utc_now()
+        return {
+            "status": "active" if watch_rule.enabled and now < expires_at else "expired",
+            "mode": "community_24h",
+            "watch_rule_id": watch_rule.id,
+            "poll_interval_minutes": watch_rule.poll_interval_minutes,
+            "next_poll_at": watch_rule.next_poll_at.isoformat()
+            if watch_rule.next_poll_at is not None
+            else None,
+            "expires_at": expires_at.isoformat(),
+            "scheduled_updates": True,
+            "burst_updates": watch_rule.auto_trigger_debate,
+        }
 
     def _brief_record_read(self, row: StrategicBriefRecord) -> StrategicBriefRecordRead:
         return StrategicBriefRecordRead(
@@ -1076,6 +1361,13 @@ class StrategicAssistantService:
         except ZoneInfoNotFoundError:
             return "UTC"
         return candidate
+
+    def _normalize_datetime(self, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     def _next_refresh_at(
         self,

@@ -1,8 +1,7 @@
 """Source provider registry — auto-discovers providers and builds adapters.
 
 Enhanced with:
-- Fallback/degradation logic (primary source fails → try fallbacks)
-- Custom source provider support (user-defined sources)
+- Fallback/degradation logic (primary source fails -> try fallbacks)
 - MCP-style provider listing and configuration
 """
 
@@ -64,7 +63,6 @@ class SourceRegistry:
         self.openai_service = openai_service
         self._providers: dict[str, DataSourceProvider] = {}
         self._load_providers()
-        self._load_custom_providers()
 
     # ── public API ─────────────────────────────────────────────────────
 
@@ -166,6 +164,7 @@ class SourceRegistry:
             adapters.append(
                 _SourceAdapter(
                     provider=provider,
+                    providers=self._providers,
                     payload=payload,
                     query=query,
                     domain_id=domain_id,
@@ -201,21 +200,6 @@ class SourceRegistry:
                     except Exception as exc:
                         logger.warning("Failed to instantiate provider %s: %s", attr_name, exc)
 
-    def _load_custom_providers(self) -> None:
-        """Load user-defined custom source providers from config files."""
-        try:
-            from planagent.services.sources.custom_provider import create_custom_providers
-
-            for provider in create_custom_providers(
-                self.settings, openai_service=self.openai_service
-            ):
-                self._providers[provider.key] = provider
-                logger.debug("Registered custom source provider: %s", provider.key)
-        except ImportError:
-            logger.debug("Custom provider support not available (missing dependencies)")
-        except Exception as exc:
-            logger.warning("Failed to load custom providers: %s", exc)
-
 
 class _SourceAdapter:
     """Wraps a DataSourceProvider for use by AutomatedAnalysisService.
@@ -224,16 +208,18 @@ class _SourceAdapter:
     _fetch_related_sources loop that expects (key, label, fetcher) tuples.
     """
 
-    __slots__ = ("provider", "payload", "query", "domain_id")
+    __slots__ = ("provider", "providers", "payload", "query", "domain_id")
 
     def __init__(
         self,
         provider: DataSourceProvider,
+        providers: dict[str, DataSourceProvider],
         payload: AnalysisRequest,
         query: str,
         domain_id: str,
     ) -> None:
         self.provider = provider
+        self.providers = providers
         self.payload = payload
         self.query = query
         self.domain_id = domain_id
@@ -274,5 +260,34 @@ class _SourceAdapter:
 
     async def fetch(self, limit: int | None = None) -> list[AnalysisSourceRead]:
         """Delegate to the provider's fetch method."""
+        return await self.fetch_query(self.query, limit)
+
+    async def fetch_query(
+        self,
+        query: str,
+        limit: int | None = None,
+    ) -> list[AnalysisSourceRead]:
+        """Fetch using an explicit query variant for autonomous research agents."""
         effective_limit = limit if limit is not None else self.limit
-        return await self.provider.fetch(self.query, effective_limit, self.domain_id)
+        candidates = [self.provider.key, *self.provider.fallback_keys]
+        first_error: Exception | None = None
+        for key in candidates:
+            provider = self.providers.get(key)
+            if provider is None or provider.is_available() is not None:
+                continue
+            try:
+                results = await provider.fetch(query, effective_limit, self.domain_id)
+            except Exception as exc:
+                if first_error is None:
+                    first_error = exc
+                logger.warning(
+                    "Provider %s failed (%s), trying fallback",
+                    key,
+                    f"{type(exc).__name__}: {str(exc)[:120]}",
+                )
+                continue
+            if results:
+                return results
+        if first_error is not None:
+            raise first_error
+        return []

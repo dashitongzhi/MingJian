@@ -8,13 +8,21 @@ from planagent.services.providers.base import LLMResponse
 class AnthropicProvider:
     provider_name = "anthropic"
 
-    def __init__(self, api_key: str | None, timeout: float = 45.0) -> None:
+    def __init__(
+        self,
+        api_key: str | None,
+        base_url: str | None = None,
+        timeout: float = 45.0,
+    ) -> None:
         self._client = None
         if api_key:
             try:
                 import anthropic
 
-                self._client = anthropic.AsyncAnthropic(api_key=api_key, timeout=timeout)
+                kwargs: dict[str, Any] = {"api_key": api_key, "timeout": timeout}
+                if base_url:
+                    kwargs["base_url"] = base_url
+                self._client = anthropic.AsyncAnthropic(**kwargs)
             except ImportError:
                 pass
 

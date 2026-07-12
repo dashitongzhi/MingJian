@@ -10,8 +10,9 @@ import concurrent.futures
 import threading
 import ssl
 
-API = "http://127.0.0.1:8000"
-FRONTEND = "http://127.0.0.1:3001"
+API_ROOT = "http://127.0.0.1:8000"
+API = f"{API_ROOT}/api"
+FRONTEND = "http://127.0.0.1:3000"
 RESULTS = {"pass": 0, "fail": 0, "warn": 0, "errors": [], "warnings": [], "details": []}
 lock = threading.Lock()
 
@@ -57,7 +58,7 @@ def fetch(url, method="GET", data=None, timeout=15):
 
 def get_endpoints():
     """Discover GET endpoints from OpenAPI spec."""
-    status, body, _ = fetch(f"{API}/openapi.json", timeout=10)
+    status, body, _ = fetch(f"{API_ROOT}/openapi.json", timeout=10)
     if status != 200:
         print(f"Cannot fetch OpenAPI spec: {status}")
         return []
@@ -87,7 +88,7 @@ def test_api_reachability():
 
     # Test static endpoints
     for _, path, _ in static_eps:
-        url = f"{API}{path}"
+        url = f"{API_ROOT}{path}"
         status, body, latency = fetch(url, timeout=10)
         if status == 200:
             record("PASS", path, latency_ms=latency)
@@ -105,7 +106,7 @@ def test_api_reachability():
     # Test param endpoints with dummy IDs (expect 404/422, not 500)
     for _, path, _ in param_eps[:20]:  # Limit to 20
         test_path = path.replace("{", "").replace("}", "")
-        url = f"{API}{test_path}"
+        url = f"{API_ROOT}{test_path}"
         status, body, latency = fetch(url, timeout=10)
         if status == 500:
             record("FAIL", path, "HTTP 500 on param endpoint", latency_ms=latency)
@@ -128,16 +129,15 @@ def test_frontend_pages():
     pages = [
         "/",
         "/dashboard",
-        "/analysis",
+        "/ai-assistant",
         "/debate",
-        "/assistant",
         "/sources",
         "/predictions",
         "/simulation",
         "/monitoring",
         "/workbench",
         "/agents",
-        "/decisions",
+        "/reports",
         "/settings",
     ]
 
@@ -171,7 +171,6 @@ def test_concurrent_load():
         f"{API}/health",
         f"{API}/health/ready",
         f"{API}/sources/reputation",
-        f"{API}/sources/custom",
         f"{API}/agents",
         f"{API}/predictions",
         f"{API}/claims",
@@ -181,7 +180,6 @@ def test_concurrent_load():
         f"{API}/decisions",
         f"{API}/debates",
         f"{API}/monitoring/dashboard",
-        f"{API}/model/settings",
     ]
 
     concurrency_levels = [5, 10, 20]
@@ -346,22 +344,17 @@ def test_error_handling():
         # Invalid IDs → expect 404
         ("GET", "/debates/nonexistent-id-12345", None, "404", "无效ID"),
         ("GET", "/assistant/sessions/nonexistent-session", None, "404", "无效session ID"),
-        ("GET", "/sources/custom/nonexistent-source", None, "404", "无效source key"),
         # Missing POST body → expect 422
         ("POST", "/analysis", None, "422", "空POST body"),
         ("POST", "/debate/stream", None, "422", "空debate请求"),
         ("POST", "/simulation/runs", None, "422", "空simulation请求"),
         # Invalid POST body
         ("POST", "/analysis", {"invalid": "data"}, "422", "无效POST数据"),
-        ("POST", "/sources/custom", {"bad": "schema"}, "422", "无效source schema"),
         # Extreme query params
         ("GET", "/claims?limit=0", None, None, "limit=0"),
         ("GET", "/claims?limit=999999", None, None, "limit=999999"),
         ("GET", "/evidence?limit=-1", None, None, "limit=-1"),
         ("GET", "/predictions?limit=1", None, None, "limit=1"),
-        # DELETE on nonexistent
-        ("DELETE", "/sources/custom/nonexistent-key-xyz", None, "404", "删除不存在的source"),
-        ("DELETE", "/agents/custom/nonexistent-role", None, "404", "删除不存在的agent"),
     ]
 
     for method, path, data, expected, desc in edge_cases:
@@ -397,7 +390,6 @@ def test_response_times():
         "/health",
         "/health/ready",
         "/sources/reputation",
-        "/sources/custom",
         "/agents",
         "/claims",
         "/evidence",
@@ -407,8 +399,6 @@ def test_response_times():
         "/decisions",
         "/debates",
         "/monitoring/dashboard",
-        "/model/settings",
-        "/model/capabilities",
         "/knowledge/graph",
         "/calibration",
     ]

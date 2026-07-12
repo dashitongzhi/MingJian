@@ -6,6 +6,7 @@ from planagent.services.openai_client import DebatePositionPayload
 from planagent.services.providers import AnthropicProvider
 
 from .prompts import debate_role_instruction
+from .roles import DEBATE_ROLE_DISPLAY, registry_role_for_debate
 
 
 class DebateLLMMixin:
@@ -140,8 +141,11 @@ class DebateLLMMixin:
     ) -> DebatePositionPayload | None:
         if not self._anthropic_is_configured():
             return None
+        if not self.settings.anthropic_model:
+            return None
         provider = AnthropicProvider(
             api_key=self.settings.resolved_anthropic_api_key,
+            base_url=self.settings.resolved_anthropic_base_url,
             timeout=self.settings.openai_timeout_seconds,
         )
         try:
@@ -198,29 +202,13 @@ class DebateLLMMixin:
         """从 Agent Registry 获取角色的 provider 配置"""
         if self.agent_registry is None:
             return None
-        role_map = {
-            "advocate": "advocate",
-            "strategist": "advocate",
-            "challenger": "challenger",
-            "risk_analyst": "challenger",
-            "arbitrator": "arbitrator",
-            "opportunist": "arbitrator",
-            "intel_analyst": "challenger",
-            "geo_expert": "advocate",
-            "econ_analyst": "advocate",
-            "military_strategist": "advocate",
-            "tech_foresight": "advocate",
-            "social_impact": "advocate",
-        }
         # Custom agents use their role_key directly
         if role.startswith("custom_"):
             try:
                 return self.agent_registry.get_provider_config(role)
             except Exception:
                 return None
-        agent_role = role_map.get(role)
-        if agent_role is None:
-            return None
+        agent_role = registry_role_for_debate(role)
         try:
             return self.agent_registry.get_provider_config(agent_role)
         except Exception:
@@ -256,10 +244,13 @@ class DebateLLMMixin:
         )
 
         if provider_type == "anthropic":
-            provider = AnthropicProvider(api_key=api_key, timeout=45.0)
+            selected_model = model or self.settings.anthropic_model
+            if not selected_model:
+                return None
+            provider = AnthropicProvider(api_key=api_key, base_url=base_url or None, timeout=45.0)
             try:
                 _, parsed = await provider.generate_json(
-                    model=model or self.settings.anthropic_model,
+                    model=selected_model,
                     system_prompt=self._debate_role_instruction(role),
                     user_prompt=prompt,
                     schema=DebatePositionPayload.model_json_schema(),
@@ -271,6 +262,8 @@ class DebateLLMMixin:
                 await provider.close()
         else:
             # OpenAI 兼容
+            if not model:
+                return None
             from openai import AsyncOpenAI
 
             client = AsyncOpenAI(
@@ -280,7 +273,7 @@ class DebateLLMMixin:
             )
             try:
                 resp = await client.chat.completions.create(
-                    model=model or "gpt-4o",
+                    model=model,
                     messages=[
                         {"role": "system", "content": self._debate_role_instruction(role)},
                         {"role": "user", "content": f"{prompt}\n\nReturn valid JSON only."},
@@ -315,18 +308,7 @@ class DebateLLMMixin:
         opponent_arguments: list[dict[str, Any]] | None = None,
         own_previous: list[dict[str, Any]] | None = None,
     ) -> str:
-        _ROLE_DISPLAY = {
-            "advocate": "战略支持者🟢",
-            "challenger": "风险挑战者🔴",
-            "arbitrator": "首席仲裁官⚖️",
-            "intel_analyst": "情报分析师🔍",
-            "geo_expert": "地缘政治专家🌍",
-            "econ_analyst": "经济分析师💰",
-            "military_strategist": "军事战略家⚔️",
-            "tech_foresight": "技术前瞻者🔮",
-            "social_impact": "社会影响评估师👥",
-        }
-        role_display = _ROLE_DISPLAY.get(role, role)
+        role_display = DEBATE_ROLE_DISPLAY.get(role, role)
 
         opponent_text = ""
         if opponent_arguments:
@@ -352,7 +334,8 @@ class DebateLLMMixin:
             "2. 置信度（0-1之间的浮点数）\n"
             "3. 最多3条论证（每条包含：claim-论点声明、evidence_ids-引用的证据ID、"
             "reasoning-推理过程、strength-论点强度0-1）\n"
-            "4. 可选的反驳（target_argument_idx-目标论点索引、counter-反驳内容）\n"
+            "4. 可选的反驳/质询（target_argument_idx-目标论点索引、target_role-目标角色、"
+            "question-直接质询问题、counter-反驳内容或预期回答）\n"
             "5. 可选的让步（argument_idx-论点索引、reason-让步原因）\n"
             "请尽量使用提供的evidence_ids。如果进行了跨域分析，在reasoning中明确标注关联领域。"
         )

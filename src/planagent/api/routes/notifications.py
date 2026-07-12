@@ -54,7 +54,7 @@ def _get_notification_service(request: Request) -> NotificationService:
             webhook_urls=getattr(settings, "webhook_urls", []),
         )
         request.app.state.notification_service = NotificationService(config)
-    return request.app.state.notification_service
+    return request.app.state.notification_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 # ── REST Endpoints ────────────────────────────────────────────

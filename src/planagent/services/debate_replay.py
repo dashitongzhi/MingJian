@@ -28,6 +28,7 @@ from planagent.domain.models import (
     DebateSessionRecord,
     DebateVerdictRecord,
 )
+from planagent.services.debate.roles import debate_record_sort_key
 
 
 @dataclass(frozen=True)
@@ -58,18 +59,20 @@ class DebateReplayService:
 
     @staticmethod
     async def _load_rounds(session: AsyncSession, debate_id: str) -> list[DebateRoundRecord]:
-        return list(
+        rounds = list(
             (
                 await session.scalars(
                     select(DebateRoundRecord)
                     .where(DebateRoundRecord.debate_id == debate_id)
                     .order_by(
                         DebateRoundRecord.round_number.asc(),
-                        DebateRoundRecord.role.asc(),
+                        DebateRoundRecord.created_at.asc(),
                     )
                 )
             ).all()
         )
+        rounds.sort(key=debate_record_sort_key)
+        return rounds
 
     @staticmethod
     async def _load_verdict(session: AsyncSession, debate_id: str) -> DebateVerdictRecord | None:
@@ -124,6 +127,20 @@ class DebateReplayService:
             created_at=v.created_at,
         )
 
+    @staticmethod
+    def _event_sort_key(event: dict[str, Any]) -> tuple[str, int, int, str]:
+        round_number = int(event.get("round_number") or event.get("injected_at_round") or 0)
+        role = str(event.get("role") or "")
+        role_key = debate_record_sort_key(
+            type("_ReplaySortRecord", (), {"round_number": round_number, "role": role})()
+        )
+        return (
+            str(event.get("timestamp", "")),
+            role_key[0],
+            role_key[1],
+            role_key[2],
+        )
+
     # ── get_replay ─────────────────────────────────────────────────────────
 
     async def get_replay(self, session: AsyncSession, debate_id: str) -> DebateReplayRead:
@@ -153,6 +170,11 @@ class DebateReplayService:
         timeline: list[dict[str, Any]] = []
 
         for r in rounds:
+            content = "; ".join(
+                str(argument.get("claim", ""))
+                for argument in (r.arguments or [])[:3]
+                if argument.get("claim")
+            )
             timeline.append(
                 {
                     "event_type": "speech",
@@ -160,6 +182,7 @@ class DebateReplayService:
                     "role": r.role,
                     "position": r.position,
                     "confidence": r.confidence,
+                    "content": content,
                     "arguments": r.arguments or [],
                     "rebuttals": r.rebuttals or [],
                     "concessions": r.concessions or [],
@@ -180,7 +203,7 @@ class DebateReplayService:
                 }
             )
 
-        timeline.sort(key=lambda x: x["timestamp"])
+        timeline.sort(key=self._event_sort_key)
 
         return DebateReplayRead(
             debate_id=debate.id,
@@ -192,6 +215,7 @@ class DebateReplayService:
             total_rounds=max((int(k) for k in rounds_by_number.keys()), default=0),
             rounds_by_number=dict(rounds_by_number),
             timeline=timeline,
+            events=timeline,
             verdict=self._verdict_to_read(verdict),
             created_at=debate.created_at,
             updated_at=debate.updated_at,
@@ -243,6 +267,11 @@ class DebateReplayService:
 
         events: list[dict[str, Any]] = []
         for r in rounds:
+            content = "; ".join(
+                str(argument.get("claim", ""))
+                for argument in (r.arguments or [])[:3]
+                if argument.get("claim")
+            )
             events.append(
                 {
                     "event_type": "speech",
@@ -250,6 +279,7 @@ class DebateReplayService:
                     "role": r.role,
                     "position": r.position,
                     "confidence": r.confidence,
+                    "content": content,
                     "timestamp": r.created_at.isoformat(),
                     "argument_count": len(r.arguments or []),
                     "rebuttal_count": len(r.rebuttals or []),
@@ -270,7 +300,7 @@ class DebateReplayService:
             )
 
         # Sort by timestamp
-        events.sort(key=lambda e: e["timestamp"])
+        events.sort(key=self._event_sort_key)
 
         verdict = await self._load_verdict(session, debate_id)
         verdict_event = None

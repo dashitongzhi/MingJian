@@ -1,0 +1,8 @@
+# PPT exports in this folder are local deliverables.
+*.pptx
+*.ppt
+
+# Build manifests and temporary export files.
+artifact-build-manifest.json
+~$*
+.DS_Store

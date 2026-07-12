@@ -34,14 +34,16 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   render() {
     if (this.state.hasError) {
+      const canShowDetails = import.meta.env.DEV
+
       return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-          <div className="max-w-lg w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8">
+        <div className="app-shell flex min-h-screen items-center justify-center p-6">
+          <div className="cockpit-panel w-full max-w-lg p-8">
             {/* Icon */}
-            <div className="flex justify-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-red-500/20 bg-red-500/10">
                 <svg
-                  className="w-8 h-8 text-red-400"
+                  className="h-6 w-6 text-red-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
@@ -57,50 +59,51 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </div>
 
             {/* Title & message */}
-            <h2 className="text-xl font-semibold text-slate-100 text-center mb-2">
+            <h2 className="mb-2 text-center text-xl font-semibold text-slate-100">
               页面出错了
             </h2>
-            <p className="text-slate-400 text-center text-sm mb-6">
+            <p className="editorial-copy mb-6 text-center text-sm leading-6">
               应用遇到了意外错误，请尝试刷新页面或点击重试。
             </p>
 
-            {/* Collapsible error details */}
-            <div className="mb-6">
-              <button
-                onClick={this.toggleDetails}
-                className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors w-full"
-              >
-                <svg
-                  className={`w-4 h-4 transition-transform ${this.state.showDetails ? 'rotate-90' : ''}`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
+            {canShowDetails && (
+              <div className="mb-6">
+                <button
+                  onClick={this.toggleDetails}
+                  className="flex w-full items-center gap-2 text-sm text-slate-400 transition-colors hover:text-slate-300"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-                错误详情
-              </button>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${this.state.showDetails ? 'rotate-90' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                  错误详情
+                </button>
 
-              {this.state.showDetails && (
-                <div className="mt-3 p-4 bg-slate-900 rounded-lg border border-slate-700 overflow-auto max-h-48">
-                  <p className="text-xs text-red-400 font-mono whitespace-pre-wrap break-all">
-                    {this.state.error?.message}
-                  </p>
-                  {this.state.error?.stack && (
-                    <p className="text-xs text-slate-500 font-mono whitespace-pre-wrap break-all mt-2">
-                      {this.state.error.stack}
+                {this.state.showDetails && (
+                  <div className="mt-3 max-h-48 overflow-auto rounded-[18px] border border-slate-700 bg-slate-900/45 p-4">
+                    <p className="mono-data whitespace-pre-wrap break-all text-xs text-red-400">
+                      {this.state.error?.message}
                     </p>
-                  )}
-                </div>
-              )}
-            </div>
+                    {this.state.error?.stack && (
+                      <p className="mono-data mt-2 whitespace-pre-wrap break-all text-xs text-slate-500">
+                        {this.state.error.stack}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Action buttons */}
             <div className="flex justify-center">
               <button
                 onClick={this.handleRetry}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+                className="primary-ink-button px-6 py-2.5 text-sm font-medium transition"
               >
                 重试
               </button>

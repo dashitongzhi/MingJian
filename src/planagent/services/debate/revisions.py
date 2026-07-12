@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.domain.enums import EventTopic
-from planagent.domain.models import EventArchive
+from planagent.domain.models import DebateStructuredDissent, EventArchive
 
 
 class DebateRevisionMixin:
@@ -121,6 +121,15 @@ class DebateRevisionMixin:
             f"你的目标不是固守，而是在压力测试中让分析更加精确可靠。"
         )
 
+    async def persist_structured_dissent(
+        self,
+        dissent: DebateStructuredDissent,
+        db: AsyncSession,
+    ) -> None:
+        """Persist a structured dissent object to the database."""
+        db.add(dissent)
+        await db.flush()
+
     async def check_and_apply_revisions(
         self,
         session: AsyncSession,
@@ -133,6 +142,18 @@ class DebateRevisionMixin:
         返回修订记录列表。
         """
         overturned = self.detect_overturned_arguments(rounds)
+
+        # Persist structured dissent for the primary dissenter
+        if overturned:
+            # Pick the dissenter: the OPPOSE role with the largest confidence drop
+            dissenter = max(overturned, key=lambda o: o.get("confidence_drop", 0.0))
+            dissent_obj = await self.generate_structured_dissent(
+                debate_id=debate_id,
+                round_records=rounds,
+                dissenter_role=dissenter["role"],
+                db=session,
+            )
+            await self.persist_structured_dissent(dissent_obj, session)
 
         if not overturned:
             return []

@@ -24,8 +24,6 @@ except ImportError:  # pragma: no cover – SQLite / no-pgvector envs
     Vector = None  # type: ignore[assignment,misc]
 
 from planagent.domain.enums import (
-    BatchSubTaskStatus,
-    BatchTaskStatus,
     ClaimStatus,
     ExecutionMode,
     IngestRunStatus,
@@ -46,6 +44,49 @@ def utc_now() -> datetime:
 
 class Base(DeclarativeBase):
     pass
+
+
+class AuthUser(Base):
+    __tablename__ = "auth_users"
+    __table_args__ = (
+        UniqueConstraint("username"),
+        UniqueConstraint("email"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    username: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), default="analyst", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    auth_provider: Mapped[str | None] = mapped_column(String(64), index=True)
+    external_id: Mapped[str | None] = mapped_column(String(255), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AuthRefreshToken(Base):
+    __tablename__ = "auth_refresh_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("auth_users.id"), nullable=False, index=True)
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class AuthRevokedToken(Base):
+    __tablename__ = "auth_revoked_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    revoked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
 
 
 class IngestRun(Base):
@@ -768,6 +809,55 @@ class DebateInterruptRecord(Base):
     debate_session: Mapped[DebateSessionRecord] = relationship(back_populates="interrupts")
 
 
+class DebateReliabilityScore(Base):
+    """辩论论点可靠性评分——交叉审查阶段对每个论点的独立审计"""
+
+    __tablename__ = "debate_reliability_scores"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    debate_id: Mapped[str] = mapped_column(
+        ForeignKey("debate_sessions.id"), nullable=False, index=True
+    )
+    round_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    argument_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    argument_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    reliability_score: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-5
+    bias_flags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    blind_spots: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    evidence_strength: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="moderate"
+    )  # strong/moderate/weak/speculative
+    auditor_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class DebateStructuredDissent(Base):
+    """结构化少数意见——替代原有的单一字符串 minority_opinion"""
+
+    __tablename__ = "debate_structured_dissents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    debate_id: Mapped[str] = mapped_column(
+        ForeignKey("debate_sessions.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    dissenter_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    claims: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
+    # Each claim: {"claim": str, "evidence": [str], "confidence": float, "category": str}
+    evidence_gaps: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    confidence_trajectory: Mapped[list[float]] = mapped_column(JSON, default=list, nullable=False)
+    recommended_monitoring: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    overall_dissent_strength: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
 class StrategicSession(Base):
     __tablename__ = "strategic_sessions"
 
@@ -808,6 +898,9 @@ class StrategicSession(Base):
 
     briefs: Mapped[list["StrategicBriefRecord"]] = relationship(back_populates="session")
     run_snapshots: Mapped[list["StrategicRunSnapshot"]] = relationship(back_populates="session")
+    recommendation_versions: Mapped[list["RecommendationVersion"]] = relationship(
+        back_populates="session"
+    )
     user_decisions: Mapped[list["UserDecision"]] = relationship(back_populates="session")
 
 
@@ -879,10 +972,46 @@ class StrategicRunSnapshot(Base):
     session: Mapped[StrategicSession] = relationship(back_populates="run_snapshots")
 
 
+class RecommendationVersion(Base):
+    __tablename__ = "recommendation_versions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("strategic_sessions.id"), nullable=False, index=True
+    )
+    watch_rule_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("watch_rules.id"), index=True
+    )
+    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    trigger_source_change_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("source_change_records.id"), index=True
+    )
+    source_change_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    significance: Mapped[str] = mapped_column(String(16), default="none", nullable=False)
+    change_summary: Mapped[str | None] = mapped_column(Text)
+    recommendation_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    result_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    source_snapshot: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    ingest_run_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    simulation_run_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    debate_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False, index=True
+    )
+
+    session: Mapped[StrategicSession] = relationship(back_populates="recommendation_versions")
+
+
 class WatchRule(Base):
     __tablename__ = "watch_rules"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    session_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("strategic_sessions.id"), index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     domain_id: Mapped[str] = mapped_column(String(32), nullable=False)
     query: Mapped[str] = mapped_column(Text, nullable=False)
@@ -1217,12 +1346,15 @@ class SourceCursorState(Base):
     tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
     preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
     cursor: Mapped[str | None] = mapped_column(Text)
+    health_status: Mapped[str] = mapped_column(String(24), default="pending", nullable=False)
     etag: Mapped[str | None] = mapped_column(String(256))
     last_modified: Mapped[str | None] = mapped_column(String(256))
     last_seen_hash: Mapped[str | None] = mapped_column(String(64))
     last_seen_raw_source_item_id: Mapped[str | None] = mapped_column(String(36))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_change_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
@@ -1329,71 +1461,3 @@ class PredictionCalibrationContext(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-
-
-class BatchTask(Base):
-    """批量任务——支持一次性提交多个方案并行辩论"""
-
-    __tablename__ = "batch_tasks"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    tenant_id: Mapped[str | None] = mapped_column(String(120), index=True)
-    preset_id: Mapped[str | None] = mapped_column(String(120), index=True)
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    decision_point: Mapped[str] = mapped_column(Text, nullable=False)
-    trigger_type: Mapped[str] = mapped_column(String(64), default="manual", nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(24),
-        default=BatchTaskStatus.PENDING.value,
-        nullable=False,
-        index=True,
-    )
-    total_tasks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    completed_tasks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    failed_tasks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    configuration: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    sub_tasks: Mapped[list["BatchSubTask"]] = relationship(back_populates="batch_task")
-
-
-class BatchSubTask(Base):
-    """批量子任务——每个方案对应的辩论子任务"""
-
-    __tablename__ = "batch_sub_tasks"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
-    batch_id: Mapped[str] = mapped_column(ForeignKey("batch_tasks.id"), nullable=False, index=True)
-    index: Mapped[int] = mapped_column(Integer, nullable=False)
-    proposal_title: Mapped[str] = mapped_column(String(255), nullable=False)
-    proposal_description: Mapped[str] = mapped_column(Text, nullable=False)
-    topic: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(24),
-        default=BatchSubTaskStatus.PENDING.value,
-        nullable=False,
-        index=True,
-    )
-    debate_id: Mapped[str | None] = mapped_column(ForeignKey("debate_sessions.id"), nullable=True)
-    simulation_run_id: Mapped[str | None] = mapped_column(
-        ForeignKey("simulation_runs.id"), nullable=True
-    )
-    verdict: Mapped[str | None] = mapped_column(String(32))
-    confidence: Mapped[float | None] = mapped_column(Float)
-    result_summary: Mapped[str | None] = mapped_column(Text)
-    error_message: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-    batch_task: Mapped["BatchTask"] = relationship(back_populates="sub_tasks")

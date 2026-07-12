@@ -56,6 +56,31 @@ class SourceStateService:
         await session.flush()
         return state
 
+    async def seed_watch_rule_sources(
+        self,
+        session: AsyncSession,
+        *,
+        watch_rule_id: str,
+        query: str,
+        source_types: list[str],
+        tenant_id: str | None = None,
+        preset_id: str | None = None,
+    ) -> list[SourceCursorState]:
+        """Ensure each configured watch source has a cursor state row."""
+        states: list[SourceCursorState] = []
+        for source_type in sorted({item for item in source_types if item}):
+            states.append(
+                await self.get_or_create_state(
+                    session,
+                    source_type=source_type,
+                    source_url_or_query=query,
+                    watch_rule_id=watch_rule_id,
+                    tenant_id=tenant_id,
+                    preset_id=preset_id,
+                )
+            )
+        return states
+
     async def update_after_fetch(
         self,
         session: AsyncSession,
@@ -66,6 +91,7 @@ class SourceStateService:
         last_modified: str | None = None,
         content_hash: str | None = None,
         raw_source_item_id: str | None = None,
+        preserve_changed: bool = False,
     ) -> None:
         """抓取成功/失败后更新游标状态。"""
         SourceCursorStateModel = self._source_cursor_state_model()
@@ -74,6 +100,7 @@ class SourceStateService:
             raise LookupError(f"Source cursor state {state_id} was not found.")
 
         now = utc_now()
+        state.last_checked_at = now
         if success:
             if cursor is not None:
                 state.cursor = cursor
@@ -87,9 +114,11 @@ class SourceStateService:
                 state.last_seen_raw_source_item_id = raw_source_item_id
             state.last_success_at = now
             state.consecutive_failures = 0
+            state.health_status = "changed" if preserve_changed else "healthy"
         else:
             state.consecutive_failures = int(state.consecutive_failures or 0) + 1
             state.last_failure_at = now
+            state.health_status = "failed" if state.consecutive_failures >= 3 else "degraded"
 
         state.updated_at = now
         await session.flush()
@@ -108,12 +137,15 @@ class SourceStateService:
         if last_success_at is None and last_failure_at is None:
             return True
 
-        if (
-            last_failure_at is not None
-            and (last_success_at is None or last_failure_at > last_success_at)
-            and int(state.consecutive_failures or 0) < 5
+        if last_failure_at is not None and (
+            last_success_at is None or last_failure_at > last_success_at
         ):
-            return True
+            failures = int(state.consecutive_failures or 0)
+            threshold = max(1, int(self.settings.source_failure_circuit_breaker_threshold))
+            if failures < threshold:
+                return True
+            backoff_minutes = self._failure_backoff_minutes(failures, threshold)
+            return utc_now() - last_failure_at >= timedelta(minutes=backoff_minutes)
 
         if last_success_at is None:
             return False
@@ -143,6 +175,7 @@ class SourceStateService:
             state.last_modified = None
             state.last_seen_hash = None
             state.last_seen_raw_source_item_id = None
+            state.health_status = "pending"
             state.updated_at = now
 
         from planagent.domain.models import WatchRule
@@ -182,6 +215,12 @@ class SourceStateService:
         if len(normalized) == 64 and all(char in "0123456789abcdefABCDEF" for char in normalized):
             return normalized.lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _failure_backoff_minutes(self, failures: int, threshold: int) -> int:
+        base_minutes = max(1, int(self.settings.source_failure_backoff_base_minutes))
+        max_minutes = max(base_minutes, int(self.settings.source_failure_backoff_max_minutes))
+        exponent = min(max(failures - threshold, 0), 8)
+        return min(max_minutes, base_minutes * (2**exponent))
 
     def _source_cursor_state_model(self) -> type[SourceCursorState]:
         from planagent.domain.models import SourceCursorState

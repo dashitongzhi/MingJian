@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -17,6 +17,7 @@ from planagent.services.auth import AuthService, AuthConfig
 from planagent.services.notification import NotificationService, NotificationConfig
 from planagent.services.export import ExportService
 from planagent.simulation.rules import get_rule_registry
+from planagent.api.routes.auth import get_current_user_payload
 
 
 def create_app() -> FastAPI:
@@ -30,9 +31,11 @@ def create_app() -> FastAPI:
         app.state.rule_registry = get_rule_registry(settings.rules_dir)
         app.state.openai_service = OpenAIService(settings)
 
-        # Auth service
+        # Auth service — 使用结构化子模型访问
         auth_config = AuthConfig(
-            secret_key=getattr(settings, "auth_secret_key", "") or "",
+            secret_key=settings.auth.secret_key,
+            database_url=settings.db.url,
+            environment=settings.env,
         )
         app.state.auth_service = AuthService(auth_config)
 
@@ -70,13 +73,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(router)
+    app.include_router(router, prefix="/api")
     app.include_router(websocket_router)
 
     # 条件性注册 MCP Server 路由
     if settings.mcp_enabled:
         from planagent.mcp.server import router as mcp_router
 
-        app.include_router(mcp_router, tags=["MCP Server"])
+        app.include_router(
+            mcp_router,
+            tags=["MCP Server"],
+            dependencies=[Depends(get_current_user_payload)],
+        )
 
     return app
 

@@ -18,6 +18,8 @@ from planagent.domain.api import (
     CalibrationComputeRequest,
     CalibrationRead,
     DebateTriggerRequest,
+    EvidenceGraphEdgeRead,
+    EvidenceGraphNodeRead,
     EvidenceGraphRead,
     IngestRunCreate,
     IngestRunRead,
@@ -27,10 +29,12 @@ from planagent.domain.api import (
     OpenAIStatusResponse,
     OpenAITestRequest,
     OpenAITestResponse,
+    PlatformTopologyRead,
     RuleReloadResponse,
     RuntimeQueueHealthRead,
     SimulationRunCreate,
     SimulationRunRead,
+    SourceCursorStateRead,
     WatchRuleCreate,
     WatchRuleRead,
     WatchRuleTriggerRead,
@@ -47,6 +51,7 @@ from planagent.domain.models import (
     NormalizedItem,
     RawSourceItem,
     SimulationRun,
+    SourceCursorState,
     SourceHealth,
     SourceSnapshot,
     StateSnapshotRecord,
@@ -58,10 +63,12 @@ from planagent.api.routes._deps import (
     ensure_app_services,
     get_analysis_service,
     get_debate_service,
+    get_platform_topology_service,
     get_pipeline_service,
     get_runtime_monitor_service,
     get_simulation_service,
 )
+from planagent.api.routes.auth import require_role
 from planagent.services.startup import (
     AGENT_STARTUP_PRESET_ID,
     build_startup_kpi_pack,
@@ -69,10 +76,14 @@ from planagent.services.startup import (
     load_agent_startup_ingest_payload,
     load_agent_startup_simulation_payload,
 )
+from planagent.services.recommendations import RecommendationVersionService
+from planagent.services.source_state import SourceStateService
+from planagent.services.auth import UserRole
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
 router = APIRouter()
+_ADMIN_ONLY = [Depends(require_role(UserRole.ADMIN))]
 
 
 # ── Jarvis ───────────────────────────────────────────────────────────────────
@@ -86,27 +97,39 @@ def _get_jarvis(request: Request) -> JarvisOrchestrator:
     )
 
 
-@router.post("/jarvis/runs", response_model=JarvisRunRead, status_code=201)
+@router.post(
+    "/jarvis/runs",
+    response_model=JarvisRunRead,
+    status_code=201,
+    dependencies=_ADMIN_ONLY,
+)
 async def create_jarvis_run(
     payload: JarvisRunCreate,
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> JarvisRunRead:
     orchestrator = _get_jarvis(request)
+    run = await session.get(SimulationRun, payload.run_id) if payload.run_id is not None else None
+    task_payload: dict[str, Any] = {
+        "run_id": payload.run_id,
+        "target_id": payload.target_id,
+        "prompt": payload.prompt,
+    }
+    if run is not None:
+        task_payload["run_status"] = run.status
+        task_payload["run_summary"] = run.summary
     task = JarvisTask(
         task_type=payload.target_type,
-        payload={"run_id": payload.run_id, "target_id": payload.target_id},
+        payload=task_payload,
         run_id=payload.run_id,
         target_id=payload.target_id,
         profile_id="plan-agent",
     )
     jarvis_result = await orchestrator.orchestrate(task)
     result = jarvis_result.to_dict()
-    if payload.run_id is not None:
-        run = await session.get(SimulationRun, payload.run_id)
-        if run is not None:
-            result["run_status"] = run.status
-            result["run_summary"] = run.summary
+    if run is not None:
+        result["run_status"] = run.status
+        result["run_summary"] = run.summary
     record = JarvisRunRecord(
         run_id=payload.run_id,
         target_type=payload.target_type,
@@ -121,19 +144,20 @@ async def create_jarvis_run(
     return JarvisRunRead.model_validate(record)
 
 
-@router.get("/jarvis/profiles")
+@router.get("/jarvis/profiles", dependencies=_ADMIN_ONLY)
 async def get_jarvis_profiles(request: Request) -> dict[str, Any]:
     return _get_jarvis(request).get_profiles()
 
 
-@router.post("/jarvis/test")
+@router.post("/jarvis/test", response_model=None, dependencies=_ADMIN_ONLY)
 async def test_jarvis_target(
     target: str = Query(default="primary"), request: Request = None
 ) -> dict[str, Any]:
+    assert request is not None  # FastAPI 保证注入 request 对象
     return await _get_jarvis(request).test_target(target)
 
 
-@router.get("/jarvis/runs", response_model=list[JarvisRunRead])
+@router.get("/jarvis/runs", response_model=list[JarvisRunRead], dependencies=_ADMIN_ONLY)
 async def list_jarvis_runs(
     run_id: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
@@ -150,7 +174,10 @@ async def list_jarvis_runs(
 
 
 @router.post(
-    "/presets/agent-startup/runs", response_model=AgentStartupPresetRunRead, status_code=201
+    "/presets/agent-startup/runs",
+    response_model=AgentStartupPresetRunRead,
+    status_code=201,
+    dependencies=_ADMIN_ONLY,
 )
 async def create_agent_startup_preset_runs(
     payload: AgentStartupPresetRunCreate,
@@ -221,13 +248,17 @@ async def create_agent_startup_preset_runs(
 # ── Admin ────────────────────────────────────────────────────────────────────
 
 
-@router.post("/admin/rules/reload", response_model=RuleReloadResponse)
+@router.post("/admin/rules/reload", response_model=RuleReloadResponse, dependencies=_ADMIN_ONLY)
 async def reload_rules(request: Request) -> RuleReloadResponse:
     domains, total = request.app.state.rule_registry.reload()
     return RuleReloadResponse(domains=domains, rules_loaded=total)
 
 
-@router.get("/admin/runtime/queues", response_model=RuntimeQueueHealthRead)
+@router.get(
+    "/admin/runtime/queues",
+    response_model=RuntimeQueueHealthRead,
+    dependencies=_ADMIN_ONLY,
+)
 async def runtime_queue_health(
     tenant_id: str | None = None,
     preset_id: str | None = None,
@@ -237,7 +268,17 @@ async def runtime_queue_health(
     return await service.collect_queue_health(session, tenant_id=tenant_id, preset_id=preset_id)
 
 
-@router.get("/admin/analysis/cache")
+@router.get(
+    "/admin/runtime/platform-topology",
+    response_model=PlatformTopologyRead,
+    dependencies=_ADMIN_ONLY,
+)
+async def runtime_platform_topology(request: Request) -> PlatformTopologyRead:
+    service = get_platform_topology_service(request)
+    return await service.collect()
+
+
+@router.get("/admin/analysis/cache", dependencies=_ADMIN_ONLY)
 async def analysis_cache_status(
     limit: int = Query(default=20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
@@ -282,13 +323,21 @@ async def analysis_cache_status(
     }
 
 
-@router.get("/admin/openai/status", response_model=OpenAIStatusResponse)
+@router.get(
+    "/admin/openai/status",
+    response_model=OpenAIStatusResponse,
+    dependencies=_ADMIN_ONLY,
+)
 async def openai_status(request: Request) -> OpenAIStatusResponse:
     ensure_app_services(request)
-    return request.app.state.openai_service.status()
+    return request.app.state.openai_service.status()  # type: ignore[no-any-return]  # app.state 动态属性
 
 
-@router.post("/admin/openai/test", response_model=OpenAITestResponse)
+@router.post(
+    "/admin/openai/test",
+    response_model=OpenAITestResponse,
+    dependencies=_ADMIN_ONLY,
+)
 async def openai_test(
     payload: OpenAITestRequest,
     request: Request,
@@ -304,10 +353,21 @@ async def openai_test(
         raise HTTPException(status_code=503, detail=result.last_error)
     if not result.ok:
         raise HTTPException(status_code=502, detail=result.last_error)
-    return result
+    return result  # type: ignore[no-any-return]  # openai_service 返回 Any
 
 
 # ── Watch Rules ──────────────────────────────────────────────────────────────
+
+
+async def _seed_watch_rule_sources(session: AsyncSession, rule: WatchRule) -> None:
+    await SourceStateService(get_settings()).seed_watch_rule_sources(
+        session,
+        watch_rule_id=rule.id,
+        query=rule.query,
+        source_types=rule.source_types or [],
+        tenant_id=rule.tenant_id,
+        preset_id=rule.preset_id,
+    )
 
 
 @router.post("/watch/rules", response_model=WatchRuleRead, status_code=201)
@@ -317,6 +377,7 @@ async def create_watch_rule(
 ) -> WatchRuleRead:
     now = utc_now()
     rule = WatchRule(
+        session_id=payload.session_id,
         name=payload.name,
         domain_id=payload.domain_id,
         query=payload.query,
@@ -339,6 +400,8 @@ async def create_watch_rule(
         next_poll_at=now,
     )
     session.add(rule)
+    await session.flush()
+    await _seed_watch_rule_sources(session, rule)
     await session.commit()
     await session.refresh(rule)
     return WatchRuleRead.model_validate(rule)
@@ -393,6 +456,26 @@ async def get_watch_rule(
     return WatchRuleRead.model_validate(rule)
 
 
+@router.get("/watch/rules/{rule_id}/sources", response_model=list[SourceCursorStateRead])
+async def list_watch_rule_sources(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> list[SourceCursorStateRead]:
+    rule = await session.get(WatchRule, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Watch rule not found.")
+    rows = list(
+        (
+            await session.scalars(
+                select(SourceCursorState)
+                .where(SourceCursorState.watch_rule_id == rule_id)
+                .order_by(SourceCursorState.source_type.asc(), SourceCursorState.updated_at.desc())
+            )
+        ).all()
+    )
+    return [SourceCursorStateRead.model_validate(row) for row in rows]
+
+
 @router.get("/admin/watch-rules/{rule_id}", response_model=WatchRuleRead, include_in_schema=False)
 @router.get("/watch-rules/{rule_id}", response_model=WatchRuleRead, include_in_schema=False)
 async def get_watch_rule_alias(
@@ -412,8 +495,11 @@ async def update_watch_rule(
     rule = await session.get(WatchRule, rule_id)
     if rule is None:
         raise HTTPException(status_code=404, detail="Watch rule not found.")
-    for field_name, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    for field_name, value in updates.items():
         setattr(rule, field_name, value)
+    if "source_types" in updates:
+        await _seed_watch_rule_sources(session, rule)
     await session.commit()
     await session.refresh(rule)
     return WatchRuleRead.model_validate(rule)
@@ -564,6 +650,38 @@ async def trigger_watch_rule(
         rule.lease_owner = None
         rule.lease_expires_at = None
         rule.next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
+        recommendation_version_id = None
+        if rule.session_id is not None:
+            recommendation_service = RecommendationVersionService()
+            recommendation = await recommendation_service.create_version(
+                session,
+                session_id=rule.session_id,
+                watch_rule_id=rule.id,
+                tenant_id=rule.tenant_id,
+                preset_id=rule.preset_id,
+                trigger_type="manual_trigger",
+                significance="none",
+                recommendation_summary=_watch_recommendation_summary(
+                    analysis.recommendations,
+                    analysis.summary,
+                    debate_id,
+                    simulation_run_id,
+                ),
+                result_payload={
+                    "kind": "watch_manual_trigger",
+                    "analysis": analysis.model_dump(mode="json"),
+                    "sources_fetched": len(analysis.sources),
+                    "threshold_met": threshold_met,
+                },
+                source_snapshot=await recommendation_service.source_snapshot(
+                    session,
+                    watch_rule_id=rule.id,
+                ),
+                ingest_run_id=ingest_run.id,
+                simulation_run_id=simulation_run_id,
+                debate_id=debate_id,
+            )
+            recommendation_version_id = recommendation.id
         await session.commit()
 
         return WatchRuleTriggerRead(
@@ -574,6 +692,7 @@ async def trigger_watch_rule(
             sources_fetched=len(analysis.sources),
             simulation_run_id=simulation_run_id,
             debate_id=debate_id,
+            recommendation_version_id=recommendation_version_id,
         )
     except Exception as exc:
         rule.last_poll_error = f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
@@ -657,10 +776,27 @@ def _watch_source_score(rule: WatchRule, source: AnalysisSourceRead) -> float:
     return round(max(0.0, min(score, 1.0)), 4)
 
 
+def _watch_recommendation_summary(
+    recommendations: list[str],
+    summary: str,
+    debate_id: str | None,
+    simulation_run_id: str | None,
+) -> str:
+    cleaned = [" ".join(item.split()) for item in recommendations if item]
+    base = "；".join(cleaned[:3]) if cleaned else " ".join(str(summary or "").split())
+    actions = []
+    if simulation_run_id is not None:
+        actions.append("已生成新推演")
+    if debate_id is not None:
+        actions.append("已完成重新辩论")
+    suffix = f"（{', '.join(actions)}）" if actions else ""
+    return f"{base[:500]}{suffix}" or "监控刷新完成，暂无明确建议变化。"
+
+
 # ── Sources ──────────────────────────────────────────────────────────────────
 
 
-@router.get("/sources/health")
+@router.get("/sources/health", dependencies=_ADMIN_ONLY)
 async def list_source_health(
     session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
@@ -681,7 +817,7 @@ async def list_source_health(
     ]
 
 
-@router.get("/sources/snapshots")
+@router.get("/sources/snapshots", dependencies=_ADMIN_ONLY)
 async def list_source_snapshots(
     tenant_id: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
@@ -710,7 +846,7 @@ async def list_source_snapshots(
 # ── Knowledge Graph ──────────────────────────────────────────────────────────
 
 
-@router.get("/knowledge/graph", response_model=EvidenceGraphRead)
+@router.get("/knowledge/graph", response_model=EvidenceGraphRead, dependencies=_ADMIN_ONLY)
 async def get_knowledge_graph(
     tenant_id: str | None = None,
     preset_id: str | None = None,
@@ -742,31 +878,35 @@ async def get_knowledge_graph(
 
     return EvidenceGraphRead(
         nodes=[
-            {
-                "node_id": node.node_key,
-                "label": node.label,
-                "node_type": node.node_type,
-                "metadata": {
+            EvidenceGraphNodeRead(
+                node_id=node.node_key,
+                label=node.label,
+                node_type=node.node_type,
+                metadata={
                     **(node.node_metadata or {}),
                     "source_table": node.source_table,
                     "source_id": node.source_id,
                 },
-            }
+            )
             for node in nodes
         ],
         edges=[
-            {
-                "source_id": edge.source_node_key,
-                "target_id": edge.target_node_key,
-                "relation_type": edge.relation_type,
-                "metadata": edge.edge_metadata or {},
-            }
+            EvidenceGraphEdgeRead(
+                source_id=edge.source_node_key,
+                target_id=edge.target_node_key,
+                relation_type=edge.relation_type,
+                metadata=edge.edge_metadata or {},
+            )
             for edge in edges
         ],
     )
 
 
-@router.get("/knowledge/search", response_model=list[KnowledgeSearchResultRead])
+@router.get(
+    "/knowledge/search",
+    response_model=list[KnowledgeSearchResultRead],
+    dependencies=_ADMIN_ONLY,
+)
 async def search_knowledge_graph(
     q: str = Query(min_length=1),
     tenant_id: str | None = None,
@@ -781,7 +921,7 @@ async def search_knowledge_graph(
 # ── Hypotheses Scoreboard ────────────────────────────────────────────────────
 
 
-@router.get("/hypotheses/scoreboard")
+@router.get("/hypotheses/scoreboard", dependencies=_ADMIN_ONLY)
 async def hypotheses_scoreboard(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
@@ -821,7 +961,7 @@ async def hypotheses_scoreboard(
 # ── Calibration ──────────────────────────────────────────────────────────────
 
 
-@router.get("/calibration", response_model=list[CalibrationRead])
+@router.get("/calibration", response_model=list[CalibrationRead], dependencies=_ADMIN_ONLY)
 async def list_calibration(
     domain_id: str | None = None,
     tenant_id: str | None = None,
@@ -836,7 +976,12 @@ async def list_calibration(
     return [CalibrationRead.model_validate(r) for r in records]
 
 
-@router.post("/calibration/compute", response_model=CalibrationRead, status_code=201)
+@router.post(
+    "/calibration/compute",
+    response_model=CalibrationRead,
+    status_code=201,
+    dependencies=_ADMIN_ONLY,
+)
 async def compute_calibration(
     payload: CalibrationComputeRequest,
     session: AsyncSession = Depends(get_session),

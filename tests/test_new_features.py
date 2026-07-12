@@ -109,7 +109,7 @@ def test_debate_service_llm_method_exists() -> None:
 
 def test_debate_service_falls_back_without_openai() -> None:
     service = DebateService(
-        settings=Settings(),
+        settings=Settings(_env_file=None, anthropic_api_key="sk-test-fallback"),
         event_bus=InMemoryEventBus(),
         openai_service=None,
     )
@@ -121,7 +121,11 @@ def test_debate_service_falls_back_without_openai() -> None:
             evidence_ids=["ev-1"],
         )
     )
-    assert result is None
+    assert result is not None
+    roles = {round_payload["role"] for round_payload in result}
+    assert {"advocate", "challenger", "arbitrator"}.issubset(roles)
+    assert all(round_payload["arguments"] for round_payload in result)
+    assert all(round_payload["arguments"][0]["evidence_ids"] == ["ev-1"] for round_payload in result)
 
 
 def test_build_assessment_from_llm_rounds() -> None:
@@ -375,7 +379,9 @@ def test_in_memory_event_bus_records_dead_letter_topic() -> None:
     asyncio.run(bus.publish_dead_letter("knowledge.extracted", {"error": "boom"}))
     dlq_events = bus._events.get("knowledge.extracted.dlq", [])
     assert len(dlq_events) == 1
-    assert dlq_events[0].payload == {"error": "boom"}
+    assert dlq_events[0].payload["error"] == "boom"
+    assert dlq_events[0].payload["event_id"]
+    assert dlq_events[0].payload["idempotency_key"]
 
 
 # ── Knowledge Worker Re-evaluation ──────────────────────────────────────────

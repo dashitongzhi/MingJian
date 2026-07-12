@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+from typing import Any
 
 import planagent.simulation  # noqa: F401
 from planagent.config import get_settings
@@ -11,6 +12,8 @@ from planagent.db import get_database
 from planagent.domain.models import DeadLetterEvent
 from planagent.events.bus import ConsumedEvent
 from planagent.events.bus import build_event_bus
+from planagent.services.notification import NotificationConfig
+from planagent.services.notification import NotificationService
 from planagent.services.openai_client import OpenAIService
 from planagent.simulation.rules import get_rule_registry
 from planagent.workers.base import Worker
@@ -31,6 +34,7 @@ def build_worker(worker_name: str) -> Worker:
     event_bus = build_event_bus(settings)
     rule_registry = get_rule_registry(settings.rules_dir)
     openai_service = OpenAIService(settings)
+    notification_service = _build_notification_service(settings)
     factories = {
         "ingest-worker": lambda: IngestWorker(settings, event_bus, openai_service),
         "knowledge-worker": lambda: KnowledgeWorker(settings, event_bus, openai_service),
@@ -51,6 +55,7 @@ def build_worker(worker_name: str) -> Worker:
             event_bus,
             rule_registry,
             openai_service,
+            notification_service,
         ),
         "prediction-revision-worker": lambda: PredictionRevisionWorker(
             settings,
@@ -70,6 +75,18 @@ def build_worker(worker_name: str) -> Worker:
     if not hasattr(worker, "openai_service"):
         worker.openai_service = openai_service
     return worker
+
+
+def _build_notification_service(settings) -> NotificationService:
+    return NotificationService(
+        NotificationConfig(
+            smtp_host=getattr(settings, "smtp_host", None),
+            smtp_port=getattr(settings, "smtp_port", 587),
+            smtp_user=getattr(settings, "smtp_user", None),
+            smtp_password=getattr(settings, "smtp_password", None),
+            webhook_urls=getattr(settings, "webhook_urls", []),
+        )
+    )
 
 
 def list_workers() -> list[dict[str, object]]:
@@ -113,6 +130,8 @@ async def run_worker(worker_name: str, loop: bool, interval_seconds: float) -> N
             await event_bus.close()
         if hasattr(worker, "openai_service") and worker.openai_service is not None:
             await worker.openai_service.close()
+        if hasattr(worker, "notification_service") and worker.notification_service is not None:
+            await worker.notification_service.close()
 
 
 def _supports_stream_consumers(worker: Worker, event_bus: object | None) -> bool:
@@ -141,6 +160,15 @@ async def _run_stream_worker(
     )
 
     while True:
+        refresh_backpressure = getattr(event_bus, "refresh_backpressure", None)
+        if refresh_backpressure is not None:
+            await refresh_backpressure(
+                topics=consumes,
+                group=worker_name,
+                pending_threshold=settings.backpressure_pending_threshold,
+                ttl_seconds=max(30, settings.stream_consumer_block_ms // 1000 * 3),
+            )
+
         events = await event_bus.reclaim_pending(
             topics=consumes,
             group=worker_name,
@@ -163,25 +191,15 @@ async def _run_stream_worker(
             result = await worker.run_once()
         except Exception as exc:
             for event in events:
-                await _record_dead_letter(
+                await _retry_or_dead_letter_event(
+                    event_bus,
                     worker_name,
-                    event.topic,
                     consumer_name,
-                    event.message_id,
-                    event.payload,
+                    event,
                     exc,
+                    settings.worker_max_attempts,
+                    settings.stream_retry_base_seconds,
                 )
-                await event_bus.publish_dead_letter(
-                    event.topic,
-                    {
-                        "group": worker_name,
-                        "consumer": consumer_name,
-                        "message_id": event.message_id,
-                        "payload": event.payload,
-                        "error": str(exc),
-                    },
-                )
-                await event_bus.ack(event.topic, worker_name, event.message_id)
             continue
         print(
             json.dumps(
@@ -201,12 +219,60 @@ async def _ack_events(event_bus: object, worker_name: str, events: list[Consumed
         await event_bus.ack(event.topic, worker_name, event.message_id)
 
 
+async def _retry_or_dead_letter_event(
+    event_bus: object,
+    worker_name: str,
+    consumer_name: str,
+    event: ConsumedEvent,
+    exc: Exception,
+    max_attempts: int,
+    retry_base_seconds: float,
+) -> None:
+    payload = dict(event.payload)
+    metadata = payload.get("_worker") if isinstance(payload.get("_worker"), dict) else {}
+    attempts = int(metadata.get("attempts", 1) or 1)
+    next_attempt = attempts + 1
+    if next_attempt <= max(1, max_attempts):
+        payload["_worker"] = {
+            **metadata,
+            "attempts": next_attempt,
+            "last_error": f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+        }
+        payload["attempt"] = next_attempt
+        await asyncio.sleep(max(0.0, retry_base_seconds) * min(8, 2 ** max(0, attempts - 1)))
+        await event_bus.publish(event.topic, payload)
+        await event_bus.ack(event.topic, worker_name, event.message_id)
+        return
+
+    await _record_dead_letter(
+        worker_name,
+        event.topic,
+        consumer_name,
+        event.message_id,
+        event.payload,
+        exc,
+    )
+    await event_bus.publish_dead_letter(
+        event.topic,
+        {
+            "group": worker_name,
+            "consumer": consumer_name,
+            "message_id": event.message_id,
+            "payload": event.payload,
+            "attempts": attempts,
+            "attempt": attempts,
+            "error": str(exc),
+        },
+    )
+    await event_bus.ack(event.topic, worker_name, event.message_id)
+
+
 async def _record_dead_letter(
     worker_name: str,
     topic: str | None,
     consumer_name: str | None,
     message_id: str | None,
-    payload: dict,
+    payload: dict[str, Any],
     exc: Exception,
 ) -> None:
     database = get_database()
@@ -247,3 +313,7 @@ def main() -> None:
         return
 
     asyncio.run(run_worker(args.worker, args.loop, args.interval_seconds))
+
+
+if __name__ == "__main__":
+    main()

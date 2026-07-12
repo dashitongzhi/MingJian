@@ -1,18 +1,28 @@
 #!/bin/bash
-# Run all PlanAgent workers in background
+# Run Community core PlanAgent workers in background.
 set -uo pipefail
 
-WORKERS=(
+COMMUNITY_WORKERS=(
   ingest-worker
   knowledge-worker
-  graph-worker
   review-worker
   simulation-worker
   report-worker
-  strategic-watch-worker
   watch-ingest-worker
+)
+
+ADVANCED_WORKERS=(
+  strategic-watch-worker
+  prediction-revision-worker
+  graph-worker
   calibration-worker
 )
+
+if [[ "${PLANAGENT_COMMUNITY_ADVANCED_WORKERS:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  WORKERS=("${COMMUNITY_WORKERS[@]}" "${ADVANCED_WORKERS[@]}")
+else
+  WORKERS=("${COMMUNITY_WORKERS[@]}")
+fi
 
 WORKER_PIDS=()
 SHUTTING_DOWN=0
@@ -153,7 +163,10 @@ shutdown() {
 
 trap shutdown SIGTERM SIGINT
 
-log "Starting all PlanAgent workers..."
+log "Starting Community PlanAgent workers..."
+if [[ "${PLANAGENT_COMMUNITY_ADVANCED_WORKERS:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  log "Advanced worker compatibility mode is enabled."
+fi
 for index in "${!WORKERS[@]}"; do
   start_worker "${index}"
 done

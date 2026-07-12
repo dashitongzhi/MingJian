@@ -25,6 +25,7 @@ env/
 # Build and packaging output
 build/
 dist/
+uv.lock
 *.egg-info/
 .eggs/
 pip-wheel-metadata/
@@ -35,21 +36,32 @@ pip-wheel-metadata/
 *.sqlite3
 *.log
 source_snapshots/
+outputs/
+exports/
 
 # Local editor and OS files
 .DS_Store
 .idea/
 .vscode/
 .claude/
+.codex/
 
 # Frontend / Next.js
 frontend/.next/
 frontend/node_modules/
 frontend/next-env.d.ts
+frontend-new/node_modules/
+frontend-new/dist/
+frontend-v2/node_modules/
+frontend-v2/dist/
+pure-react-app/node_modules/
+pure-react-app/dist/
 
 # Docker local compose
-docker-compose.yml
-docker/
+!docker-compose.yml
+docker/*
+!docker/postgres/
+!docker/postgres/**
 
 # Test reports
 docs/release_impact_test_report.md
@@ -61,3 +73,13 @@ current-workspace-chat-history.md
 workspace/
 *.pptx
 .venv312/
+
+# Copilot instructions (local, do not upload)
+.github/copilot-instructions.md
+
+# Local-only planning and development guidance
+DEVELOPMENT_GUIDE.md
+PLAN.md
+plana.md
+docs/planagent_full_report.md
+CONTINUOUS_MONITORING.md

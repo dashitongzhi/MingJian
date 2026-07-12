@@ -8,7 +8,7 @@ import html
 import inspect
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +39,15 @@ class AnalysisEvent:
 class SourceFetchBundle:
     sources: list[AnalysisSourceRead]
     steps: list[AnalysisStepRead]
+
+
+@dataclass(frozen=True)
+class ResearchAgentPlan:
+    provider_key: str
+    label: str
+    agent_name: str
+    task_desc: str
+    queries: list[str]
 
 
 class AutomatedAnalysisService:
@@ -281,12 +290,16 @@ class AutomatedAnalysisService:
         steps_by_adapter: list[AnalysisStepRead | None] = []
         seen: set[tuple[str, str]] = set()
         adapters = self.source_registry.build_adapters(payload, query, domain_id)
-        fetch_requests: list[tuple[int, Any, int]] = []
+        fetch_requests: list[tuple[int, Any, int, ResearchAgentPlan]] = []
         tasks: list[Any] = []
 
-        async def fetch_with_timeout(adapter, limit: int) -> list[AnalysisSourceRead]:
+        async def fetch_with_timeout(
+            adapter,
+            limit: int,
+            plan: ResearchAgentPlan,
+        ) -> dict[str, Any]:
             async with asyncio.timeout(30):
-                return await adapter.fetch(limit)
+                return await self._run_research_agent(adapter, limit, plan, emit)
 
         async def emit(event: str, payload_data: dict[str, Any]) -> None:
             if event_queue is not None:
@@ -325,26 +338,28 @@ class AutomatedAnalysisService:
                 continue
 
             steps_by_adapter.append(None)
-            fetch_requests.append((index, adapter, adapter.limit))
+            plan = self._build_research_agent_plan(adapter, query, domain_id)
+            fetch_requests.append((index, adapter, adapter.limit, plan))
             await emit(
-                "source_start",
+                "agent_plan",
                 {
                     "provider": provider_key,
                     "label": provider_label,
                     "agent_name": adapter.agent_name,
                     "agent_icon": adapter.agent_icon,
                     "task_desc": adapter.task_desc,
+                    "queries": plan.queries,
                 },
             )
-            tasks.append(fetch_with_timeout(adapter, adapter.limit))
+            tasks.append(fetch_with_timeout(adapter, adapter.limit, plan))
 
         fetch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for (index, adapter, limit), provider_results in zip(
+        for (index, adapter, limit, plan), provider_results in zip(
             fetch_requests, fetch_results, strict=True
         ):
             provider_label = adapter.label
-            if isinstance(provider_results, Exception):
+            if isinstance(provider_results, BaseException):
                 error_detail = (
                     self._clean_text(str(provider_results))[:240]
                     or provider_results.__class__.__name__
@@ -371,7 +386,10 @@ class AutomatedAnalysisService:
 
             added = 0
             items_preview: list[str] = []
-            for source in provider_results:
+            provider_data = cast(dict[str, Any], provider_results)
+            sources = provider_data["sources"]
+            attempts = provider_data["attempts"]
+            for source in sources:
                 dedupe_key = (source.title.lower(), source.url)
                 if dedupe_key in seen:
                     continue
@@ -384,7 +402,10 @@ class AutomatedAnalysisService:
             steps_by_adapter[index] = self._step(
                 "source_complete",
                 f"Collected {added} item(s) from {provider_label}.",
-                f"Requested {limit}; deduped total is now {len(results)}.",
+                (
+                    f"Research agent {plan.agent_name} tried {len(attempts)} query path(s); "
+                    f"requested {limit}; deduped total is now {len(results)}."
+                ),
             )
             await emit(
                 "source_complete",
@@ -393,6 +414,7 @@ class AutomatedAnalysisService:
                     "label": provider_label,
                     "count": added,
                     "items_preview": items_preview,
+                    "attempts": attempts,
                 },
             )
 
@@ -400,6 +422,104 @@ class AutomatedAnalysisService:
             sources=results,
             steps=[step for step in steps_by_adapter if step is not None],
         )
+
+    def _build_research_agent_plan(
+        self,
+        adapter,
+        query: str,
+        domain_id: str,
+    ) -> ResearchAgentPlan:
+        provider_hints = {
+            "google_news": "latest news",
+            "gdelt": "global event risk signals",
+            "reddit": "community discussion evidence",
+            "hacker_news": "technical founder discussion",
+            "github": "repository activity releases issues",
+            "rss": "official blog and publication updates",
+            "x": "breaking social signals",
+            "weather": "weather operational constraints",
+            "aviation": "flight and airspace signals",
+        }
+        domain_hints = {
+            "corporate": "market customers competitors pricing",
+            "military": "logistics posture readiness incident",
+            "general": "decision evidence risks timeline",
+            "auto": "decision evidence risks timeline",
+        }
+        hint = provider_hints.get(adapter.key, adapter.task_desc)
+        domain_hint = domain_hints.get(domain_id, domain_hints["general"])
+        queries = [
+            query,
+            f"{query} {hint}",
+            f"{query} {domain_hint}",
+        ]
+        clean_queries = list(dict.fromkeys(self._clean_text(item) for item in queries if item))
+        return ResearchAgentPlan(
+            provider_key=adapter.key,
+            label=adapter.label,
+            agent_name=adapter.agent_name,
+            task_desc=adapter.task_desc,
+            queries=clean_queries[:3],
+        )
+
+    async def _run_research_agent(
+        self,
+        adapter,
+        limit: int,
+        plan: ResearchAgentPlan,
+        emit,
+    ) -> dict[str, Any]:
+        combined: list[AnalysisSourceRead] = []
+        seen: set[tuple[str, str]] = set()
+        attempts: list[dict[str, Any]] = []
+        min_results_before_refine = 1 if limit <= 1 else max(2, min(limit, (limit + 1) // 2))
+
+        for query_index, query_variant in enumerate(plan.queries):
+            await emit(
+                "source_start",
+                {
+                    "provider": adapter.key,
+                    "label": adapter.label,
+                    "agent_name": adapter.agent_name,
+                    "query": query_variant,
+                    "query_index": query_index,
+                    "reason": "initial" if query_index == 0 else "refinement",
+                },
+            )
+            source_items = await adapter.fetch_query(query_variant, limit)
+            added = 0
+            for source in source_items:
+                dedupe_key = (source.title.lower(), source.url)
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                combined.append(source)
+                added += 1
+
+            attempts.append(
+                {
+                    "query": query_variant,
+                    "returned": len(source_items),
+                    "added": added,
+                }
+            )
+            if len(combined) >= min_results_before_refine:
+                break
+
+            await emit(
+                "agent_refine",
+                {
+                    "provider": adapter.key,
+                    "label": adapter.label,
+                    "agent_name": adapter.agent_name,
+                    "reason": (
+                        f"Only {len(combined)} usable item(s) collected; "
+                        "trying a provider-specific query variant."
+                    ),
+                },
+            )
+
+        return {"sources": combined[:limit], "attempts": attempts}
 
     async def record_source_success(self, session: AsyncSession, source_type: str) -> None:
         record = await self._get_source_health(session, source_type)

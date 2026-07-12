@@ -120,6 +120,10 @@ class Settings(BaseAppSettings):
         return self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
 
     @property
+    def resolved_anthropic_base_url(self) -> str | None:
+        return self.anthropic_base_url or os.getenv("ANTHROPIC_BASE_URL")
+
+    @property
     def x_enabled(self) -> bool:
         return bool(self.resolved_x_bearer_token or self.resolved_openai_x_search_api_key)
 

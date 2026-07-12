@@ -1,0 +1,182 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/rzn0cl",
+    "id": "rzn0cl",
+    "slide": 1,
+    "layoutId": "ba37c908-567e-4a34-92cf-056a5256e1ac",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "7e893f01-8909-4a40-a225-064485028760",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#F8FAFC",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "PingFang SC"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "ba37c908-567e-4a34-92cf-056a5256e1ac",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "7e893f01-8909-4a40-a225-064485028760",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "7e893f01-8909-4a40-a225-064485028760",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lszqtcj6",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#F8FAFC",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/a5gbq1or",
+      "id": "2",
+      "bbox": [
+        80,
+        100,
+        900,
+        120
+      ],
+      "geometry": "rect",
+      "text": "明鉴 MingJian",
+      "textPreview": "明鉴 MingJian",
+      "resolvedFontSize": 52,
+      "resolvedTextStyle": {
+        "fontSize": 52,
+        "typeface": "PingFang SC",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "明鉴 MingJian"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "明鉴 MingJian",
+          "runs": [
+            {
+              "index": 1,
+              "text": "明鉴 MingJian",
+              "fontSize": 52,
+              "typeface": "PingFang SC",
+              "color": "#0F172A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/3m94fu18",
+      "id": "3",
+      "bbox": [
+        80,
+        260,
+        300,
+        120
+      ],
+      "geometry": "roundRect",
+      "text": "证据驱动",
+      "textPreview": "证据驱动",
+      "resolvedFontSize": 24,
+      "resolvedTextStyle": {
+        "fontSize": 24,
+        "typeface": "PingFang SC",
+        "bold": true,
+        "alignment": "center"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "证据驱动"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "证据驱动",
+          "runs": [
+            {
+              "index": 1,
+              "text": "证据驱动",
+              "fontSize": 24,
+              "typeface": "PingFang SC",
+              "color": "#064E3B",
+              "bold": true,
+              "alignment": "center"
+            }
+          ]
+        }
+      ],
+      "fillColor": "#DFF7F0",
+      "lineColor": "#10B981",
+      "lineWidth": 2
+    }
+  ],
+  "composeRuns": []
+}

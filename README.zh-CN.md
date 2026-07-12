@@ -1,64 +1,92 @@
 <div align="center">
 
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 图标">
+<br />
 
-# 明鉴 (MingJian)
+# 明鉴 MingJian
 
 ### *明察秋毫，鉴往知来*
 
-**AI驱动的多代理平台 | 证据驱动的场景模拟与战略决策**
+**开源战略智能驾驶舱：用证据驱动决策、多智能体辩论、场景推演和可审计推荐。**
 
 ---
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
+[![Edition](https://img.shields.io/badge/Edition-Community%20OSS-1f6f5b.svg)](#版本边界)
+[![License](https://img.shields.io/badge/License-Apache%202.0-2f6f9f.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-2b6cb0.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-0f766e.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-3b82f6.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-7c3aed.svg)](https://vite.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-2563eb.svg)](https://www.typescriptlang.org/)
 
-**🌐 语言选择 / Language Selection**
+**语言 / Language**
 
-[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
+[English](README.md) · [中文](README.zh-CN.md) · [हिन्दी](README.hi.md) · [日本語](README.ja.md)
 
----
+<br />
 
-![明鉴 平台概览](frontend/public/mingjian-hero.jpg)
+| 信号 | 明鉴交付什么 |
+| --- | --- |
+| 证据优先 | 每条建议都连接到采集来源、抽取声明和可回放追踪。 |
+| 不是独白，而是辩论 | 专门角色会先挑战假设，再返回建议。 |
+| 本地主权 | Community 可本地运行，开源代码、本地数据控制、24 小时监控窗口。 |
+| 决策记忆 | 会话、推荐版本、刷新、源健康和用户反馈保持同一条链路。 |
 
 </div>
 
 ---
 
-## 🌟 为什么选择明鉴？
+## 产品阅读
 
-> **"第一个将证据驱动分析、多代理辩论和实时模拟统一在一个工作空间中的开源平台。"**
+明鉴面向需要在不确定性下做重要判断的人：创始人、分析师、运营者、研究者、战略团队，以及任何需要可检查证据而不是盲信答案的团队。
 
-明鉴不仅仅是一个AI工具——它是组织进行战略决策方式的**范式转变**。通过结合10+实时数据源、对抗性多代理辩论和确定性决策追踪，明鉴消除了困扰传统AI系统的"黑箱"问题。
+它更像战略智能驾驶舱，而不是聊天框。用户提交决策问题后，明鉴采集证据、执行分析和推演、召集辩论委员会、返回首次建议，并把后续源变化、推荐版本和反馈记录沉淀下来。
 
 ---
 
-## 🎯 当前智能分析的困境
+## 版本边界
 
-从 ChatGPT 到各类企业级 AI 副驾驶，当前主流智能分析系统普遍存在以下致命缺陷：
+| 版本 | 分发方式 | 核心工作流 | 商业层 |
+| --- | --- | --- | --- |
+| **Community** | Apache 2.0 自托管上游 | 完整公共决策工作流 + 24 小时本地监控 | 无 |
+| **Cloud** | 托管 SaaS 订阅 | Community 公共核心的超集 | 订阅、计量、租户运营 |
+| **Enterprise** | 私有化 / 本地部署 | Community 公共核心的超集 | License、审计、治理、私有连接器 |
 
-- ❌ **幻觉当事实** — 大模型自信地编造数据、捏造来源、伪造结论，你根本分不清哪些是真、哪些是假。
-- ❌ **单一模型的盲区** — 一个模型、一种世界观。没有交叉验证，没有对抗性挑战，没有第二意见。偏见无处遁形。
-- ❌ **黑箱推理** — 给你一个答案，但*怎么得出的*？没有证据链，没有来源追溯，无法审计也无法复现。
-- ❌ **知识过时，没有证据** — 模型依赖冻结在某个时间点的训练数据，无法从新闻、市场、传感器拉取实时情报——它们在*猜*，而不是*知道*。
-- ❌ **没有自我纠错** — AI 输出一锤子买卖，错误静默传播。没有审查循环，没有质量门槛，没有迭代优化。
-- ❌ **工具碎片化** — 数据采集、分析、辩论、报告分散在不同工具中，每次交接都丢失上下文。
-- ❌ **零可复现性** — 同一个问题跑两遍，得到两个不同的答案。没有确定性追踪、没有决策日志、没有问责机制。
+本仓库是 **Community** 版本。它必须保持强开源核心：不加入 Cloud 订阅界面、不加入 Enterprise 专属治理代码，也不把商业移动端作为公开入口，除非后续明确决定开放。
 
-## 💡 明鉴如何破解
+---
 
-明鉴用**证据**替代猜测，用**辩论**替代独断，用**追踪**替代黑箱：
+## 决策工作流
 
-- ✅ **证据锚定** — 每次分析都基于来自 10+ 实时数据源的真实数据（Google News、Reddit、GitHub、GDELT、X/Twitter 等）。不幻觉，不捏造。
-- ✅ **多代理对抗辩论** — GPT、Gemini、Claude、Grok 不是简单地同意——它们**互相挑战**。盲点被暴露，偏见被质疑。
-- ✅ **完整审计追踪** — 每一步都被记录：查阅了哪些来源、提出了哪些论点、做出了哪些决策。完全透明，完全可复现。
-- ✅ **实时情报** — 实时数据摄入、流式分析、即时洞察交付。不再依赖冻结的训练数据。
-- ✅ **自愈流水线** — Jarvis 引擎自动审查、批判、迭代自身输出，直到达到质量阈值。错误在到达你之前就被拦截。
+```text
+问题
+  -> 来源发现
+  -> 证据抽取
+  -> 分析与推演
+  -> 角色化辩论
+  -> 推荐建议
+  -> 版本时间线
+  -> 定时 / 源变化刷新
+  -> 决策记录与结果反馈
+```
+
+| 阶段 | 目的 | 用户可见证明 |
+| --- | --- | --- |
+| 采集 | 从新闻、代码、社交和公开数据源收集多源证据。 | 来源列表、游标健康、最后检查时间。 |
+| 推理 | 将证据转成论点、风险、推演和结构化声明。 | 分析产物、报告章节、辩论轮次。 |
+| 辩论 | 让角色化智能体质疑、修正并仲裁决策。 | 支持方、挑战方、仲裁方追踪。 |
+| 记忆 | 持久化会话、推荐版本、刷新触发和结果反馈。 | 时间线、推荐历史、反馈记录。 |
+
+---
+
+## 明鉴的不同
+
+| 旧式 AI 分析 | 明鉴 |
+| --- | --- |
+| 一个答案，少量上下文。 | 证据链、辩论链、推荐版本。 |
+| 单模型盲区。 | 支持、挑战、仲裁多角色批判。 |
+| 静态回答。 | 定时刷新和源变化触发更新。 |
+| 难以审计。 | 确定性追踪、来源归属、决策记录。 |
+| 泛化流程。 | 战略、风险、市场、政策、技术、社会和安全视角。 |
 
 ---
 
@@ -335,7 +363,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # 4. 安装前端依赖
-cd frontend
+cd frontend-v2
 npm install
 cd ..
 
@@ -352,7 +380,7 @@ alembic upgrade head
 uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 
 # 8. 启动前端（在新终端中）
-cd frontend
+cd frontend-v2
 npm run dev
 # 打开 http://localhost:3000
 ```
@@ -381,13 +409,12 @@ npm run dev
 
  包名 | 版本 | 用途 |
 ------|------|------|
- **Next.js** | 15+ | React框架 |
+ **Vite** | 8+ | 前端构建工具 |
  **React** | 19+ | UI库 |
- **TypeScript** | 5.8+ | 类型安全 |
- **Tailwind CSS** | 4.1+ | 实用优先的CSS |
- **SWR** | 2.3+ | 数据获取 |
- **Recharts** | 2.15+ | 图表库 |
- **Zustand** | 5.0+ | 状态管理 |
+ **TypeScript** | 6.0+ | 类型安全 |
+ **Tailwind CSS** | 4.2+ | 实用优先的CSS |
+ **React Router** | 7+ | 客户端路由 |
+ **Recharts** | 3.8+ | 图表库 |
 
 ### 开发依赖
 
@@ -484,26 +511,14 @@ src/planagent/
 **前端结构：**
 
 ```
-frontend/src/
-├── app/
-│   ├── assistant/       # AI助手（原1665行页面 → 5个子组件）
-│   │   ├── page.tsx     # 精简入口
-│   │   ├── ChatPanel.tsx
-│   │   ├── ProcessPanel.tsx
-│   │   ├── SourcePanel.tsx
-│   │   ├── DebatePanel.tsx
-│   │   └── hooks.ts
-│   ├── debate/          # 辩论视图（原1091行页面 → 4个子组件）
-│   │   ├── page.tsx     # 精简入口
-│   │   ├── RoundTimeline.tsx
-│   │   ├── AgentCard.tsx
-│   │   └── utils.ts
-│   └── ...
-├── __tests__/           # Vitest测试套件
-│   ├── components/      # 组件测试
-│   ├── api/             # API层测试
-│   └── lib/             # 工具函数测试
-└── vitest.config.ts
+frontend-v2/src/
+├── components/
+│   ├── layout/          # 应用外壳、侧边栏、导航框架
+│   └── ui/              # 共享驾驶舱界面和状态组件
+├── pages/               # 仪表盘、助手、监控、报告、设置
+├── api/                 # API 端点辅助函数
+├── hooks/               # 主题和应用级 React hooks
+└── main.tsx             # Vite 入口
 ```
 
 ---
@@ -515,8 +530,7 @@ frontend/src/
 - 运行集成测试: `python -m pytest tests/ -v`
 
 **前端测试 (Vitest)**
-- `cd frontend && npm test`
-- `cd frontend && npm run test:watch`
+- `cd frontend-v2 && npm run build`
 
 **压力测试**
 - 7维压力测试（需要后端运行）: `python tests/stress_test.py`
@@ -588,7 +602,7 @@ git push origin feature/amazing-feature
 ## 🙏 致谢
 
 - [FastAPI](https://fastapi.tiangolo.com/) - 高性能异步API
-- [Next.js](https://nextjs.org/) - React框架
+- [Vite](https://vite.dev/) - 前端构建工具
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - 数据库
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - 事件流
 - [MinIO](https://min.io/) - 对象存储

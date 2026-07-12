@@ -1,64 +1,101 @@
 <div align="center">
 
-<img src="frontend/public/mingjian-icon.jpg" width="160" alt="明鉴 Icon">
+<br />
 
-# 明鉴 (MingJian)
+# 明鉴 MingJian
 
 ### *See Clearly, Judge Wisely*
 
-**AI-Powered Multi-Agent Platform for Evidence-Driven Scenario Simulation & Strategic Decision-Making**
+**An open-source strategic intelligence cockpit for evidence-grounded decisions, multi-agent debate, scenario simulation, and auditable recommendations.**
 
 ---
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
-[![GitHub stars](https://img.shields.io/github/stars/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/dashitongzhi/MingJian?style=social)](https://github.com/dashitongzhi/MingJian/network/members)
+[![Edition](https://img.shields.io/badge/Edition-Community%20OSS-1f6f5b.svg)](#edition-boundary)
+[![License](https://img.shields.io/badge/License-Apache%202.0-2f6f9f.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12%2B-2b6cb0.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-0f766e.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-3b82f6.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-frontend-7c3aed.svg)](https://vite.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8%2B-2563eb.svg)](https://www.typescriptlang.org/)
 
-**🌐 Language Selection / 语言选择**
+**Language / 语言**
 
-[**🇬🇧 English**](README.md) | [**🇨🇳 中文**](README.zh-CN.md) | [**🇮🇳 हिन्दी**](README.hi.md) | [**🇯🇵 日本語**](README.ja.md)
+[English](README.md) · [中文](README.zh-CN.md) · [हिन्दी](README.hi.md) · [日本語](README.ja.md)
 
----
+<br />
 
-![明鉴 Platform Overview](frontend/public/mingjian-hero.jpg)
+<img src="docs/assets/mingjian-brand-poster.png" alt="明鉴中文品牌海报：证据先于观点" width="760" />
+
+<br />
+
+<sub>证据先于观点 · 多源求证 · 多方辩论 · 持续校验</sub>
+
+<br />
+<br />
+
+| Signal | What MingJian Delivers |
+| --- | --- |
+| Evidence first | Every recommendation is grounded in collected sources, extracted claims, and replayable traces. |
+| Debate, not monologue | Specialized agents challenge assumptions before the system returns a recommendation. |
+| Local sovereignty | Community runs locally with open-source code, local data control, and a 24-hour monitoring window. |
+| Decision memory | Sessions, recommendation versions, refreshes, source health, and user outcomes stay connected. |
 
 </div>
 
 ---
 
-## 🌟 Why Choose 明鉴?
+## Product Read
 
-> **"The first open-source platform that combines evidence-driven analysis, multi-agent debate, and real-time simulation in one unified workspace."**
+MingJian is built for people who need to make consequential decisions under uncertainty: founders, analysts, operators, researchers, strategists, and teams that need evidence they can inspect instead of answers they have to blindly trust.
 
-明鉴 is not just another AI tool — it's a **paradigm shift** in how organizations make strategic decisions. By combining 10+ real-time data sources, adversarial multi-agent debate, and deterministic decision traces, 明鉴 eliminates the "black box" problem that plagues traditional AI systems.
+The product experience is closer to a strategic intelligence cockpit than a chat box. A user submits a decision-support request; MingJian gathers evidence, runs analysis and simulation, convenes a debate council, returns a first recommendation, then keeps a versioned record that can be refreshed when source material changes.
 
 ---
 
-## 🎯 The Problem with Today's Intelligent Analysis
+## Edition Boundary
 
-Current AI analysis systems — from ChatGPT to enterprise copilots — share the same fundamental flaws:
+| Edition | Distribution | Core Workflow | Commercial Layer |
+| --- | --- | --- | --- |
+| **Community** | Apache 2.0 self-hosted upstream | Full public decision workflow with 24-hour local monitoring | None |
+| **Cloud** | Hosted SaaS subscription | Superset of Community public core | Subscription, metering, tenant operations |
+| **Enterprise** | Private / on-prem deployment | Superset of Community public core | License, audit, governance, private connectors |
 
-- ❌ **Hallucination as Fact** — LLMs confidently fabricate statistics, sources, and conclusions with no grounding in real data. You can't tell truth from fiction.
-- ❌ **Single-Model Blind Spots** — One model, one worldview. No cross-examination, no adversarial challenge, no second opinion. Biases go undetected.
-- ❌ **Black Box Reasoning** — You get an answer, but *how*? No chain of evidence, no source attribution, no way to audit or reproduce the logic.
-- ❌ **Stale Knowledge, No Evidence** — Models rely on training data frozen in time. They can't pull live intelligence from news, markets, or sensors — they *guess* instead of *know*.
-- ❌ **No Self-Correction** — AI outputs are fire-and-forget. Errors propagate silently. No review loop, no quality gate, no iterative refinement.
-- ❌ **Fragmented Workflow** — Data collection, analysis, debate, and reporting live in separate tools. Context is lost at every handoff.
-- ❌ **Zero Reproducibility** — Run the same query twice, get different answers. No deterministic traces, no decision logs, no accountability.
+This repository is the **Community** edition. It must remain a strong open-source core: no Cloud subscription surfaces, no Enterprise-only governance code, and no proprietary mobile entry point unless explicitly published later.
 
-## 💡 How 明鉴 Solves This
+---
 
-明鉴 replaces guesswork with **evidence**, opinions with **debate**, and black boxes with **traces**:
+## Decision Workflow
 
-- ✅ **Evidence-Grounded** — Every analysis is built on real-time data from 10+ sources (Google News, Reddit, GitHub, GDELT, X/Twitter, and more). No hallucination, no fabrication.
-- ✅ **Multi-Agent Adversarial Debate** — GPT, Gemini, Claude, and Grok don't just agree — they **challenge** each other. Blind spots are exposed, biases are challenged.
-- ✅ **Full Audit Trail** — Every step is recorded: sources consulted, arguments made, decisions taken. Fully transparent, fully reproducible.
-- ✅ **Real-Time Intelligence** — Live data ingestion, streaming analysis, and instant insight delivery. No frozen training data.
-- ✅ **Self-Healing Pipeline** — Jarvis engine reviews, critiques, and iterates on its own outputs until quality thresholds are met. Errors are caught before they reach you.
+```text
+Question
+  -> source discovery
+  -> evidence extraction
+  -> analysis and simulation
+  -> role-based debate
+  -> recommendation
+  -> version timeline
+  -> scheduled / source-change refresh
+  -> decision record and outcome feedback
+```
+
+| Stage | Purpose | User-Visible Proof |
+| --- | --- | --- |
+| Gather | Collect multi-source evidence from news, code, social, and public data feeds. | Source list, cursor health, last checked time. |
+| Reason | Convert evidence into arguments, risks, simulations, and structured claims. | Analysis artifacts, report sections, debate rounds. |
+| Debate | Let role-based agents critique, revise, and arbitrate the decision. | Support/challenge/arbiter traces. |
+| Remember | Persist sessions, recommendation versions, refresh triggers, and outcomes. | Timeline, recommendation history, feedback records. |
+
+---
+
+## What Makes It Different
+
+| Old AI Analysis | MingJian |
+| --- | --- |
+| One answer, little context. | Evidence chain, debate trail, and recommendation versions. |
+| Single-model blind spots. | Multi-agent critique with support, challenge, and arbitration roles. |
+| Static responses. | Scheduled refresh and source-change triggered updates. |
+| Hard to audit. | Deterministic traces, source attribution, and decision records. |
+| Generic workflow. | Strategy, risk, market, policy, technical, social, and security perspectives. |
 
 ---
 
@@ -221,7 +258,7 @@ When the script finishes, open:
 | API | http://localhost:8000 |
 | MinIO Console | http://localhost:9001 |
 
-MinIO login: `planagent` / `planagent123`
+MinIO login: use `PLANAGENT_MINIO_ACCESS_KEY` / `PLANAGENT_MINIO_SECRET_KEY` from your `.env`.
 
 To stop the Docker stack:
 
@@ -232,6 +269,10 @@ docker compose -f docker-compose.yml down
 ### Manual Development Setup
 
 Use this path if you want to run the backend and frontend directly on your machine for development.
+
+#### Frontend Directory Policy
+
+`frontend-v2/` is the active Vite frontend. The older `frontend/` and `frontend-new/` experiments have been retired, so new product UI, builds, and Docker development should target `frontend-v2/`.
 
 #### Prerequisites
 
@@ -270,13 +311,15 @@ Create a `.env` file in the project root with the following variables:
 
 PLANAGENT_OPENAI_API_KEY=your_api_key_here
 
-# Override individual targets (all fall back to shared if unset)
-# PLANAGENT_OPENAI_PRIMARY_MODEL=gpt-4.1
+# Override individual targets (all fall back to shared if unset).
+# Set the API key first, run the provider connection test to fetch available models,
+# then paste one of the returned model IDs if you need a manual override.
+# PLANAGENT_OPENAI_PRIMARY_MODEL=
 # PLANAGENT_OPENAI_PRIMARY_API_KEY=sk-...
-# PLANAGENT_OPENAI_EXTRACTION_MODEL=gpt-4.1-mini
-# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=claude-sonnet-4-20250514
-# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=gemini-2.5-flash
-# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=grok-3
+# PLANAGENT_OPENAI_EXTRACTION_MODEL=
+# PLANAGENT_OPENAI_DEBATE_ADVOCATE_MODEL=
+# PLANAGENT_OPENAI_DEBATE_CHALLENGER_MODEL=
+# PLANAGENT_OPENAI_DEBATE_ARBITRATOR_MODEL=
 
 # ═══════════════════════════════════════════════════════════════
 # Database (optional — defaults to SQLite for local dev)
@@ -339,7 +382,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # 4. Install frontend dependencies
-cd frontend
+cd frontend-v2
 npm install
 cd ..
 
@@ -356,7 +399,7 @@ alembic upgrade head
 uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
 
 # 8. Start frontend (in a new terminal)
-cd frontend
+cd frontend-v2
 npm run dev
 # Open http://localhost:3000
 ```
@@ -385,13 +428,12 @@ npm run dev
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| **Next.js** | 15+ | React framework |
+| **Vite** | 8+ | Frontend build tool |
 | **React** | 19+ | UI library |
-| **TypeScript** | 5.8+ | Type safety |
-| **Tailwind CSS** | 4.1+ | Utility-first CSS |
-| **SWR** | 2.3+ | Data fetching |
-| **Recharts** | 2.15+ | Charting library |
-| **Zustand** | 5.0+ | State management |
+| **TypeScript** | 6.0+ | Type safety |
+| **Tailwind CSS** | 4.2+ | Utility-first CSS |
+| **React Router** | 7+ | Client-side routing |
+| **Recharts** | 3.8+ | Charting library |
 
 ### Development Dependencies
 
@@ -486,26 +528,14 @@ src/planagent/
 
 **Frontend:**
 ```
-frontend/src/
-├── app/
-│   ├── assistant/       # AI Assistant (was 1665-line page → 5 subcomponents)
-│   │   ├── page.tsx     # Thin wrapper
-│   │   ├── ChatPanel.tsx
-│   │   ├── ProcessPanel.tsx
-│   │   ├── SourcePanel.tsx
-│   │   ├── DebatePanel.tsx
-│   │   └── hooks.ts
-│   ├── debate/          # Debate view (was 1091-line page → 4 subcomponents)
-│   │   ├── page.tsx     # Thin wrapper
-│   │   ├── RoundTimeline.tsx
-│   │   ├── AgentCard.tsx
-│   │   └── utils.ts
-│   └── ...
-├── __tests__/           # Vitest test suite
-│   ├── components/      # Component tests
-│   ├── api/             # API layer tests
-│   └── lib/             # Utility tests
-└── vitest.config.ts
+frontend-v2/src/
+├── components/
+│   ├── layout/          # App shell, sidebar, navigation chrome
+│   └── ui/              # Shared cockpit surfaces and status components
+├── pages/               # Dashboard, assistant, monitoring, reports, settings
+├── api/                 # API endpoint helpers
+├── hooks/               # Theme and app-level React hooks
+└── main.tsx             # Vite entry point
 ```
 
 ---
@@ -523,9 +553,8 @@ python -m pytest tests/ -v
 
 ### Frontend Tests (Vitest)
 ```bash
-cd frontend
-npm test          # Run once
-npm run test:watch  # Watch mode
+cd frontend-v2
+npm run build
 ```
 
 ### Stress Test
@@ -601,7 +630,7 @@ This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) f
 ## 🙏 Acknowledgments
 
 - [FastAPI](https://fastapi.tiangolo.com/) - High-performance async APIs
-- [Next.js](https://nextjs.org/) - React framework
+- [Vite](https://vite.dev/) - Frontend build tooling
 - [PostgreSQL](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) - Database
 - [Redis Streams](https://redis.io/docs/data-types/streams/) - Event streaming
 - [MinIO](https://min.io/) - Object storage

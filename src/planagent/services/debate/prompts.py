@@ -3,6 +3,38 @@ from __future__ import annotations
 from typing import Any
 
 
+BIAS_DETECTION_INSTRUCTIONS = (
+    "## 偏误检测要求（必须逐项检查）"
+    "\n- **确认偏误**：是否只引用支持己方的数据？是否忽略了不利证据？"
+    "\n- **樱桃采摘**：是否从大量数据中只挑选了有利的少数案例？"
+    "\n- **过度自信**：置信度是否与实际证据强度匹配？是否存在无根据的确定性断言？"
+    "\n- **信息茧房**：是否只从单一来源或单一视角获取信息？"
+    "\n- **锚定效应**：是否过度依赖初始信息而忽略了后续更新？"
+    "\n- **群体思维**：是否因为多数人意见而放弃了独立判断？"
+)
+
+BLIND_SPOT_DETECTION_INSTRUCTIONS = (
+    "## 盲区检测要求"
+    "\n- **时间盲区**：短期影响和长期影响是否都被考虑？"
+    "\n- **地域盲区**：局部影响和全局影响是否都被分析？"
+    "\n- **利益相关方盲区**：是否有重要的利益相关方未被提及？"
+    "\n- **连锁反应盲区**：二阶、三阶效应是否被考虑？"
+    "\n- **黑天鹅盲区**：低概率高影响事件是否被提及？"
+)
+
+RELIABILITY_SCORING_INSTRUCTIONS = (
+    "## 可靠性评分要求"
+    "\n对本方和对方的每个论点进行可靠性评分（1-5分）："
+    "\n- 5分：多源强证据支持，逻辑严密，可复现"
+    "\n- 4分：有可靠证据支持，逻辑基本完整"
+    "\n- 3分：有一定证据但不够充分，或逻辑有小瑕疵"
+    "\n- 2分：证据薄弱，主要基于推测"
+    "\n- 1分：纯推测或明显错误"
+    "\n"
+    "\n同时标注：偏误标记（如有）、证据强度（strong/moderate/weak/speculative）"
+)
+
+
 def debate_role_instruction(role: str) -> str:
     _HILL_CLIMBING = (
         "\n\n【迭代攀升要求】当你收到前序轮次的质疑或挑战时，你必须："
@@ -21,6 +53,34 @@ def debate_role_instruction(role: str) -> str:
         "联合国决议文本、政府白皮书、已验证的新闻报道（注明媒体名称和日期）。"
         "禁止使用'据相关报道''一般来说''众所周知'等模糊表述。"
         "每条论点至少引用1个可验证来源；如果缺乏直接证据，必须明确标注为'推测性分析'并给出推理链条。"
+    )
+    _BIAS_DETECTION = (
+        "\n\n## 偏误检测要求（必须逐项检查）"
+        "\n- **确认偏误**：是否只引用支持己方的数据？是否忽略了不利证据？"
+        "\n- **樱桃采摘**：是否从大量数据中只挑选了有利的少数案例？"
+        "\n- **过度自信**：置信度是否与实际证据强度匹配？是否存在无根据的确定性断言？"
+        "\n- **信息茧房**：是否只从单一来源或单一视角获取信息？"
+        "\n- **锚定效应**：是否过度依赖初始信息而忽略了后续更新？"
+        "\n- **群体思维**：是否因为多数人意见而放弃了独立判断？"
+    )
+    _BLIND_SPOT_DETECTION = (
+        "\n\n## 盲区检测要求"
+        "\n- **时间盲区**：短期影响和长期影响是否都被考虑？"
+        "\n- **地域盲区**：局部影响和全局影响是否都被分析？"
+        "\n- **利益相关方盲区**：是否有重要的利益相关方未被提及？"
+        "\n- **连锁反应盲区**：二阶、三阶效应是否被考虑？"
+        "\n- **黑天鹅盲区**：低概率高影响事件是否被提及？"
+    )
+    _RELIABILITY_SCORING = (
+        "\n\n## 可靠性评分要求"
+        "\n对本方和对方的每个论点进行可靠性评分（1-5分）："
+        "\n- 5分：多源强证据支持，逻辑严密，可复现"
+        "\n- 4分：有可靠证据支持，逻辑基本完整"
+        "\n- 3分：有一定证据但不够充分，或逻辑有小瑕疵"
+        "\n- 2分：证据薄弱，主要基于推测"
+        "\n- 1分：纯推测或明显错误"
+        "\n"
+        "\n同时标注：偏误标记（如有）、证据强度（strong/moderate/weak/speculative）"
     )
     _CROSS_DOMAIN = (
         "\n\n【跨域关联要求】你的分析不应局限于本专业领域。必须主动识别并引用至少1个其他维度"
@@ -63,6 +123,7 @@ def debate_role_instruction(role: str) -> str:
             + _EVIDENCE_CITATION
             + _CROSS_DOMAIN
             + _HILL_CLIMBING
+            + _BIAS_DETECTION
         ),
         "arbitrator": (
             "你是【首席仲裁官⚖️】，负责在充分听取各方论证后做出最终裁决。"
@@ -78,6 +139,8 @@ def debate_role_instruction(role: str) -> str:
             "（4）给出明确的行动建议：推荐方案、备选方案和应规避的方案。"
             + _EVIDENCE_CITATION
             + _CROSS_DOMAIN
+            + _RELIABILITY_SCORING
+            + _BLIND_SPOT_DETECTION
         ),
         # ── 专业分析角色 ──────────────────────────────────────
         "intel_analyst": (
@@ -281,6 +344,9 @@ def build_round_plan(
     custom_agents: list[dict[str, Any]] | None = None,
     mode: str = "full",
     domain_id: str | None = None,
+    topic: str | None = None,
+    context: str | None = None,
+    evidence_count: int = 0,
 ) -> list[tuple[int, str, str]]:
     """Build a round plan with optional fast mode and domain-specific role selection.
 
@@ -288,19 +354,30 @@ def build_round_plan(
         custom_agents: Additional custom agents to include
         mode: "full" (4 rounds, 7+ roles) or "fast" (2 rounds, 3 roles)
         domain_id: Domain hint for role selection ("corporate", "military", "auto")
+        topic/context/evidence_count: Optional signals used to choose the debate depth.
     """
     if mode == "fast":
         return _build_fast_round_plan(custom_agents, domain_id)
-    return _build_full_round_plan(custom_agents, domain_id)
+    return _build_full_round_plan(custom_agents, domain_id, topic, context, evidence_count)
 
 
 def _build_full_round_plan(
     custom_agents: list[dict[str, Any]] | None = None,
     domain_id: str | None = None,
+    topic: str | None = None,
+    context: str | None = None,
+    evidence_count: int = 0,
 ) -> list[tuple[int, str, str]]:
-    """Full 4-round debate with all roles (original behavior)."""
+    """Build the full public-core debate with all standard roles.
+
+    Community, Cloud, and Enterprise share the same public decision workflow:
+    full mode must not silently trim the standard expert panel.  Callers that
+    explicitly need a cheaper run can choose ``mode="fast"``.
+    """
+    _ = (topic, context, evidence_count)
     plan = list(round_plan)
-    _add_custom_agents(plan, custom_agents)
+    _apply_cross_exam_protocol(plan)
+    _add_custom_agents(plan, custom_agents, domain_id)
     return plan
 
 
@@ -350,10 +427,10 @@ def _build_fast_round_plan(
     ]
 
     # Insert custom agents
-    for ca in custom_agents or []:
+    for ca in _sort_custom_agents(custom_agents, domain_id):
         role_key = ca["role_key"]
         name = ca["name"]
-        icon = ca.get("icon", "🤖")
+        icon = ca.get("icon", "[custom]")
         description = ca.get("description", "")
         desc_brief = description[:200] + ("..." if len(description) > 200 else "")
         fast_plan.insert(-1, (1, role_key, f"【第1轮·立论】{icon} {name}：{desc_brief}"))
@@ -361,7 +438,59 @@ def _build_fast_round_plan(
     return fast_plan
 
 
-def select_roles_for_domain(domain_id: str | None) -> list[str]:
+def infer_debate_complexity(
+    topic: str | None,
+    context: str | None = None,
+    evidence_count: int = 0,
+) -> str:
+    """Infer simple / standard / complex debate depth from available signals."""
+    text = f"{topic or ''}\n{context or ''}".lower()
+    score = 0
+    if len(text) > 1200:
+        score += 2
+    elif len(text) > 450:
+        score += 1
+    if evidence_count >= 6:
+        score += 2
+    elif evidence_count >= 3:
+        score += 1
+    high_stakes_terms = {
+        "war",
+        "military",
+        "sanction",
+        "regulation",
+        "lawsuit",
+        "bankruptcy",
+        "merger",
+        "acquisition",
+        "security",
+        "supply chain",
+        "escalation",
+        "geopolitical",
+        "制裁",
+        "战争",
+        "军事",
+        "监管",
+        "诉讼",
+        "破产",
+        "并购",
+        "安全",
+        "供应链",
+        "升级",
+        "地缘",
+    }
+    if any(term in text for term in high_stakes_terms):
+        score += 1
+    if any(term in text for term in {"conflict", "contradict", "overturn", "反转", "矛盾", "推翻"}):
+        score += 1
+    if score >= 4:
+        return "complex"
+    if score >= 2:
+        return "standard"
+    return "simple"
+
+
+def select_roles_for_domain(domain_id: str | None, complexity: str = "standard") -> list[str]:
     """Return the recommended roles for a given domain.
 
     Used for dynamic role selection — avoids running all 7 roles
@@ -370,34 +499,184 @@ def select_roles_for_domain(domain_id: str | None) -> list[str]:
     # Core roles always included
     core = ["advocate", "challenger", "arbitrator"]
 
-    domain_roles = {
-        "corporate": core + ["econ_analyst", "tech_foresight", "social_impact"],
-        "military": core + ["geo_expert", "military_strategist", "intel_analyst"],
-        "auto": core + ["intel_analyst", "econ_analyst", "geo_expert"],
-    }
+    if complexity == "simple":
+        domain_roles = {
+            "corporate": core + ["econ_analyst"],
+            "military": core + ["military_strategist", "intel_analyst"],
+            "auto": core + ["intel_analyst"],
+        }
+    elif complexity == "complex":
+        domain_roles = {
+            "corporate": core + ["intel_analyst", "geo_expert", "econ_analyst", "tech_foresight", "social_impact"],
+            "military": core + ["intel_analyst", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"],
+            "auto": core + ["intel_analyst", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"],
+        }
+    else:
+        domain_roles = {
+            "corporate": core + ["intel_analyst", "econ_analyst", "tech_foresight", "social_impact"],
+            "military": core + ["geo_expert", "military_strategist", "intel_analyst"],
+            "auto": core + ["intel_analyst", "econ_analyst", "geo_expert"],
+        }
     return domain_roles.get(domain_id or "auto", list(core) + ["intel_analyst"])
+
+
+def _round1_instruction(role: str) -> str:
+    labels = {
+        "advocate": "战略支持者：请提出支持该命题的核心证据链和战略逻辑框架。",
+        "intel_analyst": "情报分析师：请核实事实基础、来源可靠性和关键情报盲区。",
+        "geo_expert": "地缘政治专家：请评估地理、联盟体系和国际秩序约束。",
+        "econ_analyst": "经济分析师：请评估宏观经济影响、成本收益和资源约束。",
+        "military_strategist": "军事战略家：请评估力量平衡、行动可行性和升级风险。",
+        "tech_foresight": "技术前瞻者：请评估技术成熟度、工程可行性和时间窗口。",
+        "social_impact": "社会影响评估师：请评估公众舆论、治理韧性和利益相关方影响。",
+    }
+    return f"【第1轮·立论】{labels.get(role, role + '：请提供独立专业判断。')}要求：给出可验证证据、关键假设、最脆弱论点和置信度。"
+
+
+def _cross_exam_instruction(role: str, target_roles: list[str]) -> str:
+    targets = "、".join(target_roles)
+    return (
+        f"【第2轮·交叉质询】{role}：请直接质询这些前序角色：{targets}。"
+        "必须在 rebuttals 中输出结构化质询项，每项包含 target_role、question、counter 或 expected_answer。"
+        "同时回答 context 中点名给你的质询，逐条说明你接受、反驳或需要更多证据。"
+        "不要只概括对方观点；要明确指出哪一条论证被挑战、挑战依据和可能改变结论的证据条件。"
+    )
+
+
+def _revision_instruction(role: str) -> str:
+    return (
+        f"【第3轮·修订】{role}：请根据交叉质询结果修订你的立场。"
+        "必须逐条回应与你相关的 question，标注✅保留/❌放弃/🔄修正，"
+        "并说明置信度是否变化以及变化原因。"
+    )
+
+
+def _arbitration_instruction() -> str:
+    return (
+        "【第4轮·仲裁】首席仲裁官：请基于立论、交叉质询和修订结果做最终裁决。"
+        "要求识别共识点、不可消除分歧、需要用户继续监控的触发条件，并给出行动建议。"
+    )
+
+
+def _apply_cross_exam_protocol(plan: list[tuple[int, str, str]]) -> None:
+    for idx, (round_number, role, instruction) in enumerate(plan):
+        if round_number == 2:
+            targets = ["advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"]
+            plan[idx] = (round_number, role, f"{instruction}\n\n{_cross_exam_instruction(role, targets)}")
+        elif round_number == 3:
+            plan[idx] = (round_number, role, f"{instruction}\n\n{_revision_instruction(role)}")
 
 
 def _add_custom_agents(
     plan: list[tuple[int, str, str]],
     custom_agents: list[dict[str, Any]] | None,
+    domain_id: str | None = None,
 ) -> None:
     """Insert custom agents into round 1 and round 3."""
-    for ca in custom_agents or []:
+    for ca in _sort_custom_agents(custom_agents, domain_id):
         role_key = ca["role_key"]
         name = ca["name"]
-        icon = ca.get("icon", "🤖")
+        icon = ca.get("icon", "[custom]")
         description = ca.get("description", "")
         desc_brief = description[:200] + ("..." if len(description) > 200 else "")
-        plan.insert(
-            -1,
+        domain_hint = _custom_agent_domain_hint(ca, domain_id)
+        role_intro = "independent specialist" if domain_hint == "independent" else domain_hint
+        plan.append(
             (1, role_key, f"【第1轮·立论】{icon} {name}：{desc_brief}"),
         )
-        plan.insert(
-            -1,
+        plan.append(
             (
                 3,
                 role_key,
-                f"【第3轮·修订】{icon} {name}：请根据质询反馈修订你的分析。要求：回应其他角色的跨域观点，修正被质疑的论点。",
+                f"【第3轮·修订】{icon} {name}：请作为{role_intro}根据质询反馈修订你的分析。要求：回应其他角色的跨域观点，修正被质疑的论点。",
             ),
         )
+    plan.sort(key=lambda item: _round_plan_sort_key(item[0], item[1]))
+
+
+def _sort_custom_agents(
+    custom_agents: list[dict[str, Any]] | None,
+    domain_id: str | None,
+) -> list[dict[str, Any]]:
+    def priority_value(agent: dict[str, Any]) -> int:
+        raw = agent.get("priority", 50)
+        if isinstance(raw, str):
+            return {"high": 10, "medium": 50, "low": 90}.get(raw.lower(), 50)
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return 50
+
+    def domain_rank(agent: dict[str, Any]) -> int:
+        domains = {
+            str(item).lower()
+            for item in (
+                agent.get("domains")
+                or agent.get("domain_tags")
+                or agent.get("tags")
+                or []
+            )
+        }
+        if not domains:
+            return 1
+        if domain_id and domain_id.lower() in domains:
+            return 0
+        if domains & {"all", "auto", "general", "global"}:
+            return 1
+        return 2
+
+    return sorted(
+        custom_agents or [],
+        key=lambda agent: (
+            domain_rank(agent),
+            priority_value(agent),
+            str(agent.get("name") or agent.get("role_key") or ""),
+        ),
+    )
+
+
+def _custom_agent_domain_hint(agent: dict[str, Any], domain_id: str | None) -> str:
+    domains = [
+        str(item)
+        for item in (
+            agent.get("domains")
+            or agent.get("domain_tags")
+            or agent.get("tags")
+            or []
+        )
+    ]
+    if domain_id and domain_id in domains:
+        return f"{domain_id} specialist"
+    if domains:
+        return ", ".join(domains[:3]) + " specialist"
+    return "independent"
+
+
+def _round_plan_sort_key(round_number: int, role: str) -> tuple[int, int, str]:
+    role_order = {
+        1: [
+            "advocate",
+            "intel_analyst",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ],
+        2: ["challenger", "intel_analyst"],
+        3: [
+            "advocate",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ],
+        4: ["arbitrator"],
+    }
+    order = role_order.get(round_number, [])
+    return (
+        round_number,
+        order.index(role) if role in order else 80,
+        role,
+    )

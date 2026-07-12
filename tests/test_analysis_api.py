@@ -30,6 +30,13 @@ def disable_openai(monkeypatch) -> None:
     monkeypatch.delenv("X_BEARER_TOKEN", raising=False)
 
 
+def admin_headers(app) -> dict[str, str]:
+    auth_service = app.state.auth_service
+    admin = next(user for user in auth_service.list_users() if user.role.value == "admin")
+    tokens = auth_service._create_token_pair(admin)
+    return {"Authorization": f"Bearer {tokens.access_token}"}
+
+
 async def fake_fetch_related_sources(self, payload, query: str, domain_id: str):
     return SourceFetchBundle(
         sources=[
@@ -350,6 +357,47 @@ def test_public_source_providers_participate_in_fetch(monkeypatch) -> None:
     assert bundle.sources[0].source_type == "github_repository"
 
 
+def test_source_provider_fallbacks_when_primary_fails(monkeypatch) -> None:
+    import asyncio
+
+    service = AutomatedAnalysisService(Settings(_env_file=None))
+    registry = service.source_registry
+
+    async def failed_reddit(query, limit, domain_id):
+        raise RuntimeError("Reddit blocked the public search request (HTTP 403)")
+
+    async def fallback_hacker_news(query, limit, domain_id):
+        return [
+            AnalysisSourceRead(
+                source_type="hacker_news_story",
+                title="Founders discuss agent runtime cost controls",
+                url="https://news.ycombinator.com/item?id=1",
+                summary="HN discussion about runtime cost controls.",
+            )
+        ]
+
+    monkeypatch.setattr(registry.get("reddit"), "fetch", failed_reddit)
+    monkeypatch.setattr(registry.get("hacker_news"), "fetch", fallback_hacker_news)
+
+    bundle = asyncio.run(
+        service._fetch_related_sources(
+            payload=AnalysisRequest(
+                content="agent runtime",
+                domain_id="corporate",
+                source_types=["reddit"],
+                include_reddit=True,
+                include_hacker_news=False,
+                max_reddit_items=1,
+            ),
+            query="agent runtime",
+            domain_id="corporate",
+        )
+    )
+
+    assert [source.source_type for source in bundle.sources] == ["hacker_news_story"]
+    assert any(step.stage == "source_complete" for step in bundle.steps)
+
+
 def test_analysis_endpoint_uses_ttl_cache(monkeypatch, tmp_path: Path) -> None:
     database_path = tmp_path / "planagent-analysis-cache.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
@@ -371,10 +419,11 @@ def test_analysis_endpoint_uses_ttl_cache(monkeypatch, tmp_path: Path) -> None:
         "domain_id": "corporate",
         "auto_fetch_news": True,
     }
-    with TestClient(create_app()) as client:
+    app = create_app()
+    with TestClient(app) as client:
         first = client.post("/analysis", json=request_payload)
         second = client.post("/analysis", json=request_payload)
-        cache_status = client.get("/admin/analysis/cache")
+        cache_status = client.get("/admin/analysis/cache", headers=admin_headers(app))
 
     assert first.status_code == 200
     assert second.status_code == 200

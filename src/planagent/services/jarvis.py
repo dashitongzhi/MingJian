@@ -75,6 +75,15 @@ class JarvisResult:
 
 
 TASK_ROUTES: dict[str, list[str]] = {
+    "run": [
+        "primary",
+        "extraction",
+        "report",
+        "debate_advocate",
+        "debate_challenger",
+        "debate_arbitrator",
+    ],
+    "claim": ["extraction", "debate_challenger", "debate_arbitrator"],
     "analysis": ["primary"],
     "extraction": ["extraction"],
     "x_search": ["x_search"],
@@ -123,34 +132,296 @@ class JarvisOrchestrator:
         targets = TASK_ROUTES.get(task.task_type, ["primary"])
         steps = await asyncio.gather(*[self._execute_target(t, task) for t in targets])
         result.steps = list(steps)
-        success = sum(1 for s in steps if s.status == "success")
-        fail = sum(1 for s in steps if s.status == "failed")
-        skipped = sum(1 for s in steps if s.status == "skipped")
-        result.critical_issues = fail
+        retry_steps = await self._retry_failed_targets(task, result.steps)
+        result.steps.extend(retry_steps)
+        final_target_steps = self._latest_target_steps(result.steps)
+        review_step = await self._self_review(task, final_target_steps)
+        result.steps.append(review_step)
+        repair_step = self._repair_plan(task, result.steps)
+        result.steps.append(repair_step)
+
+        success = sum(1 for s in final_target_steps if s.status == "success")
+        fail = sum(1 for s in final_target_steps if s.status == "failed")
+        skipped = sum(1 for s in final_target_steps if s.status == "skipped")
+        review_output = review_step.output or {}
+        warning_issues = int(review_output.get("warning_issues", 0) or 0)
+        result.critical_issues = fail + int(review_output.get("critical_issues", 0) or 0)
+        result.validation_dimensions = {
+            **dict(VALIDATION_DIMENSIONS),
+            **{str(k): str(v) for k, v in (review_output.get("dimension_status") or {}).items()},
+        }
         if fail > 0 and success == 0:
             result.status, result.verdict, result.pass_score = "FAILED", "FAIL", 0
-        elif skipped == len(steps):
+        elif skipped == len(final_target_steps):
             result.status, result.verdict, result.pass_score = "COMPLETED", "PASS", 88
         elif fail > 0:
             result.status, result.verdict, result.pass_score = (
                 "PARTIAL",
                 "CONDITIONAL_PASS",
-                max(40, int(88 * success / len(steps))),
+                max(40, int(88 * success / len(final_target_steps))),
             )
         else:
             result.status, result.verdict, result.pass_score = "COMPLETED", "PASS", 88
+
+        if result.critical_issues > 0 and result.status == "COMPLETED":
+            result.status = "PARTIAL"
+            result.verdict = "CONDITIONAL_PASS"
+            result.pass_score = min(result.pass_score, 72)
+        elif warning_issues > 0 and result.status == "COMPLETED":
+            result.status = "PARTIAL"
+            result.verdict = "CONDITIONAL_PASS"
+            result.pass_score = min(result.pass_score, 80)
         if self._event_bus:
-            await self._event_bus.publish(
-                EventTopic.SIMULATION_COMPLETED.value,
-                {"jarvis_task_id": task_id, "status": result.status},
-            )
+            await self._publish_closure_events(task, result)
         return result
 
-    async def _execute_target(self, target: str, task: JarvisTask) -> JarvisStepResult:
+    async def _publish_closure_events(self, task: JarvisTask, result: JarvisResult) -> None:
+        if self._event_bus is None:
+            return
+        repair_step = next((step for step in result.steps if step.step == "repair_plan"), None)
+        repair_actions = []
+        if repair_step is not None and isinstance(repair_step.output, dict):
+            repair_actions = list(repair_step.output.get("actions") or [])
+        base_payload = {
+            "jarvis_task_id": result.task_id,
+            "task_type": task.task_type,
+            "run_id": task.run_id or task.payload.get("run_id"),
+            "target_id": task.target_id,
+            "status": result.status,
+            "verdict": result.verdict,
+            "pass_score": result.pass_score,
+            "critical_issues": result.critical_issues,
+        }
+        if result.verdict in {"FAIL", "CONDITIONAL_PASS"} or result.critical_issues > 0:
+            await self._event_bus.publish(
+                EventTopic.VERIFICATION_FAILED.value,
+                {
+                    **base_payload,
+                    "repair_actions": repair_actions,
+                },
+            )
+        if any(action.get("action") != "continue_monitoring" for action in repair_actions):
+            await self._event_bus.publish(
+                EventTopic.JARVIS_REPAIR_REQUESTED.value,
+                {
+                    **base_payload,
+                    "repair_actions": repair_actions,
+                    "auto_repair_ready": True,
+                },
+            )
+            return
+        await self._event_bus.publish(
+            EventTopic.SIMULATION_COMPLETED.value,
+            {"jarvis_task_id": result.task_id, "status": result.status},
+        )
+
+    def _latest_target_steps(self, steps: list[JarvisStepResult]) -> list[JarvisStepResult]:
+        latest_by_target: dict[str, JarvisStepResult] = {}
+        for step in steps:
+            if step.step.startswith("validate_"):
+                latest_by_target[step.target] = step
+        return list(latest_by_target.values())
+
+    async def _retry_failed_targets(
+        self,
+        task: JarvisTask,
+        steps: list[JarvisStepResult],
+    ) -> list[JarvisStepResult]:
+        failed_targets = [step.target for step in steps if step.status == "failed"]
+        if not failed_targets:
+            return []
+        retry_steps = await asyncio.gather(
+            *[self._execute_target(target, task, retry_attempt=1) for target in failed_targets]
+        )
+        return list(retry_steps)
+
+    async def _self_review(
+        self,
+        task: JarvisTask,
+        steps: list[JarvisStepResult],
+    ) -> JarvisStepResult:
+        start = time.monotonic()
+        findings = self._heuristic_review_findings(task, steps)
+        critical = sum(1 for item in findings if item.get("severity") == "critical")
+        warnings = sum(1 for item in findings if item.get("severity") == "warning")
+        output: dict[str, Any] = {
+            "status": "fail" if critical else "warn" if warnings else "ok",
+            "critical_issues": critical,
+            "warning_issues": warnings,
+            "findings": findings,
+            "dimension_status": self._dimension_status(task, steps, findings),
+        }
+
+        if self._openai.is_configured("primary"):
+            try:
+                _, parsed = await self._openai.generate_json_for_target(
+                    target="primary",
+                    system_prompt=(
+                        "You are Jarvis QA. Review this decision pipeline result. "
+                        'Return JSON: {"status":"ok|warn|fail","findings":[],"recommendations":[]}.'
+                    ),
+                    user_content=str(
+                        {
+                            "task_type": task.task_type,
+                            "payload": task.payload,
+                            "steps": [
+                                {
+                                    "target": step.target,
+                                    "status": step.status,
+                                    "error": step.error,
+                                    "output": step.output,
+                                }
+                                for step in steps
+                            ],
+                        }
+                    )[:4000],
+                    max_tokens=700,
+                )
+                if isinstance(parsed, dict) and parsed:
+                    output["model_review"] = parsed
+                    if parsed.get("status") == "fail":
+                        output["critical_issues"] = max(1, critical)
+                    elif parsed.get("status") == "warn":
+                        output["warning_issues"] = max(1, warnings)
+            except Exception as exc:
+                output["model_review_error"] = str(exc)[:300]
+
+        return JarvisStepResult(
+            step="self_review",
+            target="jarvis",
+            provider="internal",
+            model="heuristic+primary",
+            status="success",
+            output=output,
+            duration_ms=int((time.monotonic() - start) * 1000),
+        )
+
+    def _repair_plan(
+        self,
+        task: JarvisTask,
+        steps: list[JarvisStepResult],
+    ) -> JarvisStepResult:
+        start = time.monotonic()
+        actions: list[dict[str, Any]] = []
+        for step in steps:
+            if step.status == "failed":
+                actions.append(
+                    {
+                        "action": "retry_target",
+                        "target": step.target,
+                        "reason": step.error or "target failed",
+                    }
+                )
+            if step.status == "skipped":
+                actions.append(
+                    {
+                        "action": "configure_target",
+                        "target": step.target,
+                        "reason": (step.output or {}).get("reason", "target not configured"),
+                    }
+                )
+
+        review = next((step for step in steps if step.step == "self_review"), None)
+        for finding in ((review.output or {}).get("findings") if review else []) or []:
+            actions.append(
+                {
+                    "action": finding.get("repair_action", "review_manually"),
+                    "target": finding.get("dimension", task.task_type),
+                    "reason": finding.get("message", ""),
+                }
+            )
+
+        if not actions:
+            actions.append(
+                {
+                    "action": "continue_monitoring",
+                    "target": task.target_id or task.run_id or task.task_type,
+                    "reason": "No blocking quality issue detected.",
+                }
+            )
+
+        return JarvisStepResult(
+            step="repair_plan",
+            target="jarvis",
+            provider="internal",
+            model="rule_based",
+            status="success",
+            output={"actions": actions[:8], "auto_repair_ready": True},
+            duration_ms=int((time.monotonic() - start) * 1000),
+        )
+
+    def _heuristic_review_findings(
+        self,
+        task: JarvisTask,
+        steps: list[JarvisStepResult],
+    ) -> list[dict[str, Any]]:
+        findings: list[dict[str, Any]] = []
+        if any(step.status == "failed" for step in steps):
+            findings.append(
+                {
+                    "severity": "critical",
+                    "dimension": "pipeline_reliability",
+                    "message": "At least one required pipeline target failed.",
+                    "repair_action": "retry_failed_targets",
+                }
+            )
+        if all(step.status == "skipped" for step in steps):
+            findings.append(
+                {
+                    "severity": "warning",
+                    "dimension": "model_configuration",
+                    "message": "All model-backed checks were skipped because targets are not configured.",
+                    "repair_action": "configure_model_targets",
+                }
+            )
+        if not task.payload.get("run_id") and task.task_type in {"run", "report", "debate"}:
+            findings.append(
+                {
+                    "severity": "warning",
+                    "dimension": "audit_context",
+                    "message": "Jarvis ran without a run_id, so audit context is incomplete.",
+                    "repair_action": "rerun_with_target_context",
+                }
+            )
+        if task.payload.get("source_count") == 0:
+            findings.append(
+                {
+                    "severity": "warning",
+                    "dimension": "source_coverage",
+                    "message": "No external source coverage was provided for this review.",
+                    "repair_action": "trigger_research_agents",
+                }
+            )
+        return findings
+
+    def _dimension_status(
+        self,
+        task: JarvisTask,
+        steps: list[JarvisStepResult],
+        findings: list[dict[str, Any]],
+    ) -> dict[str, str]:
+        status = {key: "ok" for key in VALIDATION_DIMENSIONS}
+        for finding in findings:
+            dimension = str(finding.get("dimension", ""))
+            severity = str(finding.get("severity", "warning"))
+            if dimension in status:
+                status[dimension] = "fail" if severity == "critical" else "warn"
+        if any(step.target == "debate_arbitrator" for step in steps):
+            status["debate_rigor"] = status.get("debate_rigor", "ok")
+        if task.task_type in {"analysis", "full_pipeline", "run"}:
+            status.setdefault("source_coverage", "ok")
+        return status
+
+    async def _execute_target(
+        self,
+        target: str,
+        task: JarvisTask,
+        retry_attempt: int = 0,
+    ) -> JarvisStepResult:
         start = time.monotonic()
         provider = self._get_provider(target)
         model = self._get_model(target)
-        step_name = f"validate_{target}"
+        step_name = f"validate_{target}" if retry_attempt == 0 else f"validate_{target}_retry"
         if not self._openai.is_configured(target):
             return JarvisStepResult(
                 step=step_name,

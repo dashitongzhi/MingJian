@@ -27,7 +27,7 @@ _INTERRUPT_TYPE_LABELS = {
 
 
 def _get_event_bus(request: Request) -> EventBus:
-    return request.app.state.event_bus
+    return request.app.state.event_bus  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 # ── POST /debates/{debate_id}/interrupt ──────────────────────────────────────

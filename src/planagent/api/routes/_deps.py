@@ -17,10 +17,12 @@ from planagent.services.assistant import StrategicAssistantService
 from planagent.services.debate import DebateService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
+from planagent.services.platform_topology import PlatformTopologyService
 from planagent.services.runtime import RuntimeMonitorService
 from planagent.services.simulation import SimulationService
 from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import get_rule_registry
+from planagent.simulation.domain_packs import registry as domain_pack_registry
 
 
 _CACHED_SERVICE_ATTRS = (
@@ -30,6 +32,7 @@ _CACHED_SERVICE_ATTRS = (
     "debate_service",
     "workbench_service",
     "runtime_monitor_service",
+    "platform_topology_service",
     "assistant_service",
 )
 _last_app_state = None
@@ -64,7 +67,15 @@ def _cache_business_services(state: object) -> None:
         state.workbench_service = WorkbenchService()
     if not hasattr(state, "runtime_monitor_service"):
         state.runtime_monitor_service = RuntimeMonitorService(
-            settings.backpressure_pending_threshold
+            settings.backpressure_pending_threshold,
+            settings.runtime_recent_error_window_hours,
+        )
+    if not hasattr(state, "platform_topology_service"):
+        state.platform_topology_service = PlatformTopologyService(
+            settings,
+            state.event_bus,
+            state.rule_registry,
+            domain_pack_registry,
         )
     if not hasattr(state, "assistant_service"):
         state.assistant_service = StrategicAssistantService(
@@ -107,7 +118,7 @@ def get_pipeline_service(request: Request) -> PhaseOnePipelineService:
             request.app.state.event_bus,
             request.app.state.openai_service,
         )
-    return request.app.state.pipeline_service
+    return request.app.state.pipeline_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_simulation_service(request: Request) -> SimulationService:
@@ -119,7 +130,7 @@ def get_simulation_service(request: Request) -> SimulationService:
             request.app.state.rule_registry,
             request.app.state.openai_service,
         )
-    return request.app.state.simulation_service
+    return request.app.state.simulation_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_analysis_service(request: Request) -> AutomatedAnalysisService:
@@ -128,7 +139,7 @@ def get_analysis_service(request: Request) -> AutomatedAnalysisService:
         request.app.state.analysis_service = AutomatedAnalysisService(
             get_settings(), request.app.state.openai_service
         )
-    return request.app.state.analysis_service
+    return request.app.state.analysis_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_debate_service(request: Request) -> DebateService:
@@ -137,14 +148,14 @@ def get_debate_service(request: Request) -> DebateService:
         request.app.state.debate_service = DebateService(
             get_settings(), request.app.state.event_bus, request.app.state.openai_service
         )
-    return request.app.state.debate_service
+    return request.app.state.debate_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_workbench_service() -> WorkbenchService:
     state = _get_state_or_fallback()
     if not hasattr(state, "workbench_service"):
         state.workbench_service = WorkbenchService()
-    return state.workbench_service
+    return state.workbench_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_assistant_service(request: Request) -> StrategicAssistantService:
@@ -157,16 +168,29 @@ def get_assistant_service(request: Request) -> StrategicAssistantService:
             debate_service=get_debate_service(request),
             workbench_service=get_workbench_service(),
         )
-    return request.app.state.assistant_service
+    return request.app.state.assistant_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_runtime_monitor_service() -> RuntimeMonitorService:
     state = _get_state_or_fallback()
     if not hasattr(state, "runtime_monitor_service"):
         state.runtime_monitor_service = RuntimeMonitorService(
-            get_settings().backpressure_pending_threshold
+            get_settings().backpressure_pending_threshold,
+            get_settings().runtime_recent_error_window_hours,
         )
-    return state.runtime_monitor_service
+    return state.runtime_monitor_service  # type: ignore[no-any-return]  # app.state 动态属性
+
+
+def get_platform_topology_service(request: Request) -> PlatformTopologyService:
+    ensure_app_services(request)
+    if not hasattr(request.app.state, "platform_topology_service"):
+        request.app.state.platform_topology_service = PlatformTopologyService(
+            get_settings(),
+            request.app.state.event_bus,
+            request.app.state.rule_registry,
+            domain_pack_registry,
+        )
+    return request.app.state.platform_topology_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def _analysis_cache_key(payload: object) -> str:

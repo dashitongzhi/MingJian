@@ -22,7 +22,7 @@ from planagent.workers.base import Worker, WorkerDescription
 class StrategicWatchWorker(Worker):
     description = WorkerDescription(
         worker_id="strategic-watch-worker",
-        summary="Refreshes saved strategic sessions that are due for their next daily brief.",
+        summary="Refreshes saved strategic sessions and produces scheduled recommendation updates.",
         consumes=(),
         produces=(),
     )
@@ -62,12 +62,25 @@ class StrategicWatchWorker(Worker):
             failed = 0
             for session_record in claimed_sessions:
                 try:
+                    if self._community_window_expired(session_record):
+                        await self._mark_window_expired(session, session_record.id)
+                        continue
                     payload = await self.service.load_session_payload(session, session_record.id)
                     if payload is None:
                         await self._mark_failure(session, session_record.id, "session_not_found")
                         failed += 1
                         continue
-                    await self.service.daily_brief(session, payload)
+                    await self.service.daily_brief(
+                        session,
+                        payload,
+                        store_recommendation_version=False,
+                    )
+                    await self.service.run(
+                        session,
+                        payload,
+                        recommendation_trigger_type="scheduled_refresh",
+                        recommendation_significance="none",
+                    )
                     refreshed += 1
                 except Exception as exc:
                     await self._mark_failure(
@@ -138,6 +151,28 @@ class StrategicWatchWorker(Worker):
             if len(claimed) >= limit:
                 break
         return claimed
+
+    def _community_window_expired(self, session_record: StrategicSession) -> bool:
+        created_at = session_record.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=utc_now().tzinfo)
+        return utc_now() - created_at >= timedelta(hours=24)
+
+    async def _mark_window_expired(self, session, session_id: str) -> None:
+        now = utc_now()
+        await session.execute(
+            update(StrategicSession)
+            .where(StrategicSession.id == session_id)
+            .values(
+                auto_refresh_enabled=False,
+                refresh_lease_owner=None,
+                refresh_lease_expires_at=None,
+                last_refresh_error=None,
+                next_refresh_at=None,
+                updated_at=now,
+            )
+        )
+        await session.commit()
 
     async def _mark_failure(self, session, session_id: str, error: str) -> None:
         now = utc_now()

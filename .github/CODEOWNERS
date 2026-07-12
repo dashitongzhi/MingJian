@@ -6,4 +6,8 @@
 /tests/ @dashitongzhi
 
 # Frontend
-/frontend/ @dashitongzhi
+/frontend-v2/ @dashitongzhi
+
+# API & Services (fine-grained review)
+/src/planagent/api/ @dashitongzhi
+/src/planagent/services/ @dashitongzhi

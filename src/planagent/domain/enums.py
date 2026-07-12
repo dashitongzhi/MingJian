@@ -42,6 +42,7 @@ class EventTopic(StrEnum):
     SCENARIO_COMPLETED = "scenario.completed"
     REPORT_GENERATED = "report.generated"
     VERIFICATION_FAILED = "verification.failed"
+    JARVIS_REPAIR_REQUESTED = "jarvis.repair_requested"
     DEBATE_TRIGGERED = "debate.triggered"
     DEBATE_COMPLETED = "debate.completed"
     DEBATE_AUTO_TRIGGER = "debate.auto_trigger"
@@ -115,20 +116,3 @@ class ImpactDirection(StrEnum):
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
     UNKNOWN = "unknown"
-
-
-class BatchTaskStatus(StrEnum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    PARTIAL = "PARTIAL"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"
-
-
-class BatchSubTaskStatus(StrEnum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    CANCELLED = "CANCELLED"
-    FAILED = "FAILED"

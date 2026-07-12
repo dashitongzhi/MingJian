@@ -10,13 +10,14 @@ Thank you for your interest in contributing to 明鉴! This document provides gu
 - Git
 - PostgreSQL (optional)
 - Redis (optional)
+- Node.js 22+ (required for `frontend-v2`)
 
 ### Development Setup
 
 1. **Fork and clone** the repository:
    ```bash
-   git clone https://github.com/your-username/planagent.git
-   cd mingjian
+   git clone https://github.com/dashitongzhi/MingJian.git
+   cd MingJian
    ```
 
 2. **Create a virtual environment**:
@@ -36,7 +37,14 @@ Thank you for your interest in contributing to 明鉴! This document provides gu
    # Edit .env with your settings
    ```
 
-5. **Run tests**:
+5. **Frontend development** (active frontend is `frontend-v2`):
+   ```bash
+   cd frontend-v2
+   npm install
+   npm run dev
+   ```
+
+6. **Run tests**:
    ```bash
    pytest
    ```
@@ -92,6 +100,8 @@ Thank you for your interest in contributing to 明鉴! This document provides gu
 - Use type hints
 - Write docstrings for public functions
 - Keep functions focused and small
+- Format with `ruff format src/ tests/`
+- Check types with `mypy src/planagent/`
 
 ### TypeScript/React
 
@@ -112,6 +122,16 @@ Use conventional commits:
 - `test:` for adding tests
 - `chore:` for maintenance tasks
 
+**Project-specific examples:**
+```bash
+feat(debate): add multi-round adjudicator scoring
+fix(api): correct validation error on debate creation
+docs(readme): update quick-start with frontend-v2 instructions
+chore(deps): bump pydantic to 2.10
+refactor(services): extract common LLM client logic
+test(simulation): add coverage for scenario branching
+```
+
 ## 🧪 Testing
 
 ### Running Tests
@@ -128,6 +148,15 @@ pytest tests/test_debate.py
 
 # Run with verbose output
 pytest -v
+
+# Check code formatting
+ruff format --check src/ tests/
+
+# Type-check
+mypy src/planagent/
+
+# Lint
+ruff check src/ tests/
 ```
 
 ### Writing Tests
@@ -153,7 +182,6 @@ pytest -v
 
 ## 📞 Getting Help
 
-- 📧 Email: [Your Email]
 - 🐛 Issues: github.com/dashitongzhi/MingJian/issues
 - 💬 Discussions: github.com/dashitongzhi/MingJian/discussions
 

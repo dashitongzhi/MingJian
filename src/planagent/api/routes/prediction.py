@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from planagent.api.routes._deps import ensure_app_services, get_session
+from planagent.api.routes._deps import ensure_app_services
+from planagent.db import get_session
 from planagent.domain.api import (
     PredictionEvidenceLinkRead,
     PredictionRevisionJobRead,

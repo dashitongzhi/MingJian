@@ -18,8 +18,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Enable pgvector extension (requires superuser or CREATE privilege)
+    # 1. Enable Postgres extensions used by graph search and source matching.
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
     # 2. Add the native vector column (default 64 dimensions)
     op.add_column(

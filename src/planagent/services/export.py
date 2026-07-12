@@ -1,4 +1,4 @@
-"""Export service — render analysis/debate/simulation results to Markdown and PDF.
+"""Export service — render analysis/debate/simulation results to Markdown, HTML, and PDF.
 
 Provides full report export for:
 - Strategic Assistant results (analysis + debate + simulation + workbench)
@@ -10,11 +10,27 @@ Provides full report export for:
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from types import SimpleNamespace
+
 import markdown2
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from planagent.config.report_theme import get_theme
+from planagent.domain.models import (
+    DebateReliabilityScore,
+    DebateRoundRecord,
+    DebateStructuredDissent,
+    DebateVerdictRecord,
+)
+from planagent.services.chart_generation import ChartGenerationService
+from planagent.services.debate.roles import debate_record_sort_key
 
 
 _logger = logging.getLogger(__name__)
@@ -452,6 +468,198 @@ class ExportService:
         # Generate PDF
         pdf_bytes = weasyprint.HTML(string=full_html).write_pdf()
         return pdf_bytes
+
+    # ── Jinja2 Environment ─────────────────────────────────
+
+    @staticmethod
+    def _get_jinja_env() -> Environment:
+        """Return a Jinja2 environment pointed at the project templates dir."""
+        template_dir = Path(__file__).parent.parent / "templates"
+        return Environment(
+            loader=FileSystemLoader(str(template_dir)),
+            autoescape=select_autoescape(["html"]),
+        )
+
+    # ── HTML Export ────────────────────────────────────────
+
+    async def export_debate_html(self, debate_id: str, db: AsyncSession) -> str:
+        """Export a full debate report as a self-contained HTML string.
+
+        Queries all debate artefacts from the database, generates charts,
+        and renders the ``debate_report.html`` Jinja2 template.
+
+        Args:
+            debate_id: The debate session ID.
+            db: An async SQLAlchemy session.
+
+        Returns:
+            Complete HTML document as a string.
+        """
+        # ── Query artefacts ─────────────────────────────────
+        verdict: DebateVerdictRecord | None = await db.get(DebateVerdictRecord, debate_id)
+
+        reliability_scores: list[DebateReliabilityScore] = list(
+            (
+                await db.scalars(
+                    select(DebateReliabilityScore)
+                    .where(DebateReliabilityScore.debate_id == debate_id)
+                    .order_by(
+                        DebateReliabilityScore.round_number.asc(),
+                        DebateReliabilityScore.role.asc(),
+                    )
+                )
+            ).all()
+        )
+
+        dissent: DebateStructuredDissent | None = (
+            await db.scalars(
+                select(DebateStructuredDissent).where(
+                    DebateStructuredDissent.debate_id == debate_id
+                )
+            )
+        ).first()
+
+        round_records: list[DebateRoundRecord] = list(
+            (
+                await db.scalars(
+                    select(DebateRoundRecord)
+                    .where(DebateRoundRecord.debate_id == debate_id)
+                    .order_by(
+                        DebateRoundRecord.round_number.asc(),
+                        DebateRoundRecord.created_at.asc(),
+                    )
+                )
+            ).all()
+        )
+        round_records.sort(key=debate_record_sort_key)
+
+        # ── Build debate_data for chart generation ──────────
+        rounds_by_number: dict[int, dict] = {}
+        for rec in round_records:
+            rn = rec.round_number
+            if rn not in rounds_by_number:
+                rounds_by_number[rn] = {
+                    "round_number": rn,
+                    "phase": "debate",
+                    "messages": [],
+                }
+            rounds_by_number[rn]["messages"].append(
+                {
+                    "role": rec.role,
+                    "position": rec.position,
+                    "confidence": rec.confidence,
+                    "arguments": rec.arguments,
+                }
+            )
+
+        sorted_rounds = [rounds_by_number[k] for k in sorted(rounds_by_number)]
+
+        # ── Aggregate confidence_data per round for chart format [{round, roles: {role: val}}]
+        conf_by_round: dict[int, dict[str, float]] = defaultdict(dict)
+        for rec in round_records:
+            conf_by_round[rec.round_number][rec.role] = rec.confidence
+        confidence_data = [
+            {"round": rn, "roles": roles} for rn, roles in sorted(conf_by_round.items())
+        ]
+
+        # ── Build evidence_matrix grouped by argument_summary [{argument, sources: {role: score}}]
+        ev_matrix: dict[str, dict[str, float]] = {}
+        for score in reliability_scores:
+            key = (score.argument_summary or "")[:50]
+            ev_matrix.setdefault(key, {})[score.auditor_role] = score.reliability_score / 5.0
+        evidence_matrix = [{"argument": k, "sources": v} for k, v in ev_matrix.items()]
+
+        # ── Build role_scores for radar chart: flat {dimension: score} in [0,1]
+        # The radar chart expects {dimension_name: score, ...} — aggregate across roles
+        dim_sums: dict[str, list[float]] = defaultdict(list)
+        for score in reliability_scores:
+            dim_sums["reliability"].append(score.reliability_score / 5.0)
+            if score.evidence_strength == "strong":
+                dim_sums["evidence"].append(0.8)
+            elif score.evidence_strength == "moderate":
+                dim_sums["evidence"].append(0.5)
+            else:
+                dim_sums["evidence"].append(0.3)
+            bias_penalty = len(score.bias_flags or []) * 0.15
+            dim_sums["logic"].append(max(0.0, 1.0 - bias_penalty))
+            dim_sums["adaptability"].append(0.6)
+        role_scores = {
+            dim: sum(vals) / len(vals) if vals else 0.0 for dim, vals in dim_sums.items()
+        }
+
+        debate_data: dict[str, Any] = {
+            "confidence_data": confidence_data,
+            "support_args": [
+                a
+                for rec in round_records
+                if rec.position == "support"
+                for a in (rec.arguments if isinstance(rec.arguments, list) else [])
+            ],
+            "challenge_args": [
+                a
+                for rec in round_records
+                if rec.position == "challenge"
+                for a in (rec.arguments if isinstance(rec.arguments, list) else [])
+            ],
+            "evidence_matrix": evidence_matrix,
+            "role_scores": dict(role_scores),
+        }
+
+        charts = ChartGenerationService.generate_all_charts(debate_data)
+
+        theme = get_theme()
+
+        chart_names = {
+            "confidence_trajectory": "置信度趋势",
+            "argument_comparison": "论点对比",
+            "evidence_heatmap": "证据热力图",
+            "role_radar": "角色雷达图",
+        }
+
+        topic = verdict.topic if verdict else "未知主题"
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+        env = self._get_jinja_env()
+        template = env.get_template("debate_report.html")
+        return template.render(
+            debate=SimpleNamespace(
+                topic=topic,
+                id=debate_id,
+                created_at=now,
+            ),
+            status="completed" if verdict else "in_progress",
+            generated_at=now,
+            rounds=sorted_rounds,
+            verdict=verdict,
+            reliability_scores=reliability_scores,
+            structured_dissent=dissent,
+            charts=charts,
+            chart_names=chart_names,
+            theme=theme,
+        )
+
+    async def export_debate_html_file(
+        self,
+        debate_id: str,
+        db: AsyncSession,
+        output_dir: str | Path | None = None,
+    ) -> str:
+        """Export a debate HTML report and write it to disk.
+
+        Args:
+            debate_id: The debate session ID.
+            db: An async SQLAlchemy session.
+            output_dir: Directory to write the file. Defaults to ``self.output_dir``.
+
+        Returns:
+            Absolute path to the written HTML file.
+        """
+        html = await self.export_debate_html(debate_id, db)
+        dest = Path(output_dir) if output_dir else self.output_dir
+        dest.mkdir(parents=True, exist_ok=True)
+        filepath = dest / f"debate_{debate_id}.html"
+        filepath.write_text(html, encoding="utf-8")
+        return str(filepath.resolve())
 
     # ── File Output ───────────────────────────────────────────
 
