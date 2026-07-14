@@ -104,9 +104,7 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
         assert body["monitoring"]["mode"] == "community_24h"
         assert body["monitoring"]["watch_rule_id"]
 
-        source_response = client.get(
-            f"/watch/rules/{body['monitoring']['watch_rule_id']}/sources"
-        )
+        source_response = client.get(f"/watch/rules/{body['monitoring']['watch_rule_id']}/sources")
         assert source_response.status_code == 200
         source_types = {item["source_type"] for item in source_response.json()}
         assert {
@@ -119,9 +117,13 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
             "aviation",
         }.issubset(source_types)
 
-        versions_response = client.get(
-            f"/assistant/session/{body['session_id']}/recommendations"
-        )
+        second_run_response = client.post("/assistant/runs", json=payload)
+        assert second_run_response.status_code == 201
+        second_body = second_run_response.json()
+        assert second_body["session_id"] != body["session_id"]
+        assert second_body["monitoring"]["watch_rule_id"] != body["monitoring"]["watch_rule_id"]
+
+        versions_response = client.get(f"/assistant/session/{body['session_id']}/recommendations")
         assert versions_response.status_code == 200
         versions = versions_response.json()
         assert versions
@@ -221,6 +223,15 @@ def test_strategic_session_persists_briefs_and_runs(monkeypatch, tmp_path: Path)
         )
         assert run_response.status_code == 201
         assert run_response.json()["session_id"] == session_id
+        repeated_run = client.post(
+            "/assistant/runs",
+            json={**payload, "session_id": session_id},
+        )
+        assert repeated_run.status_code == 201
+        assert (
+            repeated_run.json()["monitoring"]["watch_rule_id"]
+            == (run_response.json()["monitoring"]["watch_rule_id"])
+        )
 
         list_response = client.get("/assistant/sessions", params={"tenant_id": "founder-lab"})
         assert list_response.status_code == 200
@@ -235,9 +246,11 @@ def test_strategic_session_persists_briefs_and_runs(monkeypatch, tmp_path: Path)
         detail_body = detail_response.json()
         assert detail_body["session"]["id"] == session_id
         assert len(detail_body["daily_briefs"]) == 1
-        assert len(detail_body["recent_runs"]) == 1
+        assert len(detail_body["recent_runs"]) == 2
         assert detail_body["daily_briefs"][0]["analysis"]["summary"]
-        assert detail_body["recent_runs"][0]["result"]["session_id"] == session_id
+        assert all(
+            item["result"]["session_id"] == session_id for item in detail_body["recent_runs"]
+        )
 
 
 def test_strategic_watch_worker_refreshes_due_session(monkeypatch, tmp_path: Path) -> None:

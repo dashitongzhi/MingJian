@@ -678,16 +678,13 @@ class StrategicAssistantService:
                     WatchRule.domain_id == domain_id,
                     WatchRule.tenant_id == tenant_id,
                     WatchRule.preset_id == preset_id,
+                    WatchRule.session_id == session_id,
                 )
                 .order_by(WatchRule.updated_at.desc())
                 .limit(1)
             )
         ).first()
         if existing is not None:
-            if session_id is not None and existing.session_id != session_id:
-                existing.session_id = session_id
-                existing.updated_at = utc_now()
-                await session.flush()
             await SourceStateService(get_settings()).seed_watch_rule_sources(
                 session,
                 watch_rule_id=existing.id,
