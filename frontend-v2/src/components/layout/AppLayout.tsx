@@ -2,15 +2,20 @@ import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Moon, Plus, Search, Sun } from 'lucide-react'
+import { ChevronDown, KeyRound, LogOut, Moon, Plus, Search, Sun } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { useTheme } from '../../hooks/useTheme'
+import { useAuth } from '../../auth/AuthContext'
+import { ChangePasswordDialog } from '../../auth/ChangePasswordDialog'
 
 export default function AppLayout() {
   const navigate = useNavigate()
   const [userOpen, setUserOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const [search, setSearch] = useState('')
   const { theme, toggleTheme } = useTheme()
+  const { mode, username, logout, changePassword } = useAuth()
+  const userInitial = username.trim().charAt(0).toUpperCase() || 'U'
 
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -47,20 +52,47 @@ export default function AppLayout() {
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
-            <div className="relative hidden md:block">
+            <div className="relative">
               <button
                 type="button"
                 onClick={() => setUserOpen((prev) => !prev)}
+                aria-label={`用户菜单 ${username}`}
+                aria-expanded={userOpen}
                 className="glass-button flex h-10 items-center gap-2 px-3 text-sm text-slate-200"
               >
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-900">U</span>
-                User
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-xs font-bold text-slate-900">{userInitial}</span>
+                <span className="hidden sm:inline">{username}</span>
                 <ChevronDown className="h-4 w-4 text-slate-500" />
               </button>
               {userOpen && (
                 <div className="liquid-glass absolute right-0 top-12 w-44 p-2">
-                  <button type="button" onClick={() => { setUserOpen(false); navigate('/settings') }} className="block w-full rounded-[16px] px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-blue-500/10">账户设置</button>
                   <button type="button" onClick={() => { setUserOpen(false); navigate('/dashboard') }} className="block w-full rounded-[16px] px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-blue-500/10">返回总览</button>
+                  {mode === 'remote' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserOpen(false)
+                          setPasswordOpen(true)
+                        }}
+                        className="flex w-full items-center gap-2 rounded-[16px] px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-blue-500/10"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        修改密码
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserOpen(false)
+                          void logout()
+                        }}
+                        className="flex w-full items-center gap-2 rounded-[16px] px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-500/10"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        退出登录
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -79,6 +111,12 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </main>
+      {passwordOpen && mode === 'remote' && (
+        <ChangePasswordDialog
+          onClose={() => setPasswordOpen(false)}
+          onSubmit={changePassword}
+        />
+      )}
     </div>
   )
 }

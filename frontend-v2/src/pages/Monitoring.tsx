@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2, Cpu, Database, Gauge, Layers3, RefreshCw, ShieldAlert, Signal } from 'lucide-react'
+import { CheckCircle2, Cpu, Database, Gauge, Layers3, RefreshCw, ShieldAlert, Signal } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'

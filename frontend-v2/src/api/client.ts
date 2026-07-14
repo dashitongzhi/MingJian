@@ -9,6 +9,16 @@ type TokenRefreshResponse = {
   refresh_token: string
 }
 
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, body: string) {
+    super(`API ${status}: ${body}`)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 let refreshSessionPromise: Promise<boolean> | null = null
 
 function sleep(ms: number) {
@@ -46,12 +56,16 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   }
 }
 
-function requestHeaders(headers?: HeadersInit) {
+function requestHeaders(headers?: HeadersInit, includeAuth = true) {
   const merged = new Headers(headers)
   if (!merged.has('Content-Type')) merged.set('Content-Type', 'application/json')
-  const token = readAuthToken()
+  const token = includeAuth ? readAuthToken() : ''
   if (token) merged.set('Authorization', `Bearer ${token}`)
   return merged
+}
+
+function isPublicAuthRequest(path: string) {
+  return path === '/auth/login' || path === '/auth/refresh' || path === '/auth/register'
 }
 
 function expireAuthSession() {
@@ -85,21 +99,22 @@ async function refreshAuthSession() {
   return refreshSessionPromise
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestResponse(path: string, init?: RequestInit): Promise<Response> {
   const method = (init?.method || 'GET').toUpperCase()
   const retryNetworkFailure = method === 'GET' || method === 'HEAD'
-  let authRetryAvailable = !path.startsWith('/auth/refresh')
+  const publicAuthRequest = isPublicAuthRequest(path)
+  let authRetryAvailable = !publicAuthRequest
   let lastError: unknown
 
   for (let attempt = 0; attempt <= NETWORK_RETRY_DELAYS_MS.length; attempt += 1) {
     try {
       const res = await fetchWithTimeout(`${BASE}${path}`, {
         ...init,
-        headers: requestHeaders(init?.headers),
+        headers: requestHeaders(init?.headers, !publicAuthRequest),
       })
 
       if (!res.ok) {
-        if (res.status === 401 && authRetryAvailable) {
+        if (res.status === 401 && !publicAuthRequest && authRetryAvailable) {
           authRetryAvailable = false
           const refreshed = await refreshAuthSession()
           if (refreshed) {
@@ -107,14 +122,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
             continue
           }
           expireAuthSession()
-        } else if (res.status === 401) {
+        } else if (res.status === 401 && !publicAuthRequest) {
           expireAuthSession()
         }
         const body = await res.text().catch(() => '')
-        throw new Error(`API ${res.status}: ${body}`)
+        throw new ApiError(res.status, body)
       }
 
-      return res.json()
+      return res
     } catch (error) {
       lastError = error
       const canRetry = retryNetworkFailure && isNetworkFailure(error) && attempt < NETWORK_RETRY_DELAYS_MS.length
@@ -130,6 +145,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error('请求超时，请稍后重试')
   }
   throw lastError
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await requestResponse(path, init)
+  return res.json()
 }
 
 function filenameFromDisposition(disposition: string | null, fallback: string) {
@@ -169,6 +189,19 @@ async function download(path: string, fallbackFilename: string): Promise<void> {
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  probe: async (path: string, options?: { authenticated?: boolean }) => {
+    if (options?.authenticated === false) {
+      const res = await fetchWithTimeout(`${BASE}${path}`, {
+        headers: requestHeaders(undefined, false),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        throw new ApiError(res.status, body)
+      }
+      return
+    }
+    await requestResponse(path)
+  },
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>

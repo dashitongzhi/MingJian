@@ -17,3 +17,12 @@ def test_backend_ci_covers_community_boundary_and_session_contracts() -> None:
     }
 
     assert required_test_files.issubset(set(workflow.split()))
+
+
+def test_frontend_ci_runs_tests() -> None:
+    """The frontend job must exercise the browser-facing authentication and route contracts."""
+    workflow = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "run: npm test" in workflow
