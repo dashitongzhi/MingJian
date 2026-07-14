@@ -670,20 +670,25 @@ class StrategicAssistantService:
         tenant_id: str | None = None,
         preset_id: str | None = None,
     ) -> WatchRule:
-        existing = (
-            await session.scalars(
+        if session_id is not None:
+            existing_query = (
+                select(WatchRule)
+                .where(WatchRule.session_id == session_id)
+                .order_by(WatchRule.created_at.asc(), WatchRule.id.asc())
+            )
+        else:
+            existing_query = (
                 select(WatchRule)
                 .where(
                     WatchRule.query == topic,
                     WatchRule.domain_id == domain_id,
                     WatchRule.tenant_id == tenant_id,
                     WatchRule.preset_id == preset_id,
-                    WatchRule.session_id == session_id,
+                    WatchRule.session_id.is_(None),
                 )
-                .order_by(WatchRule.updated_at.desc())
-                .limit(1)
+                .order_by(WatchRule.created_at.asc(), WatchRule.id.asc())
             )
-        ).first()
+        existing = (await session.scalars(existing_query.limit(1))).first()
         if existing is not None:
             await SourceStateService(get_settings()).seed_watch_rule_sources(
                 session,

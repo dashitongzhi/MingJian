@@ -225,12 +225,20 @@ def test_strategic_session_persists_briefs_and_runs(monkeypatch, tmp_path: Path)
         assert run_response.json()["session_id"] == session_id
         repeated_run = client.post(
             "/assistant/runs",
-            json={**payload, "session_id": session_id},
+            json={
+                **payload,
+                "session_id": session_id,
+                "topic": "改写问题表述，但仍属于同一创业公司战略会话。",
+            },
         )
         assert repeated_run.status_code == 201
         assert (
             repeated_run.json()["monitoring"]["watch_rule_id"]
             == (run_response.json()["monitoring"]["watch_rule_id"])
+        )
+        assert (
+            repeated_run.json()["monitoring"]["expires_at"]
+            == run_response.json()["monitoring"]["expires_at"]
         )
 
         list_response = client.get("/assistant/sessions", params={"tenant_id": "founder-lab"})
