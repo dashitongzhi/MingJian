@@ -58,6 +58,7 @@ class User:
     password_hash: str
     role: UserRole = UserRole.ANALYST
     is_active: bool = True
+    token_version: int = 0
     created_at: datetime = field(default_factory=utc_now)
     last_login: datetime | None = None
     auth_provider: str | None = None
@@ -264,6 +265,7 @@ class AuthService:
                     new_password.encode(),
                     bcrypt.gensalt(),
                 ).decode()
+                record.token_version += 1
                 refresh_tokens = session.scalars(
                     select(AuthRefreshToken).where(
                         AuthRefreshToken.user_id == user_id,
@@ -280,6 +282,38 @@ class AuthService:
             if not bcrypt.checkpw(current_password.encode(), user.password_hash.encode()):
                 return False
             user.password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+            user.token_version += 1
+
+        self._refresh_tokens = {
+            token_hash: owner_id
+            for token_hash, owner_id in self._refresh_tokens.items()
+            if owner_id != user_id
+        }
+        return True
+
+    def revoke_user_sessions(self, user_id: str) -> bool:
+        """Invalidate every access and refresh token previously issued to a user."""
+        if self._db_enabled:
+            with self._session() as session:
+                record = session.get(AuthUser, user_id)
+                if record is None:
+                    return False
+                record.token_version += 1
+                refresh_tokens = session.scalars(
+                    select(AuthRefreshToken).where(
+                        AuthRefreshToken.user_id == user_id,
+                        AuthRefreshToken.revoked_at.is_(None),
+                    )
+                ).all()
+                revoked_at = utc_now()
+                for refresh_token in refresh_tokens:
+                    refresh_token.revoked_at = revoked_at
+                session.commit()
+        else:
+            user = self._users.get(user_id)
+            if user is None:
+                return False
+            user.token_version += 1
 
         self._refresh_tokens = {
             token_hash: owner_id
@@ -305,6 +339,11 @@ class AuthService:
         if user is None:
             return None
         if not user.is_active:
+            return None
+        if (
+            _token_version(refresh_token, self.config.secret_key, self.config.algorithm)
+            != user.token_version
+        ):
             return None
 
         self.revoke_token(refresh_token)
@@ -346,6 +385,7 @@ class AuthService:
             "username": user.username,
             "email": user.email,
             "role": user.role.value,
+            "ver": user.token_version,
             "type": "access",
             "iss": self.config.issuer,
             "iat": now,
@@ -359,6 +399,7 @@ class AuthService:
         refresh_payload = {
             "jti": str(uuid.uuid4()),
             "sub": user.id,
+            "ver": user.token_version,
             "type": "refresh",
             "iss": self.config.issuer,
             "iat": now,
@@ -406,6 +447,8 @@ class AuthService:
             if user_id:
                 user = self.get_user(user_id)
                 if user is None or not user.is_active:
+                    return None
+                if payload.get("ver") != user.token_version:
                     return None
 
             return payload
@@ -555,6 +598,15 @@ def _token_type(token: str, secret_key: str, algorithm: str) -> str | None:
     return token_type if isinstance(token_type, str) else None
 
 
+def _token_version(token: str, secret_key: str, algorithm: str) -> int | None:
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+    except jwt.InvalidTokenError:
+        return None
+    token_version = payload.get("ver")
+    return token_version if isinstance(token_version, int) else None
+
+
 def _sync_database_url(database_url: str) -> str:
     return database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://").replace(
         "sqlite+aiosqlite://", "sqlite://"
@@ -575,6 +627,7 @@ def _user_from_record(record: AuthUser) -> User:
         password_hash=record.password_hash,
         role=UserRole(record.role),
         is_active=record.is_active,
+        token_version=record.token_version,
         created_at=record.created_at,
         last_login=record.last_login,
         auth_provider=record.auth_provider,

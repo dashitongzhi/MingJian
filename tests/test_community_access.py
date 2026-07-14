@@ -435,11 +435,42 @@ def test_remote_admin_can_rotate_bootstrap_password(monkeypatch, tmp_path: Path)
             "/auth/refresh",
             json={"refresh_token": bootstrap_refresh_token},
         )
+        old_access = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        )
 
     assert changed.status_code == 200
     assert old_login.status_code == 401
     assert new_login.status_code == 200
     assert old_refresh.status_code == 401
+    assert old_access.status_code == 401
+
+
+def test_remote_logout_revokes_the_users_refresh_session(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "logout-refresh.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        login = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-bootstrap-admin-password",
+            },
+        )
+        assert login.status_code == 200
+
+        logout = client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        )
+        refreshed = client.post(
+            "/auth/refresh",
+            json={"refresh_token": login.json()["refresh_token"]},
+        )
+
+    assert logout.status_code == 200
+    assert refreshed.status_code == 401
 
 
 def test_remote_health_and_docs_remain_public(monkeypatch, tmp_path: Path) -> None:

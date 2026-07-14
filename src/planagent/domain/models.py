@@ -59,6 +59,7 @@ class AuthUser(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(32), default="analyst", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     auth_provider: Mapped[str | None] = mapped_column(String(64), index=True)
     external_id: Mapped[str | None] = mapped_column(String(255), index=True)
     created_at: Mapped[datetime] = mapped_column(

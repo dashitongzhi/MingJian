@@ -267,7 +267,7 @@ async def change_password(
     request: Request,
     payload: dict[str, Any] = Depends(get_current_user_payload),
 ) -> dict[str, str]:
-    """Rotate the current user's password and revoke the token used for the change."""
+    """Rotate the current user's password and invalidate all existing sessions."""
     auth_service = _get_auth_service(request)
     if not auth_service.change_password(
         str(payload["sub"]),
@@ -288,13 +288,9 @@ async def logout(
     request: Request,
     payload: dict[str, Any] = Depends(get_current_user_payload),
 ) -> dict[str, str]:
-    """Revoke current token."""
+    """Invalidate every session issued to the current Community user."""
     auth_service = _get_auth_service(request)
-    # Extract token from header
-    authorization = request.headers.get("authorization", "")
-    _, _, token = authorization.partition(" ")
-    if token:
-        auth_service.revoke_token(token)
+    auth_service.revoke_user_sessions(str(payload["sub"]))
     return {"message": "Logged out successfully"}
 
 

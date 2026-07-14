@@ -341,6 +341,23 @@ class TestTokenRevocation:
         # u_b 的 token 应仍然有效
         assert auth_service.verify_token(tokens_b.access_token) is not None
 
+    def test_password_change_revokes_all_existing_access_and_refresh_tokens(
+        self, auth_service: AuthService
+    ):
+        """Changing a password invalidates every previously issued user session."""
+        user = auth_service.create_user("rotate-all", "rotate-all@test.com", "old-password")
+        first = auth_service.authenticate("rotate-all", "old-password")
+        second = auth_service.authenticate("rotate-all", "old-password")
+        assert first is not None
+        assert second is not None
+
+        assert auth_service.change_password(user.id, "old-password", "new-password") is True
+
+        assert auth_service.verify_token(first.access_token) is None
+        assert auth_service.verify_token(second.access_token) is None
+        assert auth_service.refresh_access_token(first.refresh_token) is None
+        assert auth_service.refresh_access_token(second.refresh_token) is None
+
     def test_persistent_revocation_survives_cache_eviction(self, tmp_path):
         """The bounded cache cannot revalidate an unexpired revoked access token."""
         db_url = f"sqlite:///{tmp_path / 'bounded-auth.db'}"
@@ -539,6 +556,21 @@ class TestPersistentAuthStore:
 
         svc2 = make_db_auth_service(db_url)
         assert svc2.verify_token(tokens.access_token) is None
+
+    def test_password_change_session_revocation_survives_service_restart(self, tmp_path):
+        db_url = f"sqlite:///{tmp_path / 'password-generation.db'}"
+        svc1 = make_db_auth_service(db_url)
+        user = svc1.create_user("rotate", "rotate@test.com", "old-password")
+        tokens = svc1.authenticate("rotate", "old-password")
+        assert tokens is not None
+
+        assert svc1.change_password(user.id, "old-password", "new-password") is True
+
+        svc2 = make_db_auth_service(db_url)
+        assert svc2.verify_token(tokens.access_token) is None
+        assert svc2.refresh_access_token(tokens.refresh_token) is None
+        assert svc2.authenticate("rotate", "old-password") is None
+        assert svc2.authenticate("rotate", "new-password") is not None
 
     def test_production_requires_secret_key(self):
         with pytest.raises(RuntimeError, match="PLANAGENT_AUTH_SECRET_KEY"):
