@@ -165,8 +165,12 @@ async def get_notification_history(
 
 
 @router.get("/stats")
-async def get_notification_stats(request: Request) -> dict[str, Any]:
-    """Get notification system statistics."""
+async def get_notification_stats(
+    request: Request,
+    principal: dict[str, Any] = Depends(get_community_access_payload),
+) -> dict[str, Any]:
+    """Get notification system statistics for the local or remote administrator."""
+    _require_notification_admin(principal)
     service = _get_notification_service(request)
     return service.get_stats()
 

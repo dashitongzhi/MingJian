@@ -75,21 +75,42 @@ def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Pat
     assert response.json()["detail"] == "Missing Authorization header"
 
 
-def test_notifications_accept_valid_remote_user(monkeypatch, tmp_path: Path) -> None:
+def test_notification_stats_accept_remote_admin(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "admin-stats.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        login = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-bootstrap-admin-password",
+            },
+        )
+        assert login.status_code == 200
+        response = client.get(
+            "/notifications/stats",
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+        )
+
+    assert response.status_code == 200
+
+
+def test_notification_stats_reject_remote_analyst(monkeypatch, tmp_path: Path) -> None:
     _configure_remote_access(
         monkeypatch,
-        tmp_path / "authenticated.db",
+        tmp_path / "analyst-stats.db",
         registration_enabled=True,
     )
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        access_token = _register_and_login(client)
+        access_token = _register_and_login(client, username="stats-analyst")
         response = client.get(
             "/notifications/stats",
             headers={"Authorization": f"Bearer {access_token}"},
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Notification administration requires admin role"
 
 
 def test_remote_user_cannot_read_another_users_notification_history(
