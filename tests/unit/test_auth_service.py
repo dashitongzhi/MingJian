@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 import jwt
@@ -298,6 +300,25 @@ class TestRoleAuthorization:
         payload = auth_service.verify_token(tokens.access_token)
         assert payload["role"] == "viewer"
 
+    def test_verify_token_rejects_a_stale_role_claim(self, auth_service: AuthService) -> None:
+        """Authorization must match the user's current role, not only the signed claim."""
+        auth_service.create_user("stale-role", "stale-role@test.com", "pass")
+        tokens = auth_service.authenticate("stale-role", "pass")
+        assert tokens is not None
+        payload = jwt.decode(
+            tokens.access_token,
+            "test-secret-key-for-unit-tests",
+            algorithms=["HS256"],
+        )
+        payload["role"] = UserRole.ADMIN.value
+        stale_role_token = jwt.encode(
+            payload,
+            "test-secret-key-for-unit-tests",
+            algorithm="HS256",
+        )
+
+        assert auth_service.verify_token(stale_role_token) is None
+
 
 # ---------------------------------------------------------------------------
 # Revoked Token 黑名单
@@ -484,6 +505,33 @@ class TestUserManagement:
         assert updated is not None
         assert updated.role == UserRole.ADMIN
 
+    def test_role_change_invalidates_existing_access_and_refresh_tokens(
+        self, auth_service: AuthService
+    ) -> None:
+        """Changing a role must revoke every session carrying the previous authorization."""
+        user = auth_service.create_user(
+            "demoted-admin",
+            "demoted-admin@test.com",
+            "pass",
+            role=UserRole.ADMIN,
+        )
+        previous = auth_service.authenticate("demoted-admin", "pass")
+        assert previous is not None
+
+        updated = auth_service.update_user_role(user.id, UserRole.VIEWER)
+
+        assert updated is not None
+        assert updated.role == UserRole.VIEWER
+        assert auth_service.verify_token(previous.access_token) is None
+        assert auth_service.refresh_access_token(previous.refresh_token) is None
+
+        current = auth_service.authenticate("demoted-admin", "pass")
+        assert current is not None
+        payload = auth_service.verify_token(current.access_token)
+        assert payload is not None
+        assert payload["role"] == UserRole.VIEWER.value
+        assert auth_service.check_role(payload, UserRole.ADMIN) is False
+
     def test_deactivate_user(self, auth_service: AuthService):
         """deactivate_user 应停用用户，使其无法认证。"""
         user = auth_service.create_user("d1", "d1@test.com", "pass")
@@ -548,6 +596,30 @@ class TestPersistentAuthStore:
         assert refreshed is not None
         assert svc2.verify_token(refreshed.access_token) is not None
 
+    def test_concurrent_refresh_consumes_a_persistent_token_only_once(self, tmp_path) -> None:
+        """Concurrent workers must not exchange one refresh token more than once."""
+        db_url = f"sqlite:///{tmp_path / 'concurrent-refresh.db'}"
+        issuer = make_db_auth_service(db_url)
+        issuer.create_user("concurrent", "concurrent@test.com", "pass")
+        tokens = issuer.authenticate("concurrent", "pass")
+        assert tokens is not None
+
+        contenders = [issuer, *(make_db_auth_service(db_url) for _ in range(7))]
+        ready = Barrier(len(contenders))
+
+        def refresh(service: AuthService):
+            ready.wait()
+            return service.refresh_access_token(tokens.refresh_token)
+
+        with ThreadPoolExecutor(max_workers=len(contenders)) as executor:
+            results = list(executor.map(refresh, contenders))
+
+        assert sum(result is not None for result in results) == 1
+        winner = next(result for result in results if result is not None)
+        verifier = make_db_auth_service(db_url)
+        assert verifier.verify_token(winner.access_token) is not None
+        assert verifier.refresh_access_token(winner.refresh_token) is not None
+
     def test_revoked_token_survives_service_restart(self, tmp_path):
         db_url = f"sqlite:///{tmp_path / 'auth.db'}"
         svc1 = make_db_auth_service(db_url)
@@ -574,6 +646,31 @@ class TestPersistentAuthStore:
         assert svc2.refresh_access_token(tokens.refresh_token) is None
         assert svc2.authenticate("rotate", "old-password") is None
         assert svc2.authenticate("rotate", "new-password") is not None
+
+    def test_role_change_session_revocation_survives_service_restart(self, tmp_path: Path) -> None:
+        db_url = f"sqlite:///{tmp_path / 'role-generation.db'}"
+        svc1 = make_db_auth_service(db_url)
+        user = svc1.create_user(
+            "persistent-admin",
+            "persistent-admin@test.com",
+            "pass",
+            role=UserRole.ADMIN,
+        )
+        previous = svc1.authenticate("persistent-admin", "pass")
+        assert previous is not None
+
+        updated = svc1.update_user_role(user.id, UserRole.VIEWER)
+        assert updated is not None
+        assert updated.role == UserRole.VIEWER
+
+        svc2 = make_db_auth_service(db_url)
+        assert svc2.verify_token(previous.access_token) is None
+        assert svc2.refresh_access_token(previous.refresh_token) is None
+        current = svc2.authenticate("persistent-admin", "pass")
+        assert current is not None
+        current_payload = svc2.verify_token(current.access_token)
+        assert current_payload is not None
+        assert current_payload["role"] == UserRole.VIEWER.value
 
     def test_production_requires_secret_key(self):
         with pytest.raises(RuntimeError, match="PLANAGENT_AUTH_SECRET_KEY"):

@@ -14,11 +14,12 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
+from threading import Lock
 from typing import Any
 
 import bcrypt
 import jwt
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -107,6 +108,7 @@ class AuthService:
         self._revoked_tokens: OrderedDict[str, datetime | None] = OrderedDict()
         self._max_revoked_tokens: int = 100_000
         self._refresh_tokens: dict[str, str] = {}  # token_hash -> user_id
+        self._refresh_lock = Lock()
 
         if self.config.create_default_admin:
             self._ensure_default_admin()
@@ -324,31 +326,72 @@ class AuthService:
 
     def refresh_access_token(self, refresh_token: str) -> TokenPair | None:
         """Get new access token using refresh token."""
+        if self._db_enabled:
+            return self._refresh_persistent_access_token(refresh_token)
+
         token_hash = _hash_token(refresh_token)
-        if self._is_token_revoked(refresh_token):
+        with self._refresh_lock:
+            if self._is_token_revoked(refresh_token):
+                return None
+            user_id = self._refresh_tokens.get(token_hash)
+            if not user_id:
+                return None
+            user = self.get_user(user_id)
+            if user is None or not user.is_active:
+                return None
+            if (
+                _token_version(refresh_token, self.config.secret_key, self.config.algorithm)
+                != user.token_version
+            ):
+                return None
+
+            self._refresh_tokens.pop(token_hash, None)
+            return self._create_token_pair(user)
+
+    def _refresh_persistent_access_token(self, refresh_token: str) -> TokenPair | None:
+        """Atomically consume and rotate one persistent refresh token."""
+        payload = _decode_refresh_token(
+            refresh_token,
+            self.config.secret_key,
+            self.config.algorithm,
+        )
+        if payload is None:
             return None
 
-        user_id = self._refresh_tokens.get(token_hash)
-        if not user_id:
-            user_id = self._lookup_refresh_token_user(refresh_token)
-
-        if not user_id:
+        user_id = payload.get("sub")
+        token_version = payload.get("ver")
+        if not isinstance(user_id, str) or not isinstance(token_version, int):
             return None
 
-        user = self.get_user(user_id)
-        if user is None:
-            return None
-        if not user.is_active:
-            return None
-        if (
-            _token_version(refresh_token, self.config.secret_key, self.config.algorithm)
-            != user.token_version
-        ):
-            return None
+        token_hash = _hash_token(refresh_token)
+        now = utc_now()
+        with self._session() as session, session.begin():
+            consumed = session.execute(
+                update(AuthRefreshToken)
+                .where(
+                    AuthRefreshToken.token_hash == token_hash,
+                    AuthRefreshToken.user_id == user_id,
+                    AuthRefreshToken.revoked_at.is_(None),
+                    AuthRefreshToken.expires_at > now,
+                )
+                .values(revoked_at=now)
+            )
+            if consumed.rowcount != 1:
+                return None
 
-        self.revoke_token(refresh_token)
+            expires_at = _token_expires_at(
+                refresh_token,
+                self.config.secret_key,
+                self.config.algorithm,
+            )
+            if session.get(AuthRevokedToken, token_hash) is None:
+                session.add(AuthRevokedToken(token_hash=token_hash, expires_at=expires_at))
 
-        return self._create_token_pair(user)
+            record = session.get(AuthUser, user_id)
+            if record is None or not record.is_active or record.token_version != token_version:
+                return None
+
+            return self._create_token_pair(_user_from_record(record), session=session)
 
     def revoke_token(self, token: str) -> None:
         """Revoke a token while retaining access-token revocations until expiry."""
@@ -374,7 +417,7 @@ class AuthService:
 
     # ── Token Operations ──────────────────────────────────────
 
-    def _create_token_pair(self, user: User) -> TokenPair:
+    def _create_token_pair(self, user: User, *, session: Session | None = None) -> TokenPair:
         """Create access + refresh token pair."""
         now = datetime.now(timezone.utc)
 
@@ -409,18 +452,21 @@ class AuthService:
             refresh_payload, self.config.secret_key, algorithm=self.config.algorithm
         )
         token_hash = _hash_token(refresh_token)
-        self._refresh_tokens[token_hash] = user.id
         if self._db_enabled:
-            with self._session() as session:
-                session.add(
-                    AuthRefreshToken(
-                        token_hash=token_hash,
-                        user_id=user.id,
-                        issued_at=now,
-                        expires_at=now + timedelta(days=self.config.refresh_token_expire_days),
-                    )
-                )
-                session.commit()
+            refresh_record = AuthRefreshToken(
+                token_hash=token_hash,
+                user_id=user.id,
+                issued_at=now,
+                expires_at=now + timedelta(days=self.config.refresh_token_expire_days),
+            )
+            if session is not None:
+                session.add(refresh_record)
+            else:
+                with self._session() as persistent_session:
+                    persistent_session.add(refresh_record)
+                    persistent_session.commit()
+        else:
+            self._refresh_tokens[token_hash] = user.id
 
         return TokenPair(
             access_token=access_token,
@@ -449,6 +495,8 @@ class AuthService:
                 if user is None or not user.is_active:
                     return None
                 if payload.get("ver") != user.token_version:
+                    return None
+                if payload.get("role") != user.role.value:
                     return None
 
             return payload
@@ -487,13 +535,32 @@ class AuthService:
                 record = session.get(AuthUser, user_id)
                 if record is None:
                     return None
-                record.role = role.value
+                if record.role != role.value:
+                    record.role = role.value
+                    record.token_version += 1
+                    revoked_at = utc_now()
+                    refresh_tokens = session.scalars(
+                        select(AuthRefreshToken).where(
+                            AuthRefreshToken.user_id == user_id,
+                            AuthRefreshToken.revoked_at.is_(None),
+                        )
+                    ).all()
+                    for refresh_token in refresh_tokens:
+                        refresh_token.revoked_at = revoked_at
                 session.commit()
                 session.refresh(record)
                 return _user_from_record(record)
         user = self._users.get(user_id)
         if user:
-            user.role = role
+            with self._refresh_lock:
+                if user.role != role:
+                    user.role = role
+                    user.token_version += 1
+                    self._refresh_tokens = {
+                        token_hash: owner_id
+                        for token_hash, owner_id in self._refresh_tokens.items()
+                        if owner_id != user_id
+                    }
         return user
 
     def deactivate_user(self, user_id: str) -> bool:
@@ -510,32 +577,6 @@ class AuthService:
             user.is_active = False
             return True
         return False
-
-    def _lookup_refresh_token_user(self, refresh_token: str) -> str | None:
-        try:
-            payload = jwt.decode(
-                refresh_token,
-                self.config.secret_key,
-                algorithms=[self.config.algorithm],
-            )
-            if payload.get("type") != "refresh":
-                return None
-        except jwt.InvalidTokenError:
-            return None
-
-        token_hash = _hash_token(refresh_token)
-        if self._db_enabled:
-            now = utc_now()
-            with self._session() as session:
-                record = session.get(AuthRefreshToken, token_hash)
-                if (
-                    record is None
-                    or record.revoked_at is not None
-                    or _as_utc(record.expires_at) <= now
-                ):
-                    return None
-                return record.user_id
-        return self._refresh_tokens.get(token_hash)
 
     def _is_token_revoked(self, token: str) -> bool:
         token_hash = _hash_token(token)
@@ -605,6 +646,16 @@ def _token_version(token: str, secret_key: str, algorithm: str) -> int | None:
         return None
     token_version = payload.get("ver")
     return token_version if isinstance(token_version, int) else None
+
+
+def _decode_refresh_token(token: str, secret_key: str, algorithm: str) -> dict[str, Any] | None:
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+    except jwt.InvalidTokenError:
+        return None
+    if payload.get("type") != "refresh":
+        return None
+    return payload
 
 
 def _sync_database_url(database_url: str) -> str:
