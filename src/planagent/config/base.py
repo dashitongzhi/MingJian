@@ -88,6 +88,7 @@ class BaseAppSettings(BaseSettings):
 
     # Auth 配置
     auth_secret_key: str = ""
+    remote_access_enabled: bool = False
 
     # Notification 配置
     smtp_host: str | None = None

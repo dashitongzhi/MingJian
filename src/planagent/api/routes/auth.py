@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
@@ -87,6 +88,34 @@ def get_current_user_payload(
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     return payload
+
+
+def get_community_access_payload(
+    request: Request,
+    authorization: str | None = Header(None),
+) -> dict[str, Any]:
+    """Authenticate remote access or provide the loopback-only local session."""
+    from planagent.config import get_settings
+
+    settings = get_settings()
+    if settings.remote_access_enabled:
+        return get_current_user_payload(request, authorization)
+
+    client_host = request.client.host if request.client is not None else ""
+    try:
+        is_loopback = ip_address(client_host).is_loopback
+    except ValueError:
+        is_loopback = False
+    if not is_loopback:
+        raise HTTPException(status_code=403, detail="Remote access is disabled")
+
+    return {
+        "sub": "community-local",
+        "username": "local",
+        "role": UserRole.ADMIN.value,
+        "type": "local_session",
+        "iss": "planagent-community",
+    }
 
 
 def require_role(required_role: UserRole):
