@@ -377,13 +377,19 @@ cp .env.example .env
 alembic upgrade head
 
 # 7. 启动后端服务器
-uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn planagent.main:app --reload --host 127.0.0.1 --port 8000
 
 # 8. 启动前端（在新终端中）
 cd frontend-v2
 npm run dev
 # 打开 http://localhost:3000
 ```
+
+Community 本地模式仅监听回环地址，并使用部署级本地单用户会话。除非已经设置
+`PLANAGENT_REMOTE_ACCESS_ENABLED=true`，并配置至少 32 字节且可持久化的
+`PLANAGENT_AUTH_SECRET_KEY`，否则不要把 API 绑定到 `0.0.0.0` 或其他非回环地址。
+远程自注册默认关闭；仅应在受控初始化窗口显式设置
+`PLANAGENT_REMOTE_REGISTRATION_ENABLED=true`，完成后立即关闭。
 
 ---
 

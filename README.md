@@ -396,13 +396,20 @@ cp .env.example .env
 alembic upgrade head
 
 # 7. Start backend server
-uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn planagent.main:app --reload --host 127.0.0.1 --port 8000
 
 # 8. Start frontend (in a new terminal)
 cd frontend-v2
 npm run dev
 # Open http://localhost:3000
 ```
+
+Community local mode is loopback-only and uses a deployment-local single-user session. Do not
+bind the API to `0.0.0.0` or another non-loopback address unless
+`PLANAGENT_REMOTE_ACCESS_ENABLED=true` and a persistent
+`PLANAGENT_AUTH_SECRET_KEY` of at least 32 bytes are configured. Remote self-registration remains
+disabled unless `PLANAGENT_REMOTE_REGISTRATION_ENABLED=true` is explicitly enabled for a
+controlled onboarding window.
 
 ---
 

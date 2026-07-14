@@ -382,13 +382,20 @@ cp .env.example .env
 alembic upgrade head
 
 # 7. バックエンドサーバーを起動
-uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn planagent.main:app --reload --host 127.0.0.1 --port 8000
 
 # 8. フロントエンドを起動（新しいターミナルで）
 cd frontend-v2
 npm run dev
 # http://localhost:3000 を開く
 ```
+
+Community のローカルモードはループバックだけで待ち受け、デプロイ単位のローカル
+シングルユーザーセッションを使用します。`PLANAGENT_REMOTE_ACCESS_ENABLED=true` と、
+32 バイト以上の永続的な `PLANAGENT_AUTH_SECRET_KEY` を設定していない限り、API を
+`0.0.0.0` などの非ループバックアドレスへバインドしないでください。リモートの
+自己登録は既定で無効です。管理された初期登録期間だけ
+`PLANAGENT_REMOTE_REGISTRATION_ENABLED=true` を明示的に有効化してください。
 
 ---
 
