@@ -28,8 +28,15 @@ jobs:
           ruff format --check src/ tests/
       - name: Type check
         run: mypy src/planagent/ --ignore-missing-imports
-      - name: Run unit and access-boundary tests
-        run: python -m pytest tests/unit/ tests/test_community_access.py -v --tb=short
+      - name: Run unit and Community contract tests
+        run: |
+          python -m pytest \
+            tests/unit/ \
+            tests/test_community_access.py \
+            tests/test_community_feature_boundaries.py \
+            tests/test_strategic_assistant.py \
+            tests/test_new_features.py \
+            -v --tb=short
 
   frontend:
     runs-on: ubuntu-latest
