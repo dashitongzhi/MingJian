@@ -320,6 +320,25 @@ class SimulationEngineMixin:
             if run.domain_id == "military"
             else {}
         )
+        accepted_claims = [claim for claim in claims if claim.status == ClaimStatus.ACCEPTED.value]
+        provisional_claims = [
+            claim for claim in claims if claim.status == ClaimStatus.PENDING_REVIEW.value
+        ]
+        accepted_evidence_ids = sorted({claim.evidence_item_id for claim in accepted_claims})
+        provisional_evidence_ids = sorted({claim.evidence_item_id for claim in provisional_claims})
+        evidence_audit = {
+            "accepted_claim_count": len(accepted_claims),
+            "accepted_evidence_count": len(accepted_evidence_ids),
+            "provisional_claim_count": len(provisional_claims),
+            "provisional_claim_ids": sorted(claim.id for claim in provisional_claims),
+            "provisional_evidence_count": len(provisional_evidence_ids),
+            "provisional_evidence_ids": provisional_evidence_ids,
+            "provisional_confidence_floor": self.settings.review_auto_process_confidence,
+            "provisional_evidence_disclaimer": (
+                "Provisional evidence met the simulation safety floor but is not accepted "
+                "or fully reviewed evidence."
+            ),
+        }
         run.summary = {
             **run.summary,
             "ticks_completed": run.tick_count,
@@ -327,6 +346,7 @@ class SimulationEngineMixin:
             "shock_count": shock_count,
             "evidence_ids": sorted({claim.evidence_item_id for claim in claims}),
             "evidence_statements": [claim.statement for claim in claims[:5]],
+            "evidence_audit": evidence_audit,
             "matched_rules": sorted(set(matched_rules)),
             "final_state": deepcopy(current_state),
             "military_tick_summaries": military_tick_summaries
@@ -622,44 +642,93 @@ class SimulationEngineMixin:
     ) -> list[Claim]:
         tenant_id = normalize_tenant_id(run.tenant_id or run.configuration.get("tenant_id"))
         preset_id = run.preset_id or run.configuration.get("preset_id")
-        query = select(Claim).where(Claim.status == ClaimStatus.ACCEPTED.value)
+        scope_predicates = []
         if tenant_id is not None:
-            query = query.where(Claim.tenant_id == tenant_id)
+            scope_predicates.append(Claim.tenant_id == tenant_id)
         if preset_id is not None:
-            query = query.where(or_(Claim.preset_id == preset_id, Claim.preset_id.is_(None)))
+            scope_predicates.append(or_(Claim.preset_id == preset_id, Claim.preset_id.is_(None)))
+
         terms = await self._subject_terms(session, run)
+        subject_predicates = []
         if terms:
-            predicates = []
             for term in terms:
                 lowered = term.lower()
-                predicates.extend(
+                subject_predicates.extend(
                     [
                         Claim.statement.ilike(f"%{lowered}%"),
                         Claim.subject.ilike(f"%{lowered}%"),
                         Claim.object_text.ilike(f"%{lowered}%"),
                     ]
                 )
-            query = query.where(or_(*predicates))
 
-        claims = list((await session.scalars(query.order_by(Claim.created_at.asc()))).all())
+        def scoped(query: Any) -> Any:
+            return query.where(*scope_predicates) if scope_predicates else query
+
+        def subject_scoped(query: Any) -> Any:
+            return query.where(or_(*subject_predicates)) if subject_predicates else query
+
+        accepted_query = subject_scoped(
+            scoped(select(Claim).where(Claim.status == ClaimStatus.ACCEPTED.value))
+        )
+        claims = list(
+            (await session.scalars(accepted_query.order_by(Claim.created_at.asc()))).all()
+        )
         minimum_claims = max(4, run.tick_count)
         if len(claims) >= minimum_claims:
             return claims
 
-        recent_query = select(Claim).where(Claim.status == ClaimStatus.ACCEPTED.value)
-        if tenant_id is not None:
-            recent_query = recent_query.where(Claim.tenant_id == tenant_id)
-        if preset_id is not None:
-            recent_query = recent_query.where(
-                or_(Claim.preset_id == preset_id, Claim.preset_id.is_(None))
-            )
+        selected_by_id = {claim.id: claim for claim in claims}
+
+        recent_query = scoped(select(Claim).where(Claim.status == ClaimStatus.ACCEPTED.value))
         if claims:
             recent_query = recent_query.where(Claim.created_at >= claims[0].created_at)
         recent_claims = list(
             (await session.scalars(recent_query.order_by(Claim.created_at.asc()).limit(25))).all()
         )
-        selected_by_id = {claim.id: claim for claim in claims}
         for claim in recent_claims:
+            selected_by_id.setdefault(claim.id, claim)
+            if len(selected_by_id) >= minimum_claims:
+                break
+
+        if len(selected_by_id) >= minimum_claims:
+            return list(selected_by_id.values())
+
+        provisional_filter = and_(
+            Claim.status == ClaimStatus.PENDING_REVIEW.value,
+            Claim.confidence >= self.settings.review_auto_process_confidence,
+        )
+        provisional_query = subject_scoped(scoped(select(Claim).where(provisional_filter)))
+        provisional_claims = list(
+            (
+                await session.scalars(
+                    provisional_query.order_by(Claim.confidence.desc(), Claim.created_at.asc())
+                )
+            ).all()
+        )
+        for claim in provisional_claims:
+            selected_by_id.setdefault(claim.id, claim)
+            if len(selected_by_id) >= minimum_claims:
+                break
+
+        if len(selected_by_id) >= minimum_claims:
+            return list(selected_by_id.values())
+
+        recent_provisional_query = scoped(select(Claim).where(provisional_filter))
+        if selected_by_id:
+            first_selected = next(iter(selected_by_id.values()))
+            recent_provisional_query = recent_provisional_query.where(
+                Claim.created_at >= first_selected.created_at
+            )
+        recent_provisional_claims = list(
+            (
+                await session.scalars(
+                    recent_provisional_query.order_by(
+                        Claim.confidence.desc(), Claim.created_at.asc()
+                    ).limit(25)
+                )
+            ).all()
+        )
+        for claim in recent_provisional_claims:
             selected_by_id.setdefault(claim.id, claim)
             if len(selected_by_id) >= minimum_claims:
                 break

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.domain.enums import EventTopic
@@ -145,15 +146,23 @@ class DebateRevisionMixin:
 
         # Persist structured dissent for the primary dissenter
         if overturned:
-            # Pick the dissenter: the OPPOSE role with the largest confidence drop
-            dissenter = max(overturned, key=lambda o: o.get("confidence_drop", 0.0))
-            dissent_obj = await self.generate_structured_dissent(
-                debate_id=debate_id,
-                round_records=rounds,
-                dissenter_role=dissenter["role"],
-                db=session,
-            )
-            await self.persist_structured_dissent(dissent_obj, session)
+            existing_dissent = (
+                await session.scalars(
+                    select(DebateStructuredDissent)
+                    .where(DebateStructuredDissent.debate_id == debate_id)
+                    .limit(1)
+                )
+            ).first()
+            if existing_dissent is None:
+                # Pick the dissenter: the OPPOSE role with the largest confidence drop
+                dissenter = max(overturned, key=lambda o: o.get("confidence_drop", 0.0))
+                dissent_obj = await self.generate_structured_dissent(
+                    debate_id=debate_id,
+                    round_records=rounds,
+                    dissenter_role=dissenter["role"],
+                    session=session,
+                )
+                await self.persist_structured_dissent(dissent_obj, session)
 
         if not overturned:
             return []

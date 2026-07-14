@@ -129,6 +129,7 @@ class ReportService:
         sections = {
             "executive_summary": summary,
             "evidence_summary": simulation_run.summary.get("evidence_statements", []),
+            "audit": dict(simulation_run.summary.get("evidence_audit", {})),
             "timeline": [
                 {
                     "tick": record.tick,
@@ -308,6 +309,7 @@ class ReportService:
                 "All outputs are simulation-only and require analyst review before operational use.",
             ]
         military_audit = {
+            **simulation_run.summary.get("evidence_audit", {}),
             "military_use_mode": simulation_run.military_use_mode
             or simulation_run.configuration.get("military_use_mode")
             or "full_domain",

@@ -6,6 +6,8 @@ from planagent.config import Settings
 from planagent.domain.api import AnalysisRequest, AnalysisSourceRead
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.openai_client import XSearchPostPayload, XSearchResultPayload
+from planagent.services.sources.base import DataSourceProvider
+from planagent.services.sources.registry import SourceRegistry
 
 
 class StubOpenAIService:
@@ -28,11 +30,14 @@ class StubOpenAIService:
 
 
 def test_analysis_uses_model_backed_x_search_when_available() -> None:
-    service = AutomatedAnalysisService(
+    registry = SourceRegistry(
         Settings(_env_file=None, x_bearer_token=None),
         StubOpenAIService(),
     )
-    results = asyncio.run(service._fetch_x_sources("OpenAI Grok", 3, "corporate"))
+    provider = registry.get("x")
+    assert provider is not None
+
+    results = asyncio.run(provider.search("OpenAI Grok", 3, "corporate"))
     assert len(results) == 1
     assert results[0].source_type == "x_model_search"
     assert results[0].url == "https://x.com/example/status/1"
@@ -49,13 +54,15 @@ class FailingStubOpenAIService:
 
 
 def test_analysis_surfaces_x_model_error_when_no_direct_x_fallback() -> None:
-    service = AutomatedAnalysisService(
+    registry = SourceRegistry(
         Settings(_env_file=None, x_bearer_token=None),
         FailingStubOpenAIService(),
     )
+    provider = registry.get("x")
+    assert provider is not None
 
     try:
-        asyncio.run(service._fetch_x_sources("OpenAI Grok", 3, "corporate"))
+        asyncio.run(provider.search("OpenAI Grok", 3, "corporate"))
     except RuntimeError as exc:
         assert "request was blocked" in str(exc)
     else:
@@ -81,10 +88,22 @@ def test_source_types_request_unconfigured_provider_without_failure() -> None:
     )
 
 
-def test_source_types_override_legacy_include_flags() -> None:
-    service = AutomatedAnalysisService(Settings(_env_file=None))
+class FakeLinuxDoProvider(DataSourceProvider):
+    key = "linux_do"
+    label = "Linux.do"
+    default_enabled = False
 
-    async def fake_linux_do(query: str, limit: int, domain_id: str):
+    def __init__(self, settings: Settings) -> None:
+        super().__init__(settings)
+        self.calls = 0
+
+    async def fetch(
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
+    ) -> list[AnalysisSourceRead]:
+        self.calls += 1
         return [
             AnalysisSourceRead(
                 source_type="linux_do_discourse",
@@ -95,7 +114,34 @@ def test_source_types_override_legacy_include_flags() -> None:
             )
         ][:limit]
 
-    service._fetch_linux_do = fake_linux_do  # type: ignore[method-assign]
+
+class TrackingGoogleNewsProvider(DataSourceProvider):
+    key = "google_news"
+    label = "Google News"
+    default_enabled = True
+
+    def __init__(self, settings: Settings) -> None:
+        super().__init__(settings)
+        self.calls = 0
+
+    async def fetch(
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
+    ) -> list[AnalysisSourceRead]:
+        self.calls += 1
+        return []
+
+
+def test_source_types_override_legacy_include_flags() -> None:
+    settings = Settings(_env_file=None)
+    service = AutomatedAnalysisService(settings)
+    linux_do = FakeLinuxDoProvider(settings)
+    google_news = TrackingGoogleNewsProvider(settings)
+    service.source_registry.register(linux_do)
+    service.source_registry.register(google_news)
+
     payload = AnalysisRequest(
         content="agent deployment reliability",
         domain_id="corporate",
@@ -110,8 +156,5 @@ def test_source_types_override_legacy_include_flags() -> None:
 
     assert len(bundle.sources) == 1
     assert bundle.sources[0].source_type == "linux_do_discourse"
-    assert all(
-        "Google News" not in step.message
-        for step in bundle.steps
-        if step.stage == "source_complete"
-    )
+    assert linux_do.calls >= 1
+    assert google_news.calls == 0

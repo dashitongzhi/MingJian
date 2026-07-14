@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from planagent.config import reset_settings_cache
-from planagent.db import reset_database_cache
+from planagent.db import get_database, reset_database_cache
+from planagent.domain.models import Claim, EvidenceItem, SourceTrustScore
 from planagent.main import create_app
 
 
@@ -94,6 +96,98 @@ def test_corporate_simulation_generates_trace_and_report(monkeypatch, tmp_path: 
         rules_payload = rules_response.json()
         assert "corporate" in rules_payload["domains"]
         assert rules_payload["rules_loaded"] >= 4
+
+
+def test_simulation_audits_provisional_evidence_without_promoting_it(
+    monkeypatch, tmp_path: Path
+) -> None:
+    database_path = tmp_path / "planagent-provisional-evidence.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_INLINE_SIMULATION_DEFAULT", "true")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    accepted_statement = "Evidence Audit Co launched a new inference release."
+    provisional_statement = "Evidence Audit Co faced a GPU cost increase."
+    claim_specs = [
+        ("accepted", "ACCEPTED", 0.95, accepted_statement),
+        ("provisional-high", "PENDING_REVIEW", 0.65, provisional_statement),
+        ("provisional-low", "PENDING_REVIEW", 0.61, "Evidence Audit Co saw weak demand."),
+        ("rejected", "REJECTED", 0.99, "Evidence Audit Co lost every customer."),
+        ("archived", "ARCHIVED", 0.99, "Evidence Audit Co closed permanently."),
+    ]
+
+    async def seed_claims() -> None:
+        database = get_database()
+        async with database.session() as session:
+            records = []
+            for suffix, status, confidence, statement in claim_specs:
+                evidence = EvidenceItem(
+                    id=f"evidence-{suffix}",
+                    normalized_item_id=f"normalized-{suffix}",
+                    evidence_type="test",
+                    title=f"Evidence {suffix}",
+                    summary=statement,
+                    body_text=statement,
+                    source_url=f"https://example.com/{suffix}",
+                    confidence=confidence,
+                    provenance={"test": True},
+                )
+                claim = Claim(
+                    id=f"claim-{suffix}",
+                    evidence_item_id=evidence.id,
+                    subject="Evidence Audit Co",
+                    predicate="reported",
+                    object_text=statement,
+                    statement=statement,
+                    confidence=confidence,
+                    status=status,
+                    requires_review=status == "PENDING_REVIEW",
+                )
+                records.extend([evidence, claim])
+            session.add_all(records)
+            await session.commit()
+
+    with TestClient(create_app()) as client:
+        asyncio.run(seed_claims())
+
+        simulation_response = client.post(
+            "/simulation/runs",
+            json={
+                "company_id": "evidence-audit-co",
+                "company_name": "Evidence Audit Co",
+                "market": "inference",
+                "tick_count": 2,
+                "actor_template": "ai_model_provider",
+            },
+        )
+        assert simulation_response.status_code == 201
+        simulation_run = simulation_response.json()
+        audit = simulation_run["summary"]["evidence_audit"]
+
+        assert simulation_run["summary"]["evidence_statements"] == [
+            accepted_statement,
+            provisional_statement,
+        ]
+        assert simulation_run["summary"]["evidence_ids"] == [
+            "evidence-accepted",
+            "evidence-provisional-high",
+        ]
+        assert audit["accepted_claim_count"] == 1
+        assert audit["accepted_evidence_count"] == 1
+        assert audit["provisional_claim_count"] == 1
+        assert audit["provisional_claim_ids"] == ["claim-provisional-high"]
+        assert audit["provisional_evidence_count"] == 1
+        assert audit["provisional_evidence_ids"] == ["evidence-provisional-high"]
+        assert audit["provisional_confidence_floor"] == 0.62
+        assert "not accepted or fully reviewed" in audit["provisional_evidence_disclaimer"]
+
+        report_response = client.get("/companies/evidence-audit-co/reports/latest")
+        assert report_response.status_code == 200
+        report_audit = report_response.json()["sections"]["audit"]
+        assert report_audit == audit
 
 
 def test_agent_startup_simulation_handles_platform_pressure_and_roi_signals(
@@ -409,9 +503,16 @@ def test_corporate_scenario_branch_compare_and_report_flow(monkeypatch, tmp_path
         )
         assert jarvis_response.status_code == 201
         jarvis = jarvis_response.json()
-        assert jarvis["status"] == "COMPLETED"
+        assert jarvis["status"] == "PARTIAL"
         assert jarvis["profile_id"] == "plan-agent"
-        assert jarvis["result_payload"]["verdict"] == "PASS"
+        assert jarvis["result_payload"]["verdict"] == "CONDITIONAL_PASS"
+        assert jarvis["result_payload"]["critical_issues"] == 0
+        assert any(
+            finding["dimension"] == "model_configuration"
+            for step in jarvis["result_payload"]["steps"]
+            if step["step"] == "self_review"
+            for finding in step["output"]["findings"]
+        )
         assert jarvis["result_payload"]["run_status"] == "COMPLETED"
 
         jarvis_list_response = client.get("/jarvis/runs", params={"run_id": baseline_run["id"]})
@@ -483,7 +584,20 @@ def test_startup_tenant_isolation_keeps_reports_and_claims_separate(
         "preset_id": "agent_startup",
     }
 
+    async def seed_source_trust() -> None:
+        database = get_database()
+        async with database.session() as session:
+            session.add(
+                SourceTrustScore(
+                    source_type="blog",
+                    source_url_pattern="example.com",
+                    trust_score=0.8,
+                )
+            )
+            await session.commit()
+
     with TestClient(create_app()) as client:
+        asyncio.run(seed_source_trust())
         assert client.post("/ingest/runs", json=tenant_history).status_code == 201
         assert client.post("/ingest/runs", json=tenant_startup).status_code == 201
 
