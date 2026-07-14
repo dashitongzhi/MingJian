@@ -69,6 +69,7 @@ from planagent.api.routes._deps import (
     get_simulation_service,
 )
 from planagent.api.routes.auth import require_role
+from planagent.api.edition import require_prediction_calibration
 from planagent.services.startup import (
     AGENT_STARTUP_PRESET_ID,
     build_startup_kpi_pack,
@@ -975,7 +976,11 @@ async def hypotheses_scoreboard(
 # ── Calibration ──────────────────────────────────────────────────────────────
 
 
-@router.get("/calibration", response_model=list[CalibrationRead], dependencies=_ADMIN_ONLY)
+@router.get(
+    "/calibration",
+    response_model=list[CalibrationRead],
+    dependencies=[Depends(require_prediction_calibration), *_ADMIN_ONLY],
+)
 async def list_calibration(
     domain_id: str | None = None,
     tenant_id: str | None = None,
@@ -994,7 +999,7 @@ async def list_calibration(
     "/calibration/compute",
     response_model=CalibrationRead,
     status_code=201,
-    dependencies=_ADMIN_ONLY,
+    dependencies=[Depends(require_prediction_calibration), *_ADMIN_ONLY],
 )
 async def compute_calibration(
     payload: CalibrationComputeRequest,

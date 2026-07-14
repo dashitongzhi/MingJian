@@ -1,5 +1,4 @@
-"""Tests for LLM decision integration, LLM debate, decision options,
-hypotheses, and calibration features."""
+"""Tests for LLM decision integration, LLM debate, and Community feature boundaries."""
 
 from __future__ import annotations
 
@@ -125,7 +124,9 @@ def test_debate_service_falls_back_without_openai() -> None:
     roles = {round_payload["role"] for round_payload in result}
     assert {"advocate", "challenger", "arbitrator"}.issubset(roles)
     assert all(round_payload["arguments"] for round_payload in result)
-    assert all(round_payload["arguments"][0]["evidence_ids"] == ["ev-1"] for round_payload in result)
+    assert all(
+        round_payload["arguments"][0]["evidence_ids"] == ["ev-1"] for round_payload in result
+    )
 
 
 def test_build_assessment_from_llm_rounds() -> None:
@@ -353,18 +354,12 @@ async def test_calibration_compute(client) -> None:
         "/calibration/compute",
         json={"domain_id": "corporate"},
     )
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["domain_id"] == "corporate"
-    assert "calibration_score" in data
-    assert "total_hypotheses" in data
-    assert "rule_accuracy" in data
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["feature"] == "prediction_calibration"
 
-    # List calibration records
     list_resp = await client.get("/calibration", params={"domain_id": "corporate"})
-    assert list_resp.status_code == 200
-    records = list_resp.json()
-    assert isinstance(records, list)
+    assert list_resp.status_code == 403
+    assert list_resp.json()["detail"]["feature"] == "prediction_calibration"
 
 
 # ── Evidence Updated Event Topic ────────────────────────────────────────────

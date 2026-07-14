@@ -10,6 +10,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from planagent.api.edition import (
+    require_prediction_backtesting,
+    require_prediction_calibration,
+)
 from planagent.config import get_settings
 from planagent.db import get_session
 from planagent.domain.api import (
@@ -20,7 +24,6 @@ from planagent.domain.api import (
     SourceChangeRecordRead,
 )
 from planagent.domain.models import (
-    PredictionBacktestRecord,
     PredictionCalibrationContext,
     PredictionEvidenceLink,
     PredictionRevisionJob,
@@ -109,54 +112,25 @@ async def get_monitoring_dashboard(
     predictions = {
         "active": await _count_prediction_versions(session, "ACTIVE"),
         "superseded": await _count_prediction_versions(session, "SUPERSEDED"),
-        "verified": int(
-            (
-                await session.scalar(
-                    select(func.count())
-                    .select_from(PredictionBacktestRecord)
-                    .where(
-                        PredictionBacktestRecord.verification_status.in_(
-                            ["CONFIRMED", "REFUTED", "PARTIAL"]
-                        )
-                    )
-                )
-            )
-            or 0
-        ),
     }
-    rule_accuracies = list((await session.scalars(select(RuleAccuracy))).all())
-    source_trusts = list((await session.scalars(select(SourceTrustScore))).all())
-    high_accuracy_count = sum(1 for r in rule_accuracies if r.accuracy_score >= 0.7)
-    low_accuracy_count = sum(1 for r in rule_accuracies if r.accuracy_score < 0.3)
-    medium_accuracy_count = len(rule_accuracies) - high_accuracy_count - low_accuracy_count
-    high_trust_count = sum(1 for s in source_trusts if s.trust_score >= 0.7)
-    low_trust_count = sum(1 for s in source_trusts if s.trust_score < 0.3)
-    medium_trust_count = len(source_trusts) - high_trust_count - low_trust_count
-    avg_accuracy = sum(r.accuracy_score for r in rule_accuracies) / max(len(rule_accuracies), 1)
-    avg_trust = sum(s.trust_score for s in source_trusts) / max(len(source_trusts), 1)
     return {
         "watch_rules": watch_rules,
         "recent_changes": [SourceChangeRecordRead.model_validate(item) for item in recent_changes],
         "revision_jobs": revision_jobs,
         "predictions": predictions,
-        "calibration": {
-            "high_accuracy_rules": high_accuracy_count,
-            "medium_accuracy_rules": medium_accuracy_count,
-            "low_accuracy_rules": low_accuracy_count,
-            "avg_accuracy": avg_accuracy,
-            "total_rules": len(rule_accuracies),
-            "source_trust_distribution": {
-                "high": high_trust_count,
-                "medium": medium_trust_count,
-                "low": low_trust_count,
-            },
-            "total_sources": len(source_trusts),
-            "avg_trust": avg_trust,
+        "edition_features": {
+            "monitoring_window": "community_24h",
+            "prediction_calibration": False,
+            "prediction_backtesting": False,
+            "notification_channels": ["websocket"],
         },
     }
 
 
-@router.get("/monitoring/calibration")
+@router.get(
+    "/monitoring/calibration",
+    dependencies=[Depends(require_prediction_calibration)],
+)
 async def get_calibration_overview(
     domain_id: str | None = None,
     session: AsyncSession = Depends(get_session),
@@ -209,7 +183,10 @@ async def get_calibration_overview(
     }
 
 
-@router.get("/monitoring/calibration/history")
+@router.get(
+    "/monitoring/calibration/history",
+    dependencies=[Depends(require_prediction_calibration)],
+)
 async def get_calibration_history(
     run_id: str | None = None,
     session: AsyncSession = Depends(get_session),
@@ -428,7 +405,10 @@ async def get_version_diff(
         await bus.close()
 
 
-@router.post("/predictions/{series_id}/versions/{version_id}/verify")
+@router.post(
+    "/predictions/{series_id}/versions/{version_id}/verify",
+    dependencies=[Depends(require_prediction_backtesting)],
+)
 async def verify_prediction_version(
     series_id: str,
     version_id: str,
@@ -460,7 +440,10 @@ async def verify_prediction_version(
     return {"status": "ok", "backtest_id": record.id}
 
 
-@router.get("/predictions/backtests")
+@router.get(
+    "/predictions/backtests",
+    dependencies=[Depends(require_prediction_backtesting)],
+)
 async def list_backtests(
     domain_id: str | None = None,
     tenant_id: str | None = None,

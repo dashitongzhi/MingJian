@@ -16,6 +16,10 @@ from fastapi import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
+from planagent.api.edition import (
+    require_notification_broadcast,
+    require_notification_channels,
+)
 from planagent.api.routes.auth import get_community_access_payload
 from planagent.services.notification import (
     NotificationChannel,
@@ -96,6 +100,8 @@ async def send_notification(
 ) -> dict[str, Any]:
     """Send a notification to a specific user."""
     _require_notification_subject(principal, body.user_id)
+    if body.channel != NotificationChannel.WEBSOCKET.value:
+        require_notification_channels()
     service = _get_notification_service(request)
     notif = await service.notify(
         user_id=body.user_id,
@@ -120,6 +126,7 @@ async def broadcast_notification(
 ) -> dict[str, Any]:
     """Broadcast a notification to all connected WebSocket users."""
     _require_notification_admin(principal)
+    require_notification_broadcast()
     service = _get_notification_service(request)
     count = await service.broadcast(
         title=body.title,

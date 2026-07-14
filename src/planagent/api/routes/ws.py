@@ -4,14 +4,13 @@ import asyncio
 from contextlib import suppress
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket
 from sqlalchemy import select
 
 from planagent.db import get_database
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import StrategicRunSnapshot
 from planagent.events.bus import ConsumedEvent, EventBus
-from planagent.services.auth import UserRole
 
 
 router = APIRouter()
@@ -213,16 +212,7 @@ notification_manager = NotificationManager()
 
 @router.websocket("/ws/notifications")
 async def notifications_websocket(websocket: WebSocket) -> None:
-    principal = websocket.scope.get("state", {}).get("community_access_payload")
-    if not isinstance(principal, dict) or principal.get("role") != UserRole.ADMIN.value:
-        await websocket.close(code=1008)
-        return
-
-    await notification_manager.connect(websocket, websocket.app.state.event_bus)
-    try:
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        pass
-    finally:
-        await notification_manager.disconnect(websocket)
+    await websocket.close(
+        code=1008,
+        reason="Global notification streams require MingJian Cloud or Enterprise.",
+    )
