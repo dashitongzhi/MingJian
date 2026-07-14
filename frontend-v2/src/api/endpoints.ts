@@ -144,9 +144,6 @@ export const reportApi = {
   getImpact: (id: string) => api.get(`/predictions/${id}/impact`),
   reforecast: (id: string) => api.post(`/predictions/${id}/reforecast`),
   getMonitoringDashboard: () => api.get('/monitoring/dashboard'),
-  getCalibration: () => api.get('/monitoring/calibration'),
-  getCalibrationHistory: () => api.get('/monitoring/calibration/history'),
-  listBacktests: () => api.get('/predictions/backtests'),
   listRevisionJobs: () => api.get('/predictions/revision-jobs'),
   getPredictionTimeline: (id: string) => api.get(`/predictions/${id}/timeline`),
   listDecisions: (sessionId?: string) =>
@@ -180,8 +177,6 @@ export const monitoringApi = {
   getKnowledgeGraph: () => api.get('/knowledge/graph'),
   searchKnowledge: (q: string) => api.get(`/knowledge/search?q=${encodeURIComponent(q)}`),
   getScoreboard: () => api.get('/hypotheses/scoreboard'),
-  getCalibration: () => api.get('/calibration'),
-  computeCalibration: () => api.post('/calibration/compute'),
 }
 
 // ==================== 工作台/导出/通知 ====================

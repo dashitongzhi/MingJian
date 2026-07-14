@@ -50,7 +50,7 @@ export default function Reports() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">报告中心</h1>
-          <p className="text-sm text-slate-500 mt-1">预测追踪 · 校准监测 · 决策分析</p>
+          <p className="text-sm text-slate-500 mt-1">预测追踪 · 24 小时监测 · 决策分析</p>
         </div>
         <button onClick={reload} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/60 text-slate-400 text-sm hover:text-slate-200 transition-colors border border-slate-700/50">
           <RefreshCw className="w-4 h-4" /> 刷新
@@ -197,16 +197,14 @@ export default function Reports() {
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-4">
               <BarChart3 className="w-5 h-5 text-blue-400" />
-              <h3 className="text-sm font-semibold text-slate-300">校准概览</h3>
+              <h3 className="text-sm font-semibold text-slate-300">Community 监测范围</h3>
             </div>
             {monitoring ? (
               <div className="space-y-4">
-                {monitoring.calibration ? (
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30">
-                    <span className="text-sm text-slate-400">校准数据</span>
-                    <span className="text-sm font-medium text-slate-200">已加载</span>
-                  </div>
-                ) : null}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30">
+                  <span className="text-sm text-slate-400">监控窗口</span>
+                  <span className="text-sm font-medium text-slate-200">24 小时</span>
+                </div>
                 {monitoring.predictions ? (
                   <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30">
                     <span className="text-sm text-slate-400">预测数</span>

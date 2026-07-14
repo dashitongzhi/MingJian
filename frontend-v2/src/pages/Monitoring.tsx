@@ -3,7 +3,7 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
-import { monitoringApi, reportApi, sourcesApi } from '../api/endpoints'
+import { monitoringApi, sourcesApi } from '../api/endpoints'
 import { useApi, useApiAction } from '../hooks/useApi'
 import { ExpandableRecord, JsonBlock, MetricCard, asArray, asRecord, titleOf } from '../components/ui/DataSurface'
 
@@ -27,8 +27,6 @@ export default function Monitoring() {
   const { data: dashboard } = useApi(() => monitoringApi.getDashboard())
   const { data: queues } = useApi(() => monitoringApi.getQueueHealth())
   const { data: platformTopology } = useApi(() => monitoringApi.getPlatformTopology())
-  const { data: calibration } = useApi(() => reportApi.getCalibration())
-  const { data: calibrationHistory } = useApi(() => reportApi.getCalibrationHistory())
   const { data: sourceChanges } = useApi(() => sourcesApi.listChanges())
   const { data: graph } = useApi(() => monitoringApi.getKnowledgeGraph())
   const { data: scoreboard } = useApi(() => monitoringApi.getScoreboard())
@@ -61,7 +59,7 @@ export default function Monitoring() {
             <p className="cockpit-kicker">Community Monitoring Cockpit</p>
             <h1 className="mt-2 text-3xl font-semibold text-slate-50 md:text-4xl">监控中心</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-              面向本地自托管的 24 小时监控窗口，聚合 watch rules、队列健康、校准、知识图谱和数据源变更。
+              面向本地自托管的 24 小时监控窗口，聚合 watch rules、队列健康、知识图谱和数据源变更。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -173,7 +171,7 @@ export default function Monitoring() {
         <Card>
           <CardHeader title="原始监控快照" action={<span className="text-xs text-slate-500">debug payload</span>} />
           <CardBody className="space-y-3">
-            <JsonBlock value={{ dashboard, queues, calibration, calibrationHistory, scoreboard }} />
+            <JsonBlock value={{ dashboard, queues, scoreboard }} />
             {changeList.slice(0, 3).map((item, index) => <ExpandableRecord key={index} item={item} eyebrow="source change" />)}
           </CardBody>
         </Card>
