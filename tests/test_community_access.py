@@ -469,6 +469,24 @@ def test_remote_notification_websocket_rejects_anonymous_connection(
     assert exc_info.value.code == 1008
 
 
+def test_remote_notification_websocket_rejects_access_token_in_query_string(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "websocket-query-token.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        user_id, token = _register_and_login_user(client, username="socket-query-token")
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect(f"/notifications/ws/{user_id}?token={token}"):
+                pass
+
+    assert exc_info.value.code == 1008
+
+
 def test_remote_notification_websocket_rejects_another_users_identity(
     monkeypatch, tmp_path: Path
 ) -> None:

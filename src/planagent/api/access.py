@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from urllib.parse import parse_qs
-
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -93,16 +91,7 @@ def _canonical_path(path: str) -> str:
 
 
 def _scope_authorization(scope: Scope) -> str | None:
-    authorization = _scope_header(scope, b"authorization")
-    if authorization:
-        return authorization
-
-    if scope["type"] == "websocket":
-        query = parse_qs(scope.get("query_string", b"").decode("utf-8", errors="ignore"))
-        token = query.get("token", [""])[0]
-        if token:
-            return f"Bearer {token}"
-    return None
+    return _scope_header(scope, b"authorization")
 
 
 def _scope_header(scope: Scope, header_name: bytes) -> str | None:
