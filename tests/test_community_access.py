@@ -35,6 +35,14 @@ def _configure_remote_access(
 
 
 def _register_and_login(client: TestClient, username: str = "remote-user") -> str:
+    _, token = _register_and_login_user(client, username=username)
+    return token
+
+
+def _register_and_login_user(
+    client: TestClient,
+    username: str,
+) -> tuple[str, str]:
     register = client.post(
         "/auth/register",
         json={
@@ -44,12 +52,13 @@ def _register_and_login(client: TestClient, username: str = "remote-user") -> st
         },
     )
     assert register.status_code == 201
+    user_id = str(register.json()["id"])
     login = client.post(
         "/auth/login",
         json={"username": username, "password": "safe-password"},
     )
     assert login.status_code == 200
-    return str(login.json()["access_token"])
+    return user_id, str(login.json()["access_token"])
 
 
 def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
@@ -77,6 +86,103 @@ def test_notifications_accept_valid_remote_user(monkeypatch, tmp_path: Path) -> 
         )
 
     assert response.status_code == 200
+
+
+def test_remote_user_cannot_read_another_users_notification_history(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "notification-objects.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        _, first_token = _register_and_login_user(client, username="first-user")
+        second_user_id, _ = _register_and_login_user(client, username="second-user")
+        response = client.get(
+            f"/notifications/history/{second_user_id}",
+            headers={"Authorization": f"Bearer {first_token}"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Notification access is limited to the current user"
+
+
+def test_remote_analyst_cannot_broadcast_notifications(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "notification-broadcast.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        token = _register_and_login(client, username="broadcast-user")
+        response = client.post(
+            "/notifications/broadcast",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"title": "Unsafe", "body": "Should not broadcast"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Notification administration requires admin role"
+
+
+def test_remote_user_cannot_send_notification_as_another_user(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "notification-send.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        _, first_token = _register_and_login_user(client, username="sender-user")
+        second_user_id, _ = _register_and_login_user(client, username="target-user")
+        response = client.post(
+            "/notifications/send",
+            headers={"Authorization": f"Bearer {first_token}"},
+            json={
+                "user_id": second_user_id,
+                "title": "Impersonated",
+                "body": "Should not send",
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Notification access is limited to the current user"
+
+
+def test_remote_user_can_use_own_notification_channel(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "notification-own-channel.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        user_id, token = _register_and_login_user(client, username="own-channel-user")
+        headers = {"Authorization": f"Bearer {token}"}
+        sent = client.post(
+            "/notifications/send",
+            headers=headers,
+            json={
+                "user_id": user_id,
+                "title": "Own notification",
+                "body": "Allowed",
+            },
+        )
+        history = client.get(f"/notifications/history/{user_id}", headers=headers)
+        with client.websocket_connect(
+            f"/notifications/ws/{user_id}",
+            headers=headers,
+        ) as websocket:
+            websocket.send_json({"type": "ping"})
+            pong = websocket.receive_json()
+
+    assert sent.status_code == 200
+    assert history.status_code == 200
+    assert len(history.json()) == 1
+    assert pong == {"type": "pong"}
 
 
 def test_notifications_allow_local_session_behind_container_proxy(
@@ -293,6 +399,47 @@ def test_remote_notification_websocket_rejects_anonymous_connection(
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect("/notifications/ws/remote-user"):
+                pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_remote_notification_websocket_rejects_another_users_identity(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "websocket-subject.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        _, first_token = _register_and_login_user(client, username="socket-first")
+        second_user_id, _ = _register_and_login_user(client, username="socket-second")
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect(
+                f"/notifications/ws/{second_user_id}",
+                headers={"Authorization": f"Bearer {first_token}"},
+            ):
+                pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_remote_analyst_cannot_open_global_notification_stream(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "websocket-global.db",
+        registration_enabled=True,
+    )
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        token = _register_and_login(client, username="global-stream-user")
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect(
+                "/ws/notifications",
+                headers={"Authorization": f"Bearer {token}"},
+            ):
                 pass
 
     assert exc_info.value.code == 1008

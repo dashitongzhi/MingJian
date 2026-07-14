@@ -11,6 +11,7 @@ from planagent.db import get_database
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import StrategicRunSnapshot
 from planagent.events.bus import ConsumedEvent, EventBus
+from planagent.services.auth import UserRole
 
 
 router = APIRouter()
@@ -212,7 +213,8 @@ notification_manager = NotificationManager()
 
 @router.websocket("/ws/notifications")
 async def notifications_websocket(websocket: WebSocket) -> None:
-    if not websocket.scope.get("state", {}).get("community_access_payload"):
+    principal = websocket.scope.get("state", {}).get("community_access_payload")
+    if not isinstance(principal, dict) or principal.get("role") != UserRole.ADMIN.value:
         await websocket.close(code=1008)
         return
 

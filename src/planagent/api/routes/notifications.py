@@ -5,15 +5,25 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, ConfigDict, Field
 
+from planagent.api.routes.auth import get_community_access_payload
 from planagent.services.notification import (
     NotificationChannel,
     NotificationConfig,
     NotificationPriority,
     NotificationService,
 )
+from planagent.services.auth import UserRole
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -57,6 +67,24 @@ def _get_notification_service(request: Request) -> NotificationService:
     return request.app.state.notification_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
+def _require_notification_subject(principal: dict[str, Any], user_id: str) -> None:
+    if principal.get("role") == UserRole.ADMIN.value or principal.get("sub") == user_id:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail="Notification access is limited to the current user",
+    )
+
+
+def _require_notification_admin(principal: dict[str, Any]) -> None:
+    if principal.get("role") == UserRole.ADMIN.value:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail="Notification administration requires admin role",
+    )
+
+
 # ── REST Endpoints ────────────────────────────────────────────
 
 
@@ -64,8 +92,10 @@ def _get_notification_service(request: Request) -> NotificationService:
 async def send_notification(
     body: SendNotificationRequest,
     request: Request,
+    principal: dict[str, Any] = Depends(get_community_access_payload),
 ) -> dict[str, Any]:
     """Send a notification to a specific user."""
+    _require_notification_subject(principal, body.user_id)
     service = _get_notification_service(request)
     notif = await service.notify(
         user_id=body.user_id,
@@ -86,8 +116,10 @@ async def send_notification(
 async def broadcast_notification(
     body: BroadcastRequest,
     request: Request,
+    principal: dict[str, Any] = Depends(get_community_access_payload),
 ) -> dict[str, Any]:
     """Broadcast a notification to all connected WebSocket users."""
+    _require_notification_admin(principal)
     service = _get_notification_service(request)
     count = await service.broadcast(
         title=body.title,
@@ -101,9 +133,11 @@ async def broadcast_notification(
 async def get_notification_history(
     user_id: str,
     request: Request,
+    principal: dict[str, Any] = Depends(get_community_access_payload),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[dict[str, Any]]:
     """Get notification history for a user."""
+    _require_notification_subject(principal, user_id)
     service = _get_notification_service(request)
     notifications = service.get_notifications(user_id, limit=limit)
     return [
@@ -143,7 +177,11 @@ async def notification_websocket(
     Connect to ws://host:port/notifications/ws/{user_id}
     to receive real-time push notifications.
     """
-    if not websocket.scope.get("state", {}).get("community_access_payload"):
+    principal = websocket.scope.get("state", {}).get("community_access_payload")
+    if not isinstance(principal, dict):
+        await websocket.close(code=1008)
+        return
+    if principal.get("role") != UserRole.ADMIN.value and principal.get("sub") != user_id:
         await websocket.close(code=1008)
         return
     await websocket.accept()
