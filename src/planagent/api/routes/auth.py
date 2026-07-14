@@ -151,6 +151,12 @@ async def register(
     request: Request,
 ) -> UserInfo:
     """Register a new user."""
+    from planagent.config import get_settings
+
+    settings = get_settings()
+    if settings.remote_access_enabled and not settings.remote_registration_enabled:
+        raise HTTPException(status_code=403, detail="Remote user registration is disabled")
+
     auth_service = _get_auth_service(request)
     try:
         user = auth_service.create_user(

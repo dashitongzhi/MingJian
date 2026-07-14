@@ -16,10 +16,19 @@ def _database_url(path: Path) -> str:
     return f"sqlite+aiosqlite:///{path.resolve().as_posix()}"
 
 
-def _configure_remote_access(monkeypatch, database_path: Path) -> None:
+def _configure_remote_access(
+    monkeypatch,
+    database_path: Path,
+    *,
+    registration_enabled: bool = False,
+) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.setenv("PLANAGENT_REMOTE_ACCESS_ENABLED", "true")
+    monkeypatch.setenv(
+        "PLANAGENT_REMOTE_REGISTRATION_ENABLED",
+        "true" if registration_enabled else "false",
+    )
     monkeypatch.setenv("PLANAGENT_AUTH_SECRET_KEY", "test-secret-key-with-at-least-32-bytes")
     reset_settings_cache()
     reset_database_cache()
@@ -54,7 +63,11 @@ def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Pat
 
 
 def test_notifications_accept_valid_remote_user(monkeypatch, tmp_path: Path) -> None:
-    _configure_remote_access(monkeypatch, tmp_path / "authenticated.db")
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "authenticated.db",
+        registration_enabled=True,
+    )
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
         access_token = _register_and_login(client)
@@ -176,7 +189,11 @@ def test_all_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_pat
 def test_global_gate_accepts_authenticated_remote_business_request(
     monkeypatch, tmp_path: Path
 ) -> None:
-    _configure_remote_access(monkeypatch, tmp_path / "global-gate-user.db")
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / "global-gate-user.db",
+        registration_enabled=True,
+    )
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
         access_token = _register_and_login(client, username="analysis-user")
@@ -190,6 +207,23 @@ def test_global_gate_accepts_authenticated_remote_business_request(
         )
 
     assert response.status_code == 200
+
+
+def test_remote_registration_is_disabled_by_default(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "registration-disabled.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        response = client.post(
+            "/auth/register",
+            json={
+                "username": "unapproved-user",
+                "email": "unapproved@example.com",
+                "password": "safe-password",
+            },
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Remote user registration is disabled"
 
 
 def test_remote_health_and_docs_remain_public(monkeypatch, tmp_path: Path) -> None:

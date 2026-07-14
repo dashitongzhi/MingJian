@@ -19,6 +19,7 @@ class TestSettingsFromEnv:
         assert settings.app_name == "PlanAgent"
         assert settings.env == "development"
         assert settings.bind_host == "127.0.0.1"
+        assert settings.remote_registration_enabled is False
         assert settings.db_pool_size == 20
         assert settings.worker_max_attempts == 3
         assert settings.accepted_claim_confidence == 0.70
