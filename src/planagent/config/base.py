@@ -91,7 +91,7 @@ class BaseAppSettings(BaseSettings):
     # Auth 配置
     auth_secret_key: str = ""
     remote_access_enabled: bool = False
-    remote_registration_enabled: bool = False
+    remote_registration_enabled: bool = False  # Deprecated compatibility flag; never enables it.
     local_proxy_secret: str = ""
     bootstrap_admin_password: str = ""
 

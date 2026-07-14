@@ -388,9 +388,9 @@ npm run dev
 Community 本地模式仅监听回环地址，并使用部署级本地单用户会话。除非已经设置
 `PLANAGENT_REMOTE_ACCESS_ENABLED=true`，并配置至少 32 字节且可持久化的
 `PLANAGENT_AUTH_SECRET_KEY`，否则不要把 API 绑定到 `0.0.0.0` 或其他非回环地址。
-远程自注册默认关闭；仅应在受控初始化窗口显式设置
-`PLANAGENT_REMOTE_REGISTRATION_ENABLED=true`，完成后立即关闭。`setup.sh` 会把首次远程
-管理员 `admin` 的密码保存到本地 `.env` 的 `PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD`；首次
+Community 始终禁用远程自注册；远程模式只开放 bootstrap 管理员 `admin` 登录。
+`setup.sh` 会把首次远程管理员密码保存到本地 `.env` 的
+`PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD`；首次
 管理员登录后应通过 `POST /auth/change-password` 立即轮换密码，并同步更新本地 `.env`。
 
 ---

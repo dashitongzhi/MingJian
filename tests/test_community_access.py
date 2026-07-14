@@ -47,22 +47,17 @@ def _register_and_login_user(
     client: TestClient,
     username: str,
 ) -> tuple[str, str]:
-    register = client.post(
-        "/auth/register",
-        json={
-            "username": username,
-            "email": f"{username}@example.com",
-            "password": "safe-password",
-        },
+    user = client.app.state.auth_service.create_user(
+        username=username,
+        email=f"{username}@example.com",
+        password="safe-password",
     )
-    assert register.status_code == 201
-    user_id = str(register.json()["id"])
     login = client.post(
         "/auth/login",
         json={"username": username, "password": "safe-password"},
     )
     assert login.status_code == 200
-    return user_id, str(login.json()["access_token"])
+    return user.id, str(login.json()["access_token"])
 
 
 def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
@@ -385,8 +380,15 @@ def test_global_gate_accepts_authenticated_remote_business_request(
     assert response.status_code == 200
 
 
-def test_remote_registration_is_disabled_by_default(monkeypatch, tmp_path: Path) -> None:
-    _configure_remote_access(monkeypatch, tmp_path / "registration-disabled.db")
+@pytest.mark.parametrize("registration_enabled", [False, True])
+def test_remote_registration_is_always_disabled(
+    monkeypatch, tmp_path: Path, registration_enabled: bool
+) -> None:
+    _configure_remote_access(
+        monkeypatch,
+        tmp_path / f"registration-disabled-{registration_enabled}.db",
+        registration_enabled=registration_enabled,
+    )
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
         response = client.post(

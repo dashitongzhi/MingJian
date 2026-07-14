@@ -390,9 +390,9 @@ npm run dev
 Community local mode listens on loopback only and uses a deployment-local single-user session.
 Do not bind the API to `0.0.0.0` or another non-loopback address unless
 `PLANAGENT_REMOTE_ACCESS_ENABLED=true` and a persistent
-`PLANAGENT_AUTH_SECRET_KEY` of at least 32 bytes are configured. Remote self-registration remains
-disabled unless `PLANAGENT_REMOTE_REGISTRATION_ENABLED=true` is explicitly enabled for a
-controlled onboarding window. `setup.sh` stores the initial `admin` login in
+`PLANAGENT_AUTH_SECRET_KEY` of at least 32 bytes are configured. Remote self-registration is
+always disabled in Community; remote mode exposes only the bootstrap `admin` login. `setup.sh`
+stores the initial administrator password in
 `PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD` inside the local `.env`; rotate it after the first remote
 administrator login through `POST /auth/change-password`, then update the local `.env` copy.
 
