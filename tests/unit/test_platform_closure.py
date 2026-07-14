@@ -214,6 +214,8 @@ def test_postgres_extension_topology_is_declared_in_init_and_migration() -> None
     for extension in ("vector", "postgis", "pg_trgm"):
         assert f"CREATE EXTENSION IF NOT EXISTS {extension}" in init_sql
         assert f"CREATE EXTENSION IF NOT EXISTS {extension}" in migration_sql
+    assert "ALTER COLUMN embedding_vector TYPE vector(64)" in migration_sql
+    assert "USING hnsw (embedding_vector vector_cosine_ops)" in migration_sql
 
 
 def test_in_memory_bus_backpressure_signal_round_trips() -> None:

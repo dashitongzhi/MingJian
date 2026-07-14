@@ -270,6 +270,10 @@ class StrategicAssistantService:
         payload: StrategicAssistantRequest,
         recommendation_trigger_type: str | None = None,
         recommendation_significance: str | None = None,
+        recommendation_watch_rule_id: str | None = None,
+        recommendation_trigger_source_change_id: str | None = None,
+        recommendation_source_change_ids: list[str] | None = None,
+        recommendation_change_summary: str | None = None,
     ) -> StrategicAssistantResponse:
         final_result: StrategicAssistantResponse | None = None
         async for event in self.stream(
@@ -277,6 +281,10 @@ class StrategicAssistantService:
             payload,
             recommendation_trigger_type=recommendation_trigger_type,
             recommendation_significance=recommendation_significance,
+            recommendation_watch_rule_id=recommendation_watch_rule_id,
+            recommendation_trigger_source_change_id=recommendation_trigger_source_change_id,
+            recommendation_source_change_ids=recommendation_source_change_ids,
+            recommendation_change_summary=recommendation_change_summary,
         ):
             if event.event == "assistant_result":
                 final_result = StrategicAssistantResponse.model_validate(event.payload)
@@ -290,6 +298,10 @@ class StrategicAssistantService:
         payload: StrategicAssistantRequest,
         recommendation_trigger_type: str | None = None,
         recommendation_significance: str | None = None,
+        recommendation_watch_rule_id: str | None = None,
+        recommendation_trigger_source_change_id: str | None = None,
+        recommendation_source_change_ids: list[str] | None = None,
+        recommendation_change_summary: str | None = None,
     ) -> AsyncIterator[AssistantEvent]:
         analysis_payload = self._build_analysis_request(payload)
         analysis_result: AnalysisResponse | None = None
@@ -468,20 +480,26 @@ class StrategicAssistantService:
                     .select_from(RecommendationVersion)
                     .where(RecommendationVersion.session_id == session_record.id)
                 )
+                timeline_watch_rule_id = recommendation_watch_rule_id or (
+                    watch_rule.id if watch_rule is not None else None
+                )
                 recommendation_version = await self.recommendation_service.create_version(
                     session,
                     session_id=session_record.id,
-                    watch_rule_id=watch_rule.id if watch_rule is not None else None,
+                    watch_rule_id=timeline_watch_rule_id,
                     tenant_id=session_record.tenant_id,
                     preset_id=session_record.preset_id,
                     trigger_type=recommendation_trigger_type
                     or ("initial_result" if int(previous_count or 0) == 0 else "manual_run"),
+                    trigger_source_change_id=recommendation_trigger_source_change_id,
+                    source_change_ids=recommendation_source_change_ids,
                     significance=recommendation_significance or "none",
+                    change_summary=recommendation_change_summary,
                     recommendation_summary=self._assistant_recommendation_summary(result),
                     result_payload=result.model_dump(mode="json"),
                     source_snapshot=await self.recommendation_service.source_snapshot(
                         session,
-                        watch_rule_id=watch_rule.id if watch_rule is not None else None,
+                        watch_rule_id=timeline_watch_rule_id,
                     ),
                     ingest_run_id=ingest_run.id,
                     simulation_run_id=simulation_run.id,

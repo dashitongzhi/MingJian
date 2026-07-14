@@ -18,6 +18,7 @@ from planagent.domain.enums import EventTopic
 from planagent.domain.models import (
     RawSourceItem,
     RecommendationVersion,
+    SourceChangeRecord,
     SourceCursorState,
     StrategicRunSnapshot,
     StrategicSession,
@@ -302,7 +303,8 @@ class WatchIngestWorker(Worker):
                 items=items,
             ),
         )
-        await self._link_change_records_to_raw_items(session, ingest_run.id, change_records)
+        ingest_run_id = ingest_run.id
+        await self._link_change_records_to_raw_items(session, ingest_run_id, change_records)
 
         simulation_run_id = None
         debate_id = None
@@ -312,6 +314,7 @@ class WatchIngestWorker(Worker):
             change_summary,
             significance,
             evidence_impact,
+            change_records,
         )
         if full_refresh:
             simulation_run_id = full_refresh.get("simulation_run_id") or None
@@ -375,7 +378,7 @@ class WatchIngestWorker(Worker):
                 significance=significance,
                 evidence_impact=evidence_impact,
                 threshold_met=threshold_met,
-                ingest_run_id=ingest_run.id,
+                ingest_run_id=ingest_run_id,
                 simulation_run_id=simulation_run_id,
                 debate_id=debate_id,
             )
@@ -406,7 +409,7 @@ class WatchIngestWorker(Worker):
                 logger.debug("Notification broadcast failed (non-critical)")
 
         return {
-            "ingest_run_id": ingest_run.id,
+            "ingest_run_id": ingest_run_id,
             "sources_fetched": len(analysis.sources),
             "sources_qualified": len(qualified_sources),
             "threshold_met": threshold_met,
@@ -427,6 +430,7 @@ class WatchIngestWorker(Worker):
         change_summary: str | None,
         significance: str,
         evidence_impact: dict[str, Any],
+        change_records: list[SourceChangeRecord],
     ) -> dict[str, str]:
         if not rule.auto_trigger_debate or not evidence_impact["should_refresh"]:
             return {}
@@ -443,11 +447,22 @@ class WatchIngestWorker(Worker):
             if payload is None:
                 return {}
 
+            changed_records = [
+                record for record in change_records if record.change_type != "unchanged"
+            ]
+            source_change_ids = [record.id for record in changed_records]
+
             result = await self.assistant_service.run(
                 session,
                 payload,
                 recommendation_trigger_type="source_change",
                 recommendation_significance=significance,
+                recommendation_watch_rule_id=rule.id,
+                recommendation_trigger_source_change_id=(
+                    source_change_ids[0] if source_change_ids else None
+                ),
+                recommendation_source_change_ids=source_change_ids,
+                recommendation_change_summary=change_summary,
             )
             latest_snapshot = (
                 await session.scalars(

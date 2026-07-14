@@ -2,10 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from planagent.domain.models import RecommendationVersion, SourceCursorState, utc_now
+from planagent.domain.models import (
+    RecommendationVersion,
+    SourceCursorState,
+    StrategicSession,
+    utc_now,
+)
 
 
 class RecommendationVersionService:
@@ -31,6 +36,7 @@ class RecommendationVersionService:
         simulation_run_id: str | None = None,
         debate_id: str | None = None,
     ) -> RecommendationVersion:
+        await self._lock_timeline(session, session_id)
         version_number = await self._next_version_number(session, session_id)
         record = RecommendationVersion(
             session_id=session_id,
@@ -105,6 +111,25 @@ class RecommendationVersionService:
             }
             for row in rows.all()
         ]
+
+    async def _lock_timeline(self, session: AsyncSession, session_id: str) -> None:
+        bind = session.get_bind()
+        if bind.dialect.name == "sqlite":
+            result = await session.execute(
+                text("UPDATE strategic_sessions SET id = id WHERE id = :session_id"),
+                {"session_id": session_id},
+            )
+            found = result.rowcount == 1
+        else:
+            found = (
+                await session.scalar(
+                    select(StrategicSession.id)
+                    .where(StrategicSession.id == session_id)
+                    .with_for_update()
+                )
+            ) is not None
+        if not found:
+            raise ValueError(f"Strategic session {session_id} not found.")
 
     async def _next_version_number(self, session: AsyncSession, session_id: str) -> int:
         current = await session.scalar(

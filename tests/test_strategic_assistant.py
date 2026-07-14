@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
 from fastapi.testclient import TestClient
 
@@ -12,13 +13,19 @@ from planagent.config import reset_settings_cache
 from planagent.config import get_settings
 from planagent.db import reset_database_cache
 from planagent.db import get_database
-from planagent.domain.models import StrategicSession
+from planagent.domain.models import (
+    RecommendationVersion,
+    SourceChangeRecord,
+    StrategicSession,
+    WatchRule,
+)
 from planagent.domain.models import utc_now
 from planagent.events.bus import build_event_bus
 from planagent.main import create_app
 from planagent.services.openai_client import OpenAIService
 from planagent.simulation.rules import get_rule_registry
 from planagent.workers.strategic_watch import StrategicWatchWorker
+from planagent.workers.watch_ingest import WatchIngestWorker
 
 
 def build_database_url(path: Path) -> str:
@@ -332,3 +339,99 @@ def test_strategic_watch_worker_refreshes_due_session(
         assert detail_body["recommendation_versions"]
         assert detail_body["recommendation_versions"][0]["trigger_type"] == "scheduled_refresh"
         assert detail_body["session"]["next_refresh_at"] is not None
+
+
+def test_watch_source_change_recommendation_keeps_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    database_path = tmp_path / "planagent-source-change-recommendation.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_INLINE_INGEST_DEFAULT", "true")
+    monkeypatch.setenv("PLANAGENT_INLINE_SIMULATION_DEFAULT", "true")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    payload = {
+        "topic": "重大供应链中断迫使团队重新评估扩张计划。",
+        "domain_id": "corporate",
+        "subject_id": "acme-capacity",
+        "subject_name": "Acme Capacity",
+        "market": "enterprise-agents",
+        "tick_count": 1,
+        "auto_fetch_news": False,
+        "include_google_news": False,
+        "include_reddit": False,
+        "include_hacker_news": False,
+        "include_github": False,
+        "include_rss_feeds": False,
+        "include_gdelt": False,
+        "include_x": False,
+    }
+
+    with TestClient(create_app()) as client:
+        initial_response = client.post("/assistant/runs", json=payload)
+        assert initial_response.status_code == 201
+        initial_body = initial_response.json()
+        session_id = initial_body["session_id"]
+        rule_id = initial_body["monitoring"]["watch_rule_id"]
+
+        async def run_worker_once() -> tuple[dict[str, object], RecommendationVersion, list[str]]:
+            database = get_database()
+            async with database.session() as session:
+                rule = await session.get(WatchRule, rule_id)
+                assert rule is not None
+                rule.source_types = []
+                rule.next_poll_at = utc_now() - timedelta(minutes=1)
+                rule.trigger_threshold = 0.55
+                rule.change_significance_threshold = "medium"
+                await session.commit()
+
+            settings = get_settings()
+            event_bus = build_event_bus(settings)
+            openai_service = OpenAIService(settings)
+            worker = WatchIngestWorker(
+                settings,
+                event_bus,
+                get_rule_registry(settings.rules_dir),
+                openai_service,
+            )
+            try:
+                result = await worker.run_once()
+            finally:
+                await event_bus.close()
+                await openai_service.close()
+
+            async with database.session() as session:
+                changes = list(
+                    (
+                        await session.scalars(
+                            select(SourceChangeRecord)
+                            .where(SourceChangeRecord.watch_rule_id == rule_id)
+                            .order_by(SourceChangeRecord.created_at.asc())
+                        )
+                    ).all()
+                )
+                recommendation = (
+                    await session.scalars(
+                        select(RecommendationVersion)
+                        .where(RecommendationVersion.session_id == session_id)
+                        .order_by(RecommendationVersion.version_number.desc())
+                        .limit(1)
+                    )
+                ).first()
+                assert recommendation is not None
+                return result, recommendation, [change.id for change in changes]
+
+        result, recommendation, source_change_ids = asyncio.run(run_worker_once())
+
+        assert result["polled"] == 1
+        assert result["failed"] == 0
+        assert source_change_ids
+        assert recommendation.session_id == session_id
+        assert recommendation.watch_rule_id == rule_id
+        assert recommendation.trigger_type == "source_change"
+        assert recommendation.trigger_source_change_id == source_change_ids[0]
+        assert recommendation.source_change_ids == source_change_ids
+        assert recommendation.change_summary

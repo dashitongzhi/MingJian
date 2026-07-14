@@ -18,6 +18,17 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+
+    # SQLite remains the supported Community default. It stores the native-vector
+    # mirror as text and continues to use the JSON/Python similarity fallback.
+    if bind.dialect.name != "postgresql":
+        op.add_column(
+            "knowledge_graph_nodes",
+            sa.Column("embedding_vector", sa.Text(), nullable=True),
+        )
+        return
+
     # 1. Enable Postgres extensions used by graph search and source matching.
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
@@ -60,7 +71,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS ix_knowledge_graph_nodes_embedding_vector")
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("DROP INDEX IF EXISTS ix_knowledge_graph_nodes_embedding_vector")
     op.drop_column("knowledge_graph_nodes", "embedding_vector")
     # Note: we intentionally do NOT drop the vector extension in downgrade
     # as other tables/future migrations may depend on it.

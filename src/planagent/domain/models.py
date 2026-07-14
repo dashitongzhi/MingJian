@@ -975,6 +975,13 @@ class StrategicRunSnapshot(Base):
 
 class RecommendationVersion(Base):
     __tablename__ = "recommendation_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "version_number",
+            name="uq_recommendation_versions_session_version",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
     session_id: Mapped[str] = mapped_column(
