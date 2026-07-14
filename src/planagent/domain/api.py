@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from planagent.domain.enums import (
     ExecutionMode,
@@ -610,6 +610,7 @@ class PlatformTopologyRead(APIModel):
 
 class StrategicAssistantRequest(APIModel):
     topic: str = Field(min_length=1)
+    context: dict[str, str] = Field(default_factory=dict, max_length=20)
     domain_id: Literal["auto", "corporate", "military"] = "auto"
     session_id: str | None = None
     session_name: str | None = None
@@ -645,6 +646,24 @@ class StrategicAssistantRequest(APIModel):
     max_weather_items: int = Field(default=1, ge=0, le=3)
     max_aviation_items: int = Field(default=1, ge=0, le=3)
     max_x_items: int = Field(default=3, ge=0, le=10)
+
+    @field_validator("context")
+    @classmethod
+    def validate_context(cls, value: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        total_length = 0
+        for raw_key, raw_value in value.items():
+            key = str(raw_key).strip()
+            context_value = str(raw_value).strip()
+            if not key or len(key) > 64:
+                raise ValueError("context keys must contain 1 to 64 characters")
+            if len(context_value) > 2000:
+                raise ValueError("context values must contain at most 2000 characters")
+            total_length += len(key) + len(context_value)
+            normalized[key] = context_value
+        if total_length > 8000:
+            raise ValueError("context must contain at most 8000 characters")
+        return normalized
 
 
 class PanelDiscussionMessageRead(APIModel):

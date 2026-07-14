@@ -14,6 +14,7 @@ from planagent.config import get_settings
 from planagent.db import reset_database_cache
 from planagent.db import get_database
 from planagent.domain.models import (
+    RawSourceItem,
     RecommendationVersion,
     SourceChangeRecord,
     StrategicSession,
@@ -66,6 +67,10 @@ def test_console_page_and_assistant_run(monkeypatch: pytest.MonkeyPatch, tmp_pat
         "subject_name": "Acme AI",
         "market": "enterprise-agents",
         "tick_count": 3,
+        "context": {
+            " market ": " APAC ",
+            "notes": " Budget is capped at 5 million. ",
+        },
         "auto_fetch_news": False,
         "include_google_news": False,
         "include_reddit": False,
@@ -85,11 +90,19 @@ def test_console_page_and_assistant_run(monkeypatch: pytest.MonkeyPatch, tmp_pat
         assert body["domain_id"] == "corporate"
         assert body["subject_id"] == "acme-ai"
         assert body["subject_name"] == "Acme AI"
+        assert "market: APAC" in body["analysis"]["findings"][0]
+        assert "notes: Budget" in body["analysis"]["findings"][0]
         assert body["analysis"]["summary"]
         assert body["ingest_run"]["status"] == "COMPLETED"
         assert body["simulation_run"]["status"] == "COMPLETED"
         assert body["latest_report"]["summary"]
         assert body["debate"]["verdict"]["verdict"] in {"ACCEPTED", "REJECTED", "CONDITIONAL"}
+        assert (
+            "User decision context:\n"
+            "- market: APAC\n"
+            "- notes: Budget is capped at 5 million."
+            in body["debate"]["context_payload"]["user_context"]
+        )
         assert body["panel_discussion"]
         assert body["workbench"]["run_id"] == body["simulation_run"]["id"]
         assert body["session_id"]
@@ -112,6 +125,36 @@ def test_console_page_and_assistant_run(monkeypatch: pytest.MonkeyPatch, tmp_pat
         }.issubset(phase_keys)
         assert body["monitoring"]["mode"] == "community_24h"
         assert body["monitoring"]["watch_rule_id"]
+
+        session_response = client.get(f"/assistant/sessions/{body['session_id']}")
+        assert session_response.status_code == 200
+        assert session_response.json()["session"]["source_preferences"]["decision_context"] == {
+            "market": "APAC",
+            "notes": "Budget is capped at 5 million.",
+        }
+
+        async def load_analyst_note() -> RawSourceItem:
+            database = get_database()
+            async with database.session() as session:
+                analyst_note = (
+                    await session.scalars(
+                        select(RawSourceItem).where(
+                            RawSourceItem.ingest_run_id == body["ingest_run"]["id"],
+                            RawSourceItem.source_type == "analyst_note",
+                        )
+                    )
+                ).one()
+                return analyst_note
+
+        analyst_note = asyncio.run(load_analyst_note())
+        assert analyst_note.content_text == (
+            f"{payload['topic']} Decision context: "
+            "- market: APAC - notes: Budget is capped at 5 million."
+        )
+        assert analyst_note.source_metadata["decision_context"] == {
+            "market": "APAC",
+            "notes": "Budget is capped at 5 million.",
+        }
 
         source_response = client.get(f"/watch/rules/{body['monitoring']['watch_rule_id']}/sources")
         assert source_response.status_code == 200
@@ -143,6 +186,39 @@ def test_console_page_and_assistant_run(monkeypatch: pytest.MonkeyPatch, tmp_pat
         daily_body = daily_response.json()
         assert daily_body["domain_id"] == "corporate"
         assert daily_body["summary"]
+
+
+def test_assistant_run_rejects_invalid_decision_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    database_path = tmp_path / "planagent-assistant-context-validation.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    invalid_contexts = [
+        {f"key-{index}": "value" for index in range(21)},
+        {" ": "value"},
+        {"k" * 65: "value"},
+        {"notes": "x" * 2001},
+        {key: "x" * 2000 for key in ("a", "b", "c", "d")},
+    ]
+
+    with TestClient(create_app(), raise_server_exceptions=False) as client:
+        for context in invalid_contexts:
+            response = client.post(
+                "/assistant/runs",
+                json={
+                    "topic": "Evaluate a constrained market launch.",
+                    "domain_id": "corporate",
+                    "context": context,
+                    "auto_fetch_news": False,
+                },
+            )
+            assert response.status_code == 422
+            assert any("context" in error["loc"] for error in response.json()["detail"])
 
 
 def test_assistant_stream_emits_key_events(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -293,6 +369,7 @@ def test_strategic_watch_worker_refreshes_due_session(
         "theater": "eastern-sector",
         "tenant_id": "ops-lab",
         "tick_count": 3,
+        "context": {"operating region": "Eastern Corridor"},
         "auto_fetch_news": False,
         "include_google_news": False,
         "include_reddit": False,
@@ -303,7 +380,9 @@ def test_strategic_watch_worker_refreshes_due_session(
     with TestClient(create_app()) as client:
         create_response = client.post("/assistant/sessions", json=payload)
         assert create_response.status_code == 201
-        session_id = create_response.json()["id"]
+        create_body = create_response.json()
+        session_id = create_body["id"]
+        assert create_body["source_preferences"]["decision_context"] == payload["context"]
 
         async def run_worker_once() -> dict[str, object]:
             database = get_database()
@@ -335,6 +414,10 @@ def test_strategic_watch_worker_refreshes_due_session(
         assert detail_response.status_code == 200
         detail_body = detail_response.json()
         assert len(detail_body["daily_briefs"]) == 1
+        assert (
+            "operating region: Eastern Corridor"
+            in detail_body["daily_briefs"][0]["analysis"]["findings"][0]
+        )
         assert len(detail_body["recent_runs"]) == 1
         assert detail_body["recommendation_versions"]
         assert detail_body["recommendation_versions"][0]["trigger_type"] == "scheduled_refresh"

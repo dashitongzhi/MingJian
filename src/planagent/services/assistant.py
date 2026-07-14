@@ -546,12 +546,16 @@ class StrategicAssistantService:
         )
         claims = await self._load_session_claims(session, evidence_items)
 
-        return [
+        context_lines = [
             f"User topic: {payload.topic}",
             f"Analysis summary: {analysis_result.summary}",
             self._format_evidence_context(evidence_items),
             self._format_claim_context(claims),
         ]
+        formatted_context = self._format_request_context(payload.context)
+        if formatted_context:
+            context_lines.insert(1, f"User decision context:\n{formatted_context}")
+        return context_lines
 
     async def _load_session_evidence_items(
         self,
@@ -1062,6 +1066,7 @@ class StrategicAssistantService:
             session_id=session_record.id,
             session_name=session_record.name,
             topic=session_record.topic,
+            context=preferences.get("decision_context", {}),
             domain_id=session_record.domain_id,  # type: ignore[arg-type]
             subject_id=session_record.subject_id,
             subject_name=session_record.subject_name,
@@ -1351,6 +1356,7 @@ class StrategicAssistantService:
 
     def _source_preferences(self, payload: StrategicAssistantRequest) -> dict[str, Any]:
         return {
+            "decision_context": payload.context,
             "auto_fetch_news": payload.auto_fetch_news,
             "include_google_news": payload.include_google_news,
             "include_reddit": payload.include_reddit,
@@ -1413,7 +1419,7 @@ class StrategicAssistantService:
 
     def _build_analysis_request(self, payload: StrategicAssistantRequest) -> AnalysisRequest:
         return AnalysisRequest(
-            content=payload.topic,
+            content=self._topic_with_context(payload),
             domain_id=payload.domain_id,
             auto_fetch_news=payload.auto_fetch_news,
             include_google_news=payload.include_google_news,
@@ -1449,10 +1455,11 @@ class StrategicAssistantService:
                 "source_type": "analyst_note",
                 "source_url": f"https://local.planagent/assistant/{self._slugify(subject_name)}",
                 "title": subject_name,
-                "content_text": payload.topic,
+                "content_text": self._topic_with_context(payload),
                 "source_metadata": {
                     "origin": "strategic_assistant",
                     "role": "user_prompt",
+                    "decision_context": payload.context,
                 },
             }
         ]
@@ -1477,6 +1484,21 @@ class StrategicAssistantService:
             execution_mode="INLINE",
             items=items,
         )
+
+    def _topic_with_context(self, payload: StrategicAssistantRequest) -> str:
+        formatted_context = self._format_request_context(payload.context)
+        if not formatted_context:
+            return payload.topic
+        return f"{payload.topic}\n\nDecision context:\n{formatted_context}"
+
+    def _format_request_context(self, context: dict[str, str]) -> str:
+        lines: list[str] = []
+        for key, value in sorted(context.items()):
+            clean_key = self._clean_text(key)
+            clean_value = self._clean_text(value)
+            if clean_key and clean_value:
+                lines.append(f"- {clean_key}: {clean_value}")
+        return "\n".join(lines)
 
     def _build_simulation_payload(
         self,

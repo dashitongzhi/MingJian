@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +39,17 @@ _APP_VERSION = "0.1.0"
 _logger = logging.getLogger(__name__)
 
 
+def _validation_error(exc: ValidationError) -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail=exc.errors(
+            include_context=False,
+            include_input=False,
+            include_url=False,
+        ),
+    )
+
+
 def _coerce_assistant_request(
     payload: StrategicAssistantRequest | dict[str, Any],
 ) -> StrategicAssistantRequest:
@@ -49,7 +61,10 @@ def _coerce_assistant_request(
         data["topic"] = topic
     if data.get("title") and not data.get("session_name"):
         data["session_name"] = data["title"]
-    return StrategicAssistantRequest.model_validate(data)
+    try:
+        return StrategicAssistantRequest.model_validate(data)
+    except ValidationError as exc:
+        raise _validation_error(exc) from exc
 
 
 @router.get("/")
