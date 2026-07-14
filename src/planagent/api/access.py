@@ -22,6 +22,7 @@ _PUBLIC_AUTH_POST_PATHS = {
     "/auth/refresh",
     "/auth/register",
 }
+_BROWSER_JWT_SUBPROTOCOL = "mingjian.jwt"
 
 
 class CommunityAccessMiddleware:
@@ -35,17 +36,23 @@ class CommunityAccessMiddleware:
         if scope_type not in {"http", "websocket"}:
             await self.app(scope, receive, send)
             return
+        settings = get_settings()
         if scope_type == "http" and _is_public_request(
             scope,
-            expose_auth_routes=get_settings().remote_access_enabled,
+            expose_auth_routes=settings.remote_access_enabled,
         ):
             await self.app(scope, receive, send)
             return
 
+        authorization = _scope_authorization(scope)
+        selected_subprotocol: str | None = None
+        if scope_type == "websocket" and settings.remote_access_enabled and authorization is None:
+            authorization, selected_subprotocol = _scope_browser_authorization(scope)
+
         try:
             payload = resolve_community_access(
                 scope["app"],
-                _scope_authorization(scope),
+                authorization,
                 client_host=_scope_client_host(scope),
                 local_proxy_credential=_scope_header(scope, b"x-mingjian-local-proxy"),
             )
@@ -67,7 +74,10 @@ class CommunityAccessMiddleware:
             await response(scope, receive, send)
             return
 
-        scope.setdefault("state", {})["community_access_payload"] = payload
+        state = scope.setdefault("state", {})
+        state["community_access_payload"] = payload
+        if selected_subprotocol is not None:
+            state["community_websocket_subprotocol"] = selected_subprotocol
         await self.app(scope, receive, send)
 
 
@@ -92,6 +102,18 @@ def _canonical_path(path: str) -> str:
 
 def _scope_authorization(scope: Scope) -> str | None:
     return _scope_header(scope, b"authorization")
+
+
+def _scope_browser_authorization(scope: Scope) -> tuple[str | None, str | None]:
+    """Extract a browser JWT offered after the safe MingJian protocol marker."""
+    raw_protocols = _scope_header(scope, b"sec-websocket-protocol")
+    if raw_protocols is None:
+        return None, None
+    protocols = [item.strip() for item in raw_protocols.split(",") if item.strip()]
+    for index, protocol in enumerate(protocols[:-1]):
+        if protocol == _BROWSER_JWT_SUBPROTOCOL:
+            return f"Bearer {protocols[index + 1]}", _BROWSER_JWT_SUBPROTOCOL
+    return None, None
 
 
 def _scope_header(scope: Scope, header_name: bytes) -> str | None:

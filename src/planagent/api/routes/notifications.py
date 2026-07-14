@@ -195,7 +195,10 @@ async def notification_websocket(
     if principal.get("role") != UserRole.ADMIN.value and principal.get("sub") != user_id:
         await websocket.close(code=1008)
         return
-    await websocket.accept()
+    selected_subprotocol = websocket.scope.get("state", {}).get("community_websocket_subprotocol")
+    await websocket.accept(
+        subprotocol=selected_subprotocol if isinstance(selected_subprotocol, str) else None
+    )
 
     # Get notification service from app state
     app = websocket.scope.get("app")

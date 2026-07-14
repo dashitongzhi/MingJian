@@ -541,6 +541,22 @@ def test_remote_notification_websocket_rejects_access_token_in_query_string(
     assert exc_info.value.code == 1008
 
 
+def test_remote_notification_websocket_accepts_browser_jwt_subprotocol(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "websocket-subprotocol.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        user_id, token = _register_and_login_user(client, username="socket-subprotocol")
+        with client.websocket_connect(
+            f"/notifications/ws/{user_id}",
+            subprotocols=["mingjian.jwt", token],
+        ) as websocket:
+            assert websocket.accepted_subprotocol == "mingjian.jwt"
+            websocket.send_json({"type": "ping"})
+            assert websocket.receive_json() == {"type": "pong"}
+
+
 def test_remote_notification_websocket_rejects_another_users_identity(
     monkeypatch, tmp_path: Path
 ) -> None:
