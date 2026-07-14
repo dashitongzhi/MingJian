@@ -118,9 +118,7 @@ class PlatformTopologyService:
             },
         )
 
-    async def _event_bus_component(
-        self, issues: list[str]
-    ) -> PlatformTopologyComponentRead:
+    async def _event_bus_component(self, issues: list[str]) -> PlatformTopologyComponentRead:
         validation_errors = validate_stream_topology()
         issues.extend(validation_errors)
         backpressure_status = await self._backpressure_status()

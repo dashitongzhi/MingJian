@@ -65,7 +65,8 @@ def build_event_envelope(
     """Attach the common stream contract without replacing caller payload fields."""
     enriched = dict(payload)
     now = datetime.now(timezone.utc).isoformat()
-    metadata = enriched.get("_worker") if isinstance(enriched.get("_worker"), dict) else {}
+    raw_metadata = enriched.get("_worker")
+    metadata: dict[str, Any] = raw_metadata if isinstance(raw_metadata, dict) else {}
     resolved_attempt = _resolve_attempt(enriched, metadata, attempt)
     session_id = _first_present(
         enriched,

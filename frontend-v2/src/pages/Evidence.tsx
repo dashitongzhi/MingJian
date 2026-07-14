@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Library, Search, Shield, Radio, CheckCircle, XCircle, AlertTriangle, ExternalLink, ChevronDown, ChevronRight, Wifi, WifiOff, RefreshCw } from 'lucide-react'
+import { Library, Search, Shield, Radio, CheckCircle, XCircle, AlertTriangle, ExternalLink, ChevronDown, ChevronRight, Wifi, WifiOff } from 'lucide-react'
 import { Card, CardHeader } from '../components/ui/Card'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { EmptyState } from '../components/ui/EmptyState'

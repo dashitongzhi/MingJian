@@ -5,28 +5,24 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
 import { simulationApi, workbenchApi } from '../api/endpoints'
 import { useApi, useApiAction } from '../hooks/useApi'
-import { ExpandableRecord, JsonBlock, MetricCard, asArray, asRecord, titleOf } from '../components/ui/DataSurface'
-import { useEffect, useState } from 'react'
+import { ExpandableRecord, JsonBlock, MetricCard } from '../components/ui/DataSurface'
+import { asArray, asRecord, titleOf } from '../components/ui/dataSurfaceUtils'
+import { useState } from 'react'
 
 export default function Workbench() {
   const { data: sessions, loading, error, reload } = useApi(() => workbenchApi.sessions())
   const { data: runs } = useApi(() => simulationApi.listRuns())
-  const [selectedRun, setSelectedRun] = useState<string | null>(null)
-  const { data: workbench } = useApi(() => selectedRun ? workbenchApi.getRunWorkbench(selectedRun) : Promise.resolve(null), [selectedRun])
-  const { data: trace } = useApi(() => selectedRun ? workbenchApi.getDecisionTrace(selectedRun) : Promise.resolve([]), [selectedRun])
-  const { data: compare } = useApi(() => selectedRun ? workbenchApi.getScenarioCompare(selectedRun).catch(() => null) : Promise.resolve(null), [selectedRun])
-  const { data: replay } = useApi(() => selectedRun ? workbenchApi.getReplayPackage(selectedRun).catch(() => null) : Promise.resolve(null), [selectedRun])
-  const { data: jarvisRuns, reload: reloadJarvis } = useApi(() => selectedRun ? workbenchApi.listJarvisRuns(selectedRun).catch(() => []) : Promise.resolve([]), [selectedRun])
-  const { execute: runJarvis, loading: jarvisRunning } = useApiAction((data: unknown) => workbenchApi.createJarvisRun(data))
-
+  const [selectedRunOverride, setSelectedRun] = useState<string | null>(null)
   const runList = asArray(runs)
-
-  useEffect(() => {
-    if (selectedRun || runList.length === 0) return
-    const firstRun = asRecord(runList[0])
-    const id = String(firstRun.id ?? '')
-    if (id) setSelectedRun(id)
-  }, [runList, selectedRun])
+  const firstRun = asRecord(runList[0])
+  const defaultRunId = firstRun.id ? String(firstRun.id) : null
+  const selectedRun = selectedRunOverride ?? defaultRunId
+  const { data: workbench } = useApi(() => selectedRun ? workbenchApi.getRunWorkbench(selectedRun) : Promise.resolve(null), selectedRun)
+  const { data: trace } = useApi(() => selectedRun ? workbenchApi.getDecisionTrace(selectedRun) : Promise.resolve([]), selectedRun)
+  const { data: compare } = useApi(() => selectedRun ? workbenchApi.getScenarioCompare(selectedRun).catch(() => null) : Promise.resolve(null), selectedRun)
+  const { data: replay } = useApi(() => selectedRun ? workbenchApi.getReplayPackage(selectedRun).catch(() => null) : Promise.resolve(null), selectedRun)
+  const { data: jarvisRuns, reload: reloadJarvis } = useApi(() => selectedRun ? workbenchApi.listJarvisRuns(selectedRun).catch(() => []) : Promise.resolve([]), selectedRun)
+  const { execute: runJarvis, loading: jarvisRunning } = useApiAction((data: unknown) => workbenchApi.createJarvisRun(data))
 
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorBanner message={error} onRetry={reload} />

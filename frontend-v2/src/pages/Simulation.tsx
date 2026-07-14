@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FlaskConical, Plus, Play, GitBranch, X, Save, ChevronDown, ChevronRight, Clock, Target, BarChart3 } from 'lucide-react'
-import { Card, CardHeader, CardBody } from '../components/ui/Card'
+import { Card, CardHeader } from '../components/ui/Card'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
@@ -40,11 +40,11 @@ export default function Simulation() {
 
   const { data: hypotheses } = useApi(
     () => selectedRun ? simulationApi.listHypotheses(selectedRun) : Promise.resolve([]),
-    [selectedRun]
+    selectedRun
   )
   const { data: workbench } = useApi(
     () => selectedRun ? simulationApi.getWorkbench(selectedRun) : Promise.resolve(null),
-    [selectedRun]
+    selectedRun
   )
 
   const { execute: doCreate, loading: creating } = useApiAction(

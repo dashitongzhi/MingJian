@@ -9,11 +9,17 @@ Provides full report export for:
 
 from __future__ import annotations
 
+import base64
+import binascii
+import html
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from urllib.parse import unquote_to_bytes, urlsplit
 
 from types import SimpleNamespace
 
@@ -34,6 +40,127 @@ from planagent.services.debate.roles import debate_record_sort_key
 
 
 _logger = logging.getLogger(__name__)
+MAX_PDF_DATA_URI_BYTES = 5 * 1024 * 1024
+MAX_PDF_INLINE_RESOURCES = 16
+MAX_PDF_MARKDOWN_CHARS = 500_000
+_PDF_DATA_URI_MIME_TYPES = frozenset(
+    {
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/svg+xml",
+        "image/webp",
+    }
+)
+_PDF_RESOURCE_ATTRIBUTES = frozenset({"data", "href", "poster", "src", "srcset", "xlink:href"})
+_PDF_CSS_URL_PATTERN = re.compile(r"url\s*\(", re.IGNORECASE)
+
+
+def _reject_pdf_css_resources(css: str) -> None:
+    """Reject CSS resource syntax whose normalization differs across renderers."""
+    if "\\" in css or "/*" in css or "*/" in css or _PDF_CSS_URL_PATTERN.search(css):
+        raise ValueError("PDF CSS resource syntax is disabled")
+
+
+class _PdfInlineResourceCounter(HTMLParser):
+    """Count rendered inline resources without treating report prose as resource markup."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.count = 0
+        self._style_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "style":
+            self._style_depth += 1
+        self._count_attributes(attrs)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._count_attributes(attrs)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "style" and self._style_depth:
+            self._style_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._style_depth:
+            _reject_pdf_css_resources(data)
+
+    def _count_attributes(self, attrs: list[tuple[str, str | None]]) -> None:
+        for name, value in attrs:
+            if value is None:
+                continue
+            lowered_name = name.lower()
+            if lowered_name in _PDF_RESOURCE_ATTRIBUTES:
+                self.count += value.lower().count("data:")
+            if lowered_name == "style":
+                _reject_pdf_css_resources(value)
+
+
+def _count_pdf_inline_resources(html_content: str) -> int:
+    counter = _PdfInlineResourceCounter()
+    counter.feed(html_content)
+    counter.close()
+    return counter.count
+
+
+def safe_pdf_url_fetcher(
+    url: str,
+    timeout: int = 10,
+    ssl_context: object | None = None,
+) -> dict[str, Any]:
+    """Allow only inline data resources while rendering untrusted report content."""
+    if urlsplit(url).scheme.lower() != "data":
+        raise ValueError("PDF external resources are disabled")
+
+    metadata, separator, encoded_payload = url[5:].partition(",")
+    if not separator:
+        raise ValueError("PDF resources must be valid inline image data")
+    metadata_parts = [part.strip().lower() for part in metadata.split(";")]
+    media_type = metadata_parts[0] or "text/plain"
+    if media_type not in _PDF_DATA_URI_MIME_TYPES:
+        raise ValueError("PDF resources must be approved inline image data")
+
+    if "base64" in metadata_parts[1:]:
+        max_encoded_size = ((MAX_PDF_DATA_URI_BYTES + 2) // 3) * 4
+        if len(encoded_payload) > max_encoded_size:
+            raise ValueError("PDF inline image exceeds the size limit")
+        try:
+            decoded_payload = base64.b64decode(encoded_payload, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("PDF resources must be valid inline image data") from exc
+    else:
+        if len(encoded_payload) > MAX_PDF_DATA_URI_BYTES * 3:
+            raise ValueError("PDF inline image exceeds the size limit")
+        decoded_payload = unquote_to_bytes(encoded_payload)
+
+    if len(decoded_payload) > MAX_PDF_DATA_URI_BYTES:
+        raise ValueError("PDF inline image exceeds the size limit")
+
+    from weasyprint import default_url_fetcher
+
+    return default_url_fetcher(url, timeout=timeout, ssl_context=ssl_context)
+
+
+def _build_safe_pdf_url_fetcher(
+    max_resources: int | None = None,
+) -> Callable[[str, int, object | None], dict[str, Any]]:
+    """Build a request-scoped fetcher that also caps total inline resources."""
+    resource_limit = MAX_PDF_INLINE_RESOURCES if max_resources is None else max_resources
+    resource_count = 0
+
+    def restricted_fetcher(
+        url: str,
+        timeout: int = 10,
+        ssl_context: object | None = None,
+    ) -> dict[str, Any]:
+        nonlocal resource_count
+        resource_count += 1
+        if resource_count > resource_limit:
+            raise ValueError("PDF contains too many inline resources")
+        return safe_pdf_url_fetcher(url, timeout=timeout, ssl_context=ssl_context)
+
+    return restricted_fetcher
 
 
 class ExportService:
@@ -333,7 +460,12 @@ class ExportService:
 
     def md_to_pdf(self, md_content: str, title: str = "PlanAgent Report") -> bytes:
         """Convert Markdown content to PDF bytes using weasyprint."""
+        if len(md_content) > MAX_PDF_MARKDOWN_CHARS:
+            raise ValueError("PDF Markdown exceeds the size limit")
+
         import weasyprint
+
+        safe_title = html.escape(str(title), quote=True)
 
         # Convert MD to HTML
         html_content = markdown2.markdown(
@@ -347,19 +479,20 @@ class ExportService:
                 "metadata",
             ],
         )
-
+        if _count_pdf_inline_resources(html_content) > MAX_PDF_INLINE_RESOURCES:
+            raise ValueError("PDF contains too many inline resources")
         # Wrap in full HTML with styling
         full_html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8">
-    <title>{title}</title>
+    <title>{safe_title}</title>
     <style>
         @page {{
             size: A4;
             margin: 2cm 2.5cm;
             @top-center {{
-                content: "PlanAgent - {title}";
+                content: "PlanAgent";
                 font-size: 9px;
                 color: #666;
             }}
@@ -466,7 +599,10 @@ class ExportService:
 </html>"""
 
         # Generate PDF
-        pdf_bytes = weasyprint.HTML(string=full_html).write_pdf()
+        pdf_bytes = weasyprint.HTML(
+            string=full_html,
+            url_fetcher=_build_safe_pdf_url_fetcher(),
+        ).write_pdf()
         return pdf_bytes
 
     # ── Jinja2 Environment ─────────────────────────────────

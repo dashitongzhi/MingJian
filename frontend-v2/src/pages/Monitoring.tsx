@@ -5,7 +5,8 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
 import { monitoringApi, sourcesApi } from '../api/endpoints'
 import { useApi, useApiAction } from '../hooks/useApi'
-import { ExpandableRecord, JsonBlock, MetricCard, asArray, asRecord, titleOf } from '../components/ui/DataSurface'
+import { ExpandableRecord, JsonBlock, MetricCard } from '../components/ui/DataSurface'
+import { asArray, asRecord, titleOf } from '../components/ui/dataSurfaceUtils'
 
 function compact(value: unknown, fallback = '0') {
   if (typeof value === 'number') return value.toLocaleString()

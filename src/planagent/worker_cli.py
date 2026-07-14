@@ -229,7 +229,8 @@ async def _retry_or_dead_letter_event(
     retry_base_seconds: float,
 ) -> None:
     payload = dict(event.payload)
-    metadata = payload.get("_worker") if isinstance(payload.get("_worker"), dict) else {}
+    raw_metadata = payload.get("_worker")
+    metadata: dict[str, Any] = raw_metadata if isinstance(raw_metadata, dict) else {}
     attempts = int(metadata.get("attempts", 1) or 1)
     next_attempt = attempts + 1
     if next_attempt <= max(1, max_attempts):

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { TrendingUp, Target, BarChart3, Activity, RefreshCw, ChevronDown, ChevronRight, FileText, Clock } from 'lucide-react'
-import { Card, CardHeader, CardBody } from '../components/ui/Card'
+import { Card, CardHeader } from '../components/ui/Card'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'

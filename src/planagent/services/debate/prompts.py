@@ -507,13 +507,31 @@ def select_roles_for_domain(domain_id: str | None, complexity: str = "standard")
         }
     elif complexity == "complex":
         domain_roles = {
-            "corporate": core + ["intel_analyst", "geo_expert", "econ_analyst", "tech_foresight", "social_impact"],
-            "military": core + ["intel_analyst", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"],
-            "auto": core + ["intel_analyst", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"],
+            "corporate": core
+            + ["intel_analyst", "geo_expert", "econ_analyst", "tech_foresight", "social_impact"],
+            "military": core
+            + [
+                "intel_analyst",
+                "geo_expert",
+                "econ_analyst",
+                "military_strategist",
+                "tech_foresight",
+                "social_impact",
+            ],
+            "auto": core
+            + [
+                "intel_analyst",
+                "geo_expert",
+                "econ_analyst",
+                "military_strategist",
+                "tech_foresight",
+                "social_impact",
+            ],
         }
     else:
         domain_roles = {
-            "corporate": core + ["intel_analyst", "econ_analyst", "tech_foresight", "social_impact"],
+            "corporate": core
+            + ["intel_analyst", "econ_analyst", "tech_foresight", "social_impact"],
             "military": core + ["geo_expert", "military_strategist", "intel_analyst"],
             "auto": core + ["intel_analyst", "econ_analyst", "geo_expert"],
         }
@@ -561,8 +579,19 @@ def _arbitration_instruction() -> str:
 def _apply_cross_exam_protocol(plan: list[tuple[int, str, str]]) -> None:
     for idx, (round_number, role, instruction) in enumerate(plan):
         if round_number == 2:
-            targets = ["advocate", "geo_expert", "econ_analyst", "military_strategist", "tech_foresight", "social_impact"]
-            plan[idx] = (round_number, role, f"{instruction}\n\n{_cross_exam_instruction(role, targets)}")
+            targets = [
+                "advocate",
+                "geo_expert",
+                "econ_analyst",
+                "military_strategist",
+                "tech_foresight",
+                "social_impact",
+            ]
+            plan[idx] = (
+                round_number,
+                role,
+                f"{instruction}\n\n{_cross_exam_instruction(role, targets)}",
+            )
         elif round_number == 3:
             plan[idx] = (round_number, role, f"{instruction}\n\n{_revision_instruction(role)}")
 
@@ -611,10 +640,7 @@ def _sort_custom_agents(
         domains = {
             str(item).lower()
             for item in (
-                agent.get("domains")
-                or agent.get("domain_tags")
-                or agent.get("tags")
-                or []
+                agent.get("domains") or agent.get("domain_tags") or agent.get("tags") or []
             )
         }
         if not domains:
@@ -638,12 +664,7 @@ def _sort_custom_agents(
 def _custom_agent_domain_hint(agent: dict[str, Any], domain_id: str | None) -> str:
     domains = [
         str(item)
-        for item in (
-            agent.get("domains")
-            or agent.get("domain_tags")
-            or agent.get("tags")
-            or []
-        )
+        for item in (agent.get("domains") or agent.get("domain_tags") or agent.get("tags") or [])
     ]
     if domain_id and domain_id in domains:
         return f"{domain_id} specialist"

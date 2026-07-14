@@ -5,16 +5,13 @@ from typing import Any, Protocol
 
 
 class PredictionHooks(Protocol):
-    def before_reforecast(self, payload: dict[str, Any]) -> dict[str, Any]:
-        ...
+    def before_reforecast(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
-    def after_reforecast(self, payload: dict[str, Any], result: dict[str, Any]) -> None:
-        ...
+    def after_reforecast(self, payload: dict[str, Any], result: dict[str, Any]) -> None: ...
 
 
 class NotificationBackend(Protocol):
-    def send(self, channel: str, payload: dict[str, Any]) -> None:
-        ...
+    def send(self, channel: str, payload: dict[str, Any]) -> None: ...
 
 
 class NoopPredictionHooks:

@@ -12,54 +12,28 @@ permissions:
   contents: read
   pull-requests: write
   issues: write
-  actions: write  # 清理临时 artifacts
 
 jobs:
   auto-review:
     runs-on: ubuntu-latest
     if: "!github.event.pull_request.draft"
     steps:
-      - name: Checkout PR
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Get PR info
-        id: pr-info
+      - name: Analyze changes and post review
         uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
-            const { data: files } = await github.rest.pulls.listFiles({
+            const files = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number,
+              per_page: 100,
             });
-
-            const changedFiles = files.map(f => f.filename);
-            const additions = files.reduce((sum, f) => sum + f.additions, 0);
-            const deletions = files.reduce((sum, f) => sum + f.deletions, 0);
-
-            core.setOutput('title', pr.title);
-            core.setOutput('body', pr.body || '');
-            core.setOutput('changed_files', changedFiles.join(', '));
-            core.setOutput('additions', additions);
-            core.setOutput('deletions', deletions);
-            core.setOutput('pr_number', pr.number);
-
-      - name: Analyze changes
-        id: analyze
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = '${{ steps.pr-info.outputs.title }}';
-            const changedFiles = '${{ steps.pr-info.outputs.changed_files }}'.split(', ');
-            const additions = parseInt('${{ steps.pr-info.outputs.additions }}');
-            const deletions = parseInt('${{ steps.pr-info.outputs.deletions }}');
+            const changedFiles = files.map((file) => file.filename);
+            const additions = files.reduce((sum, file) => sum + file.additions, 0);
+            const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
 
             const issues = [];
-            const suggestions = [];
 
             // Check for large PRs
             if (additions + deletions > 500) {
@@ -101,34 +75,24 @@ jobs:
             if (changedFiles.some(f => f.includes('api/routes'))) modules.add('API路由');
             if (changedFiles.some(f => f.includes('frontend'))) modules.add('前端');
 
-            core.setOutput('issues', issues.join('\n'));
-            core.setOutput('modules', Array.from(modules).join(', '));
-            core.setOutput('has_issues', issues.length > 0 ? 'true' : 'false');
-
-      - name: Post review comment
-        if: steps.analyze.outputs.has_issues == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = ${{ steps.pr-info.outputs.pr_number }};
-            const issues = `${{ steps.analyze.outputs.issues }}`;
-            const modules = `${{ steps.analyze.outputs.modules }}`;
-            const additions = ${{ steps.pr-info.outputs.additions }};
-            const deletions = ${{ steps.pr-info.outputs.deletions }};
+            if (issues.length === 0) {
+              core.notice(`No heuristic review warnings for PR #${pr.number}.`);
+              return;
+            }
 
             let body = `## 🤖 自动审查报告\n\n`;
             body += `**PR规模**: +${additions} / -${deletions} 行\n`;
-            if (modules) {
-              body += `**涉及模块**: ${modules}\n`;
+            if (modules.size > 0) {
+              body += `**涉及模块**: ${Array.from(modules).join(', ')}\n`;
             }
             body += `\n### ⚠️ 注意事项\n\n`;
-            body += issues;
+            body += issues.join('\n');
             body += `\n\n---\n`;
             body += `*此审查由GitHub Actions自动生成，请人工确认*`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: prNumber,
-              body: body
+              issue_number: pr.number,
+              body,
             });

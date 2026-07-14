@@ -313,7 +313,10 @@ class TestExportService:
         assert "Enter cautiously" in md
 
     def test_md_to_pdf(self):
-        pytest.importorskip("weasyprint")
+        try:
+            __import__("weasyprint")
+        except (ImportError, OSError):
+            pytest.skip("weasyprint Python or native Pango dependencies are not available")
         try:
             md = "# Test Report\n\nThis is a test with **bold** and *italic*."
             pdf_bytes = self.service.md_to_pdf(md, title="Test")
@@ -427,10 +430,16 @@ class TestDebateOptimization:
             evidence_count=8,
         )
         roles = [r[1] for r in plan]
-        assert infer_debate_complexity("military escalation", "complex context " * 120, 8) == "complex"
+        assert (
+            infer_debate_complexity("military escalation", "complex context " * 120, 8) == "complex"
+        )
         assert "military_strategist" in roles
         assert "social_impact" in roles
-        assert any("target_role" in instruction for round_number, _, instruction in plan if round_number == 2)
+        assert any(
+            "target_role" in instruction
+            for round_number, _, instruction in plan
+            if round_number == 2
+        )
 
     def test_evidence_impact_can_auto_refresh_on_shock_terms(self):
         worker = WatchIngestWorker.__new__(WatchIngestWorker)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { MessageSquare, Play, X, Clock, Users, ChevronDown, ChevronRight, Save, Loader2, FileText } from 'lucide-react'
-import { Card, CardHeader, CardBody } from '../components/ui/Card'
+import { MessageSquare, Play, X, Users, ChevronDown, ChevronRight, Loader2, FileText } from 'lucide-react'
+import { Card, CardHeader } from '../components/ui/Card'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
@@ -72,11 +72,11 @@ export default function Debate() {
 
   const { data: timeline } = useApi(
     () => selectedId ? debateApi.getTimeline(selectedId) : Promise.resolve(null),
-    [selectedId]
+    selectedId
   )
   const { data: summary } = useApi(
     () => selectedId ? debateApi.getSummary(selectedId) : Promise.resolve(null),
-    [selectedId]
+    selectedId
   )
 
   const { execute: doTrigger, loading: triggering } = useApiAction(

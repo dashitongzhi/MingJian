@@ -76,7 +76,9 @@ class AuthRefreshToken(Base):
     issued_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
 

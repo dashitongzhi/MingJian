@@ -841,7 +841,9 @@ class DebateAdjudicationMixin:
                     str(support_block.get("reasoning", "")),
                 ),
                 "challenger": (
-                    str(challenge_block.get("claim", "The current claim still faces conflict risk.")),
+                    str(
+                        challenge_block.get("claim", "The current claim still faces conflict risk.")
+                    ),
                     str(challenge_block.get("reasoning", "")),
                 ),
                 "intel_analyst": (
@@ -853,7 +855,11 @@ class DebateAdjudicationMixin:
                     "The economic view treats this claim as an input whose downstream cost depends on confidence quality.",
                 ),
                 "social_impact": (
-                    str(challenge_block.get("claim", "The claim needs human review before downstream adoption.")),
+                    str(
+                        challenge_block.get(
+                            "claim", "The claim needs human review before downstream adoption."
+                        )
+                    ),
                     "The social view considers reputational and decision-quality impact if an uncertain claim is promoted.",
                 ),
             },
@@ -1126,7 +1132,9 @@ class DebateAdjudicationMixin:
                 "The military view evaluates readiness, logistics, and operational feasibility.",
             ),
             "tech_foresight": (
-                matched_rules[0] if matched_rules else "Technical assumptions did not overturn the run path.",
+                matched_rules[0]
+                if matched_rules
+                else "Technical assumptions did not overturn the run path.",
                 "The technical view checks whether infrastructure and capability assumptions remain plausible.",
             ),
             "social_impact": (
@@ -1139,7 +1147,9 @@ class DebateAdjudicationMixin:
                 1,
                 role,
                 "SUPPORT" if role != "social_impact" else "CONDITIONAL",
-                support_confidence if role != "social_impact" else (support_confidence + challenge_confidence) / 2,
+                support_confidence
+                if role != "social_impact"
+                else (support_confidence + challenge_confidence) / 2,
                 role_claims[role][0],
                 role_claims[role][1],
                 strength="STRONG" if role == "advocate" else "MODERATE",

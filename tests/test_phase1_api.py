@@ -538,9 +538,7 @@ def test_review_worker_auto_accepts_corroborated_claim_without_conflict(
     assert verdict == "ACCEPTED"
 
 
-def test_review_worker_resolves_repeated_conditional_verdicts(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_review_worker_resolves_repeated_conditional_verdicts(monkeypatch, tmp_path: Path) -> None:
     database_path = tmp_path / "planagent-review-worker-conditional.db"
     database_url = build_database_url(database_path)
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", database_url)

@@ -413,6 +413,28 @@ stores the initial administrator password in
 `PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD` inside the local `.env`; rotate it after the first remote
 administrator login through `POST /auth/change-password`, then update the local `.env` copy.
 
+#### Worker Commands
+
+The Docker Compose stack starts the configured workers automatically. For a manual installation,
+list the available worker IDs and run only the workers needed by the local deployment:
+
+```bash
+planagent-worker list
+planagent-worker ingest-worker --loop
+planagent-worker strategic-watch-worker --loop
+```
+
+Each worker records terminal failures in the dead-letter table. Stream-backed workers also reclaim
+stale pending events and retry them up to the configured `PLANAGENT_WORKER_MAX_ATTEMPTS` limit.
+
+PDF export is included in the default Python installation through WeasyPrint. Report Markdown is
+treated as untrusted input during PDF rendering: external `http(s)`, `file`, and other resource
+fetches are disabled. Embed approved images as `data:` URLs when a self-contained PDF needs them.
+Inline resources are restricted to approved image MIME types, 5 MiB per image, and 16 images per
+report; Markdown input is capped at 500,000 characters.
+The Docker image already includes WeasyPrint's native Pango/Cairo libraries; manual installations
+must provide the equivalent native libraries for their operating system.
+
 ---
 
 ## 📦 Dependencies
@@ -432,6 +454,7 @@ administrator login through `POST /auth/change-password`, then update the local 
 | **MinIO** | 7.2+ | Object storage |
 | **HTTPX** | 0.28+ | Async HTTP client |
 | **Uvicorn** | 0.35+ | ASGI server |
+| **WeasyPrint** | 66+ | Restricted Markdown-to-PDF rendering |
 
 ### Frontend Dependencies (Node.js)
 
@@ -553,17 +576,20 @@ frontend-v2/src/
 
 ### Backend Tests (pytest)
 ```bash
-# Run all unit tests (92 tests, <1s)
-python -m pytest tests/unit/ -v
+# Run the complete backend suite
+python -m pytest -q
 
-# Run integration tests
-python -m pytest tests/ -v
+# Run only unit tests while iterating
+python -m pytest tests/unit/ -v
 ```
 
 ### Frontend Tests (Vitest)
 ```bash
 cd frontend-v2
-npm run build
+npm run lint
+npm test
+npx tsc -b
+npx vite build
 ```
 
 ### Stress Test
@@ -573,10 +599,10 @@ python tests/stress_test.py
 ```
 
 **Latest Results:**
-- ✅ Backend: 92 unit tests passing (0.26s)
-- ✅ Frontend: 16 component tests passing (0.55s)
-- ✅ Stress Test: 112 pass, 0 fail, 2 warnings
-- 🔥 Concurrent: 20 users, 844 RPS, P50=1ms, zero 500 errors
+- ✅ Backend: 613 passed, 1 skipped
+- ✅ Frontend: ESLint passed, 10 tests passed, TypeScript passed, production build passed
+- ✅ Quality gates: full Ruff check/format and full mypy passed
+- ✅ PDF security: external resource fetch regression passed; native rendering uses the Docker image's Pango/Cairo libraries
 
 ---
 
@@ -584,15 +610,12 @@ python tests/stress_test.py
 
 | Metric | Value |
 |--------|-------|
-| Backend Unit Tests | 92 passing |
-| Frontend Component Tests | 16 passing |
-| Stress Test Pass Rate | 112/114 (98.2%) |
-| Concurrent Load (20 users) | 844 RPS, zero 500 errors |
-| Response Time P50 | 1ms |
-| Response Time P95 | 11ms |
-| API Endpoints Tested | 82 |
-| Max File Size (backend) | ~900 lines (down from 3273) |
-| Max Page Size (frontend) | ~550 lines (down from 1665) |
+| Backend test suite | 613 passed, 1 environment-dependent PDF skip |
+| Frontend test suite | 10 passed |
+| Python lint and format | Passed across `src/` and `tests/` |
+| Python type check | Passed across `src/planagent/` |
+| Frontend lint and type check | Passed |
+| Frontend production build | Passed |
 
 ---
 

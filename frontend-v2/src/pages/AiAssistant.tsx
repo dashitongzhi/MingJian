@@ -75,11 +75,16 @@ function decisionLabel(value: unknown) {
 }
 
 export default function AiAssistant() {
-  const [searchParams] = useSearchParams()
-  const sessionParam = searchParams.get('session')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeSession = searchParams.get('session')
+  const setActiveSession = (sessionId: string | null) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    if (sessionId) nextSearchParams.set('session', sessionId)
+    else nextSearchParams.delete('session')
+    setSearchParams(nextSearchParams)
+  }
   const { data: sessions, loading, error, reload } = useApi(() => assistantApi.listSessions())
   const [input, setInput] = useState('')
-  const [activeSession, setActiveSession] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
   const [exporting, setExporting] = useState(false)
@@ -88,7 +93,7 @@ export default function AiAssistant() {
 
   const { data: sessionDetail, reload: reloadSession } = useApi(
     () => activeSession ? assistantApi.getSession(activeSession) : Promise.resolve(null),
-    [activeSession]
+    activeSession
   )
 
   const { execute: doCreateSession, loading: creating } = useApiAction(
@@ -101,12 +106,6 @@ export default function AiAssistant() {
     (decision: string) => reportApi.createDecision({ session_id: activeSession, decision })
   )
 
-  useEffect(() => {
-    if (sessionParam && sessionParam !== activeSession) {
-      setActiveSession(sessionParam)
-    }
-  }, [sessionParam, activeSession])
-
   const detail = (sessionDetail || {}) as SessionDetail
   const messages = (detail.messages || []) as Message[]
   const latestRun = asRecord(asArray(detail.recent_runs)[0])
@@ -117,15 +116,15 @@ export default function AiAssistant() {
   const watchRuleId = typeof monitoring.watch_rule_id === 'string' ? monitoring.watch_rule_id : null
   const { data: recommendationsRaw } = useApi(
     () => activeSession ? assistantApi.getRecommendations(activeSession) : Promise.resolve([]),
-    [activeSession]
+    activeSession
   )
   const { data: sourceStatesRaw } = useApi(
     () => watchRuleId ? monitoringApi.getWatchRuleSources(watchRuleId) : Promise.resolve([]),
-    [watchRuleId]
+    watchRuleId
   )
   const { data: decisionsRaw, reload: reloadDecisions } = useApi(
     () => activeSession ? reportApi.listDecisions(activeSession) : Promise.resolve([]),
-    [activeSession]
+    activeSession
   )
   const recommendationVersions = asArray(recommendationsRaw).map(asRecord)
   const sourceStates = asArray(sourceStatesRaw).map(asRecord)

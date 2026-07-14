@@ -79,9 +79,7 @@ rules:
         encoding="utf-8",
     )
     rule_registry = RuleRegistry(tmp_path)
-    assert [rule.rule_id for rule in rule_registry.get_rules("energy")] == [
-        "energy.grid_stress"
-    ]
+    assert [rule.rule_id for rule in rule_registry.get_rules("energy")] == ["energy.grid_stress"]
 
     rules_path.write_text(
         """
@@ -104,9 +102,7 @@ rules:
     else:
         raise AssertionError("invalid rule reload should fail")
 
-    assert [rule.rule_id for rule in rule_registry.get_rules("energy")] == [
-        "energy.grid_stress"
-    ]
+    assert [rule.rule_id for rule in rule_registry.get_rules("energy")] == ["energy.grid_stress"]
 
 
 def test_domain_pack_discovery_keeps_builtin_packs_idempotent() -> None:
@@ -204,9 +200,7 @@ def test_extension_points_are_available_for_private_editions() -> None:
 
 def test_postgres_extension_topology_is_declared_in_init_and_migration() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    init_sql = (repo_root / "docker/postgres/init/001_extensions.sql").read_text(
-        encoding="utf-8"
-    )
+    init_sql = (repo_root / "docker/postgres/init/001_extensions.sql").read_text(encoding="utf-8")
     migration_sql = (repo_root / "migrations/versions/0021_pgvector_embedding.py").read_text(
         encoding="utf-8"
     )
@@ -356,7 +350,9 @@ def test_stream_worker_retries_before_dead_letter() -> None:
             retry_base_seconds=0,
         )
         retried = await bus.consume(["raw.ingested"], "knowledge-worker", "consumer", 10, 0)
-        dead_letters = await bus.consume(["raw.ingested.dlq"], "knowledge-worker", "consumer", 10, 0)
+        dead_letters = await bus.consume(
+            ["raw.ingested.dlq"], "knowledge-worker", "consumer", 10, 0
+        )
         return retried, dead_letters
 
     retried, dead_letters = asyncio.run(scenario())

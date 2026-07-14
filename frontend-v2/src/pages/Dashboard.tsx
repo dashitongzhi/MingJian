@@ -20,7 +20,8 @@ import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { consoleApi, agentsApi, simulationApi, evidenceApi, monitoringApi, reportApi, sourcesApi, debateApi, assistantApi } from '../api/endpoints'
 import { useApi, useApiAction } from '../hooks/useApi'
-import { ExpandableRecord, MetricCard, ProgressBar, asArray, asRecord, formatDate, titleOf } from '../components/ui/DataSurface'
+import { ExpandableRecord, MetricCard, ProgressBar } from '../components/ui/DataSurface'
+import { asArray, asRecord, formatDate, titleOf } from '../components/ui/dataSurfaceUtils'
 
 const decisionTemplates = [
   {

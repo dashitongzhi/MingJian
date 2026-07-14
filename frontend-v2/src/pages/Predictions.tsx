@@ -5,17 +5,18 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
 import { reportApi } from '../api/endpoints'
 import { useApi } from '../hooks/useApi'
-import { ExpandableRecord, JsonBlock, MetricCard, ProgressBar, asArray, asRecord, titleOf } from '../components/ui/DataSurface'
+import { ExpandableRecord, JsonBlock, MetricCard, ProgressBar } from '../components/ui/DataSurface'
+import { asArray, asRecord, titleOf } from '../components/ui/dataSurfaceUtils'
 import { useState } from 'react'
 
 export default function Predictions() {
   const { data: predictions, loading, error, reload } = useApi(() => reportApi.listPredictions())
   const { data: jobs } = useApi(() => reportApi.listRevisionJobs())
   const [selected, setSelected] = useState<string | null>(null)
-  const { data: detail } = useApi(() => selected ? reportApi.getPrediction(selected) : Promise.resolve(null), [selected])
-  const { data: versions } = useApi(() => selected ? reportApi.listVersions(selected) : Promise.resolve([]), [selected])
-  const { data: impact } = useApi(() => selected ? reportApi.getImpact(selected).catch(() => null) : Promise.resolve(null), [selected])
-  const { data: timeline } = useApi(() => selected ? reportApi.getPredictionTimeline(selected).catch(() => null) : Promise.resolve(null), [selected])
+  const { data: detail } = useApi(() => selected ? reportApi.getPrediction(selected) : Promise.resolve(null), selected)
+  const { data: versions } = useApi(() => selected ? reportApi.listVersions(selected) : Promise.resolve([]), selected)
+  const { data: impact } = useApi(() => selected ? reportApi.getImpact(selected).catch(() => null) : Promise.resolve(null), selected)
+  const { data: timeline } = useApi(() => selected ? reportApi.getPredictionTimeline(selected).catch(() => null) : Promise.resolve(null), selected)
 
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorBanner message={error} onRetry={reload} />

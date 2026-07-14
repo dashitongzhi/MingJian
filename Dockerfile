@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python deps
 COPY pyproject.toml .
 COPY src/ src/
-RUN pip install --no-cache-dir -e ".[all]" 2>/dev/null || pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e .
 
 # Create exports directory
 RUN mkdir -p /app/exports

@@ -130,6 +130,7 @@ jobs:
 
       - name: Run Codex review
         id: codex
+        continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.CODEX_REVIEW_API_KEY }}
@@ -140,17 +141,56 @@ jobs:
           prompt-file: .codex-pr-review-prompt.md
           output-file: .codex-pr-review.md
 
+      - name: Upload reusable review inputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-pr-review-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
+          path: |
+            .codex-pr-review-prompt.md
+            .codex-pr-review-pr-number
+            .codex-pr-review.md
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Publish review comment
+        id: publish
+        if: always()
+        env:
+          CODEX_OUTCOME: ${{ steps.codex.outcome }}
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require("fs");
             const marker = "<!-- codex-pr-review -->";
-            const issue_number = Number(fs.readFileSync(".codex-pr-review-pr-number", "utf8").trim());
+            const storedPrNumber = fs.existsSync(".codex-pr-review-pr-number")
+              ? fs.readFileSync(".codex-pr-review-pr-number", "utf8").trim()
+              : "";
+            const eventPrNumber = context.payload.pull_request && context.payload.pull_request.number;
+            const inputPrNumber = context.payload.inputs && context.payload.inputs.pr_number;
+            const issue_number = Number(storedPrNumber || eventPrNumber || inputPrNumber);
+            if (!Number.isInteger(issue_number) || issue_number <= 0) {
+              throw new Error("Unable to resolve pull request number for Codex review comment.");
+            }
+
+            const outputPath = ".codex-pr-review.md";
+            const output = fs.existsSync(outputPath)
+              ? fs.readFileSync(outputPath, "utf8").trim()
+              : "";
+            const reviewSucceeded = process.env.CODEX_OUTCOME === "success" && output.length > 0;
+            core.setOutput("review_succeeded", reviewSucceeded ? "true" : "false");
+            const reviewContent = reviewSucceeded
+              ? output
+              : [
+                  "Codex review is temporarily unavailable.",
+                  "",
+                  "The workflow preserved the review prompt and any partial output as an artifact.",
+                  "Retry this workflow or continue the review locally using that artifact.",
+                ].join("\n");
             const body = `${marker}
             ## Codex PR Review
 
-            ${fs.readFileSync(".codex-pr-review.md", "utf8").trim()}
+            ${reviewContent}
             `;
             const { owner, repo } = context.repo;
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -175,3 +215,9 @@ jobs:
                 body,
               });
             }
+
+      - name: Keep failed Codex review visible to merge gates
+        if: steps.publish.outputs.review_succeeded != 'true'
+        run: |
+          echo "Codex review action did not complete successfully; retry artifact and PR comment were published."
+          exit 1
