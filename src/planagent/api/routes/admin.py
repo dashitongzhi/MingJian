@@ -936,7 +936,10 @@ async def search_knowledge_graph(
 # ── Hypotheses Scoreboard ────────────────────────────────────────────────────
 
 
-@router.get("/hypotheses/scoreboard", dependencies=_ADMIN_ONLY)
+@router.get(
+    "/hypotheses/scoreboard",
+    dependencies=[Depends(require_prediction_calibration), *_ADMIN_ONLY],
+)
 async def hypotheses_scoreboard(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:

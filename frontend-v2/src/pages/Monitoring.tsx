@@ -29,7 +29,6 @@ export default function Monitoring() {
   const { data: platformTopology } = useApi(() => monitoringApi.getPlatformTopology())
   const { data: sourceChanges } = useApi(() => sourcesApi.listChanges())
   const { data: graph } = useApi(() => monitoringApi.getKnowledgeGraph())
-  const { data: scoreboard } = useApi(() => monitoringApi.getScoreboard())
   const { execute: doTrigger, loading: triggering } = useApiAction((id: string) => monitoringApi.triggerWatchRule(id))
 
   if (loading) return <LoadingSpinner />
@@ -171,7 +170,7 @@ export default function Monitoring() {
         <Card>
           <CardHeader title="原始监控快照" action={<span className="text-xs text-slate-500">debug payload</span>} />
           <CardBody className="space-y-3">
-            <JsonBlock value={{ dashboard, queues, scoreboard }} />
+            <JsonBlock value={{ dashboard, queues }} />
             {changeList.slice(0, 3).map((item, index) => <ExpandableRecord key={index} item={item} eyebrow="source change" />)}
           </CardBody>
         </Card>

@@ -176,7 +176,6 @@ export const monitoringApi = {
   getAnalysisCache: () => api.get('/admin/analysis/cache'),
   getKnowledgeGraph: () => api.get('/knowledge/graph'),
   searchKnowledge: (q: string) => api.get(`/knowledge/search?q=${encodeURIComponent(q)}`),
-  getScoreboard: () => api.get('/hypotheses/scoreboard'),
 }
 
 // ==================== 工作台/导出/通知 ====================

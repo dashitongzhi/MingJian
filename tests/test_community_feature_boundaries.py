@@ -36,6 +36,7 @@ def _configure_local_community(monkeypatch, database_path: Path) -> None:
         ("get", "/monitoring/calibration", "prediction_calibration"),
         ("get", "/monitoring/calibration/history", "prediction_calibration"),
         ("get", "/calibration", "prediction_calibration"),
+        ("get", "/hypotheses/scoreboard", "prediction_calibration"),
         ("post", "/calibration/compute", "prediction_calibration"),
         ("get", "/predictions/backtests", "prediction_backtesting"),
         (
