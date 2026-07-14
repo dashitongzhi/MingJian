@@ -411,6 +411,16 @@ class TestDefaultAdmin:
         tokens = auth_service_with_admin.authenticate("admin", "wrong-password")
         assert tokens is None
 
+    def test_default_admin_can_use_explicit_bootstrap_password(self):
+        service = AuthService(
+            config=AuthConfig(
+                secret_key="test-secret-key",
+                default_admin_password="bootstrap-password-for-admin",
+            )
+        )
+
+        assert service.authenticate("admin", "bootstrap-password-for-admin") is not None
+
     def test_default_admin_password_not_logged(self, caplog):
         """默认 admin 日志不应泄漏随机明文密码。"""
         with caplog.at_level("WARNING"):
@@ -487,6 +497,27 @@ class TestPersistentAuthStore:
         assert found is not None
         assert found.username == "persisted"
         assert svc2.authenticate("persisted", "pass") is not None
+
+    def test_bootstrap_password_recovers_unclaimed_default_admin(self, tmp_path):
+        db_url = f"sqlite:///{tmp_path / 'bootstrap.db'}"
+        initial = make_db_auth_service(db_url)
+        initial.create_user(
+            "admin",
+            "admin@planagent.local",
+            "unknown-generated-password",
+            role=UserRole.ADMIN,
+        )
+
+        recovered = AuthService(
+            AuthConfig(
+                secret_key="test-secret-key-for-unit-tests",
+                database_url=db_url,
+                environment="test",
+                default_admin_password="configured-bootstrap-password",
+            )
+        )
+
+        assert recovered.authenticate("admin", "configured-bootstrap-password") is not None
 
     def test_refresh_token_survives_service_restart(self, tmp_path):
         db_url = f"sqlite:///{tmp_path / 'auth.db'}"

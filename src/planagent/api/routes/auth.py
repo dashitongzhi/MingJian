@@ -41,6 +41,11 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=6)
+    new_password: str = Field(min_length=12)
+
+
 class UserInfo(BaseModel):
     id: str
     username: str
@@ -68,6 +73,7 @@ def _get_auth_service_from_app(app: Any) -> AuthService:
             secret_key=getattr(settings, "auth_secret_key", "") or "",
             database_url=settings.db.url,
             environment=settings.env,
+            default_admin_password=settings.bootstrap_admin_password or None,
         )
         app.state.auth_service = AuthService(config)
     return app.state.auth_service  # type: ignore[no-any-return]  # app.state 动态属性
@@ -253,6 +259,28 @@ async def refresh_token(
         refresh_token=tokens.refresh_token,
         expires_in=tokens.expires_in,
     )
+
+
+@router.post("/change-password")
+async def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    payload: dict[str, Any] = Depends(get_current_user_payload),
+) -> dict[str, str]:
+    """Rotate the current user's password and revoke the token used for the change."""
+    auth_service = _get_auth_service(request)
+    if not auth_service.change_password(
+        str(payload["sub"]),
+        body.current_password,
+        body.new_password,
+    ):
+        raise HTTPException(status_code=400, detail="Current password is invalid")
+
+    authorization = request.headers.get("authorization", "")
+    _, _, token = authorization.partition(" ")
+    if token:
+        auth_service.revoke_token(token)
+    return {"message": "Password changed successfully"}
 
 
 @router.post("/logout")

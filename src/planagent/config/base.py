@@ -93,6 +93,7 @@ class BaseAppSettings(BaseSettings):
     remote_access_enabled: bool = False
     remote_registration_enabled: bool = False
     local_proxy_secret: str = ""
+    bootstrap_admin_password: str = ""
 
     # Notification 配置
     smtp_host: str | None = None
@@ -115,6 +116,11 @@ class BaseAppSettings(BaseSettings):
         if self.remote_access_enabled and len(self.auth_secret_key.strip().encode()) < 32:
             raise ValueError(
                 "PLANAGENT_AUTH_SECRET_KEY is required and must be at least 32 bytes "
+                "when remote access is enabled"
+            )
+        if self.remote_access_enabled and len(self.bootstrap_admin_password.encode()) < 16:
+            raise ValueError(
+                "PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD is required and must be at least 16 bytes "
                 "when remote access is enabled"
             )
         if self.local_proxy_secret and len(self.local_proxy_secret.strip().encode()) < 32:

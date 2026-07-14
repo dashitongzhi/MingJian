@@ -75,10 +75,19 @@ class TestSettingsFromEnv:
             bind_host="0.0.0.0",
             remote_access_enabled=True,
             auth_secret_key="a" * 32,
+            bootstrap_admin_password="b" * 24,
         )
 
         assert settings.bind_host == "0.0.0.0"
         assert settings.remote_access_enabled is True
+
+    def test_remote_access_requires_bootstrap_admin_password(self):
+        with pytest.raises(ValidationError, match="BOOTSTRAP_ADMIN_PASSWORD"):
+            Settings(
+                _env_file=None,
+                remote_access_enabled=True,
+                auth_secret_key="a" * 32,
+            )
 
     def test_local_proxy_secret_requires_strong_value_when_configured(self):
         with pytest.raises(ValidationError, match="LOCAL_PROXY_SECRET must be at least 32 bytes"):

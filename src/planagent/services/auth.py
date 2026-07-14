@@ -45,6 +45,7 @@ class AuthConfig:
     database_url: str | None = None
     environment: str = "development"
     create_default_admin: bool = True
+    default_admin_password: str | None = None
 
 
 @dataclass
@@ -122,22 +123,47 @@ class AuthService:
         """Create a default admin user if none exists."""
         if self._db_enabled:
             with self._session() as session:
+                default_admin = session.execute(
+                    select(AuthUser).where(
+                        AuthUser.username == "admin",
+                        AuthUser.email == "admin@planagent.local",
+                    )
+                ).scalar_one_or_none()
+                if default_admin is not None:
+                    if self.config.default_admin_password and default_admin.last_login is None:
+                        default_admin.password_hash = bcrypt.hashpw(
+                            self.config.default_admin_password.encode(),
+                            bcrypt.gensalt(),
+                        ).decode()
+                        session.commit()
+                        _logger.warning(
+                            "Unclaimed default admin updated with the configured bootstrap credential"
+                        )
+                    return
+                has_admin = session.execute(
+                    select(AuthUser.id).where(AuthUser.role == UserRole.ADMIN.value).limit(1)
+                ).scalar_one_or_none()
+                if has_admin:
+                    return
                 has_user = session.execute(select(AuthUser.id).limit(1)).scalar_one_or_none()
-                if has_user:
+                if has_user and not self.config.default_admin_password:
                     return
         elif self._users:
             return
 
-        random_password = secrets.token_urlsafe(16)
+        bootstrap_password = self.config.default_admin_password or secrets.token_urlsafe(16)
         self.create_user(
             username="admin",
             email="admin@planagent.local",
-            password=random_password,
+            password=bootstrap_password,
             role=UserRole.ADMIN,
         )
-        _logger.warning(
-            "Default admin created for bootstrap; generated password was not logged. Reset it before operational use."
-        )
+        if self.config.default_admin_password:
+            _logger.warning("Default admin created with the configured bootstrap credential")
+        else:
+            _logger.warning(
+                "Default admin created for bootstrap; generated password was not logged. Reset it before operational use."
+            )
 
     # ── User Management ───────────────────────────────────────
 
@@ -224,6 +250,43 @@ class AuthService:
 
         user.last_login = utc_now()
         return self._create_token_pair(user)
+
+    def change_password(self, user_id: str, current_password: str, new_password: str) -> bool:
+        """Replace an active user's password and revoke every refresh token for that user."""
+        if self._db_enabled:
+            with self._session() as session:
+                record = session.get(AuthUser, user_id)
+                if record is None or not record.is_active:
+                    return False
+                if not bcrypt.checkpw(current_password.encode(), record.password_hash.encode()):
+                    return False
+                record.password_hash = bcrypt.hashpw(
+                    new_password.encode(),
+                    bcrypt.gensalt(),
+                ).decode()
+                refresh_tokens = session.scalars(
+                    select(AuthRefreshToken).where(
+                        AuthRefreshToken.user_id == user_id,
+                        AuthRefreshToken.revoked_at.is_(None),
+                    )
+                ).all()
+                for refresh_token in refresh_tokens:
+                    refresh_token.revoked_at = utc_now()
+                session.commit()
+        else:
+            user = self._users.get(user_id)
+            if user is None or not user.is_active:
+                return False
+            if not bcrypt.checkpw(current_password.encode(), user.password_hash.encode()):
+                return False
+            user.password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+
+        self._refresh_tokens = {
+            token_hash: owner_id
+            for token_hash, owner_id in self._refresh_tokens.items()
+            if owner_id != user_id
+        }
+        return True
 
     def refresh_access_token(self, refresh_token: str) -> TokenPair | None:
         """Get new access token using refresh token."""

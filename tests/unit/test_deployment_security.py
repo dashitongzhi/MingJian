@@ -49,6 +49,7 @@ def test_example_environment_defaults_to_loopback_local_mode() -> None:
     assert "PLANAGENT_REMOTE_ACCESS_ENABLED=false" in example
     assert "PLANAGENT_AUTH_SECRET_KEY=" in example
     assert "PLANAGENT_LOCAL_PROXY_SECRET=" in example
+    assert "PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD=" in example
 
 
 def test_readme_development_commands_preserve_loopback_access_boundary() -> None:
@@ -58,14 +59,18 @@ def test_readme_development_commands_preserve_loopback_access_boundary() -> None
         assert "uvicorn planagent.main:app --reload --host 0.0.0.0 --port 8000" not in readme
         assert "PLANAGENT_REMOTE_ACCESS_ENABLED=true" in readme
         assert "PLANAGENT_AUTH_SECRET_KEY" in readme
+        assert "PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD" in readme
+        assert "/auth/change-password" in readme
 
 
 def test_setup_generates_persistent_auth_secret_before_compose_start() -> None:
     setup = (ROOT / "setup.sh").read_text()
 
     secret_write = setup.index('update_env_value "PLANAGENT_AUTH_SECRET_KEY"')
+    admin_password_write = setup.index('update_env_value "PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD"')
     proxy_secret_write = setup.index('update_env_value "PLANAGENT_LOCAL_PROXY_SECRET"')
     compose_start = setup.index("docker compose up -d")
 
     assert secret_write < compose_start
+    assert admin_password_write < compose_start
     assert proxy_secret_write < compose_start

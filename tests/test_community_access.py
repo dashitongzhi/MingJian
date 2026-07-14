@@ -30,6 +30,10 @@ def _configure_remote_access(
         "true" if registration_enabled else "false",
     )
     monkeypatch.setenv("PLANAGENT_AUTH_SECRET_KEY", "test-secret-key-with-at-least-32-bytes")
+    monkeypatch.setenv(
+        "PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD",
+        "test-bootstrap-admin-password",
+    )
     reset_settings_cache()
     reset_database_cache()
 
@@ -375,6 +379,67 @@ def test_remote_registration_is_disabled_by_default(monkeypatch, tmp_path: Path)
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Remote user registration is disabled"
+
+
+def test_remote_mode_has_an_explicit_bootstrap_admin_login(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "bootstrap-admin.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        response = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-bootstrap-admin-password",
+            },
+        )
+
+    assert response.status_code == 200
+
+
+def test_remote_admin_can_rotate_bootstrap_password(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "rotate-bootstrap-admin.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        login = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-bootstrap-admin-password",
+            },
+        )
+        assert login.status_code == 200
+        bootstrap_refresh_token = login.json()["refresh_token"]
+        changed = client.post(
+            "/auth/change-password",
+            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+            json={
+                "current_password": "test-bootstrap-admin-password",
+                "new_password": "rotated-admin-password-strong",
+            },
+        )
+        old_login = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-bootstrap-admin-password",
+            },
+        )
+        new_login = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "rotated-admin-password-strong",
+            },
+        )
+        old_refresh = client.post(
+            "/auth/refresh",
+            json={"refresh_token": bootstrap_refresh_token},
+        )
+
+    assert changed.status_code == 200
+    assert old_login.status_code == 401
+    assert new_login.status_code == 200
+    assert old_refresh.status_code == 401
 
 
 def test_remote_health_and_docs_remain_public(monkeypatch, tmp_path: Path) -> None:

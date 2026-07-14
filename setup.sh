@@ -113,6 +113,23 @@ else
   success "Keeping the existing PLANAGENT_AUTH_SECRET_KEY."
 fi
 
+bootstrap_admin_password="$(awk '
+  /^PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD=/ {
+    sub(/^PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD=/, "")
+    print
+    exit
+  }
+' .env)"
+if [ "${#bootstrap_admin_password}" -lt 16 ]; then
+  command -v od >/dev/null 2>&1 || fail "od is required to generate the bootstrap admin password."
+  bootstrap_admin_password="$(od -An -N24 -tx1 /dev/urandom | tr -d '[:space:]')"
+  [ "${#bootstrap_admin_password}" -ge 16 ] || fail "Could not generate a bootstrap admin password."
+  update_env_value "PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD" "$bootstrap_admin_password" ".env"
+  success "Generated the initial admin credential for optional authenticated remote access."
+else
+  success "Keeping the existing PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD."
+fi
+
 local_proxy_secret="$(awk '
   /^PLANAGENT_LOCAL_PROXY_SECRET=/ {
     sub(/^PLANAGENT_LOCAL_PROXY_SECRET=/, "")
@@ -163,4 +180,5 @@ printf '%s\n' "🧠 API:      http://localhost:8000"
 printf '%s\n' "📦 MinIO:    http://localhost:9001"
 printf '\n'
 printf '%s\n' "MinIO login: use PLANAGENT_MINIO_ACCESS_KEY / PLANAGENT_MINIO_SECRET_KEY from .env"
+printf '%s\n' "Remote admin: username admin; password is PLANAGENT_BOOTSTRAP_ADMIN_PASSWORD in .env"
 printf '%s\n' "To stop MingJian later, run: docker compose down"

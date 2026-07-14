@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
             secret_key=settings.auth.secret_key,
             database_url=settings.db.url,
             environment=settings.env,
+            default_admin_password=settings.bootstrap_admin_password or None,
         )
         app.state.auth_service = AuthService(auth_config)
 
