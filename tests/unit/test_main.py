@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from planagent import main
 
 
-def test_run_uses_configured_loopback_bind_host(monkeypatch) -> None:
+def test_run_uses_configured_loopback_bind_host(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
     monkeypatch.setattr(main, "get_settings", lambda: SimpleNamespace(bind_host="127.0.0.1"))

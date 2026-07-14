@@ -20,16 +20,20 @@ def require_commercial_edition(feature: str) -> NoReturn:
 
 
 def require_prediction_calibration() -> NoReturn:
+    """Reject prediction calibration in the Community distribution."""
     require_commercial_edition("prediction_calibration")
 
 
 def require_prediction_backtesting() -> NoReturn:
+    """Reject prediction backtesting in the Community distribution."""
     require_commercial_edition("prediction_backtesting")
 
 
 def require_notification_channels() -> NoReturn:
+    """Reject external notification channels in the Community distribution."""
     require_commercial_edition("notification_channels")
 
 
 def require_notification_broadcast() -> NoReturn:
+    """Reject global notification broadcasts in the Community distribution."""
     require_commercial_edition("notification_broadcast")

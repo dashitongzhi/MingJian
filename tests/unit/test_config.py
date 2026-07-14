@@ -15,7 +15,7 @@ from planagent.config import Settings, OpenAIConfig, OpenAITargetConfig
 
 
 class TestSettingsFromEnv:
-    def test_default_values(self, settings):
+    def test_default_values(self, settings: Settings) -> None:
         assert settings.app_name == "PlanAgent"
         assert settings.env == "development"
         assert settings.bind_host == "127.0.0.1"
@@ -55,12 +55,12 @@ class TestSettingsFromEnv:
         """_env_file=None means no .env is read — settings should have pure defaults."""
         assert settings.database_url.startswith("postgresql+psycopg://")
 
-    def test_non_loopback_bind_requires_remote_access(self):
+    def test_non_loopback_bind_requires_remote_access(self) -> None:
         with pytest.raises(ValidationError, match="remote access must be explicitly enabled"):
             Settings(_env_file=None, bind_host="0.0.0.0")
 
     @pytest.mark.parametrize("secret", ["", "too-short"])
-    def test_remote_access_requires_strong_persistent_auth_secret(self, secret):
+    def test_remote_access_requires_strong_persistent_auth_secret(self, secret: str) -> None:
         with pytest.raises(ValidationError, match="AUTH_SECRET_KEY is required"):
             Settings(
                 _env_file=None,
@@ -69,7 +69,7 @@ class TestSettingsFromEnv:
                 auth_secret_key=secret,
             )
 
-    def test_non_loopback_remote_access_accepts_strong_auth_secret(self):
+    def test_non_loopback_remote_access_accepts_strong_auth_secret(self) -> None:
         settings = Settings(
             _env_file=None,
             bind_host="0.0.0.0",
@@ -81,7 +81,7 @@ class TestSettingsFromEnv:
         assert settings.bind_host == "0.0.0.0"
         assert settings.remote_access_enabled is True
 
-    def test_remote_access_requires_bootstrap_admin_password(self):
+    def test_remote_access_requires_bootstrap_admin_password(self) -> None:
         with pytest.raises(ValidationError, match="BOOTSTRAP_ADMIN_PASSWORD"):
             Settings(
                 _env_file=None,
@@ -89,7 +89,7 @@ class TestSettingsFromEnv:
                 auth_secret_key="a" * 32,
             )
 
-    def test_local_proxy_secret_requires_strong_value_when_configured(self):
+    def test_local_proxy_secret_requires_strong_value_when_configured(self) -> None:
         with pytest.raises(ValidationError, match="LOCAL_PROXY_SECRET must be at least 32 bytes"):
             Settings(_env_file=None, local_proxy_secret="too-short")
 

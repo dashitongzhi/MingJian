@@ -17,7 +17,7 @@ def _database_url(path: Path) -> str:
 
 
 def _configure_remote_access(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     database_path: Path,
     *,
     registration_enabled: bool = False,
@@ -60,7 +60,9 @@ def _register_and_login_user(
     return user.id, str(login.json()["access_token"])
 
 
-def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
+def test_notifications_reject_anonymous_remote_access(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "anonymous.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -70,7 +72,9 @@ def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Pat
     assert response.json()["detail"] == "Missing Authorization header"
 
 
-def test_notification_stats_accept_remote_admin(monkeypatch, tmp_path: Path) -> None:
+def test_notification_stats_accept_remote_admin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "admin-stats.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -90,7 +94,9 @@ def test_notification_stats_accept_remote_admin(monkeypatch, tmp_path: Path) -> 
     assert response.status_code == 200
 
 
-def test_notification_stats_reject_remote_analyst(monkeypatch, tmp_path: Path) -> None:
+def test_notification_stats_reject_remote_analyst(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(
         monkeypatch,
         tmp_path / "analyst-stats.db",
@@ -109,7 +115,7 @@ def test_notification_stats_reject_remote_analyst(monkeypatch, tmp_path: Path) -
 
 
 def test_remote_user_cannot_read_another_users_notification_history(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(
         monkeypatch,
@@ -129,7 +135,9 @@ def test_remote_user_cannot_read_another_users_notification_history(
     assert response.json()["detail"] == "Notification access is limited to the current user"
 
 
-def test_remote_analyst_cannot_broadcast_notifications(monkeypatch, tmp_path: Path) -> None:
+def test_remote_analyst_cannot_broadcast_notifications(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(
         monkeypatch,
         tmp_path / "notification-broadcast.db",
@@ -148,7 +156,9 @@ def test_remote_analyst_cannot_broadcast_notifications(monkeypatch, tmp_path: Pa
     assert response.json()["detail"] == "Notification administration requires admin role"
 
 
-def test_remote_user_cannot_send_notification_as_another_user(monkeypatch, tmp_path: Path) -> None:
+def test_remote_user_cannot_send_notification_as_another_user(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(
         monkeypatch,
         tmp_path / "notification-send.db",
@@ -172,7 +182,9 @@ def test_remote_user_cannot_send_notification_as_another_user(monkeypatch, tmp_p
     assert response.json()["detail"] == "Notification access is limited to the current user"
 
 
-def test_remote_user_can_use_own_notification_channel(monkeypatch, tmp_path: Path) -> None:
+def test_remote_user_can_use_own_notification_channel(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(
         monkeypatch,
         tmp_path / "notification-own-channel.db",
@@ -206,7 +218,7 @@ def test_remote_user_can_use_own_notification_channel(monkeypatch, tmp_path: Pat
 
 
 def test_notifications_allow_local_session_behind_container_proxy(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     proxy_secret = "container-proxy-secret-with-at-least-32-bytes"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "loopback.db"))
@@ -226,7 +238,7 @@ def test_notifications_allow_local_session_behind_container_proxy(
 
 
 def test_local_mode_rejects_non_loopback_peer_without_proxy_secret(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "exposed-local.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -243,7 +255,7 @@ def test_local_mode_rejects_non_loopback_peer_without_proxy_secret(
 
 
 def test_local_mode_does_not_expose_auth_routes_to_non_loopback_peers(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "local-auth.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -265,7 +277,9 @@ def test_local_mode_does_not_expose_auth_routes_to_non_loopback_peers(
     assert response.status_code == 403
 
 
-def test_admin_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
+def test_admin_business_routes_reject_anonymous_remote_access(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "admin-anonymous.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -275,7 +289,9 @@ def test_admin_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_p
     assert response.json()["detail"] == "Missing Authorization header"
 
 
-def test_admin_business_routes_allow_loopback_local_session(monkeypatch, tmp_path: Path) -> None:
+def test_admin_business_routes_allow_loopback_local_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "admin-local.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
@@ -288,7 +304,9 @@ def test_admin_business_routes_allow_loopback_local_session(monkeypatch, tmp_pat
     assert response.status_code == 200
 
 
-def test_admin_only_routes_allow_loopback_local_admin_session(monkeypatch, tmp_path: Path) -> None:
+def test_admin_only_routes_allow_loopback_local_admin_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "admin-role.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
@@ -301,7 +319,9 @@ def test_admin_only_routes_allow_loopback_local_admin_session(monkeypatch, tmp_p
     assert response.status_code == 200
 
 
-def test_expired_watch_rule_cannot_be_triggered_manually(monkeypatch, tmp_path: Path) -> None:
+def test_expired_watch_rule_cannot_be_triggered_manually(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "expired-watch.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
@@ -332,7 +352,9 @@ def test_expired_watch_rule_cannot_be_triggered_manually(monkeypatch, tmp_path: 
     assert response.json()["detail"] == "Community monitoring window expired after 24 hours"
 
 
-def test_all_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
+def test_all_business_routes_reject_anonymous_remote_access(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "global-gate.db")
     payload = {
         "content": "Assess a local planning decision",
@@ -358,7 +380,7 @@ def test_all_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_pat
 
 
 def test_global_gate_accepts_authenticated_remote_business_request(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(
         monkeypatch,
@@ -382,7 +404,7 @@ def test_global_gate_accepts_authenticated_remote_business_request(
 
 @pytest.mark.parametrize("registration_enabled", [False, True])
 def test_remote_registration_is_always_disabled(
-    monkeypatch, tmp_path: Path, registration_enabled: bool
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, registration_enabled: bool
 ) -> None:
     _configure_remote_access(
         monkeypatch,
@@ -404,7 +426,9 @@ def test_remote_registration_is_always_disabled(
     assert response.json()["detail"] == "Remote user registration is disabled"
 
 
-def test_remote_mode_has_an_explicit_bootstrap_admin_login(monkeypatch, tmp_path: Path) -> None:
+def test_remote_mode_has_an_explicit_bootstrap_admin_login(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "bootstrap-admin.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -419,7 +443,9 @@ def test_remote_mode_has_an_explicit_bootstrap_admin_login(monkeypatch, tmp_path
     assert response.status_code == 200
 
 
-def test_remote_admin_can_rotate_bootstrap_password(monkeypatch, tmp_path: Path) -> None:
+def test_remote_admin_can_rotate_bootstrap_password(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "rotate-bootstrap-admin.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -470,7 +496,9 @@ def test_remote_admin_can_rotate_bootstrap_password(monkeypatch, tmp_path: Path)
     assert old_access.status_code == 401
 
 
-def test_remote_logout_revokes_the_users_refresh_session(monkeypatch, tmp_path: Path) -> None:
+def test_remote_logout_revokes_the_users_refresh_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "logout-refresh.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -496,7 +524,9 @@ def test_remote_logout_revokes_the_users_refresh_session(monkeypatch, tmp_path: 
     assert refreshed.status_code == 401
 
 
-def test_remote_health_and_docs_remain_public(monkeypatch, tmp_path: Path) -> None:
+def test_remote_health_and_docs_remain_public(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "public-endpoints.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
@@ -511,7 +541,7 @@ def test_remote_health_and_docs_remain_public(monkeypatch, tmp_path: Path) -> No
 
 
 def test_remote_notification_websocket_rejects_anonymous_connection(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "websocket-anonymous.db")
 
@@ -524,7 +554,7 @@ def test_remote_notification_websocket_rejects_anonymous_connection(
 
 
 def test_remote_notification_websocket_rejects_access_token_in_query_string(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(
         monkeypatch,
@@ -542,7 +572,7 @@ def test_remote_notification_websocket_rejects_access_token_in_query_string(
 
 
 def test_remote_notification_websocket_accepts_browser_jwt_subprotocol(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "websocket-subprotocol.db")
 
@@ -558,7 +588,7 @@ def test_remote_notification_websocket_accepts_browser_jwt_subprotocol(
 
 
 def test_remote_notification_websocket_rejects_another_users_identity(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(
         monkeypatch,
@@ -579,7 +609,9 @@ def test_remote_notification_websocket_rejects_another_users_identity(
     assert exc_info.value.code == 1008
 
 
-def test_remote_analyst_cannot_open_global_notification_stream(monkeypatch, tmp_path: Path) -> None:
+def test_remote_analyst_cannot_open_global_notification_stream(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_remote_access(
         monkeypatch,
         tmp_path / "websocket-global.db",
@@ -599,7 +631,7 @@ def test_remote_analyst_cannot_open_global_notification_stream(monkeypatch, tmp_
 
 
 def test_local_notification_websocket_uses_local_session_behind_proxy(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     proxy_secret = "websocket-proxy-secret-with-at-least-32-bytes"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "websocket-local.db"))
@@ -619,7 +651,7 @@ def test_local_notification_websocket_uses_local_session_behind_proxy(
 
 
 def test_local_session_reaches_routes_with_explicit_auth_dependencies(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     proxy_secret = "dependency-proxy-secret-with-at-least-32-bytes"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "local-deps.db"))

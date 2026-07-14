@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 import jwt
@@ -343,7 +344,7 @@ class TestTokenRevocation:
 
     def test_password_change_revokes_all_existing_access_and_refresh_tokens(
         self, auth_service: AuthService
-    ):
+    ) -> None:
         """Changing a password invalidates every previously issued user session."""
         user = auth_service.create_user("rotate-all", "rotate-all@test.com", "old-password")
         first = auth_service.authenticate("rotate-all", "old-password")
@@ -428,7 +429,7 @@ class TestDefaultAdmin:
         tokens = auth_service_with_admin.authenticate("admin", "wrong-password")
         assert tokens is None
 
-    def test_default_admin_can_use_explicit_bootstrap_password(self):
+    def test_default_admin_can_use_explicit_bootstrap_password(self) -> None:
         service = AuthService(
             config=AuthConfig(
                 secret_key="test-secret-key",
@@ -515,7 +516,7 @@ class TestPersistentAuthStore:
         assert found.username == "persisted"
         assert svc2.authenticate("persisted", "pass") is not None
 
-    def test_bootstrap_password_recovers_unclaimed_default_admin(self, tmp_path):
+    def test_bootstrap_password_recovers_unclaimed_default_admin(self, tmp_path: Path) -> None:
         db_url = f"sqlite:///{tmp_path / 'bootstrap.db'}"
         initial = make_db_auth_service(db_url)
         initial.create_user(
@@ -557,7 +558,9 @@ class TestPersistentAuthStore:
         svc2 = make_db_auth_service(db_url)
         assert svc2.verify_token(tokens.access_token) is None
 
-    def test_password_change_session_revocation_survives_service_restart(self, tmp_path):
+    def test_password_change_session_revocation_survives_service_restart(
+        self, tmp_path: Path
+    ) -> None:
         db_url = f"sqlite:///{tmp_path / 'password-generation.db'}"
         svc1 = make_db_auth_service(db_url)
         user = svc1.create_user("rotate", "rotate@test.com", "old-password")

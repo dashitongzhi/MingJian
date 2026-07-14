@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -256,12 +257,12 @@ def test_llm_debate_uses_role_specific_targets() -> None:
 
 
 @pytest.fixture
-def anyio_backend():
+def anyio_backend() -> str:
     return "asyncio"
 
 
 @pytest.fixture
-async def client():
+async def client() -> AsyncIterator[AsyncClient]:
     from planagent.main import app
 
     transport = ASGITransport(app=app)
@@ -269,7 +270,7 @@ async def client():
         yield c
 
 
-async def test_decision_options_and_hypotheses_flow(client) -> None:
+async def test_decision_options_and_hypotheses_flow(client: AsyncClient) -> None:
     # Create a simulation run first
     sim_resp = await client.post(
         "/simulation/runs",
@@ -349,7 +350,7 @@ async def test_decision_options_and_hypotheses_flow(client) -> None:
     assert verify_resp.json()["verified_at"] is not None
 
 
-async def test_calibration_compute(client) -> None:
+async def test_calibration_compute(client: AsyncClient) -> None:
     resp = await client.post(
         "/calibration/compute",
         json={"domain_id": "corporate"},

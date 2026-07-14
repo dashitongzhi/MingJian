@@ -4,6 +4,8 @@ import asyncio
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from planagent.config import reset_settings_cache
@@ -23,7 +25,7 @@ def build_database_url(path: Path) -> str:
     return f"sqlite+aiosqlite:///{path.resolve().as_posix()}"
 
 
-def disable_openai(monkeypatch) -> None:
+def disable_openai(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANAGENT_OPENAI_API_KEY", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_BASE_URL", "")
     monkeypatch.setenv("PLANAGENT_OPENAI_PRIMARY_API_KEY", "")
@@ -37,7 +39,7 @@ def disable_openai(monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
-def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
+def test_console_page_and_assistant_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     database_path = tmp_path / "planagent-assistant.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -136,7 +138,7 @@ def test_console_page_and_assistant_run(monkeypatch, tmp_path: Path) -> None:
         assert daily_body["summary"]
 
 
-def test_assistant_stream_emits_key_events(monkeypatch, tmp_path: Path) -> None:
+def test_assistant_stream_emits_key_events(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     database_path = tmp_path / "planagent-assistant-stream.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -174,7 +176,9 @@ def test_assistant_stream_emits_key_events(monkeypatch, tmp_path: Path) -> None:
     assert "event: assistant_result" in body
 
 
-def test_strategic_session_persists_briefs_and_runs(monkeypatch, tmp_path: Path) -> None:
+def test_strategic_session_persists_briefs_and_runs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-assistant-session.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
@@ -261,7 +265,9 @@ def test_strategic_session_persists_briefs_and_runs(monkeypatch, tmp_path: Path)
         )
 
 
-def test_strategic_watch_worker_refreshes_due_session(monkeypatch, tmp_path: Path) -> None:
+def test_strategic_watch_worker_refreshes_due_session(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     database_path = tmp_path / "planagent-watch-worker.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")

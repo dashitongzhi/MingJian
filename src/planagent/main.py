@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -25,7 +26,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         database = get_database()
         await database.init_models()
         app.state.event_bus = build_event_bus(settings)

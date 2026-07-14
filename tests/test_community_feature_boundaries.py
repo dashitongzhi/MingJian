@@ -18,7 +18,7 @@ COMMERCIAL_FEATURE_DETAIL = {
 }
 
 
-def _configure_local_community(monkeypatch, database_path: Path) -> None:
+def _configure_local_community(monkeypatch: pytest.MonkeyPatch, database_path: Path) -> None:
     monkeypatch.setenv(
         "PLANAGENT_DATABASE_URL",
         f"sqlite+aiosqlite:///{database_path.resolve().as_posix()}",
@@ -47,7 +47,7 @@ def _configure_local_community(monkeypatch, database_path: Path) -> None:
     ],
 )
 def test_community_rejects_commercial_prediction_operations(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     method: str,
     path: str,
@@ -67,7 +67,7 @@ def test_community_rejects_commercial_prediction_operations(
 
 
 def test_community_dashboard_omits_commercial_calibration_and_backtest_metrics(
-    monkeypatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_local_community(monkeypatch, tmp_path / "monitoring-dashboard.db")
 
@@ -88,7 +88,7 @@ def test_community_dashboard_omits_commercial_calibration_and_backtest_metrics(
 
 @pytest.mark.parametrize("channel", ["email", "webhook"])
 def test_community_notification_delivery_is_websocket_only(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     channel: str,
 ) -> None:
@@ -113,7 +113,9 @@ def test_community_notification_delivery_is_websocket_only(
     }
 
 
-def test_community_rejects_notification_broadcasts(monkeypatch, tmp_path: Path) -> None:
+def test_community_rejects_notification_broadcasts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_local_community(monkeypatch, tmp_path / "notification-broadcast.db")
 
     with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
@@ -126,7 +128,9 @@ def test_community_rejects_notification_broadcasts(monkeypatch, tmp_path: Path) 
     assert response.json()["detail"]["feature"] == "notification_broadcast"
 
 
-def test_community_does_not_expose_global_notification_stream(monkeypatch, tmp_path: Path) -> None:
+def test_community_does_not_expose_global_notification_stream(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _configure_local_community(monkeypatch, tmp_path / "global-notification-stream.db")
 
     with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:

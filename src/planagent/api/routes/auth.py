@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from ipaddress import ip_address
 from secrets import compare_digest
 from typing import Any, Literal
@@ -177,7 +178,7 @@ def _has_valid_local_proxy_credential(
     return bool(configured and provided and compare_digest(configured, provided))
 
 
-def require_role(required_role: UserRole):
+def require_role(required_role: UserRole) -> Callable[..., dict[str, Any]]:
     """Dependency factory for role-based access control."""
 
     def _check(
