@@ -106,6 +106,7 @@ class BaseAppSettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_access_binding(self) -> "BaseAppSettings":
+        """Reject listener and credential combinations that would expose local mode remotely."""
         if not _is_loopback_host(self.bind_host) and not self.remote_access_enabled:
             raise ValueError(
                 "remote access must be explicitly enabled for a non-loopback bind host"
