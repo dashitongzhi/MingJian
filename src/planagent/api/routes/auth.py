@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
+from secrets import compare_digest
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
@@ -105,12 +107,23 @@ def get_community_access_payload(
     authorization: str | None = Header(None),
 ) -> dict[str, Any]:
     """Authenticate remote mode or provide the deployment-local single-user session."""
-    return resolve_community_access(request.app, authorization)
+    existing = getattr(request.state, "community_access_payload", None)
+    if isinstance(existing, dict):
+        return existing
+    return resolve_community_access(
+        request.app,
+        authorization,
+        client_host=request.client.host if request.client else None,
+        local_proxy_credential=request.headers.get("x-mingjian-local-proxy"),
+    )
 
 
 def resolve_community_access(
     app: Any,
     authorization: str | None,
+    *,
+    client_host: str | None,
+    local_proxy_credential: str | None,
 ) -> dict[str, Any]:
     """Resolve the deployment-level Community access mode for HTTP or WebSocket."""
     from planagent.config import get_settings
@@ -118,6 +131,14 @@ def resolve_community_access(
     settings = get_settings()
     if settings.remote_access_enabled:
         return _verify_bearer_authorization(app, authorization)
+    if not _is_loopback_client(client_host) and not _has_valid_local_proxy_credential(
+        settings.local_proxy_secret,
+        local_proxy_credential,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Local Community access requires a loopback connection",
+        )
 
     return {
         "sub": "community-local",
@@ -126,6 +147,28 @@ def resolve_community_access(
         "type": "local_session",
         "iss": "planagent-community",
     }
+
+
+def _is_loopback_client(client_host: str | None) -> bool:
+    """Return whether the ASGI peer represents a loopback-only client."""
+    if client_host == "testclient":
+        return True
+    if not client_host:
+        return False
+    try:
+        return ip_address(client_host).is_loopback
+    except ValueError:
+        return False
+
+
+def _has_valid_local_proxy_credential(
+    configured_secret: str,
+    provided_secret: str | None,
+) -> bool:
+    """Authenticate an explicitly configured same-deployment reverse proxy."""
+    configured = configured_secret.strip()
+    provided = (provided_secret or "").strip()
+    return bool(configured and provided and compare_digest(configured, provided))
 
 
 def require_role(required_role: UserRole):

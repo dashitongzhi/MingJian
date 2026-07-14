@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from planagent.api.routes.auth import resolve_community_access
+from planagent.config import get_settings
 
 
 _PUBLIC_GET_PATHS = {
@@ -36,7 +37,10 @@ class CommunityAccessMiddleware:
         if scope_type not in {"http", "websocket"}:
             await self.app(scope, receive, send)
             return
-        if scope_type == "http" and _is_public_request(scope):
+        if scope_type == "http" and _is_public_request(
+            scope,
+            expose_auth_routes=get_settings().remote_access_enabled,
+        ):
             await self.app(scope, receive, send)
             return
 
@@ -44,6 +48,8 @@ class CommunityAccessMiddleware:
             payload = resolve_community_access(
                 scope["app"],
                 _scope_authorization(scope),
+                client_host=_scope_client_host(scope),
+                local_proxy_credential=_scope_header(scope, b"x-mingjian-local-proxy"),
             )
         except HTTPException as exc:
             if scope_type == "websocket":
@@ -67,7 +73,7 @@ class CommunityAccessMiddleware:
         await self.app(scope, receive, send)
 
 
-def _is_public_request(scope: Scope) -> bool:
+def _is_public_request(scope: Scope, *, expose_auth_routes: bool) -> bool:
     method = str(scope.get("method", "")).upper()
     if method == "OPTIONS":
         return True
@@ -75,7 +81,7 @@ def _is_public_request(scope: Scope) -> bool:
     path = _canonical_path(str(scope.get("path", "")))
     if method in {"GET", "HEAD"} and path in _PUBLIC_GET_PATHS:
         return True
-    return method == "POST" and path in _PUBLIC_AUTH_POST_PATHS
+    return expose_auth_routes and method == "POST" and path in _PUBLIC_AUTH_POST_PATHS
 
 
 def _canonical_path(path: str) -> str:
@@ -87,9 +93,9 @@ def _canonical_path(path: str) -> str:
 
 
 def _scope_authorization(scope: Scope) -> str | None:
-    for key, value in scope.get("headers", []):
-        if key.lower() == b"authorization":
-            return value.decode("latin-1")
+    authorization = _scope_header(scope, b"authorization")
+    if authorization:
+        return authorization
 
     if scope["type"] == "websocket":
         query = parse_qs(scope.get("query_string", b"").decode("utf-8", errors="ignore"))
@@ -97,3 +103,17 @@ def _scope_authorization(scope: Scope) -> str | None:
         if token:
             return f"Bearer {token}"
     return None
+
+
+def _scope_header(scope: Scope, header_name: bytes) -> str | None:
+    for key, value in scope.get("headers", []):
+        if key.lower() == header_name:
+            return value.decode("latin-1")
+    return None
+
+
+def _scope_client_host(scope: Scope) -> str | None:
+    client = scope.get("client")
+    if not client:
+        return None
+    return str(client[0])

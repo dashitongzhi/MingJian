@@ -80,6 +80,10 @@ class TestSettingsFromEnv:
         assert settings.bind_host == "0.0.0.0"
         assert settings.remote_access_enabled is True
 
+    def test_local_proxy_secret_requires_strong_value_when_configured(self):
+        with pytest.raises(ValidationError, match="LOCAL_PROXY_SECRET must be at least 32 bytes"):
+            Settings(_env_file=None, local_proxy_secret="too-short")
+
 
 # ---------------------------------------------------------------------------
 # Nested OpenAI config via env vars

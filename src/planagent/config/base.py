@@ -92,6 +92,7 @@ class BaseAppSettings(BaseSettings):
     auth_secret_key: str = ""
     remote_access_enabled: bool = False
     remote_registration_enabled: bool = False
+    local_proxy_secret: str = ""
 
     # Notification 配置
     smtp_host: str | None = None
@@ -116,6 +117,8 @@ class BaseAppSettings(BaseSettings):
                 "PLANAGENT_AUTH_SECRET_KEY is required and must be at least 32 bytes "
                 "when remote access is enabled"
             )
+        if self.local_proxy_secret and len(self.local_proxy_secret.strip().encode()) < 32:
+            raise ValueError("PLANAGENT_LOCAL_PROXY_SECRET must be at least 32 bytes when set")
         return self
 
     # --- 结构化子模型访问器 ---

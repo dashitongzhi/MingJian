@@ -95,6 +95,7 @@ services:
       - "127.0.0.1:3001:3000"
     environment:
       VITE_API_PROXY_TARGET: http://api:8000
+      MINGJIAN_LOCAL_PROXY_SECRET: ${PLANAGENT_LOCAL_PROXY_SECRET:?Set PLANAGENT_LOCAL_PROXY_SECRET or run ./setup.sh}
     volumes:
       - ./frontend-v2:/app
     depends_on:

@@ -113,6 +113,23 @@ else
   success "Keeping the existing PLANAGENT_AUTH_SECRET_KEY."
 fi
 
+local_proxy_secret="$(awk '
+  /^PLANAGENT_LOCAL_PROXY_SECRET=/ {
+    sub(/^PLANAGENT_LOCAL_PROXY_SECRET=/, "")
+    print
+    exit
+  }
+' .env)"
+if [ "${#local_proxy_secret}" -lt 32 ]; then
+  command -v od >/dev/null 2>&1 || fail "od is required to generate the local proxy secret."
+  local_proxy_secret="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
+  [ "${#local_proxy_secret}" -ge 32 ] || fail "Could not generate a strong local proxy secret."
+  update_env_value "PLANAGENT_LOCAL_PROXY_SECRET" "$local_proxy_secret" ".env"
+  success "Generated the same-deployment local proxy credential."
+else
+  success "Keeping the existing PLANAGENT_LOCAL_PROXY_SECRET."
+fi
+
 printf '\n'
 printf '%s\n' "${BOLD}🔑 Enter your OpenAI API key.${RESET}"
 printf '%s\n' "It will be saved as PLANAGENT_OPENAI_API_KEY in .env."

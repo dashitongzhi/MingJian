@@ -82,16 +82,61 @@ def test_notifications_accept_valid_remote_user(monkeypatch, tmp_path: Path) -> 
 def test_notifications_allow_local_session_behind_container_proxy(
     monkeypatch, tmp_path: Path
 ) -> None:
+    proxy_secret = "container-proxy-secret-with-at-least-32-bytes"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "loopback.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_LOCAL_PROXY_SECRET", proxy_secret)
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
     reset_settings_cache()
     reset_database_cache()
 
     with TestClient(create_app(), client=("172.20.0.10", 50000)) as client:
-        response = client.get("/notifications/stats")
+        response = client.get(
+            "/notifications/stats",
+            headers={"X-MingJian-Local-Proxy": proxy_secret},
+        )
 
     assert response.status_code == 200
+
+
+def test_local_mode_rejects_non_loopback_peer_without_proxy_secret(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "exposed-local.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    monkeypatch.delenv("PLANAGENT_LOCAL_PROXY_SECRET", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        response = client.get("/notifications/stats")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Local Community access requires a loopback connection"
+
+
+def test_local_mode_does_not_expose_auth_routes_to_non_loopback_peers(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "local-auth.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    monkeypatch.delenv("PLANAGENT_LOCAL_PROXY_SECRET", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        response = client.post(
+            "/auth/register",
+            json={
+                "username": "exposed-user",
+                "email": "exposed@example.com",
+                "password": "safe-password",
+            },
+        )
+
+    assert response.status_code == 403
 
 
 def test_admin_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
@@ -256,14 +301,19 @@ def test_remote_notification_websocket_rejects_anonymous_connection(
 def test_local_notification_websocket_uses_local_session_behind_proxy(
     monkeypatch, tmp_path: Path
 ) -> None:
+    proxy_secret = "websocket-proxy-secret-with-at-least-32-bytes"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "websocket-local.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_LOCAL_PROXY_SECRET", proxy_secret)
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
     reset_settings_cache()
     reset_database_cache()
 
     with TestClient(create_app(), client=("172.20.0.10", 50000)) as client:
-        with client.websocket_connect("/notifications/ws/local-user") as websocket:
+        with client.websocket_connect(
+            "/notifications/ws/local-user",
+            headers={"X-MingJian-Local-Proxy": proxy_secret},
+        ) as websocket:
             websocket.send_json({"type": "ping"})
             assert websocket.receive_json() == {"type": "pong"}
 
@@ -271,15 +321,18 @@ def test_local_notification_websocket_uses_local_session_behind_proxy(
 def test_local_session_reaches_routes_with_explicit_auth_dependencies(
     monkeypatch, tmp_path: Path
 ) -> None:
+    proxy_secret = "dependency-proxy-secret-with-at-least-32-bytes"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "local-deps.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_LOCAL_PROXY_SECRET", proxy_secret)
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
     reset_settings_cache()
     reset_database_cache()
 
     with TestClient(create_app(), client=("172.20.0.10", 50000)) as client:
-        agents = client.get("/agents")
-        missing_export = client.get("/export/assistant/session/missing")
+        headers = {"X-MingJian-Local-Proxy": proxy_secret}
+        agents = client.get("/agents", headers=headers)
+        missing_export = client.get("/export/assistant/session/missing", headers=headers)
 
     assert agents.status_code == 200
     assert missing_export.status_code == 404
