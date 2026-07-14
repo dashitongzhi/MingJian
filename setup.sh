@@ -96,6 +96,23 @@ else
   warn ".env already exists. I will keep your existing settings and update the OpenAI API key."
 fi
 
+auth_secret_key="$(awk '
+  /^PLANAGENT_AUTH_SECRET_KEY=/ {
+    sub(/^PLANAGENT_AUTH_SECRET_KEY=/, "")
+    print
+    exit
+  }
+' .env)"
+if [ "${#auth_secret_key}" -lt 32 ]; then
+  command -v od >/dev/null 2>&1 || fail "od is required to generate the local authentication secret."
+  auth_secret_key="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
+  [ "${#auth_secret_key}" -ge 32 ] || fail "Could not generate a strong authentication secret."
+  update_env_value "PLANAGENT_AUTH_SECRET_KEY" "$auth_secret_key" ".env"
+  success "Generated PLANAGENT_AUTH_SECRET_KEY for optional authenticated remote access."
+else
+  success "Keeping the existing PLANAGENT_AUTH_SECRET_KEY."
+fi
+
 printf '\n'
 printf '%s\n' "${BOLD}🔑 Enter your OpenAI API key.${RESET}"
 printf '%s\n' "It will be saved as PLANAGENT_OPENAI_API_KEY in .env."

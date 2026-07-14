@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from planagent.config import reset_settings_cache
 from planagent.db import reset_database_cache
@@ -22,6 +25,24 @@ def _configure_remote_access(monkeypatch, database_path: Path) -> None:
     reset_database_cache()
 
 
+def _register_and_login(client: TestClient, username: str = "remote-user") -> str:
+    register = client.post(
+        "/auth/register",
+        json={
+            "username": username,
+            "email": f"{username}@example.com",
+            "password": "safe-password",
+        },
+    )
+    assert register.status_code == 201
+    login = client.post(
+        "/auth/login",
+        json={"username": username, "password": "safe-password"},
+    )
+    assert login.status_code == 200
+    return str(login.json()["access_token"])
+
+
 def test_notifications_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "anonymous.db")
 
@@ -36,37 +57,195 @@ def test_notifications_accept_valid_remote_user(monkeypatch, tmp_path: Path) -> 
     _configure_remote_access(monkeypatch, tmp_path / "authenticated.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        register = client.post(
-            "/auth/register",
-            json={
-                "username": "remote-user",
-                "email": "remote@example.com",
-                "password": "safe-password",
-            },
-        )
-        assert register.status_code == 201
-        login = client.post(
-            "/auth/login",
-            json={"username": "remote-user", "password": "safe-password"},
-        )
-        assert login.status_code == 200
-
+        access_token = _register_and_login(client)
         response = client.get(
             "/notifications/stats",
-            headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+            headers={"Authorization": f"Bearer {access_token}"},
         )
 
     assert response.status_code == 200
 
 
-def test_notifications_allow_loopback_local_session(monkeypatch, tmp_path: Path) -> None:
+def test_notifications_allow_local_session_behind_container_proxy(
+    monkeypatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "loopback.db"))
     monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
     monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
     reset_settings_cache()
     reset_database_cache()
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(create_app(), client=("172.20.0.10", 50000)) as client:
         response = client.get("/notifications/stats")
 
     assert response.status_code == 200
+
+
+def test_admin_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "admin-anonymous.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        response = client.get("/watch/rules")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing Authorization header"
+
+
+def test_admin_business_routes_allow_loopback_local_session(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "admin-local.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+        response = client.get("/watch/rules")
+
+    assert response.status_code == 200
+
+
+def test_admin_only_routes_allow_loopback_local_admin_session(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "admin-role.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+        response = client.get("/admin/analysis/cache")
+
+    assert response.status_code == 200
+
+
+def test_expired_watch_rule_cannot_be_triggered_manually(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "expired-watch.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+        created = client.post(
+            "/watch/rules",
+            json={
+                "name": "24 hour rule",
+                "domain_id": "corporate",
+                "query": "Track a local decision for one day",
+                "source_types": [],
+            },
+        )
+        assert created.status_code == 201
+        rule = created.json()
+        created_at = datetime.fromisoformat(rule["created_at"])
+        monkeypatch.setattr(
+            "planagent.api.routes.admin.utc_now",
+            lambda: created_at + timedelta(hours=24),
+        )
+
+        response = client.post(f"/watch/rules/{rule['id']}/trigger")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Community monitoring window expired after 24 hours"
+
+
+def test_all_business_routes_reject_anonymous_remote_access(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "global-gate.db")
+    payload = {
+        "content": "Assess a local planning decision",
+        "auto_fetch_news": False,
+    }
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        direct = client.post(
+            "/analysis",
+            json=payload,
+            headers={"Origin": "http://localhost:3000"},
+        )
+        api_mirror = client.post(
+            "/api/analysis",
+            json=payload,
+            headers={"Origin": "http://localhost:3000"},
+        )
+
+    for response in (direct, api_mirror):
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Missing Authorization header"
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_global_gate_accepts_authenticated_remote_business_request(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "global-gate-user.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        access_token = _register_and_login(client, username="analysis-user")
+        response = client.post(
+            "/analysis",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "content": "Assess a local planning decision",
+                "auto_fetch_news": False,
+            },
+        )
+
+    assert response.status_code == 200
+
+
+def test_remote_health_and_docs_remain_public(monkeypatch, tmp_path: Path) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "public-endpoints.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        responses = [
+            client.get("/health/live"),
+            client.get("/api/health/live"),
+            client.get("/docs"),
+            client.get("/openapi.json"),
+        ]
+
+    assert all(response.status_code == 200 for response in responses)
+
+
+def test_remote_notification_websocket_rejects_anonymous_connection(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "websocket-anonymous.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect("/notifications/ws/remote-user"):
+                pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_local_notification_websocket_uses_local_session_behind_proxy(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "websocket-local.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("172.20.0.10", 50000)) as client:
+        with client.websocket_connect("/notifications/ws/local-user") as websocket:
+            websocket.send_json({"type": "ping"})
+            assert websocket.receive_json() == {"type": "pong"}
+
+
+def test_local_session_reaches_routes_with_explicit_auth_dependencies(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "local-deps.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("172.20.0.10", 50000)) as client:
+        agents = client.get("/agents")
+        missing_export = client.get("/export/assistant/session/missing")
+
+    assert agents.status_code == 200
+    assert missing_export.status_code == 404

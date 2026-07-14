@@ -1,6 +1,7 @@
+from ipaddress import ip_address
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from planagent.config.auth import AuthSettings
@@ -20,6 +21,7 @@ class BaseAppSettings(BaseSettings):
 
     app_name: str = "PlanAgent"
     env: str = "development"
+    bind_host: str = "127.0.0.1"
     database_url: str = "postgresql+psycopg://planagent:planagent@localhost:5432/planagent"
     redis_url: str = "redis://localhost:6379/0"
     event_bus_backend: str = "redis"
@@ -101,6 +103,19 @@ class BaseAppSettings(BaseSettings):
     # Export 配置
     export_dir: str = "exports"
 
+    @model_validator(mode="after")
+    def validate_access_binding(self) -> "BaseAppSettings":
+        if not _is_loopback_host(self.bind_host) and not self.remote_access_enabled:
+            raise ValueError(
+                "remote access must be explicitly enabled for a non-loopback bind host"
+            )
+        if self.remote_access_enabled and len(self.auth_secret_key.strip().encode()) < 32:
+            raise ValueError(
+                "PLANAGENT_AUTH_SECRET_KEY is required and must be at least 32 bytes "
+                "when remote access is enabled"
+            )
+        return self
+
     # --- 结构化子模型访问器 ---
     # 提供 settings.db / settings.redis / settings.auth / settings.storage
     # 向后兼容：原有的 settings.database_url 等顶级属性仍可直接访问
@@ -146,3 +161,13 @@ class BaseAppSettings(BaseSettings):
             snapshot_backend=self.source_snapshot_backend,
             snapshot_dir=self.source_snapshot_dir,
         )
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().lower()
+    if normalized == "localhost":
+        return True
+    try:
+        return ip_address(normalized).is_loopback
+    except ValueError:
+        return False

@@ -528,6 +528,20 @@ async def trigger_watch_rule(
         raise HTTPException(status_code=404, detail="Watch rule not found.")
 
     now = utc_now()
+    created_at = rule.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=now.tzinfo)
+    if now - created_at >= timedelta(hours=24):
+        rule.enabled = False
+        rule.next_poll_at = None
+        rule.lease_owner = None
+        rule.lease_expires_at = None
+        await session.commit()
+        raise HTTPException(
+            status_code=409,
+            detail="Community monitoring window expired after 24 hours",
+        )
+
     rule.poll_attempts += 1
     rule.lease_owner = "api-trigger"
     rule.lease_expires_at = now

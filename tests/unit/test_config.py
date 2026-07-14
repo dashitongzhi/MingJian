@@ -4,6 +4,7 @@ from __future__ import annotations
 
 
 import pytest
+from pydantic import ValidationError
 
 from planagent.config import Settings, OpenAIConfig, OpenAITargetConfig
 
@@ -17,6 +18,7 @@ class TestSettingsFromEnv:
     def test_default_values(self, settings):
         assert settings.app_name == "PlanAgent"
         assert settings.env == "development"
+        assert settings.bind_host == "127.0.0.1"
         assert settings.db_pool_size == 20
         assert settings.worker_max_attempts == 3
         assert settings.accepted_claim_confidence == 0.70
@@ -51,6 +53,31 @@ class TestSettingsFromEnv:
     def test_no_dotenv_loaded(self, settings):
         """_env_file=None means no .env is read — settings should have pure defaults."""
         assert settings.database_url.startswith("postgresql+psycopg://")
+
+    def test_non_loopback_bind_requires_remote_access(self):
+        with pytest.raises(ValidationError, match="remote access must be explicitly enabled"):
+            Settings(_env_file=None, bind_host="0.0.0.0")
+
+    @pytest.mark.parametrize("secret", ["", "too-short"])
+    def test_remote_access_requires_strong_persistent_auth_secret(self, secret):
+        with pytest.raises(ValidationError, match="AUTH_SECRET_KEY is required"):
+            Settings(
+                _env_file=None,
+                bind_host="0.0.0.0",
+                remote_access_enabled=True,
+                auth_secret_key=secret,
+            )
+
+    def test_non_loopback_remote_access_accepts_strong_auth_secret(self):
+        settings = Settings(
+            _env_file=None,
+            bind_host="0.0.0.0",
+            remote_access_enabled=True,
+            auth_secret_key="a" * 32,
+        )
+
+        assert settings.bind_host == "0.0.0.0"
+        assert settings.remote_access_enabled is True
 
 
 # ---------------------------------------------------------------------------

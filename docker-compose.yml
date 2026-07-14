@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: planagent
       POSTGRES_DB: planagent
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -29,7 +29,7 @@ services:
     image: redis:7-alpine
     container_name: planagent-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -47,8 +47,8 @@ services:
       MINIO_ROOT_USER: planagent
       MINIO_ROOT_PASSWORD: planagent-minio-secret
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -65,7 +65,7 @@ services:
     container_name: planagent-api
     command: uvicorn planagent.main:app --host 0.0.0.0 --port 8000
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - path: .env
         required: false
@@ -92,7 +92,7 @@ services:
     working_dir: /app
     command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 3000"
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       VITE_API_PROXY_TARGET: http://api:8000
     volumes:

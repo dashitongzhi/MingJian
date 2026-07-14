@@ -8,6 +8,7 @@ import uvicorn
 
 import planagent.simulation  # noqa: F401
 from planagent.api.routes import router
+from planagent.api.access import CommunityAccessMiddleware
 from planagent.api.routes.ws import router as websocket_router
 from planagent.config import get_settings
 from planagent.db import get_database
@@ -17,7 +18,7 @@ from planagent.services.auth import AuthService, AuthConfig
 from planagent.services.notification import NotificationService, NotificationConfig
 from planagent.services.export import ExportService
 from planagent.simulation.rules import get_rule_registry
-from planagent.api.routes.auth import get_current_user_payload
+from planagent.api.routes.auth import get_community_access_payload
 
 
 def create_app() -> FastAPI:
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    app.add_middleware(CommunityAccessMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -83,7 +85,7 @@ def create_app() -> FastAPI:
         app.include_router(
             mcp_router,
             tags=["MCP Server"],
-            dependencies=[Depends(get_current_user_payload)],
+            dependencies=[Depends(get_community_access_payload)],
         )
 
     return app
@@ -93,4 +95,5 @@ app = create_app()
 
 
 def run() -> None:
-    uvicorn.run("planagent.main:app", host="0.0.0.0", port=8000, reload=False)
+    settings = get_settings()
+    uvicorn.run("planagent.main:app", host=settings.bind_host, port=8000, reload=False)

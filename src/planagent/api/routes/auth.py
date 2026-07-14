@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ipaddress import ip_address
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
@@ -54,7 +53,11 @@ class UserInfo(BaseModel):
 
 
 def _get_auth_service(request: Request) -> AuthService:
-    if not hasattr(request.app.state, "auth_service"):
+    return _get_auth_service_from_app(request.app)
+
+
+def _get_auth_service_from_app(app: Any) -> AuthService:
+    if not hasattr(app.state, "auth_service"):
         from planagent.config import get_settings
         from planagent.services.auth import AuthConfig
 
@@ -64,8 +67,8 @@ def _get_auth_service(request: Request) -> AuthService:
             database_url=settings.db.url,
             environment=settings.env,
         )
-        request.app.state.auth_service = AuthService(config)
-    return request.app.state.auth_service  # type: ignore[no-any-return]  # app.state 动态属性
+        app.state.auth_service = AuthService(config)
+    return app.state.auth_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
 def get_current_user_payload(
@@ -73,6 +76,13 @@ def get_current_user_payload(
     authorization: str | None = Header(None),
 ) -> dict[str, Any]:
     """Extract and verify JWT from Authorization header."""
+    return _verify_bearer_authorization(request.app, authorization)
+
+
+def _verify_bearer_authorization(
+    app: Any,
+    authorization: str | None,
+) -> dict[str, Any]:
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
@@ -82,7 +92,7 @@ def get_current_user_payload(
             status_code=401, detail="Invalid Authorization format (expected 'Bearer <token>')"
         )
 
-    auth_service = _get_auth_service(request)
+    auth_service = _get_auth_service_from_app(app)
     payload = auth_service.verify_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
@@ -94,20 +104,20 @@ def get_community_access_payload(
     request: Request,
     authorization: str | None = Header(None),
 ) -> dict[str, Any]:
-    """Authenticate remote access or provide the loopback-only local session."""
+    """Authenticate remote mode or provide the deployment-local single-user session."""
+    return resolve_community_access(request.app, authorization)
+
+
+def resolve_community_access(
+    app: Any,
+    authorization: str | None,
+) -> dict[str, Any]:
+    """Resolve the deployment-level Community access mode for HTTP or WebSocket."""
     from planagent.config import get_settings
 
     settings = get_settings()
     if settings.remote_access_enabled:
-        return get_current_user_payload(request, authorization)
-
-    client_host = request.client.host if request.client is not None else ""
-    try:
-        is_loopback = ip_address(client_host).is_loopback
-    except ValueError:
-        is_loopback = False
-    if not is_loopback:
-        raise HTTPException(status_code=403, detail="Remote access is disabled")
+        return _verify_bearer_authorization(app, authorization)
 
     return {
         "sub": "community-local",
@@ -122,7 +132,7 @@ def require_role(required_role: UserRole):
     """Dependency factory for role-based access control."""
 
     def _check(
-        request: Request, payload: dict[str, Any] = Depends(get_current_user_payload)
+        request: Request, payload: dict[str, Any] = Depends(get_community_access_payload)
     ) -> dict[str, Any]:
         auth_service = _get_auth_service(request)
         if not auth_service.check_role(payload, required_role):

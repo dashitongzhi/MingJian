@@ -143,6 +143,9 @@ async def notification_websocket(
     Connect to ws://host:port/notifications/ws/{user_id}
     to receive real-time push notifications.
     """
+    if not websocket.scope.get("state", {}).get("community_access_payload"):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
 
     # Get notification service from app state
