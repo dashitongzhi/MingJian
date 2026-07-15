@@ -29,8 +29,12 @@ def upgrade() -> None:
         sa.Column("source_table", sa.String(length=64), nullable=False),
         sa.Column("source_id", sa.String(length=120), nullable=False),
         sa.Column("node_metadata", sa.JSON(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.UniqueConstraint("node_key"),
     )
     op.create_index("ix_knowledge_graph_nodes_node_key", "knowledge_graph_nodes", ["node_key"])
@@ -48,12 +52,20 @@ def upgrade() -> None:
         sa.Column("tenant_id", sa.String(length=120), nullable=True),
         sa.Column("preset_id", sa.String(length=120), nullable=True),
         sa.Column("edge_metadata", sa.JSON(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.UniqueConstraint("source_node_key", "target_node_key", "relation_type"),
     )
-    op.create_index("ix_knowledge_graph_edges_source_node_key", "knowledge_graph_edges", ["source_node_key"])
-    op.create_index("ix_knowledge_graph_edges_target_node_key", "knowledge_graph_edges", ["target_node_key"])
-    op.create_index("ix_knowledge_graph_edges_relation_type", "knowledge_graph_edges", ["relation_type"])
+    op.create_index(
+        "ix_knowledge_graph_edges_source_node_key", "knowledge_graph_edges", ["source_node_key"]
+    )
+    op.create_index(
+        "ix_knowledge_graph_edges_target_node_key", "knowledge_graph_edges", ["target_node_key"]
+    )
+    op.create_index(
+        "ix_knowledge_graph_edges_relation_type", "knowledge_graph_edges", ["relation_type"]
+    )
     op.create_index("ix_knowledge_graph_edges_tenant_id", "knowledge_graph_edges", ["tenant_id"])
     op.create_index("ix_knowledge_graph_edges_preset_id", "knowledge_graph_edges", ["preset_id"])
 

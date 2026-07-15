@@ -31,7 +31,12 @@ def upgrade() -> None:
     op.create_table(
         "simulation_runs",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("company_id", sa.String(length=120), sa.ForeignKey("company_profiles.id"), nullable=False),
+        sa.Column(
+            "company_id",
+            sa.String(length=120),
+            sa.ForeignKey("company_profiles.id"),
+            nullable=False,
+        ),
         sa.Column("domain_id", sa.String(length=64), nullable=False),
         sa.Column("actor_template", sa.String(length=120), nullable=False),
         sa.Column("execution_mode", sa.String(length=16), nullable=False),
@@ -48,7 +53,9 @@ def upgrade() -> None:
     op.create_table(
         "state_snapshots",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
         sa.Column("tick", sa.Integer(), nullable=False),
         sa.Column("actor_id", sa.String(length=120), nullable=False),
         sa.Column("state", sa.JSON(), nullable=False),
@@ -59,7 +66,9 @@ def upgrade() -> None:
     op.create_table(
         "decision_records",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
         sa.Column("tick", sa.Integer(), nullable=False),
         sa.Column("sequence", sa.Integer(), nullable=False),
         sa.Column("actor_id", sa.String(length=120), nullable=False),
@@ -76,7 +85,9 @@ def upgrade() -> None:
     op.create_table(
         "generated_reports",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
         sa.Column("company_id", sa.String(length=120), sa.ForeignKey("company_profiles.id")),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("summary", sa.Text(), nullable=False),

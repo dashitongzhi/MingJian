@@ -14,6 +14,9 @@ from planagent.domain.models import Base, utc_now
 from planagent.services.auth import AuthConfig, AuthService, UserRole, _hash_token
 
 
+TEST_SECRET_KEY = "test-secret-key-for-unit-tests-that-is-long-enough"
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -24,7 +27,7 @@ def auth_service():
     """创建一个不自动创建默认 admin 的 AuthService。"""
     return AuthService(
         AuthConfig(
-            secret_key="test-secret-key-for-unit-tests",
+            secret_key=TEST_SECRET_KEY,
             algorithm="HS256",
             create_default_admin=False,
         )
@@ -34,14 +37,14 @@ def auth_service():
 @pytest.fixture()
 def auth_service_with_admin():
     """创建一个包含默认 admin 用户的 AuthService。"""
-    svc = AuthService(config=AuthConfig(secret_key="test-secret-key"))
+    svc = AuthService(config=AuthConfig(secret_key=TEST_SECRET_KEY))
     return svc
 
 
 def make_db_auth_service(db_url: str) -> AuthService:
     svc = AuthService(
         AuthConfig(
-            secret_key="test-secret-key-for-unit-tests",
+            secret_key=TEST_SECRET_KEY,
             algorithm="HS256",
             database_url=db_url,
             environment="test",
@@ -126,7 +129,7 @@ class TestTokenGeneration:
         tokens = auth_service.authenticate("u1", "pass")
         payload = jwt.decode(
             tokens.access_token,
-            "test-secret-key-for-unit-tests",
+            TEST_SECRET_KEY,
             algorithms=["HS256"],
         )
         assert payload["type"] == "access"
@@ -139,7 +142,7 @@ class TestTokenGeneration:
         tokens = auth_service.authenticate("u2", "pass")
         payload = jwt.decode(
             tokens.refresh_token,
-            "test-secret-key-for-unit-tests",
+            TEST_SECRET_KEY,
             algorithms=["HS256"],
         )
         assert payload["type"] == "refresh"
@@ -307,13 +310,13 @@ class TestRoleAuthorization:
         assert tokens is not None
         payload = jwt.decode(
             tokens.access_token,
-            "test-secret-key-for-unit-tests",
+            TEST_SECRET_KEY,
             algorithms=["HS256"],
         )
         payload["role"] = UserRole.ADMIN.value
         stale_role_token = jwt.encode(
             payload,
-            "test-secret-key-for-unit-tests",
+            TEST_SECRET_KEY,
             algorithm="HS256",
         )
 
@@ -453,7 +456,7 @@ class TestDefaultAdmin:
     def test_default_admin_can_use_explicit_bootstrap_password(self) -> None:
         service = AuthService(
             config=AuthConfig(
-                secret_key="test-secret-key",
+                secret_key=TEST_SECRET_KEY,
                 default_admin_password="bootstrap-password-for-admin",
             )
         )
@@ -463,7 +466,7 @@ class TestDefaultAdmin:
     def test_default_admin_password_not_logged(self, caplog):
         """默认 admin 日志不应泄漏随机明文密码。"""
         with caplog.at_level("WARNING"):
-            AuthService(config=AuthConfig(secret_key="test-secret-key"))
+            AuthService(config=AuthConfig(secret_key=TEST_SECRET_KEY))
         messages = "\n".join(record.getMessage() for record in caplog.records)
         assert "password:" not in messages
         assert "CHANGE THIS IMMEDIATELY" not in messages
@@ -576,7 +579,7 @@ class TestPersistentAuthStore:
 
         recovered = AuthService(
             AuthConfig(
-                secret_key="test-secret-key-for-unit-tests",
+                secret_key=TEST_SECRET_KEY,
                 database_url=db_url,
                 environment="test",
                 default_admin_password="configured-bootstrap-password",

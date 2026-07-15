@@ -25,7 +25,9 @@ def upgrade() -> None:
         op.create_table(
             "debate_sessions",
             sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=True),
+            sa.Column(
+                "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=True
+            ),
             sa.Column("claim_id", sa.String(length=36), sa.ForeignKey("claims.id"), nullable=True),
             sa.Column("topic", sa.Text(), nullable=False),
             sa.Column("trigger_type", sa.String(length=64), nullable=False),
@@ -41,7 +43,12 @@ def upgrade() -> None:
         op.create_table(
             "debate_rounds",
             sa.Column("id", sa.String(length=36), primary_key=True),
-            sa.Column("debate_id", sa.String(length=36), sa.ForeignKey("debate_sessions.id"), nullable=False),
+            sa.Column(
+                "debate_id",
+                sa.String(length=36),
+                sa.ForeignKey("debate_sessions.id"),
+                nullable=False,
+            ),
             sa.Column("round_number", sa.Integer(), nullable=False),
             sa.Column("role", sa.String(length=32), nullable=False),
             sa.Column("position", sa.String(length=32), nullable=False),
@@ -56,7 +63,12 @@ def upgrade() -> None:
     if not inspector.has_table("debate_verdicts"):
         op.create_table(
             "debate_verdicts",
-            sa.Column("debate_id", sa.String(length=36), sa.ForeignKey("debate_sessions.id"), primary_key=True),
+            sa.Column(
+                "debate_id",
+                sa.String(length=36),
+                sa.ForeignKey("debate_sessions.id"),
+                primary_key=True,
+            ),
             sa.Column("topic", sa.Text(), nullable=False),
             sa.Column("trigger_type", sa.String(length=64), nullable=False),
             sa.Column("rounds_completed", sa.Integer(), nullable=False),
@@ -69,7 +81,9 @@ def upgrade() -> None:
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         )
 
-    decision_record_columns = {column["name"] for column in inspector.get_columns("decision_records")}
+    decision_record_columns = {
+        column["name"] for column in inspector.get_columns("decision_records")
+    }
     if "debate_verdict_id" not in decision_record_columns:
         with op.batch_alter_table("decision_records") as batch_op:
             batch_op.add_column(sa.Column("debate_verdict_id", sa.String(length=36), nullable=True))
@@ -84,7 +98,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    decision_record_columns = {column["name"] for column in inspector.get_columns("decision_records")}
+    decision_record_columns = {
+        column["name"] for column in inspector.get_columns("decision_records")
+    }
     if "debate_verdict_id" in decision_record_columns:
         with op.batch_alter_table("decision_records") as batch_op:
             batch_op.drop_constraint("fk_decision_records_debate_verdict_id", type_="foreignkey")

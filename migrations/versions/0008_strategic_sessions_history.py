@@ -44,13 +44,20 @@ def upgrade() -> None:
     op.create_index("ix_strategic_sessions_subject_id", "strategic_sessions", ["subject_id"])
     op.create_index("ix_strategic_sessions_tenant_id", "strategic_sessions", ["tenant_id"])
     op.create_index("ix_strategic_sessions_preset_id", "strategic_sessions", ["preset_id"])
-    op.create_index("ix_strategic_sessions_latest_briefed_at", "strategic_sessions", ["latest_briefed_at"])
+    op.create_index(
+        "ix_strategic_sessions_latest_briefed_at", "strategic_sessions", ["latest_briefed_at"]
+    )
     op.create_index("ix_strategic_sessions_latest_run_at", "strategic_sessions", ["latest_run_at"])
 
     op.create_table(
         "strategic_briefs",
         sa.Column("id", sa.String(length=36), primary_key=True, nullable=False),
-        sa.Column("session_id", sa.String(length=36), sa.ForeignKey("strategic_sessions.id"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.String(length=36),
+            sa.ForeignKey("strategic_sessions.id"),
+            nullable=False,
+        ),
         sa.Column("tenant_id", sa.String(length=120), nullable=True),
         sa.Column("preset_id", sa.String(length=120), nullable=True),
         sa.Column("domain_id", sa.String(length=32), nullable=False),
@@ -66,7 +73,12 @@ def upgrade() -> None:
     op.create_table(
         "strategic_run_snapshots",
         sa.Column("id", sa.String(length=36), primary_key=True, nullable=False),
-        sa.Column("session_id", sa.String(length=36), sa.ForeignKey("strategic_sessions.id"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.String(length=36),
+            sa.ForeignKey("strategic_sessions.id"),
+            nullable=False,
+        ),
         sa.Column("tenant_id", sa.String(length=120), nullable=True),
         sa.Column("preset_id", sa.String(length=120), nullable=True),
         sa.Column("ingest_run_id", sa.String(length=36), nullable=True),
@@ -76,16 +88,26 @@ def upgrade() -> None:
         sa.Column("result_payload", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
         sa.Column("generated_at", sa.DateTime(timezone=True), nullable=False),
     )
-    op.create_index("ix_strategic_run_snapshots_session_id", "strategic_run_snapshots", ["session_id"])
-    op.create_index("ix_strategic_run_snapshots_tenant_id", "strategic_run_snapshots", ["tenant_id"])
-    op.create_index("ix_strategic_run_snapshots_preset_id", "strategic_run_snapshots", ["preset_id"])
-    op.create_index("ix_strategic_run_snapshots_ingest_run_id", "strategic_run_snapshots", ["ingest_run_id"])
+    op.create_index(
+        "ix_strategic_run_snapshots_session_id", "strategic_run_snapshots", ["session_id"]
+    )
+    op.create_index(
+        "ix_strategic_run_snapshots_tenant_id", "strategic_run_snapshots", ["tenant_id"]
+    )
+    op.create_index(
+        "ix_strategic_run_snapshots_preset_id", "strategic_run_snapshots", ["preset_id"]
+    )
+    op.create_index(
+        "ix_strategic_run_snapshots_ingest_run_id", "strategic_run_snapshots", ["ingest_run_id"]
+    )
     op.create_index(
         "ix_strategic_run_snapshots_simulation_run_id",
         "strategic_run_snapshots",
         ["simulation_run_id"],
     )
-    op.create_index("ix_strategic_run_snapshots_debate_id", "strategic_run_snapshots", ["debate_id"])
+    op.create_index(
+        "ix_strategic_run_snapshots_debate_id", "strategic_run_snapshots", ["debate_id"]
+    )
     op.create_index(
         "ix_strategic_run_snapshots_generated_report_id",
         "strategic_run_snapshots",
@@ -94,9 +116,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_strategic_run_snapshots_generated_report_id", table_name="strategic_run_snapshots")
+    op.drop_index(
+        "ix_strategic_run_snapshots_generated_report_id", table_name="strategic_run_snapshots"
+    )
     op.drop_index("ix_strategic_run_snapshots_debate_id", table_name="strategic_run_snapshots")
-    op.drop_index("ix_strategic_run_snapshots_simulation_run_id", table_name="strategic_run_snapshots")
+    op.drop_index(
+        "ix_strategic_run_snapshots_simulation_run_id", table_name="strategic_run_snapshots"
+    )
     op.drop_index("ix_strategic_run_snapshots_ingest_run_id", table_name="strategic_run_snapshots")
     op.drop_index("ix_strategic_run_snapshots_preset_id", table_name="strategic_run_snapshots")
     op.drop_index("ix_strategic_run_snapshots_tenant_id", table_name="strategic_run_snapshots")

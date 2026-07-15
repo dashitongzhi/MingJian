@@ -53,7 +53,9 @@ def upgrade() -> None:
         sa.Column("last_refresh_error", sa.Text(), nullable=True),
     )
 
-    op.create_index("ix_strategic_sessions_next_refresh_at", "strategic_sessions", ["next_refresh_at"])
+    op.create_index(
+        "ix_strategic_sessions_next_refresh_at", "strategic_sessions", ["next_refresh_at"]
+    )
     op.create_index(
         "ix_strategic_sessions_refresh_lease_owner",
         "strategic_sessions",

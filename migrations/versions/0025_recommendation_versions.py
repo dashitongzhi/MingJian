@@ -126,14 +126,20 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index("ix_recommendation_versions_session_id", "recommendation_versions", ["session_id"])
+    op.create_index(
+        "ix_recommendation_versions_session_id", "recommendation_versions", ["session_id"]
+    )
     op.create_index(
         "ix_recommendation_versions_watch_rule_id",
         "recommendation_versions",
         ["watch_rule_id"],
     )
-    op.create_index("ix_recommendation_versions_tenant_id", "recommendation_versions", ["tenant_id"])
-    op.create_index("ix_recommendation_versions_preset_id", "recommendation_versions", ["preset_id"])
+    op.create_index(
+        "ix_recommendation_versions_tenant_id", "recommendation_versions", ["tenant_id"]
+    )
+    op.create_index(
+        "ix_recommendation_versions_preset_id", "recommendation_versions", ["preset_id"]
+    )
     op.create_index(
         "ix_recommendation_versions_trigger_type",
         "recommendation_versions",

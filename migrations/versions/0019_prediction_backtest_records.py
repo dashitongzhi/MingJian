@@ -33,7 +33,9 @@ def upgrade() -> None:
             sa.ForeignKey("prediction_series.id"),
             nullable=False,
         ),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=True),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=True
+        ),
         sa.Column("domain_id", sa.String(length=64), nullable=False),
         sa.Column("tenant_id", sa.String(length=120), nullable=True),
         sa.Column("preset_id", sa.String(length=120), nullable=True),
@@ -70,7 +72,9 @@ def upgrade() -> None:
         "prediction_backtest_records",
         ["series_id"],
     )
-    op.create_index("ix_prediction_backtest_records_run_id", "prediction_backtest_records", ["run_id"])
+    op.create_index(
+        "ix_prediction_backtest_records_run_id", "prediction_backtest_records", ["run_id"]
+    )
     op.create_index(
         "ix_prediction_backtest_records_domain_id",
         "prediction_backtest_records",
@@ -94,12 +98,23 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_prediction_backtest_records_verification_status", table_name="prediction_backtest_records")
-    op.drop_index("ix_prediction_backtest_records_preset_id", table_name="prediction_backtest_records")
-    op.drop_index("ix_prediction_backtest_records_tenant_id", table_name="prediction_backtest_records")
-    op.drop_index("ix_prediction_backtest_records_domain_id", table_name="prediction_backtest_records")
+    op.drop_index(
+        "ix_prediction_backtest_records_verification_status",
+        table_name="prediction_backtest_records",
+    )
+    op.drop_index(
+        "ix_prediction_backtest_records_preset_id", table_name="prediction_backtest_records"
+    )
+    op.drop_index(
+        "ix_prediction_backtest_records_tenant_id", table_name="prediction_backtest_records"
+    )
+    op.drop_index(
+        "ix_prediction_backtest_records_domain_id", table_name="prediction_backtest_records"
+    )
     op.drop_index("ix_prediction_backtest_records_run_id", table_name="prediction_backtest_records")
-    op.drop_index("ix_prediction_backtest_records_series_id", table_name="prediction_backtest_records")
+    op.drop_index(
+        "ix_prediction_backtest_records_series_id", table_name="prediction_backtest_records"
+    )
     op.drop_index(
         "ix_prediction_backtest_records_prediction_version_id",
         table_name="prediction_backtest_records",

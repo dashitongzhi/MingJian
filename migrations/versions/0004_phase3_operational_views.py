@@ -21,8 +21,12 @@ def upgrade() -> None:
     op.create_table(
         "geo_assets",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
-        sa.Column("force_id", sa.String(length=120), sa.ForeignKey("force_profiles.id"), nullable=True),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
+        sa.Column(
+            "force_id", sa.String(length=120), sa.ForeignKey("force_profiles.id"), nullable=True
+        ),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("asset_type", sa.String(length=64), nullable=False),
         sa.Column("latitude", sa.Float(), nullable=False),
@@ -34,7 +38,9 @@ def upgrade() -> None:
     op.create_table(
         "external_shocks",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
         sa.Column("tick", sa.Integer(), nullable=False),
         sa.Column("domain", sa.String(length=64), nullable=False),
         sa.Column("shock_type", sa.String(length=64), nullable=False),

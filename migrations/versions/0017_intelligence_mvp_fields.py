@@ -18,16 +18,30 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("simulation_runs", sa.Column("military_use_mode", sa.String(length=32), nullable=True))
-    op.add_column("watch_rules", sa.Column("keywords", sa.JSON(), nullable=False, server_default="[]"))
-    op.add_column("watch_rules", sa.Column("exclude_keywords", sa.JSON(), nullable=False, server_default="[]"))
-    op.add_column("watch_rules", sa.Column("entity_tags", sa.JSON(), nullable=False, server_default="[]"))
-    op.add_column("watch_rules", sa.Column("trigger_threshold", sa.Float(), nullable=False, server_default="0.0"))
+    op.add_column(
+        "simulation_runs", sa.Column("military_use_mode", sa.String(length=32), nullable=True)
+    )
+    op.add_column(
+        "watch_rules", sa.Column("keywords", sa.JSON(), nullable=False, server_default="[]")
+    )
+    op.add_column(
+        "watch_rules", sa.Column("exclude_keywords", sa.JSON(), nullable=False, server_default="[]")
+    )
+    op.add_column(
+        "watch_rules", sa.Column("entity_tags", sa.JSON(), nullable=False, server_default="[]")
+    )
+    op.add_column(
+        "watch_rules",
+        sa.Column("trigger_threshold", sa.Float(), nullable=False, server_default="0.0"),
+    )
     op.add_column(
         "watch_rules",
         sa.Column("min_new_evidence_count", sa.Integer(), nullable=False, server_default="1"),
     )
-    op.add_column("watch_rules", sa.Column("importance_threshold", sa.Float(), nullable=False, server_default="0.0"))
+    op.add_column(
+        "watch_rules",
+        sa.Column("importance_threshold", sa.Float(), nullable=False, server_default="0.0"),
+    )
 
 
 def downgrade() -> None:

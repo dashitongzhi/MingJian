@@ -48,8 +48,15 @@ def upgrade() -> None:
     op.create_table(
         "scenario_branches",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
-        sa.Column("parent_run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
+        sa.Column(
+            "parent_run_id",
+            sa.String(length=36),
+            sa.ForeignKey("simulation_runs.id"),
+            nullable=False,
+        ),
         sa.Column("fork_step", sa.Integer(), nullable=False),
         sa.Column("assumptions", sa.JSON(), nullable=False),
         sa.Column("decision_deltas", sa.JSON(), nullable=False),

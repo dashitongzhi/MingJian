@@ -21,9 +21,15 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
-    _ensure_column(inspector, "ingest_runs", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "ingest_runs", sa.Column("preset_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "ingest_runs", sa.Column("lease_owner", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "ingest_runs", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "ingest_runs", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "ingest_runs", sa.Column("lease_owner", sa.String(length=120), nullable=True)
+    )
     _ensure_column(
         inspector,
         "ingest_runs",
@@ -36,14 +42,24 @@ def upgrade() -> None:
     )
     _ensure_column(inspector, "ingest_runs", sa.Column("last_error", sa.Text(), nullable=True))
 
-    _ensure_column(inspector, "raw_source_items", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "raw_source_items", sa.Column("preset_id", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "raw_source_items", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "raw_source_items", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
     _ensure_column(
         inspector,
         "raw_source_items",
-        sa.Column("knowledge_status", sa.String(length=24), nullable=False, server_default="PENDING"),
+        sa.Column(
+            "knowledge_status", sa.String(length=24), nullable=False, server_default="PENDING"
+        ),
     )
-    _ensure_column(inspector, "raw_source_items", sa.Column("lease_owner", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector,
+        "raw_source_items",
+        sa.Column("lease_owner", sa.String(length=120), nullable=True),
+    )
     _ensure_column(
         inspector,
         "raw_source_items",
@@ -61,20 +77,34 @@ def upgrade() -> None:
         sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
     )
 
-    _ensure_column(inspector, "evidence_items", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "evidence_items", sa.Column("preset_id", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "evidence_items", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "evidence_items", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
 
-    _ensure_column(inspector, "claims", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "claims", sa.Column("preset_id", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "claims", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "claims", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
     _ensure_column(
         inspector,
         "claims",
         sa.Column("kind", sa.String(length=32), nullable=False, server_default="unclassified"),
     )
 
-    _ensure_column(inspector, "review_items", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "review_items", sa.Column("preset_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "review_items", sa.Column("lease_owner", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "review_items", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "review_items", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "review_items", sa.Column("lease_owner", sa.String(length=120), nullable=True)
+    )
     _ensure_column(
         inspector,
         "review_items",
@@ -87,16 +117,34 @@ def upgrade() -> None:
     )
     _ensure_column(inspector, "review_items", sa.Column("last_error", sa.Text(), nullable=True))
 
-    _ensure_column(inspector, "signals", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "signals", sa.Column("preset_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "events", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "events", sa.Column("preset_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "trends", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "trends", sa.Column("preset_id", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "signals", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "signals", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "events", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "events", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "trends", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "trends", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
 
-    _ensure_column(inspector, "simulation_runs", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "simulation_runs", sa.Column("preset_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "simulation_runs", sa.Column("lease_owner", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "simulation_runs", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "simulation_runs", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "simulation_runs", sa.Column("lease_owner", sa.String(length=120), nullable=True)
+    )
     _ensure_column(
         inspector,
         "simulation_runs",
@@ -109,11 +157,19 @@ def upgrade() -> None:
     )
     _ensure_column(inspector, "simulation_runs", sa.Column("last_error", sa.Text(), nullable=True))
 
-    _ensure_column(inspector, "generated_reports", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "generated_reports", sa.Column("preset_id", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "generated_reports", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "generated_reports", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
 
-    _ensure_column(inspector, "debate_sessions", sa.Column("tenant_id", sa.String(length=120), nullable=True))
-    _ensure_column(inspector, "debate_sessions", sa.Column("preset_id", sa.String(length=120), nullable=True))
+    _ensure_column(
+        inspector, "debate_sessions", sa.Column("tenant_id", sa.String(length=120), nullable=True)
+    )
+    _ensure_column(
+        inspector, "debate_sessions", sa.Column("preset_id", sa.String(length=120), nullable=True)
+    )
 
     _ensure_index(inspector, "ingest_runs", "ix_ingest_runs_tenant_id", ["tenant_id"])
     _ensure_index(inspector, "ingest_runs", "ix_ingest_runs_preset_id", ["preset_id"])
@@ -122,7 +178,9 @@ def upgrade() -> None:
 
     _ensure_index(inspector, "raw_source_items", "ix_raw_source_items_tenant_id", ["tenant_id"])
     _ensure_index(inspector, "raw_source_items", "ix_raw_source_items_preset_id", ["preset_id"])
-    _ensure_index(inspector, "raw_source_items", "ix_raw_source_items_knowledge_status", ["knowledge_status"])
+    _ensure_index(
+        inspector, "raw_source_items", "ix_raw_source_items_knowledge_status", ["knowledge_status"]
+    )
     _ensure_index(inspector, "raw_source_items", "ix_raw_source_items_lease_owner", ["lease_owner"])
     _ensure_index(
         inspector,
@@ -141,7 +199,9 @@ def upgrade() -> None:
     _ensure_index(inspector, "review_items", "ix_review_items_tenant_id", ["tenant_id"])
     _ensure_index(inspector, "review_items", "ix_review_items_preset_id", ["preset_id"])
     _ensure_index(inspector, "review_items", "ix_review_items_lease_owner", ["lease_owner"])
-    _ensure_index(inspector, "review_items", "ix_review_items_lease_expires_at", ["lease_expires_at"])
+    _ensure_index(
+        inspector, "review_items", "ix_review_items_lease_expires_at", ["lease_expires_at"]
+    )
 
     _ensure_index(inspector, "signals", "ix_signals_tenant_id", ["tenant_id"])
     _ensure_index(inspector, "signals", "ix_signals_preset_id", ["preset_id"])

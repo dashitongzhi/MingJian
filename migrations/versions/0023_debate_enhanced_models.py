@@ -34,11 +34,17 @@ def upgrade() -> None:
         sa.Column("reliability_score", sa.Integer(), nullable=False),
         sa.Column("bias_flags", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("blind_spots", sa.JSON(), nullable=False, server_default="[]"),
-        sa.Column("evidence_strength", sa.String(length=32), nullable=False, server_default="moderate"),
+        sa.Column(
+            "evidence_strength", sa.String(length=32), nullable=False, server_default="moderate"
+        ),
         sa.Column("auditor_role", sa.String(length=32), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
-    op.create_index("ix_debate_reliability_scores_debate_id", "debate_reliability_scores", ["debate_id"])
+    op.create_index(
+        "ix_debate_reliability_scores_debate_id", "debate_reliability_scores", ["debate_id"]
+    )
 
     op.create_table(
         "debate_structured_dissents",
@@ -56,13 +62,22 @@ def upgrade() -> None:
         sa.Column("confidence_trajectory", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("recommended_monitoring", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("overall_dissent_strength", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
-    op.create_index("ix_debate_structured_dissents_debate_id", "debate_structured_dissents", ["debate_id"], unique=True)
+    op.create_index(
+        "ix_debate_structured_dissents_debate_id",
+        "debate_structured_dissents",
+        ["debate_id"],
+        unique=True,
+    )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_debate_structured_dissents_debate_id", table_name="debate_structured_dissents")
+    op.drop_index(
+        "ix_debate_structured_dissents_debate_id", table_name="debate_structured_dissents"
+    )
     op.drop_table("debate_structured_dissents")
     op.drop_index("ix_debate_reliability_scores_debate_id", table_name="debate_reliability_scores")
     op.drop_table("debate_reliability_scores")

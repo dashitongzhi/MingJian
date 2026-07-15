@@ -21,16 +21,27 @@ def upgrade() -> None:
     op.create_table(
         "source_snapshots",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("raw_source_item_id", sa.String(length=36), sa.ForeignKey("raw_source_items.id"), nullable=False),
+        sa.Column(
+            "raw_source_item_id",
+            sa.String(length=36),
+            sa.ForeignKey("raw_source_items.id"),
+            nullable=False,
+        ),
         sa.Column("tenant_id", sa.String(length=120), nullable=True),
         sa.Column("preset_id", sa.String(length=120), nullable=True),
-        sa.Column("storage_backend", sa.String(length=32), nullable=False, server_default="filesystem"),
+        sa.Column(
+            "storage_backend", sa.String(length=32), nullable=False, server_default="filesystem"
+        ),
         sa.Column("storage_uri", sa.Text(), nullable=False),
         sa.Column("content_sha256", sa.String(length=64), nullable=False),
         sa.Column("byte_size", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
-    op.create_index("ix_source_snapshots_raw_source_item_id", "source_snapshots", ["raw_source_item_id"])
+    op.create_index(
+        "ix_source_snapshots_raw_source_item_id", "source_snapshots", ["raw_source_item_id"]
+    )
     op.create_index("ix_source_snapshots_tenant_id", "source_snapshots", ["tenant_id"])
     op.create_index("ix_source_snapshots_preset_id", "source_snapshots", ["preset_id"])
     op.create_index("ix_source_snapshots_content_sha256", "source_snapshots", ["content_sha256"])
@@ -44,7 +55,9 @@ def upgrade() -> None:
         sa.Column("last_error", sa.Text(), nullable=True),
         sa.Column("last_success_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_failure_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.UniqueConstraint("source_type"),
     )
     op.create_index("ix_source_health_source_type", "source_health", ["source_type"])
@@ -57,13 +70,17 @@ def upgrade() -> None:
         sa.Column("query", sa.Text(), nullable=False),
         sa.Column("request_payload", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("response_payload", sa.JSON(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("cache_key"),
     )
     op.create_index("ix_analysis_cache_records_cache_key", "analysis_cache_records", ["cache_key"])
     op.create_index("ix_analysis_cache_records_domain_id", "analysis_cache_records", ["domain_id"])
-    op.create_index("ix_analysis_cache_records_expires_at", "analysis_cache_records", ["expires_at"])
+    op.create_index(
+        "ix_analysis_cache_records_expires_at", "analysis_cache_records", ["expires_at"]
+    )
 
     op.create_table(
         "dead_letter_events",
@@ -74,7 +91,9 @@ def upgrade() -> None:
         sa.Column("message_id", sa.String(length=120), nullable=True),
         sa.Column("payload", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("error", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_dead_letter_events_topic", "dead_letter_events", ["topic"])
     op.create_index("ix_dead_letter_events_group_name", "dead_letter_events", ["group_name"])
@@ -84,15 +103,23 @@ def upgrade() -> None:
     op.create_table(
         "scenario_replay_packages",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False),
+        sa.Column(
+            "run_id", sa.String(length=36), sa.ForeignKey("simulation_runs.id"), nullable=False
+        ),
         sa.Column("tenant_id", sa.String(length=120), nullable=True),
         sa.Column("preset_id", sa.String(length=120), nullable=True),
         sa.Column("package_payload", sa.JSON(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_scenario_replay_packages_run_id", "scenario_replay_packages", ["run_id"])
-    op.create_index("ix_scenario_replay_packages_tenant_id", "scenario_replay_packages", ["tenant_id"])
-    op.create_index("ix_scenario_replay_packages_preset_id", "scenario_replay_packages", ["preset_id"])
+    op.create_index(
+        "ix_scenario_replay_packages_tenant_id", "scenario_replay_packages", ["tenant_id"]
+    )
+    op.create_index(
+        "ix_scenario_replay_packages_preset_id", "scenario_replay_packages", ["preset_id"]
+    )
 
     op.create_table(
         "jarvis_runs",
@@ -103,13 +130,20 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=32), nullable=False, server_default="COMPLETED"),
         sa.Column("profile_id", sa.String(length=120), nullable=False, server_default="plan-agent"),
         sa.Column("result_payload", sa.JSON(), nullable=False, server_default="{}"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_jarvis_runs_run_id", "jarvis_runs", ["run_id"])
     op.create_index("ix_jarvis_runs_target_id", "jarvis_runs", ["target_id"])
 
-    op.add_column("knowledge_graph_nodes", sa.Column("embedding", sa.JSON(), nullable=False, server_default="[]"))
-    op.add_column("knowledge_graph_nodes", sa.Column("embedding_model", sa.String(length=120), nullable=True))
+    op.add_column(
+        "knowledge_graph_nodes",
+        sa.Column("embedding", sa.JSON(), nullable=False, server_default="[]"),
+    )
+    op.add_column(
+        "knowledge_graph_nodes", sa.Column("embedding_model", sa.String(length=120), nullable=True)
+    )
 
 
 def downgrade() -> None:

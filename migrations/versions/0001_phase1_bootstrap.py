@@ -34,7 +34,9 @@ def upgrade() -> None:
     op.create_table(
         "raw_source_items",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("ingest_run_id", sa.String(length=36), sa.ForeignKey("ingest_runs.id"), nullable=False),
+        sa.Column(
+            "ingest_run_id", sa.String(length=36), sa.ForeignKey("ingest_runs.id"), nullable=False
+        ),
         sa.Column("source_type", sa.String(length=64), nullable=False),
         sa.Column("source_url", sa.Text(), nullable=False),
         sa.Column("title", sa.Text(), nullable=False),
@@ -49,7 +51,12 @@ def upgrade() -> None:
     op.create_table(
         "normalized_items",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("raw_source_item_id", sa.String(length=36), sa.ForeignKey("raw_source_items.id"), nullable=False),
+        sa.Column(
+            "raw_source_item_id",
+            sa.String(length=36),
+            sa.ForeignKey("raw_source_items.id"),
+            nullable=False,
+        ),
         sa.Column("canonical_url", sa.Text(), nullable=False),
         sa.Column("title", sa.Text(), nullable=False),
         sa.Column("body_text", sa.Text(), nullable=False),
@@ -62,7 +69,12 @@ def upgrade() -> None:
     op.create_table(
         "evidence_items",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("normalized_item_id", sa.String(length=36), sa.ForeignKey("normalized_items.id"), nullable=False),
+        sa.Column(
+            "normalized_item_id",
+            sa.String(length=36),
+            sa.ForeignKey("normalized_items.id"),
+            nullable=False,
+        ),
         sa.Column("evidence_type", sa.String(length=64), nullable=False),
         sa.Column("title", sa.Text(), nullable=False),
         sa.Column("summary", sa.Text(), nullable=False),
@@ -79,7 +91,12 @@ def upgrade() -> None:
     op.create_table(
         "claims",
         sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("evidence_item_id", sa.String(length=36), sa.ForeignKey("evidence_items.id"), nullable=False),
+        sa.Column(
+            "evidence_item_id",
+            sa.String(length=36),
+            sa.ForeignKey("evidence_items.id"),
+            nullable=False,
+        ),
         sa.Column("subject", sa.String(length=255), nullable=False),
         sa.Column("predicate", sa.String(length=120), nullable=False),
         sa.Column("object_text", sa.Text(), nullable=False),

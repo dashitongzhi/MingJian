@@ -33,7 +33,9 @@ def upgrade() -> None:
         sa.Column("poll_attempts", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("last_poll_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_poll_error", sa.Text(), nullable=True),
-        sa.Column("auto_trigger_simulation", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "auto_trigger_simulation", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
         sa.Column("auto_trigger_debate", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("tick_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("tenant_id", sa.String(length=120), nullable=True),

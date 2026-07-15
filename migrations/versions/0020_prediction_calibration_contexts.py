@@ -31,8 +31,12 @@ def upgrade() -> None:
         sa.Column("accuracy_score", sa.Float(), nullable=False, server_default="0.5"),
         sa.Column("weight_multiplier", sa.Float(), nullable=False, server_default="1.0"),
         sa.Column("last_calculated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_rule_accuracies_rule_id", "rule_accuracies", ["rule_id"])
     op.create_index("ix_rule_accuracies_domain_id", "rule_accuracies", ["domain_id"])
@@ -49,8 +53,12 @@ def upgrade() -> None:
         sa.Column("evidence_refuted", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("trust_score", sa.Float(), nullable=False, server_default="0.5"),
         sa.Column("last_updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_source_trust_scores_source_type", "source_trust_scores", ["source_type"])
     op.create_index("ix_source_trust_scores_tenant_id", "source_trust_scores", ["tenant_id"])
@@ -74,7 +82,9 @@ def upgrade() -> None:
         sa.Column("rule_weights_applied", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("source_trust_applied", sa.JSON(), nullable=False, server_default="{}"),
         sa.Column("confidence_adjustment", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index(
         "ix_prediction_calibration_contexts_run_id",
@@ -84,7 +94,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_prediction_calibration_contexts_run_id", table_name="prediction_calibration_contexts")
+    op.drop_index(
+        "ix_prediction_calibration_contexts_run_id", table_name="prediction_calibration_contexts"
+    )
     op.drop_table("prediction_calibration_contexts")
     op.drop_index("ix_source_trust_scores_tenant_id", table_name="source_trust_scores")
     op.drop_index("ix_source_trust_scores_source_type", table_name="source_trust_scores")

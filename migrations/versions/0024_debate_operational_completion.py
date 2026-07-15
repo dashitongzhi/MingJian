@@ -95,9 +95,7 @@ def upgrade() -> None:
     if "risk_factors" not in verdict_columns:
         missing_verdict_columns.append(sa.Column("risk_factors", sa.JSON(), nullable=True))
     if "alternative_scenarios" not in verdict_columns:
-        missing_verdict_columns.append(
-            sa.Column("alternative_scenarios", sa.JSON(), nullable=True)
-        )
+        missing_verdict_columns.append(sa.Column("alternative_scenarios", sa.JSON(), nullable=True))
     if "conclusion_summary" not in verdict_columns:
         missing_verdict_columns.append(sa.Column("conclusion_summary", sa.Text(), nullable=True))
 
