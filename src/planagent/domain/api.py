@@ -19,6 +19,23 @@ class APIModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _normalize_decision_context(value: dict[str, str]) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    total_length = 0
+    for raw_key, raw_value in value.items():
+        key = str(raw_key).strip()
+        context_value = str(raw_value).strip()
+        if not key or len(key) > 64:
+            raise ValueError("context keys must contain 1 to 64 characters")
+        if len(context_value) > 2000:
+            raise ValueError("context values must contain at most 2000 characters")
+        total_length += len(key) + len(context_value)
+        normalized[key] = context_value
+    if total_length > 8000:
+        raise ValueError("context must contain at most 8000 characters")
+    return normalized
+
+
 class SourceSeedInput(APIModel):
     source_type: str
     source_url: str
@@ -650,20 +667,7 @@ class StrategicAssistantRequest(APIModel):
     @field_validator("context")
     @classmethod
     def validate_context(cls, value: dict[str, str]) -> dict[str, str]:
-        normalized: dict[str, str] = {}
-        total_length = 0
-        for raw_key, raw_value in value.items():
-            key = str(raw_key).strip()
-            context_value = str(raw_value).strip()
-            if not key or len(key) > 64:
-                raise ValueError("context keys must contain 1 to 64 characters")
-            if len(context_value) > 2000:
-                raise ValueError("context values must contain at most 2000 characters")
-            total_length += len(key) + len(context_value)
-            normalized[key] = context_value
-        if total_length > 8000:
-            raise ValueError("context must contain at most 8000 characters")
-        return normalized
+        return _normalize_decision_context(value)
 
 
 class PanelDiscussionMessageRead(APIModel):
@@ -697,6 +701,7 @@ class StrategicAssistantResponse(APIModel):
 
 class AnalysisRequest(APIModel):
     content: str = Field(min_length=1)
+    decision_context: dict[str, str] = Field(default_factory=dict, max_length=20)
     domain_id: Literal["auto", "general", "corporate", "military"] = "auto"
     auto_fetch_news: bool = True
     include_google_news: bool = True
@@ -719,6 +724,11 @@ class AnalysisRequest(APIModel):
     max_weather_items: int = Field(default=1, ge=0, le=3)
     max_aviation_items: int = Field(default=1, ge=0, le=3)
     max_x_items: int = Field(default=3, ge=0, le=10)
+
+    @field_validator("decision_context")
+    @classmethod
+    def validate_decision_context(cls, value: dict[str, str]) -> dict[str, str]:
+        return _normalize_decision_context(value)
 
 
 class AnalysisSourceRead(APIModel):

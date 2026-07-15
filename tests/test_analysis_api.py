@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from planagent.db import reset_database_cache
 from planagent.domain.api import AnalysisRequest, AnalysisSourceRead, AnalysisStepRead
 from planagent.main import create_app
 from planagent.services.analysis import AutomatedAnalysisService, SourceFetchBundle
+from planagent.services.openai_client import AnalysisNarrativePayload
+from planagent.services.sources.base import DataSourceProvider
 
 
 def build_database_url(path: Path) -> str:
@@ -68,6 +71,85 @@ async def fake_fetch_related_sources(self, payload, query: str, domain_id: str):
             ),
         ],
     )
+
+
+class _ContextAwareOpenAI:
+    def __init__(self) -> None:
+        self.analysis_contents: list[str] = []
+
+    def is_configured(self, target: str) -> bool:
+        return target == "primary"
+
+    async def analyze_topic(
+        self,
+        *,
+        content: str,
+        domain_id: str,
+        related_sources: list[dict[str, object]],
+    ) -> AnalysisNarrativePayload:
+        _ = (domain_id, related_sources)
+        self.analysis_contents.append(content)
+        return AnalysisNarrativePayload(
+            summary="Context-aware analysis completed.",
+            findings=["Context was used only during synthesis."],
+            reasoning_steps=["Separated public search terms from private decision context."],
+            recommendations=["Proceed with the scoped review."],
+        )
+
+
+class _QueryCaptureProvider(DataSourceProvider):
+    key = "query_capture"
+    label = "Query Capture"
+    default_enabled = False
+
+    def __init__(self, settings: Settings) -> None:
+        super().__init__(settings)
+        self.queries: list[str] = []
+
+    async def fetch(
+        self,
+        query: str,
+        limit: int,
+        domain_id: str,
+    ) -> list[AnalysisSourceRead]:
+        _ = (limit, domain_id)
+        self.queries.append(query)
+        return [
+            AnalysisSourceRead(
+                source_type="query_capture",
+                title="Public launch signal",
+                url="https://example.test/public-launch-signal",
+                summary="A public source reported a launch planning update.",
+            )
+        ]
+
+
+def test_analysis_keeps_decision_context_out_of_public_source_queries() -> None:
+    settings = Settings(_env_file=None)
+    openai_service = _ContextAwareOpenAI()
+    service = AutomatedAnalysisService(settings, openai_service)  # type: ignore[arg-type]
+    provider = _QueryCaptureProvider(settings)
+    service.source_registry.register(provider)
+
+    result = asyncio.run(
+        service.analyze(
+            AnalysisRequest(
+                content="Assess launch",
+                decision_context={"internal_note": "Project Orchid customer list"},
+                domain_id="corporate",
+                source_types=["query_capture"],
+                max_source_items={"query_capture": 1},
+            )
+        )
+    )
+
+    assert provider.queries
+    assert all("Orchid" not in query for query in provider.queries)
+    assert all("internal_note" not in query for query in provider.queries)
+    assert openai_service.analysis_contents == [
+        "Assess launch\n\nDecision context:\n- internal_note: Project Orchid customer list"
+    ]
+    assert result.summary == "Context-aware analysis completed."
 
 
 def test_analysis_endpoint_returns_reasoned_result(monkeypatch, tmp_path: Path) -> None:

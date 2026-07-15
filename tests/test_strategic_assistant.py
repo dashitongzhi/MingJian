@@ -23,6 +23,7 @@ from planagent.domain.models import (
 from planagent.domain.models import utc_now
 from planagent.events.bus import build_event_bus
 from planagent.main import create_app
+from planagent.services.analysis import AutomatedAnalysisService, SourceFetchBundle
 from planagent.services.openai_client import OpenAIService
 from planagent.simulation.rules import get_rule_registry
 from planagent.workers.strategic_watch import StrategicWatchWorker
@@ -219,6 +220,58 @@ def test_assistant_run_rejects_invalid_decision_context(
             )
             assert response.status_code == 422
             assert any("context" in error["loc"] for error in response.json()["detail"])
+
+
+def test_assistant_keeps_private_context_out_of_public_search_query(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    database_path = tmp_path / "planagent-assistant-context-query.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_INLINE_INGEST_DEFAULT", "true")
+    monkeypatch.setenv("PLANAGENT_INLINE_SIMULATION_DEFAULT", "true")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    captured: list[tuple[str, str, dict[str, str]]] = []
+
+    async def capture_public_query(
+        self: AutomatedAnalysisService,
+        payload,
+        query: str,
+        domain_id: str,
+    ) -> SourceFetchBundle:
+        _ = self
+        captured.append((query, payload.content, payload.decision_context))
+        return SourceFetchBundle(sources=[], steps=[])
+
+    monkeypatch.setattr(
+        AutomatedAnalysisService,
+        "_fetch_related_sources",
+        capture_public_query,
+    )
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/assistant/runs",
+            json={
+                "topic": "Assess launch",
+                "context": {"internal_note": "Project Orchid customer list"},
+                "domain_id": "corporate",
+                "include_x": False,
+            },
+        )
+
+    assert response.status_code == 201
+    assert captured == [
+        (
+            "Assess launch",
+            "Assess launch",
+            {"internal_note": "Project Orchid customer list"},
+        )
+    ]
+    assert "Project Orchid customer list" in response.json()["analysis"]["findings"][0]
 
 
 def test_assistant_stream_emits_key_events(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

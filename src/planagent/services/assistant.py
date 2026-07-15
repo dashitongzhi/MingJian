@@ -1419,7 +1419,8 @@ class StrategicAssistantService:
 
     def _build_analysis_request(self, payload: StrategicAssistantRequest) -> AnalysisRequest:
         return AnalysisRequest(
-            content=self._topic_with_context(payload),
+            content=payload.topic,
+            decision_context=payload.context,
             domain_id=payload.domain_id,
             auto_fetch_news=payload.auto_fetch_news,
             include_google_news=payload.include_google_news,

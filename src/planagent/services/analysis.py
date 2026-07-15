@@ -205,6 +205,7 @@ class AutomatedAnalysisService:
         reasoning_steps: list[AnalysisStepRead],
     ) -> AnalysisResponse:
         generated_at = datetime.now(timezone.utc)
+        analysis_content = self._analysis_content(payload)
         source_payload = [
             {
                 "source_type": source.source_type,
@@ -219,7 +220,7 @@ class AutomatedAnalysisService:
 
         if self.openai_service is not None and self.openai_service.is_configured("primary"):
             model_result = await self.openai_service.analyze_topic(
-                content=payload.content,
+                content=analysis_content,
                 domain_id=domain_id,
                 related_sources=source_payload,
             )
@@ -253,7 +254,11 @@ class AutomatedAnalysisService:
             "Using heuristic synthesis.",
             "Model output was unavailable, so the response is based on fetched evidence and simple ranking.",
         )
-        findings = self._heuristic_findings(payload.content, sources)
+        findings = self._heuristic_findings(
+            analysis_content,
+            sources,
+            payload.decision_context,
+        )
         recommendations = self._heuristic_recommendations(domain_id, sources)
         summary = self._heuristic_summary(query, domain_id, sources)
         return AnalysisResponse(
@@ -578,6 +583,17 @@ class AutomatedAnalysisService:
             return "latest developments"
         return " ".join(tokens[:12])
 
+    def _analysis_content(self, payload: AnalysisRequest) -> str:
+        context_lines: list[str] = []
+        for key, value in sorted(payload.decision_context.items()):
+            clean_key = self._clean_text(key)
+            clean_value = self._clean_text(value)
+            if clean_key and clean_value:
+                context_lines.append(f"- {clean_key}: {clean_value}")
+        if not context_lines:
+            return payload.content
+        return f"{payload.content}\n\nDecision context:\n" + "\n".join(context_lines)
+
     def _heuristic_summary(
         self,
         query: str,
@@ -589,9 +605,21 @@ class AutomatedAnalysisService:
         top_titles = "; ".join(source.title for source in sources[:3])
         return f"Built a {domain_id} analysis for '{query}' using {len(sources)} public sources. Top evidence: {top_titles}."
 
-    def _heuristic_findings(self, content: str, sources: list[AnalysisSourceRead]) -> list[str]:
+    def _heuristic_findings(
+        self,
+        content: str,
+        sources: list[AnalysisSourceRead],
+        decision_context: dict[str, str],
+    ) -> list[str]:
         findings: list[str] = []
         if sources:
+            if decision_context:
+                context_parts = [
+                    f"{key}: {value}" for key, value in sorted(decision_context.items()) if value
+                ]
+                if context_parts:
+                    context_summary = "; ".join(context_parts)
+                    findings.append(f"Decision context: {self._clean_text(context_summary)[:500]}")
             findings.extend(source.title for source in sources[:5])
         else:
             findings.append(self._clean_text(content)[:180])
