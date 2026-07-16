@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 
@@ -19,3 +20,8 @@ def test_frontend_ci_runs_tests() -> None:
     )
 
     assert "run: npm test" in workflow
+
+
+def test_starlette_test_client_dependency_is_available() -> None:
+    """Starlette must not fall back to its deprecated httpx compatibility path."""
+    assert importlib.util.find_spec("httpx2") is not None
