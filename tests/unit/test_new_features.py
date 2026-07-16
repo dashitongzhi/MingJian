@@ -33,6 +33,9 @@ class TestAuthService:
         self.config = AuthConfig(secret_key="test-secret-key-for-testing-only")
         self.service = AuthService(self.config)
 
+    def teardown_method(self):
+        self.service.close()
+
     def test_create_user(self):
         user = self.service.create_user("testuser", "test@example.com", "password123")
         assert user.username == "testuser"

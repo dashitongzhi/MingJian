@@ -22,6 +22,7 @@ import jwt
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from planagent.domain.models import AuthRefreshToken, AuthRevokedToken, AuthUser, utc_now
 
@@ -95,10 +96,16 @@ class AuthService:
         self._session_factory: sessionmaker[Session] | None = None
         self._engine: Engine | None = None
         if self.config.database_url:
+            database_url = _sync_database_url(self.config.database_url)
+            engine_kwargs: dict[str, Any] = {
+                "future": True,
+                "pool_pre_ping": True,
+            }
+            if database_url.startswith("sqlite") and ":memory:" not in database_url:
+                engine_kwargs["poolclass"] = NullPool
             self._engine = create_engine(
-                _sync_database_url(self.config.database_url),
-                future=True,
-                pool_pre_ping=True,
+                database_url,
+                **engine_kwargs,
             )
             self._session_factory = sessionmaker(bind=self._engine, expire_on_commit=False)
 
@@ -121,6 +128,14 @@ class AuthService:
         if self._session_factory is None:
             raise RuntimeError("AuthService was not configured with a database_url")
         return self._session_factory()
+
+    def close(self) -> None:
+        """Release the database engine owned by this service."""
+        engine = self._engine
+        self._session_factory = None
+        self._engine = None
+        if engine is not None:
+            engine.dispose()
 
     def _ensure_default_admin(self) -> None:
         """Create a default admin user if none exists."""

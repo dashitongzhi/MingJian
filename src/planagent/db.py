@@ -1,10 +1,15 @@
 from collections.abc import AsyncIterator
 import asyncio
+import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from planagent.config import get_settings
 from planagent.domain.models import Base
+
+
+_logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -17,7 +22,10 @@ class Database:
         pool_recycle: int = 300,
     ) -> None:
         engine_kwargs: dict = {"echo": sql_echo, "future": True}
-        if "sqlite" not in database_url:
+        if "sqlite" in database_url:
+            if ":memory:" not in database_url:
+                engine_kwargs["poolclass"] = NullPool
+        else:
             engine_kwargs.update(
                 pool_size=pool_size,
                 max_overflow=max_overflow,
@@ -58,6 +66,7 @@ class Database:
 
 _db_instance: Database | None = None
 _db_lock = asyncio.Lock()
+_pending_disposals: set[asyncio.Task[None]] = set()
 
 
 def get_database() -> Database:
@@ -77,8 +86,51 @@ def get_database() -> Database:
 
 
 def reset_database_cache() -> None:
+    """Clear the cached database and dispose its engine safely."""
     global _db_instance
+    database = _db_instance
     _db_instance = None
+    if database is None:
+        return
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(database.dispose())
+        return
+
+    task = loop.create_task(database.dispose())
+    _pending_disposals.add(task)
+    task.add_done_callback(_finish_database_disposal)
+
+
+def _finish_database_disposal(task: asyncio.Task[None]) -> None:
+    """Consume background disposal results and release the task reference."""
+    _pending_disposals.discard(task)
+    if task.cancelled():
+        return
+    try:
+        task.result()
+    except Exception:
+        _logger.exception("Failed to dispose a reset database engine")
+
+
+async def _wait_for_pending_disposals() -> None:
+    """Wait for disposal tasks owned by the current event loop."""
+    loop = asyncio.get_running_loop()
+    pending = [task for task in tuple(_pending_disposals) if task.get_loop() is loop]
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
+
+async def close_database() -> None:
+    """Dispose and clear the cached database instance during app shutdown."""
+    global _db_instance
+    await _wait_for_pending_disposals()
+    database = _db_instance
+    _db_instance = None
+    if database is not None:
+        await database.dispose()
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

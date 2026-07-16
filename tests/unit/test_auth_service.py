@@ -15,6 +15,7 @@ from planagent.services.auth import AuthConfig, AuthService, UserRole, _hash_tok
 
 
 TEST_SECRET_KEY = "test-secret-key-for-unit-tests-that-is-long-enough"
+_DB_AUTH_SERVICES: list[AuthService] = []
 
 
 # ---------------------------------------------------------------------------
@@ -25,20 +26,31 @@ TEST_SECRET_KEY = "test-secret-key-for-unit-tests-that-is-long-enough"
 @pytest.fixture()
 def auth_service():
     """创建一个不自动创建默认 admin 的 AuthService。"""
-    return AuthService(
+    service = AuthService(
         AuthConfig(
             secret_key=TEST_SECRET_KEY,
             algorithm="HS256",
             create_default_admin=False,
         )
     )
+    yield service
+    service.close()
 
 
 @pytest.fixture()
 def auth_service_with_admin():
     """创建一个包含默认 admin 用户的 AuthService。"""
     svc = AuthService(config=AuthConfig(secret_key=TEST_SECRET_KEY))
-    return svc
+    yield svc
+    svc.close()
+
+
+@pytest.fixture(autouse=True)
+def close_database_backed_auth_services():
+    """Close every database-backed service created by a unit test."""
+    yield
+    while _DB_AUTH_SERVICES:
+        _DB_AUTH_SERVICES.pop().close()
 
 
 def make_db_auth_service(db_url: str) -> AuthService:
@@ -52,7 +64,20 @@ def make_db_auth_service(db_url: str) -> AuthService:
         )
     )
     Base.metadata.create_all(svc._engine)
+    _DB_AUTH_SERVICES.append(svc)
     return svc
+
+
+def test_close_disposes_owned_database_engine(tmp_path) -> None:
+    service = make_db_auth_service(f"sqlite:///{tmp_path / 'auth-close.db'}")
+
+    service.close()
+    service.close()
+
+    assert service._engine is None
+    assert service._session_factory is None
+    with pytest.raises(RuntimeError, match="not configured with a database_url"):
+        service._session()
 
 
 # ---------------------------------------------------------------------------
@@ -585,6 +610,7 @@ class TestPersistentAuthStore:
                 default_admin_password="configured-bootstrap-password",
             )
         )
+        _DB_AUTH_SERVICES.append(recovered)
 
         assert recovered.authenticate("admin", "configured-bootstrap-password") is not None
 

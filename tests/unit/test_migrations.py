@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 import subprocess
 import sys
 
@@ -23,7 +24,7 @@ def test_sqlite_upgrade_head_keeps_portable_embedding_column(tmp_path: Path) -> 
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    with sqlite3.connect(database_path) as connection:
+    with closing(sqlite3.connect(database_path)) as connection:
         columns = {
             row[1]: row[2] for row in connection.execute("PRAGMA table_info(knowledge_graph_nodes)")
         }
@@ -55,7 +56,7 @@ def test_recommendation_integrity_migration_repairs_existing_duplicates(tmp_path
     )
     assert before_constraint.returncode == 0, before_constraint.stdout + before_constraint.stderr
 
-    with sqlite3.connect(database_path) as connection:
+    with closing(sqlite3.connect(database_path)) as connection:
         connection.execute(
             "INSERT INTO strategic_sessions "
             "(id, name, topic, domain_id, created_at, updated_at) "
@@ -92,6 +93,7 @@ def test_recommendation_integrity_migration_repairs_existing_duplicates(tmp_path
                 ),
             ],
         )
+        connection.commit()
 
     repaired = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
@@ -103,7 +105,7 @@ def test_recommendation_integrity_migration_repairs_existing_duplicates(tmp_path
     )
     assert repaired.returncode == 0, repaired.stdout + repaired.stderr
 
-    with sqlite3.connect(database_path) as connection:
+    with closing(sqlite3.connect(database_path)) as connection:
         rows = connection.execute(
             "SELECT id, version_number FROM recommendation_versions "
             "WHERE session_id = ? ORDER BY version_number",

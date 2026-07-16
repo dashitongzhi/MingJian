@@ -12,7 +12,7 @@ from planagent.api.routes import router
 from planagent.api.access import CommunityAccessMiddleware
 from planagent.api.routes.ws import router as websocket_router
 from planagent.config import get_settings
-from planagent.db import get_database
+from planagent.db import close_database, get_database
 from planagent.events.bus import build_event_bus
 from planagent.services.openai_client import OpenAIService
 from planagent.services.auth import AuthService, AuthConfig
@@ -61,7 +61,8 @@ def create_app() -> FastAPI:
             await app.state.notification_service.close()
             await app.state.openai_service.close()
             await app.state.event_bus.close()
-            await database.dispose()
+            app.state.auth_service.close()
+            await close_database()
 
     app = FastAPI(
         title=settings.app_name,
