@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import math
+from functools import lru_cache
 
 import matplotlib
 
@@ -11,8 +12,39 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
+from matplotlib import font_manager
 
 from planagent.config.report_theme import ReportTheme
+
+
+_CJK_FONT_FAMILIES = (
+    "Noto Sans CJK SC",
+    "Noto Sans SC",
+    "WenQuanYi Micro Hei",
+    "Hiragino Sans GB",
+    "PingFang SC",
+    "STHeiti",
+    "Microsoft YaHei",
+    "SimHei",
+    "Arial Unicode MS",
+)
+
+
+@lru_cache(maxsize=1)
+def _cjk_font_family() -> str:
+    """Return the first installed sans-serif family with CJK coverage."""
+    for family in _CJK_FONT_FAMILIES:
+        try:
+            path = font_manager.findfont(
+                font_manager.FontProperties(family=[family]),
+                fallback_to_default=False,
+            )
+        except ValueError:
+            continue
+        font = font_manager.get_font(path)
+        if all(ord(character) in font.get_charmap() for character in "明鉴辩论置信度"):
+            return font_manager.FontProperties(fname=path).get_name()
+    return "DejaVu Sans"
 
 
 def _empty_svg(width: int = 800, height: int = 400) -> str:
@@ -32,13 +64,19 @@ def _fig_to_svg(fig: plt.Figure) -> str:
 
 def _rc_context():
     """Return a matplotlib rcParams context for safe concurrent use."""
+    cjk_font_family = _cjk_font_family()
     return matplotlib.rc_context(
         {
             "svg.fonttype": "none",
+            "font.family": [cjk_font_family],
             "font.sans-serif": [
+                cjk_font_family,
                 "SimHei",
                 "WenQuanYi Micro Hei",
                 "Noto Sans CJK SC",
+                "Hiragino Sans GB",
+                "PingFang SC",
+                "STHeiti",
                 "Microsoft YaHei",
                 "DejaVu Sans",
                 "sans-serif",

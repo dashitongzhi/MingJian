@@ -74,3 +74,11 @@ def test_setup_generates_persistent_auth_secret_before_compose_start() -> None:
     assert secret_write < compose_start
     assert admin_password_write < compose_start
     assert proxy_secret_write < compose_start
+
+
+def test_ci_and_runtime_install_cjk_font_support() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "fonts-noto-cjk" in dockerfile
+    assert "fonts-noto-cjk" in ci

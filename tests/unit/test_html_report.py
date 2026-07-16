@@ -8,6 +8,7 @@ Covers:
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -260,6 +261,17 @@ class TestChartGeneration:
         result = chart_service.generate_confidence_trajectory(sample_confidence_data)
         assert "<svg" in result
         assert "</svg>" in result
+
+    def test_chinese_chart_labels_render_without_missing_glyph_warnings(
+        self, chart_service, sample_confidence_data
+    ):
+        """Chinese labels must use a real CJK font instead of DejaVu fallback."""
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=r"Glyph .* missing from font")
+            result = chart_service.generate_confidence_trajectory(sample_confidence_data)
+
+        assert "<svg" in result
+        assert "辩论置信度变化轨迹" in result
 
     def test_argument_comparison_returns_svg(
         self, chart_service, sample_support_args, sample_challenge_args
