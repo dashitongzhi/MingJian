@@ -24,6 +24,8 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           AFTER_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           python3 - <<'PY'
           import os
@@ -35,19 +37,22 @@ jobs:
           after = os.environ["AFTER_SHA"]
           before = os.environ.get("BEFORE_SHA", "")
           base = os.environ.get("BASE_SHA", "")
+          default_branch = os.environ.get("DEFAULT_BRANCH", "")
+          ref_name = os.environ.get("REF_NAME", "")
 
           if event_name == "pull_request" and base:
-              revision = f"{base}..{after}"
+              command = ["git", "rev-list", "--no-merges", f"{base}..{after}"]
           elif before and before != "0" * 40:
-              revision = f"{before}..{after}"
+              command = ["git", "rev-list", "--no-merges", f"{before}..{after}"]
           else:
-              revision = after
-
-          command = ["git", "rev-list", "--no-merges"]
-          if ".." in revision:
-              command.append(revision)
-          else:
-              command.extend(["-1", revision])
+              command = ["git", "rev-list", "--no-merges", after]
+              default_ref = f"refs/remotes/origin/{default_branch}"
+              default_ref_exists = subprocess.run(
+                  ["git", "show-ref", "--verify", "--quiet", default_ref],
+                  check=False,
+              ).returncode == 0
+              if ref_name != default_branch and default_ref_exists:
+                  command.append(f"^{default_ref}")
           commits = subprocess.check_output(command, text=True).split()
 
           failures = []
@@ -56,15 +61,15 @@ jobs:
                   ["git", "show", "-s", "--format=%B", commit],
                   text=True,
               )
-              has_english = re.search(r"[A-Za-z]", message) is not None
-              has_chinese = re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", message) is not None
+              subject = message.splitlines()[0] if message.splitlines() else "<empty>"
+              has_english = re.search(r"[A-Za-z]", subject) is not None
+              has_chinese = re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", subject) is not None
               if not (has_english and has_chinese):
-                  subject = message.splitlines()[0] if message.splitlines() else "<empty>"
                   failures.append(f"{commit[:12]} {subject}")
 
           if failures:
-              print("Every non-merge commit must include English and Chinese descriptions.")
-              print("每个非合并提交都必须包含英文和中文描述。")
+              print("Every non-merge commit subject must include English and Chinese descriptions.")
+              print("每个非合并提交的主题行都必须包含英文和中文描述。")
               print("\n".join(failures))
               sys.exit(1)
 
