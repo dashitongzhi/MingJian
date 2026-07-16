@@ -422,6 +422,7 @@ def test_jarvis_publishes_repair_event_for_verification_findings() -> None:
 
     assert result.status == "PARTIAL"
     assert result.verdict == "CONDITIONAL_PASS"
+    assert result.pass_score == 0
     assert len(repair_events) == 1
     assert repair_events[0].payload["repair_actions"][0]["action"] == "configure_target"
     assert len(verification_events) == 1

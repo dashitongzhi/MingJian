@@ -153,7 +153,7 @@ class JarvisOrchestrator:
         if fail > 0 and success == 0:
             result.status, result.verdict, result.pass_score = "FAILED", "FAIL", 0
         elif skipped == len(final_target_steps):
-            result.status, result.verdict, result.pass_score = "COMPLETED", "PASS", 88
+            result.status, result.verdict, result.pass_score = "PARTIAL", "CONDITIONAL_PASS", 0
         elif fail > 0:
             result.status, result.verdict, result.pass_score = (
                 "PARTIAL",

@@ -667,6 +667,7 @@ class StrategicAssistantRequest(APIModel):
     @field_validator("context")
     @classmethod
     def validate_context(cls, value: dict[str, str]) -> dict[str, str]:
+        """Normalize and validate user-supplied decision context fields."""
         return _normalize_decision_context(value)
 
 
@@ -728,6 +729,7 @@ class AnalysisRequest(APIModel):
     @field_validator("decision_context")
     @classmethod
     def validate_decision_context(cls, value: dict[str, str]) -> dict[str, str]:
+        """Normalize and validate analysis decision context fields."""
         return _normalize_decision_context(value)
 
 
