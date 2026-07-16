@@ -1,0 +1,72 @@
+name: Bilingual Commit Messages
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate English and Chinese descriptions
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          import sys
+
+          event_name = os.environ["EVENT_NAME"]
+          after = os.environ["AFTER_SHA"]
+          before = os.environ.get("BEFORE_SHA", "")
+          base = os.environ.get("BASE_SHA", "")
+
+          if event_name == "pull_request" and base:
+              revision = f"{base}..{after}"
+          elif before and before != "0" * 40:
+              revision = f"{before}..{after}"
+          else:
+              revision = after
+
+          command = ["git", "rev-list", "--no-merges"]
+          if ".." in revision:
+              command.append(revision)
+          else:
+              command.extend(["-1", revision])
+          commits = subprocess.check_output(command, text=True).split()
+
+          failures = []
+          for commit in commits:
+              message = subprocess.check_output(
+                  ["git", "show", "-s", "--format=%B", commit],
+                  text=True,
+              )
+              has_english = re.search(r"[A-Za-z]", message) is not None
+              has_chinese = re.search(r"[\u3400-\u4dbf\u4e00-\u9fff]", message) is not None
+              if not (has_english and has_chinese):
+                  subject = message.splitlines()[0] if message.splitlines() else "<empty>"
+                  failures.append(f"{commit[:12]} {subject}")
+
+          if failures:
+              print("Every non-merge commit must include English and Chinese descriptions.")
+              print("每个非合并提交都必须包含英文和中文描述。")
+              print("\n".join(failures))
+              sys.exit(1)
+
+          print(f"Validated {len(commits)} bilingual commit message(s).")
+          PY
