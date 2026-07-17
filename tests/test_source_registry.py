@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 
 _ENTITY_XML = """<?xml version="1.0"?>
@@ -105,3 +106,23 @@ async def test_xml_source_providers_reject_entity_declarations(
         await provider.fetch("expanded", limit=1, domain_id="general")
 
     assert exc_info.value.__class__.__name__ == "EntitiesForbidden"
+
+
+@pytest.mark.parametrize("unsafe_url", ["javascript:alert(1)", "https://user:pass@example.com/"])
+def test_public_source_dtos_reject_unsafe_urls(unsafe_url: str) -> None:
+    from planagent.domain.api import AnalysisSourceRead, SourceSeedInput
+
+    with pytest.raises(ValidationError, match="http"):
+        AnalysisSourceRead(
+            source_type="rss",
+            title="Untrusted link",
+            url=unsafe_url,
+            summary="External feed item",
+        )
+    with pytest.raises(ValidationError, match="http"):
+        SourceSeedInput(
+            source_type="manual",
+            source_url=unsafe_url,
+            title="Untrusted link",
+            content_text="External source content",
+        )

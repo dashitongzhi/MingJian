@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -36,6 +37,23 @@ def _normalize_decision_context(value: dict[str, str]) -> dict[str, str]:
     return normalized
 
 
+def _validate_external_http_url(value: str) -> str:
+    if len(value) > 2048 or value != value.strip():
+        raise ValueError("source URL must be an explicit http(s) URL")
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError("source URL must be an explicit http(s) URL")
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+        raise ValueError("source URL must be an explicit http(s) URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("source URL must not contain credentials")
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError("source URL must have a valid port") from exc
+    return value
+
+
 class SourceSeedInput(APIModel):
     source_type: str
     source_url: str
@@ -43,6 +61,11 @@ class SourceSeedInput(APIModel):
     content_text: str
     published_at: datetime | None = None
     source_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_source_url(cls, value: str) -> str:
+        return _validate_external_http_url(value)
 
 
 class IngestRunCreate(APIModel):
@@ -740,6 +763,11 @@ class AnalysisSourceRead(APIModel):
     summary: str
     published_at: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("url")
+    @classmethod
+    def validate_source_url(cls, value: str) -> str:
+        return _validate_external_http_url(value)
 
 
 class AnalysisStepRead(APIModel):
