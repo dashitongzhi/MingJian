@@ -234,6 +234,25 @@ def test_remote_login_throttles_repeated_password_guessing(
     assert blocked.json()["detail"] == "Too many failed login attempts"
 
 
+def test_remote_authentication_responses_disable_caching(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "auth-cache-control.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        response = client.post(
+            "/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-bootstrap-admin-password",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["Pragma"] == "no-cache"
+
+
 def test_remote_requests_reject_oversized_chunked_body(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

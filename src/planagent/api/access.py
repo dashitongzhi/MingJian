@@ -51,6 +51,7 @@ class CommunityAccessMiddleware:
             if limited_receive is None:
                 return
             receive = limited_receive
+            send = _auth_no_store_send(scope, send)
         if scope_type == "http" and _is_public_request(
             scope,
             expose_auth_routes=settings.remote_access_enabled,
@@ -100,6 +101,30 @@ class CommunityAccessMiddleware:
             await response(scope, receive, send)
             return
         await self.app(scope, receive, send)
+
+
+def _auth_no_store_send(scope: Scope, send: Send) -> Send:
+    if not _canonical_path(str(scope.get("path", ""))).startswith("/auth/"):
+        return send
+
+    async def send_with_no_store(message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers: list[tuple[bytes, bytes]] = list(message.get("headers", []))
+            headers = [
+                (name, value)
+                for name, value in headers
+                if name.lower() not in {b"cache-control", b"pragma"}
+            ]
+            headers.extend(
+                [
+                    (b"cache-control", b"no-store"),
+                    (b"pragma", b"no-cache"),
+                ]
+            )
+            message = {**message, "headers": headers}
+        await send(message)
+
+    return send_with_no_store
 
 
 async def _receive_with_body_limit(
