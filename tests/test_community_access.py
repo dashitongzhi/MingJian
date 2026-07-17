@@ -10,6 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 from planagent.config import reset_settings_cache
 from planagent.db import reset_database_cache
 from planagent.main import create_app
+from planagent.services.auth import UserRole
 
 
 def _database_url(path: Path) -> str:
@@ -170,6 +171,39 @@ def test_remote_analyst_cannot_reset_global_agent_configuration(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Requires role: admin"
+
+
+def test_remote_viewer_is_read_only_across_business_routes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "viewer-read-only.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        client.app.state.auth_service.create_user(
+            username="read-only-viewer",
+            email="read-only-viewer@example.com",
+            password="safe-password",
+            role=UserRole.VIEWER,
+        )
+        login = client.post(
+            "/auth/login",
+            json={"username": "read-only-viewer", "password": "safe-password"},
+        )
+        assert login.status_code == 200
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+        read_response = client.get("/stats", headers=headers)
+        write_response = client.post(
+            "/export/custom",
+            headers=headers,
+            json={"topic": "viewer must not create exports"},
+        )
+        logout_response = client.post("/auth/logout", headers=headers)
+
+    assert read_response.status_code == 200
+    assert write_response.status_code == 403
+    assert write_response.json()["detail"] == "Viewer role is read-only"
+    assert logout_response.status_code == 200
 
 
 def test_remote_user_cannot_send_notification_as_another_user(

@@ -23,6 +23,10 @@ _PUBLIC_AUTH_POST_PATHS = {
     "/auth/register",
 }
 _BROWSER_JWT_SUBPROTOCOL = "mingjian.jwt"
+_VIEWER_ACCOUNT_WRITE_PATHS = {
+    "/auth/change-password",
+    "/auth/logout",
+}
 
 
 class CommunityAccessMiddleware:
@@ -78,6 +82,13 @@ class CommunityAccessMiddleware:
         state["community_access_payload"] = payload
         if selected_subprotocol is not None:
             state["community_websocket_subprotocol"] = selected_subprotocol
+        if scope_type == "http" and _is_forbidden_viewer_write(scope, payload):
+            response = JSONResponse(
+                status_code=403,
+                content={"detail": "Viewer role is read-only"},
+            )
+            await response(scope, receive, send)
+            return
         await self.app(scope, receive, send)
 
 
@@ -98,6 +109,16 @@ def _canonical_path(path: str) -> str:
     if path.startswith("/api/"):
         return path[4:]
     return path
+
+
+def _is_forbidden_viewer_write(scope: Scope, payload: dict[str, object]) -> bool:
+    """Keep viewer sessions read-only while allowing their own account maintenance."""
+    if payload.get("role") != "viewer":
+        return False
+    method = str(scope.get("method", "")).upper()
+    if method in {"GET", "HEAD", "OPTIONS"}:
+        return False
+    return _canonical_path(str(scope.get("path", ""))) not in _VIEWER_ACCOUNT_WRITE_PATHS
 
 
 def _scope_authorization(scope: Scope) -> str | None:
