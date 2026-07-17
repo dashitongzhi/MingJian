@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,9 @@ from planagent.services.openai_client import OpenAIService
 from planagent.services.prediction import PredictionService
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
+
+_WORKER_PUBLIC_ERROR = "Worker execution failed"
+logger = logging.getLogger(__name__)
 
 
 class PredictionRevisionWorker(Worker):
@@ -87,8 +92,13 @@ class PredictionRevisionWorker(Worker):
             try:
                 enqueued += await self._enqueue_from_payload(session, event.payload)
                 await self.event_bus.ack(event.topic, self.description.worker_id, event.message_id)
-            except Exception as exc:
-                errors.append(f"{event.topic}:{event.message_id}:{type(exc).__name__}:{exc}")
+            except Exception:
+                logger.exception(
+                    "Prediction revision event processing failed: topic=%s message_id=%s",
+                    event.topic,
+                    event.message_id,
+                )
+                errors.append(f"{event.topic}:{event.message_id}:{_WORKER_PUBLIC_ERROR}")
                 await self.event_bus.publish_dead_letter(
                     event.topic,
                     {
@@ -96,7 +106,7 @@ class PredictionRevisionWorker(Worker):
                         "consumer": self.worker_instance_id,
                         "message_id": event.message_id,
                         "payload": event.payload,
-                        "error": str(exc),
+                        "error": _WORKER_PUBLIC_ERROR,
                     },
                 )
                 await self.event_bus.ack(event.topic, self.description.worker_id, event.message_id)

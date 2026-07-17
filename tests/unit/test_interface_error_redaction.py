@@ -18,6 +18,7 @@ from planagent.services.openai_client import OpenAIService
 from planagent.services.prediction import PredictionService
 from planagent.workers.strategic_watch import StrategicWatchWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
+from planagent.workers.prediction_revision import PredictionRevisionWorker
 
 
 _SECRET_ERROR = "provider token sk-secret at http://10.0.0.8:6379"
@@ -344,3 +345,43 @@ async def test_prediction_revision_jobs_expose_only_generic_failures() -> None:
     assert pending_job.last_error == "Prediction revision failed"
     assert processing_job.last_error == "Revision simulation failed"
     assert _SECRET_ERROR not in str([pending_job.last_error, processing_job.last_error])
+
+
+@pytest.mark.asyncio
+async def test_prediction_revision_event_failures_are_redacted() -> None:
+    event = SimpleNamespace(
+        topic="evidence.created",
+        message_id="event-1",
+        payload={"evidence_item_id": "evidence-1"},
+    )
+    published: list[dict[str, Any]] = []
+
+    class FakeEventBus:
+        async def reclaim_pending(self, **kwargs: Any) -> list[Any]:
+            _ = kwargs
+            return [event]
+
+        async def consume(self, **kwargs: Any) -> list[Any]:
+            _ = kwargs
+            return []
+
+        async def publish_dead_letter(self, topic: str, payload: dict[str, Any]) -> None:
+            _ = topic
+            published.append(payload)
+
+        async def ack(self, topic: str, group: str, message_id: str) -> None:
+            _ = (topic, group, message_id)
+
+    worker = PredictionRevisionWorker.__new__(PredictionRevisionWorker)
+    worker.event_bus = FakeEventBus()  # type: ignore[assignment]
+    worker.worker_instance_id = "prediction-revision-worker"
+    worker._enqueue_from_payload = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+
+    enqueued, errors = await worker._consume_revision_events(_FakeSession())
+
+    assert enqueued == 0
+    assert errors == ["evidence.created:event-1:Worker execution failed"]
+    assert published[0]["error"] == "Worker execution failed"
+    assert _SECRET_ERROR not in str({"errors": errors, "published": published})
