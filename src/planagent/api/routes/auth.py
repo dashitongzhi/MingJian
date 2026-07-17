@@ -115,6 +115,26 @@ def _login_attempt_key(request: Request, username: str) -> str:
     return f"{client_host}\0{username.strip().casefold()}"
 
 
+def _enforce_remote_admin_session(
+    request: Request,
+    auth_service: AuthService,
+    access_token: str,
+) -> None:
+    from planagent.config import get_settings
+
+    if not get_settings().remote_access_enabled:
+        return
+    payload = auth_service.verify_token(access_token)
+    if payload is not None and payload.get("role") == UserRole.ADMIN.value:
+        return
+    if payload is not None and isinstance(payload.get("sub"), str):
+        auth_service.revoke_user_sessions(payload["sub"])
+    raise HTTPException(
+        status_code=403,
+        detail="Community remote access is administrator-only",
+    )
+
+
 def get_current_user_payload(
     request: Request,
     authorization: str | None = Header(None),
@@ -283,6 +303,7 @@ async def login(
     if tokens is None:
         limiter.record_failure(attempt_key)
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    _enforce_remote_admin_session(request, auth_service, tokens.access_token)
     limiter.clear(attempt_key)
     return TokenResponse(
         access_token=tokens.access_token,
@@ -301,6 +322,7 @@ async def refresh_token(
     tokens = auth_service.refresh_access_token(body.refresh_token)
     if tokens is None:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    _enforce_remote_admin_session(request, auth_service, tokens.access_token)
     return TokenResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,

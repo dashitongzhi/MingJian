@@ -53,12 +53,8 @@ def _register_and_login_user(
         email=f"{username}@example.com",
         password="safe-password",
     )
-    login = client.post(
-        "/auth/login",
-        json={"username": username, "password": "safe-password"},
-    )
-    assert login.status_code == 200
-    return user.id, str(login.json()["access_token"])
+    tokens = client.app.state.auth_service._create_token_pair(user)
+    return user.id, tokens.access_token
 
 
 def test_notifications_reject_anonymous_remote_access(
@@ -179,18 +175,14 @@ def test_remote_viewer_is_read_only_across_business_routes(
     _configure_remote_access(monkeypatch, tmp_path / "viewer-read-only.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        client.app.state.auth_service.create_user(
+        viewer = client.app.state.auth_service.create_user(
             username="read-only-viewer",
             email="read-only-viewer@example.com",
             password="safe-password",
             role=UserRole.VIEWER,
         )
-        login = client.post(
-            "/auth/login",
-            json={"username": "read-only-viewer", "password": "safe-password"},
-        )
-        assert login.status_code == 200
-        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        token = client.app.state.auth_service._create_token_pair(viewer).access_token
+        headers = {"Authorization": f"Bearer {token}"}
 
         read_response = client.get("/stats", headers=headers)
         write_response = client.post(
@@ -232,6 +224,33 @@ def test_remote_login_throttles_repeated_password_guessing(
     assert blocked.status_code == 429
     assert blocked.headers["Retry-After"]
     assert blocked.json()["detail"] == "Too many failed login attempts"
+
+
+def test_remote_mode_rejects_non_admin_login_and_refresh(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "admin-only-remote-auth.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        user = client.app.state.auth_service.create_user(
+            username="community-analyst",
+            email="community-analyst@example.com",
+            password="safe-password",
+        )
+        direct_tokens = client.app.state.auth_service._create_token_pair(user)
+        refresh_response = client.post(
+            "/auth/refresh",
+            json={"refresh_token": direct_tokens.refresh_token},
+        )
+        login_response = client.post(
+            "/auth/login",
+            json={"username": "community-analyst", "password": "safe-password"},
+        )
+
+    assert login_response.status_code == 403
+    assert refresh_response.status_code == 403
+    assert login_response.json()["detail"] == "Community remote access is administrator-only"
+    assert refresh_response.json()["detail"] == "Community remote access is administrator-only"
 
 
 def test_remote_authentication_responses_disable_caching(
