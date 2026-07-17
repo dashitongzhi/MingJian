@@ -55,7 +55,11 @@ def test_community_rejects_commercial_prediction_operations(
 ) -> None:
     _configure_local_community(monkeypatch, tmp_path / f"{feature}-{method}.db")
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        base_url="http://127.0.0.1",
+        client=("127.0.0.1", 50000),
+    ) as client:
         response = client.request(method.upper(), path, json={"domain_id": "corporate"})
 
     assert response.status_code == 403
@@ -71,7 +75,11 @@ def test_community_dashboard_omits_commercial_calibration_and_backtest_metrics(
 ) -> None:
     _configure_local_community(monkeypatch, tmp_path / "monitoring-dashboard.db")
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        base_url="http://127.0.0.1",
+        client=("127.0.0.1", 50000),
+    ) as client:
         response = client.get("/monitoring/dashboard")
 
     assert response.status_code == 200
@@ -94,7 +102,11 @@ def test_community_notification_delivery_is_websocket_only(
 ) -> None:
     _configure_local_community(monkeypatch, tmp_path / f"notification-{channel}.db")
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        base_url="http://127.0.0.1",
+        client=("127.0.0.1", 50000),
+    ) as client:
         response = client.post(
             "/notifications/send",
             json={
@@ -118,7 +130,11 @@ def test_community_rejects_notification_broadcasts(
 ) -> None:
     _configure_local_community(monkeypatch, tmp_path / "notification-broadcast.db")
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        base_url="http://127.0.0.1",
+        client=("127.0.0.1", 50000),
+    ) as client:
         response = client.post(
             "/notifications/broadcast",
             json={"title": "Commercial broadcast", "body": "Not in Community."},
@@ -133,7 +149,11 @@ def test_community_does_not_expose_global_notification_stream(
 ) -> None:
     _configure_local_community(monkeypatch, tmp_path / "global-notification-stream.db")
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        base_url="http://127.0.0.1",
+        client=("127.0.0.1", 50000),
+    ) as client:
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/notifications"):
                 pass

@@ -266,7 +266,7 @@ async def client() -> AsyncIterator[AsyncClient]:
     from planagent.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(transport=transport, base_url="http://127.0.0.1") as c:
         yield c
 
 
