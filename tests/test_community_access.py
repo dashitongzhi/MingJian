@@ -253,6 +253,24 @@ def test_remote_authentication_responses_disable_caching(
     assert response.headers["Pragma"] == "no-cache"
 
 
+def test_remote_login_rejects_passwords_beyond_bcrypt_limit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "auth-password-limit.db")
+
+    with TestClient(
+        create_app(),
+        client=("203.0.113.10", 50000),
+        raise_server_exceptions=False,
+    ) as client:
+        response = client.post(
+            "/auth/login",
+            json={"username": "admin", "password": "x" * 73},
+        )
+
+    assert response.status_code == 422
+
+
 def test_remote_requests_reject_oversized_chunked_body(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

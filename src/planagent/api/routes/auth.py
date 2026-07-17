@@ -8,7 +8,7 @@ from secrets import compare_digest
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from planagent.services.auth import AuthService, UserRole
 from planagent.services.login_throttle import LoginAttemptLimiter
@@ -22,14 +22,24 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     username: str = Field(min_length=3, max_length=32)
-    email: str = Field(min_length=5)
-    password: str = Field(min_length=6)
+    email: str = Field(min_length=5, max_length=320)
+    password: str = Field(min_length=6, max_length=72)
     role: Literal["analyst", "viewer"] = "analyst"  # admin only via admin endpoint
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_size(cls, value: str) -> str:
+        return _validate_bcrypt_password_size(value)
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=32)
+    password: str = Field(min_length=1, max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_size(cls, value: str) -> str:
+        return _validate_bcrypt_password_size(value)
 
 
 class TokenResponse(BaseModel):
@@ -44,8 +54,13 @@ class RefreshRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str = Field(min_length=6)
-    new_password: str = Field(min_length=12)
+    current_password: str = Field(min_length=6, max_length=72)
+    new_password: str = Field(min_length=12, max_length=72)
+
+    @field_validator("current_password", "new_password")
+    @classmethod
+    def validate_password_size(cls, value: str) -> str:
+        return _validate_bcrypt_password_size(value)
 
 
 class UserInfo(BaseModel):
@@ -56,6 +71,12 @@ class UserInfo(BaseModel):
     is_active: bool
     created_at: str
     last_login: str | None = None
+
+
+def _validate_bcrypt_password_size(value: str) -> str:
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("Password must not exceed 72 UTF-8 bytes")
+    return value
 
 
 # ── Dependency ────────────────────────────────────────────────
