@@ -10,9 +10,7 @@ on:
         required: true
         type: number
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: codex-pr-review-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
@@ -20,7 +18,13 @@ concurrency:
 
 jobs:
   codex-review:
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      review_outcome: ${{ steps.codex.outcome }}
 
     steps:
       - name: Build review prompt from PR diff
@@ -136,8 +140,9 @@ jobs:
           openai-api-key: ${{ secrets.CODEX_REVIEW_API_KEY }}
           responses-api-endpoint: ${{ vars.CODEX_REVIEW_RESPONSES_ENDPOINT }}
           model: ${{ vars.CODEX_REVIEW_MODEL }}
-          sandbox: read-only
-          allow-users: "*"
+          codex-version: 0.144.5
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
           prompt-file: .codex-pr-review-prompt.md
           output-file: .codex-pr-review.md
 
@@ -153,11 +158,24 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  publish-review:
+    needs: codex-review
+    if: always() && needs.codex-review.result != 'skipped'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download review inputs
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: codex-pr-review-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
+
       - name: Publish review comment
         id: publish
-        if: always()
         env:
-          CODEX_OUTCOME: ${{ steps.codex.outcome }}
+          CODEX_OUTCOME: ${{ needs.codex-review.outputs.review_outcome }}
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
