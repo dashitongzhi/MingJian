@@ -936,9 +936,7 @@ class OpenAIService:
         return self.last_error
 
     def _sanitize_exception(self, exc: Exception) -> str:
-        message = " ".join(str(exc).split())
-        message = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", message)
-        return f"{type(exc).__name__}: {message[:240]}" if message else type(exc).__name__
+        return type(exc).__name__
 
     def _extract_chat_text(self, response: object) -> str:
         choices = getattr(response, "choices", [])

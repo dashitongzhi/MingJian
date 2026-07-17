@@ -14,6 +14,7 @@ from planagent.domain.api import AnalysisRequest
 from planagent.mcp.protocol import MCPProtocolHandler
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
+from planagent.services.openai_client import OpenAIService
 from planagent.services.prediction import PredictionService
 from planagent.workers.strategic_watch import StrategicWatchWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
@@ -190,6 +191,37 @@ async def test_jarvis_outputs_redact_provider_failures() -> None:
     assert "Model request failed" in serialized
     assert "Model review unavailable" in serialized
     assert connection["error"] == "Model connection test failed"
+
+
+@pytest.mark.asyncio
+async def test_openai_connection_diagnostics_do_not_echo_exception_messages() -> None:
+    service = OpenAIService(
+        Settings(
+            _env_file=None,
+            openai_primary_api_key="configured-key",
+            openai_primary_model="test-model",
+        )
+    )
+    failure = RuntimeError(
+        "Authorization: Bearer provider-secret at "
+        "https://user:password@10.0.0.8/v1?api_key=query-secret"
+    )
+    service.clients["primary"] = SimpleNamespace(
+        responses=SimpleNamespace(create=AsyncMock(side_effect=failure)),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=AsyncMock(side_effect=failure))),
+    )
+    service._create_chat_completion_raw = AsyncMock(  # type: ignore[method-assign]
+        side_effect=failure
+    )
+
+    result = await service.test_connection(target="primary")
+
+    assert result.ok is False
+    assert result.last_error is not None
+    assert "provider-secret" not in result.last_error
+    assert "password" not in result.last_error
+    assert "query-secret" not in result.last_error
+    assert "RuntimeError" in result.last_error
 
 
 @pytest.mark.asyncio
