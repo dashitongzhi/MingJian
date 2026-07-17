@@ -143,6 +143,7 @@ jobs:
           codex-version: 0.144.5
           permission-profile: ":read-only"
           safety-strategy: drop-sudo
+          allow-bot-users: "dependabot[bot]"
           prompt-file: .codex-pr-review-prompt.md
           output-file: .codex-pr-review.md
 
