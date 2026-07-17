@@ -5,7 +5,9 @@ from typing import Any
 import pytest
 
 from planagent.api.routes.monitoring import monitoring_events_stream
+from planagent.config import Settings
 from planagent.mcp.protocol import MCPProtocolHandler
+from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
 
 _SECRET_ERROR = "provider token sk-secret at http://10.0.0.8:6379"
@@ -23,6 +25,20 @@ class _FailingEventBus:
 class _ConnectedRequest:
     async def is_disconnected(self) -> bool:
         return False
+
+
+class _FailingOpenAIService:
+    def is_configured(self, target: str) -> bool:
+        _ = target
+        return True
+
+    async def generate_json_for_target(self, **kwargs: Any) -> tuple[str, dict[str, Any]]:
+        _ = kwargs
+        raise RuntimeError(_SECRET_ERROR)
+
+    async def test_connection(self, target: str) -> str:
+        _ = target
+        raise RuntimeError(_SECRET_ERROR)
 
 
 @pytest.mark.asyncio
@@ -60,3 +76,20 @@ async def test_mcp_internal_error_does_not_echo_exception(
     assert isinstance(error, dict)
     assert _SECRET_ERROR not in str(error)
     assert error["message"] == "Internal server error"
+
+
+@pytest.mark.asyncio
+async def test_jarvis_outputs_redact_provider_failures() -> None:
+    orchestrator = JarvisOrchestrator(
+        Settings(_env_file=None),
+        _FailingOpenAIService(),  # type: ignore[arg-type]
+    )
+
+    result = await orchestrator.orchestrate(JarvisTask(task_type="analysis", payload={}))
+    connection = await orchestrator.test_target("primary")
+
+    serialized = str({"run": result.to_dict(), "connection": connection})
+    assert _SECRET_ERROR not in serialized
+    assert "Model request failed" in serialized
+    assert "Model review unavailable" in serialized
+    assert connection["error"] == "Model connection test failed"

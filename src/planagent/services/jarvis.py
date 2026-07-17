@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 import time
 from dataclasses import dataclass, field
@@ -11,6 +12,8 @@ from planagent.config import Settings
 from planagent.domain.enums import EventTopic
 from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -283,8 +286,9 @@ class JarvisOrchestrator:
                         output["critical_issues"] = max(1, critical)
                     elif parsed.get("status") == "warn":
                         output["warning_issues"] = max(1, warnings)
-            except Exception as exc:
-                output["model_review_error"] = str(exc)[:300]
+            except Exception:
+                logger.exception("Jarvis model self-review failed")
+                output["model_review_error"] = "Model review unavailable"
 
         return JarvisStepResult(
             step="self_review",
@@ -447,14 +451,15 @@ class JarvisOrchestrator:
                 output=parsed or {"status": "ok"},
                 duration_ms=int((time.monotonic() - start) * 1000),
             )
-        except Exception as exc:
+        except Exception:
+            logger.exception("Jarvis target validation failed: target=%s", target)
             return JarvisStepResult(
                 step=step_name,
                 target=target,
                 provider=provider,
                 model=model,
                 status="failed",
-                error=str(exc)[:500],
+                error="Model request failed",
                 duration_ms=int((time.monotonic() - start) * 1000),
             )
 
@@ -486,13 +491,14 @@ class JarvisOrchestrator:
                 "ok": result is not None,
                 "output": str(result),
             }
-        except Exception as exc:
+        except Exception:
+            logger.exception("Jarvis target connection test failed: target=%s", target)
             return {
                 "target": target,
                 "provider": provider,
                 "model": model,
                 "ok": False,
-                "error": str(exc)[:500],
+                "error": "Model connection test failed",
             }
 
     def get_profiles(self) -> dict[str, Any]:
