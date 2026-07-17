@@ -43,7 +43,10 @@ jobs:
           if event_name == "pull_request" and base:
               command = ["git", "rev-list", "--no-merges", f"{base}..{after}"]
           elif before and before != "0" * 40:
-              command = ["git", "rev-list", "--no-merges", f"{before}..{after}"]
+              if ref_name == default_branch:
+                  command = ["git", "rev-list", "--first-parent", f"{before}..{after}"]
+              else:
+                  command = ["git", "rev-list", "--no-merges", f"{before}..{after}"]
           else:
               command = ["git", "rev-list", "--no-merges", after]
               default_ref = f"refs/remotes/origin/{default_branch}"
@@ -68,7 +71,7 @@ jobs:
                   failures.append(f"{commit[:12]} {subject}")
 
           if failures:
-              print("Every non-merge commit subject must include English and Chinese descriptions.")
+              print("Every checked commit subject must include English and Chinese descriptions.")
               print("每个非合并提交的主题行都必须包含英文和中文描述。")
               print("\n".join(failures))
               sys.exit(1)
