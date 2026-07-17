@@ -14,6 +14,7 @@ from planagent.domain.api import AnalysisRequest
 from planagent.mcp.protocol import MCPProtocolHandler
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
+from planagent.services.notification import NotificationConfig, NotificationService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.prediction import PredictionService
 from planagent.workers.strategic_watch import StrategicWatchWorker
@@ -245,6 +246,24 @@ async def test_openai_connection_diagnostics_do_not_echo_exception_messages() ->
     assert "password" not in result.last_error
     assert "query-secret" not in result.last_error
     assert "RuntimeError" in result.last_error
+
+
+@pytest.mark.asyncio
+async def test_notification_delivery_errors_are_redacted() -> None:
+    service = NotificationService(NotificationConfig())
+    service._send_websocket = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+
+    notification = await service.notify(
+        user_id="user-1",
+        title="Test",
+        body="Test body",
+    )
+
+    assert notification.delivered is False
+    assert notification.error == "Notification delivery failed"
+    assert _SECRET_ERROR not in str(notification)
 
 
 @pytest.mark.asyncio

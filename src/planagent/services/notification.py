@@ -152,8 +152,13 @@ class NotificationService:
             notif.delivered = True
             notif.delivered_at = utc_now()
         except Exception as exc:
-            notif.error = str(exc)
-            _logger.exception("Failed to deliver notification %s via %s", notif.id, channel)
+            notif.error = "Notification delivery failed"
+            _logger.error(
+                "Failed to deliver notification %s via %s: exception_type=%s",
+                notif.id,
+                channel,
+                type(exc).__name__,
+            )
 
         self._notification_log.append(notif)
         return notif
