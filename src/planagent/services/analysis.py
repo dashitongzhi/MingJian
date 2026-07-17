@@ -111,10 +111,19 @@ class AutomatedAnalysisService:
                     else:
                         fetch_bundle = fetch_item
             except Exception as exc:
-                logger.warning("Source fetching with events failed: %s", exc)
+                logger.warning(
+                    "Source fetching with events failed: exception_type=%s",
+                    type(exc).__name__,
+                )
                 fetch_bundle = SourceFetchBundle(
                     sources=[],
-                    steps=[self._step("fetch_error", "Source fetching failed.", str(exc)[:240])],
+                    steps=[
+                        self._step(
+                            "fetch_error",
+                            "Source fetching failed.",
+                            _SOURCE_FETCH_PUBLIC_ERROR,
+                        )
+                    ],
                 )
             if fetch_bundle is None:
                 fetch_bundle = SourceFetchBundle(

@@ -157,6 +157,28 @@ async def test_analysis_fetch_task_failure_redacts_internal_exception() -> None:
 
 
 @pytest.mark.asyncio
+async def test_analysis_stream_redacts_event_generator_failure() -> None:
+    service = AutomatedAnalysisService(Settings(_env_file=None))
+
+    async def fail_events(*args: Any, **kwargs: Any):
+        _ = (args, kwargs)
+        raise RuntimeError(_SECRET_ERROR)
+        yield  # pragma: no cover
+
+    service._fetch_related_sources_with_events = fail_events  # type: ignore[method-assign]
+    events = [
+        event
+        async for event in service.stream_analysis(
+            AnalysisRequest(content="test", domain_id="corporate")
+        )
+    ]
+
+    serialized = str([event.payload for event in events])
+    assert _SECRET_ERROR not in serialized
+    assert "Source fetching failed" in serialized
+
+
+@pytest.mark.asyncio
 async def test_mcp_internal_error_does_not_echo_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
