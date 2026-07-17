@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from planagent.api.routes.auth import resolve_community_access
 from planagent.config import get_settings
@@ -41,6 +41,16 @@ class CommunityAccessMiddleware:
             await self.app(scope, receive, send)
             return
         settings = get_settings()
+        if scope_type == "http":
+            limited_receive = await _receive_with_body_limit(
+                scope,
+                receive,
+                send,
+                max_body_bytes=settings.max_request_body_bytes,
+            )
+            if limited_receive is None:
+                return
+            receive = limited_receive
         if scope_type == "http" and _is_public_request(
             scope,
             expose_auth_routes=settings.remote_access_enabled,
@@ -90,6 +100,58 @@ class CommunityAccessMiddleware:
             await response(scope, receive, send)
             return
         await self.app(scope, receive, send)
+
+
+async def _receive_with_body_limit(
+    scope: Scope,
+    receive: Receive,
+    send: Send,
+    *,
+    max_body_bytes: int,
+) -> Receive | None:
+    """Buffer at most the configured body limit and replay it to the application."""
+    content_length = _scope_header(scope, b"content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > max_body_bytes:
+                await _send_body_too_large(scope, receive, send)
+                return None
+        except ValueError:
+            pass
+
+    body = bytearray()
+    while True:
+        message = await receive()
+        if message["type"] == "http.disconnect":
+            replay_message = message
+            break
+        chunk = message.get("body", b"")
+        body.extend(chunk)
+        if len(body) > max_body_bytes:
+            await _send_body_too_large(scope, receive, send)
+            return None
+        if not message.get("more_body", False):
+            replay_message = {"type": "http.request", "body": bytes(body), "more_body": False}
+            break
+
+    replayed = False
+
+    async def replay_receive() -> Message:
+        nonlocal replayed
+        if not replayed:
+            replayed = True
+            return replay_message
+        return await receive()
+
+    return replay_receive
+
+
+async def _send_body_too_large(scope: Scope, receive: Receive, send: Send) -> None:
+    response = JSONResponse(
+        status_code=413,
+        content={"detail": "Request body too large"},
+    )
+    await response(scope, receive, send)
 
 
 def _is_public_request(scope: Scope, *, expose_auth_routes: bool) -> bool:

@@ -234,6 +234,27 @@ def test_remote_login_throttles_repeated_password_guessing(
     assert blocked.json()["detail"] == "Too many failed login attempts"
 
 
+def test_remote_requests_reject_oversized_chunked_body(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_MAX_REQUEST_BODY_BYTES", "64")
+    _configure_remote_access(monkeypatch, tmp_path / "request-body-limit.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        token = _register_and_login(client, username="body-limit-user")
+        response = client.post(
+            "/export/custom",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            content=iter([b'{"topic":"', b"x" * 80, b'"}']),
+        )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Request body too large"
+
+
 def test_remote_user_cannot_send_notification_as_another_user(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

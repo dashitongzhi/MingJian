@@ -54,6 +54,7 @@ class BaseAppSettings(BaseSettings):
     inline_ingest_default: bool = True
     inline_simulation_default: bool = True
     api_cache_ttl_seconds: int = 300
+    max_request_body_bytes: int = 1_048_576
     stream_maxlen: int = 10000
     stream_pending_idle_ms: int = 60000
     stream_retry_base_seconds: float = 1.0
@@ -109,6 +110,8 @@ class BaseAppSettings(BaseSettings):
     @model_validator(mode="after")
     def validate_access_binding(self) -> "BaseAppSettings":
         """Reject listener and credential combinations that would expose local mode remotely."""
+        if self.max_request_body_bytes < 1:
+            raise ValueError("PLANAGENT_MAX_REQUEST_BODY_BYTES must be positive")
         if not _is_loopback_host(self.bind_host) and not self.remote_access_enabled:
             raise ValueError(
                 "remote access must be explicitly enabled for a non-loopback bind host"
