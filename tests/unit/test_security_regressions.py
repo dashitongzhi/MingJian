@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -178,13 +179,37 @@ def test_codex_review_preserves_retry_artifacts_and_failure_comment() -> None:
     workflow = (REPO_ROOT / ".github/workflows/codex-pr-review.yml").read_text(encoding="utf-8")
 
     assert "continue-on-error: true" in workflow
-    assert "uses: actions/upload-artifact@v4" in workflow
+    assert re.search(r"uses: actions/upload-artifact@[0-9a-f]{40} # v4", workflow)
     assert "if: always()" in workflow
     assert "Codex review is temporarily unavailable" in workflow
     assert "Retry this workflow or continue the review locally" in workflow
     assert "id: publish" in workflow
     assert 'core.setOutput("review_succeeded"' in workflow
     assert "if: steps.publish.outputs.review_succeeded != 'true'" in workflow
+
+
+def test_external_workflow_actions_are_pinned_to_full_commit_shas() -> None:
+    uses_pattern = re.compile(r"^\s*uses:\s+([^@\s]+)@([^\s#]+)", re.MULTILINE)
+
+    for workflow_path in sorted((REPO_ROOT / ".github/workflows").glob("*.yml")):
+        workflow = workflow_path.read_text(encoding="utf-8")
+        for action, ref in uses_pattern.findall(workflow):
+            assert re.fullmatch(r"[0-9a-f]{40}", ref), (
+                f"{workflow_path.name}: {action} must be pinned to a full commit SHA"
+            )
+
+
+def test_codex_pull_request_target_isolates_untrusted_review_input() -> None:
+    workflow = (REPO_ROOT / ".github/workflows/codex-pr-review.yml").read_text(encoding="utf-8")
+
+    assert "pull_request_target:" in workflow
+    assert "actions/checkout@" not in workflow
+    assert 'allow-users: "*"' not in workflow
+    assert 'permission-profile: ":read-only"' in workflow
+    assert "safety-strategy: drop-sudo" in workflow
+    assert "permissions: {}" in workflow
+    assert "pull-requests: read" in workflow
+    assert "pull-requests: write" in workflow
 
 
 def test_ci_does_not_ignore_frontend_lint_failures() -> None:
