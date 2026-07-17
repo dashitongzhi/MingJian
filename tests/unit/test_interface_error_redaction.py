@@ -181,6 +181,27 @@ async def test_analysis_stream_redacts_event_generator_failure() -> None:
 
 
 @pytest.mark.asyncio
+async def test_source_health_persists_only_generic_provider_failure() -> None:
+    service = AutomatedAnalysisService(Settings(_env_file=None))
+    record = SimpleNamespace(
+        status="OK",
+        consecutive_failures=0,
+        last_error=None,
+        last_failure_at=None,
+        updated_at=None,
+    )
+    service._get_source_health = AsyncMock(  # type: ignore[method-assign]
+        return_value=record
+    )
+
+    await service.record_source_failure(object(), "test-provider", _SECRET_ERROR)  # type: ignore[arg-type]
+
+    assert record.status == "ERROR"
+    assert record.consecutive_failures == 1
+    assert record.last_error == "Source provider request failed"
+
+
+@pytest.mark.asyncio
 async def test_mcp_internal_error_does_not_echo_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

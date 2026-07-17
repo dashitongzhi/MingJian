@@ -551,6 +551,7 @@ class AutomatedAnalysisService:
     async def record_source_failure(
         self, session: AsyncSession, source_type: str, error: str
     ) -> None:
+        _ = error
         record = await self._get_source_health(session, source_type)
         record.consecutive_failures += 1
         record.status = (
@@ -558,7 +559,7 @@ class AutomatedAnalysisService:
             if record.consecutive_failures >= self.settings.source_failure_degraded_threshold
             else "ERROR"
         )
-        record.last_error = self._clean_text(error)[:500]
+        record.last_error = _SOURCE_PROVIDER_PUBLIC_ERROR
         record.last_failure_at = utc_now()
         record.updated_at = utc_now()
 
