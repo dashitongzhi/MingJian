@@ -155,12 +155,12 @@ class MCPProtocolHandler:
                 id=msg_id,
                 error=exc.to_dict(),
             ).__dict__
-        except Exception as exc:
+        except Exception:
             logger.exception("处理 MCP 消息异常: method=%s", method)
             return MCPResponse(
                 jsonrpc="2.0",
                 id=msg_id,
-                error={"code": -32603, "message": f"内部错误: {exc}"},
+                error={"code": -32603, "message": "Internal server error"},
             ).__dict__
 
     async def _dispatch(self, method: str, params: dict[str, Any]) -> dict[str, Any]:

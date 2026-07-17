@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -58,6 +59,7 @@ from planagent.domain.models import (
     WatchRule,
     utc_now,
 )
+
 from planagent.api.routes._deps import (
     _datetime_is_future,
     ensure_app_services,
@@ -82,6 +84,8 @@ from planagent.services.source_state import SourceStateService
 from planagent.services.auth import UserRole
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 _ADMIN_ONLY = [Depends(require_role(UserRole.ADMIN))]
@@ -709,8 +713,9 @@ async def trigger_watch_rule(
             debate_id=debate_id,
             recommendation_version_id=recommendation_version_id,
         )
-    except Exception as exc:
-        rule.last_poll_error = f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
+    except Exception:
+        logger.exception("Watch rule processing failed: rule_id=%s", rule.id)
+        rule.last_poll_error = "Watch rule processing failed"
         rule.lease_owner = None
         rule.lease_expires_at = None
         await session.commit()

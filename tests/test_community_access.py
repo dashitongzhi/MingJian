@@ -591,6 +591,45 @@ def test_expired_watch_rule_cannot_be_triggered_manually(
     assert response.json()["detail"] == "Community monitoring window expired after 24 hours"
 
 
+def test_watch_trigger_redacts_internal_processing_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "watch-error.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    class FailingAnalysisService:
+        async def analyze(self, payload) -> None:
+            _ = payload
+            raise RuntimeError("provider token sk-secret at http://10.0.0.8:6379")
+
+    monkeypatch.setattr(
+        "planagent.api.routes.admin.get_analysis_service",
+        lambda request: FailingAnalysisService(),
+    )
+
+    with TestClient(create_app()) as client:
+        created = client.post(
+            "/watch/rules",
+            json={
+                "name": "safe error response",
+                "domain_id": "corporate",
+                "query": "Track source changes",
+                "source_types": [],
+            },
+        )
+        assert created.status_code == 201
+        response = client.post(f"/watch/rules/{created.json()['id']}/trigger")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["error"] == "Watch rule processing failed"
+    assert "sk-secret" not in response.text
+    assert "10.0.0.8" not in response.text
+
+
 def test_all_business_routes_reject_anonymous_remote_access(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

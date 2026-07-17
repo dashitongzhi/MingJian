@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from typing import Any
 
@@ -37,6 +38,8 @@ from planagent.domain.models import (
 )
 from planagent.events.bus import build_event_bus
 from planagent.services.prediction import PredictionService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["monitoring"])
 
@@ -253,8 +256,12 @@ async def monitoring_events_stream(request: Request) -> StreamingResponse:
                         count=10,
                         block_ms=5000,
                     )
-                except Exception as exc:
-                    data = json.dumps({"error": str(exc)[:100]}, ensure_ascii=False)
+                except Exception:
+                    logger.exception("Monitoring event stream consume failed")
+                    data = json.dumps(
+                        {"error": "Monitoring stream temporarily unavailable"},
+                        ensure_ascii=False,
+                    )
                     yield f"event: error\ndata: {data}\n\n"
                     await asyncio.sleep(5)
                     continue
