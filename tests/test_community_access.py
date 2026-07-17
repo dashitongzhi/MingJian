@@ -453,10 +453,47 @@ def test_admin_business_routes_allow_loopback_local_session(
     reset_settings_cache()
     reset_database_cache()
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        client=("127.0.0.1", 50000),
+        headers={"Host": "localhost:8000"},
+    ) as client:
         response = client.get("/watch/rules")
 
     assert response.status_code == 200
+
+
+def test_local_mode_rejects_dns_rebinding_host_and_cross_site_origin(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "local-origin.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_REMOTE_ACCESS_ENABLED", "false")
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+        rebinding_read = client.get("/stats", headers={"Host": "attacker.example"})
+        cross_site_write = client.post(
+            "/agents/reset",
+            headers={
+                "Host": "localhost:8000",
+                "Origin": "https://attacker.example",
+            },
+        )
+        allowed_local = client.get(
+            "/stats",
+            headers={
+                "Host": "localhost:8000",
+                "Origin": "http://localhost:8000",
+            },
+        )
+
+    assert rebinding_read.status_code == 403
+    assert rebinding_read.json()["detail"] == "Untrusted local Host or Origin"
+    assert cross_site_write.status_code == 403
+    assert cross_site_write.json()["detail"] == "Untrusted local Host or Origin"
+    assert allowed_local.status_code == 200
 
 
 def test_admin_only_routes_allow_loopback_local_admin_session(
@@ -468,7 +505,11 @@ def test_admin_only_routes_allow_loopback_local_admin_session(
     reset_settings_cache()
     reset_database_cache()
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        client=("127.0.0.1", 50000),
+        headers={"Host": "localhost:8000"},
+    ) as client:
         response = client.get("/admin/analysis/cache")
 
     assert response.status_code == 200
@@ -483,7 +524,11 @@ def test_expired_watch_rule_cannot_be_triggered_manually(
     reset_settings_cache()
     reset_database_cache()
 
-    with TestClient(create_app(), client=("127.0.0.1", 50000)) as client:
+    with TestClient(
+        create_app(),
+        client=("127.0.0.1", 50000),
+        headers={"Host": "localhost:8000"},
+    ) as client:
         created = client.post(
             "/watch/rules",
             json={

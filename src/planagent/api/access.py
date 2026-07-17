@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from ipaddress import ip_address
+from urllib.parse import urlsplit
+
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from planagent.api.routes.auth import resolve_community_access
-from planagent.config import get_settings
+from planagent.api.routes.auth import _has_valid_local_proxy_credential, resolve_community_access
+from planagent.config import Settings, get_settings
 
 
 _PUBLIC_GET_PATHS = {
@@ -41,6 +44,22 @@ class CommunityAccessMiddleware:
             await self.app(scope, receive, send)
             return
         settings = get_settings()
+        if not settings.remote_access_enabled and not _is_trusted_local_request(scope, settings):
+            if scope_type == "websocket":
+                await send(
+                    {
+                        "type": "websocket.close",
+                        "code": 1008,
+                        "reason": "Untrusted local Host or Origin",
+                    }
+                )
+                return
+            response = JSONResponse(
+                status_code=403,
+                content={"detail": "Untrusted local Host or Origin"},
+            )
+            await response(scope, receive, send)
+            return
         if scope_type == "http":
             limited_receive = await _receive_with_body_limit(
                 scope,
@@ -125,6 +144,72 @@ def _auth_no_store_send(scope: Scope, send: Send) -> Send:
         await send(message)
 
     return send_with_no_store
+
+
+def _is_trusted_local_request(scope: Scope, settings: Settings) -> bool:
+    if _has_valid_local_proxy_credential(
+        settings.local_proxy_secret,
+        _scope_header(scope, b"x-mingjian-local-proxy"),
+    ):
+        return True
+
+    client_host = _scope_client_host(scope)
+    if client_host != "testclient" and not (client_host and _is_loopback_ip(client_host)):
+        return True
+
+    host = _parse_host(_scope_header(scope, b"host"))
+    if host is None:
+        return False
+    hostname, port = host
+    allowed_hostnames = {"localhost", "127.0.0.1", "::1", settings.bind_host.lower()}
+    if client_host == "testclient":
+        allowed_hostnames.add("testserver")
+    if hostname not in allowed_hostnames and not _is_loopback_ip(hostname):
+        return False
+
+    origin = _scope_header(scope, b"origin")
+    if origin is None:
+        return True
+    parsed_origin = urlsplit(origin)
+    if (
+        parsed_origin.scheme not in {"http", "https"}
+        or parsed_origin.hostname is None
+        or parsed_origin.username is not None
+        or parsed_origin.password is not None
+        or parsed_origin.path
+        or parsed_origin.query
+        or parsed_origin.fragment
+    ):
+        return False
+    try:
+        origin_port = parsed_origin.port
+    except ValueError:
+        return False
+
+    normalized_origin = f"{parsed_origin.scheme}://{parsed_origin.netloc}"
+    if normalized_origin in settings.cors_origins:
+        return True
+    return parsed_origin.hostname.lower() == hostname and origin_port == port
+
+
+def _parse_host(raw_host: str | None) -> tuple[str, int | None] | None:
+    if not raw_host:
+        return None
+    parsed = urlsplit(f"//{raw_host}")
+    if parsed.hostname is None or parsed.username is not None or parsed.password is not None:
+        return None
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    return parsed.hostname.lower(), port
+
+
+def _is_loopback_ip(hostname: str) -> bool:
+    try:
+        return ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 async def _receive_with_body_limit(
