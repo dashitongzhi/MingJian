@@ -345,7 +345,7 @@ def test_stream_worker_retries_before_dead_letter() -> None:
             "knowledge-worker",
             "knowledge-worker-test",
             event,
-            RuntimeError("temporary failure"),
+            RuntimeError("provider token sk-secret at http://10.0.0.8:6379"),
             max_attempts=3,
             retry_base_seconds=0,
         )
@@ -359,6 +359,7 @@ def test_stream_worker_retries_before_dead_letter() -> None:
 
     assert len(retried) == 1
     assert retried[0].payload["_worker"]["attempts"] == 2
+    assert retried[0].payload["_worker"]["last_error"] == "Worker execution failed"
     assert retried[0].payload["attempt"] == 2
     assert dead_letters == []
 

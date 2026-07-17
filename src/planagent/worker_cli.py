@@ -28,6 +28,8 @@ from planagent.workers.strategic_watch import StrategicWatchWorker
 from planagent.workers.calibration import CalibrationWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
 
+_WORKER_PUBLIC_ERROR = "Worker execution failed"
+
 
 def build_worker(worker_name: str) -> Worker:
     settings = get_settings()
@@ -237,7 +239,7 @@ async def _retry_or_dead_letter_event(
         payload["_worker"] = {
             **metadata,
             "attempts": next_attempt,
-            "last_error": f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+            "last_error": _WORKER_PUBLIC_ERROR,
         }
         payload["attempt"] = next_attempt
         await asyncio.sleep(max(0.0, retry_base_seconds) * min(8, 2 ** max(0, attempts - 1)))
