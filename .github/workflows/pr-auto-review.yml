@@ -9,9 +9,7 @@ on:
     branches: [master]
 
 permissions:
-  contents: read
   pull-requests: write
-  issues: write
 
 jobs:
   auto-review:

@@ -9,7 +9,6 @@ on:
 
 permissions:
   issues: write
-  contents: read
 
 jobs:
   triage:
