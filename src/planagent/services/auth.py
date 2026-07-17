@@ -355,7 +355,12 @@ class AuthService:
             if user is None or not user.is_active:
                 return None
             if (
-                _token_version(refresh_token, self.config.secret_key, self.config.algorithm)
+                _token_version(
+                    refresh_token,
+                    self.config.secret_key,
+                    self.config.algorithm,
+                    self.config.issuer,
+                )
                 != user.token_version
             ):
                 return None
@@ -369,6 +374,7 @@ class AuthService:
             refresh_token,
             self.config.secret_key,
             self.config.algorithm,
+            self.config.issuer,
         )
         if payload is None:
             return None
@@ -398,6 +404,7 @@ class AuthService:
                 refresh_token,
                 self.config.secret_key,
                 self.config.algorithm,
+                self.config.issuer,
             )
             if session.get(AuthRevokedToken, token_hash) is None:
                 session.add(AuthRevokedToken(token_hash=token_hash, expires_at=expires_at))
@@ -411,8 +418,18 @@ class AuthService:
     def revoke_token(self, token: str) -> None:
         """Revoke a token while retaining access-token revocations until expiry."""
         token_hash = _hash_token(token)
-        token_type = _token_type(token, self.config.secret_key, self.config.algorithm)
-        expires_at = _token_expires_at(token, self.config.secret_key, self.config.algorithm)
+        token_type = _token_type(
+            token,
+            self.config.secret_key,
+            self.config.algorithm,
+            self.config.issuer,
+        )
+        expires_at = _token_expires_at(
+            token,
+            self.config.secret_key,
+            self.config.algorithm,
+            self.config.issuer,
+        )
         if self._db_enabled:
             with self._session() as session:
                 refresh = session.get(AuthRefreshToken, token_hash)
@@ -499,6 +516,19 @@ class AuthService:
                 token,
                 self.config.secret_key,
                 algorithms=[self.config.algorithm],
+                issuer=self.config.issuer,
+                options={
+                    "require": [
+                        "exp",
+                        "iat",
+                        "iss",
+                        "jti",
+                        "sub",
+                        "type",
+                        "ver",
+                        "role",
+                    ]
+                },
             )
             if payload.get("type") != "access":
                 return None
@@ -630,10 +660,19 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _token_expires_at(token: str, secret_key: str, algorithm: str) -> datetime | None:
+def _token_expires_at(
+    token: str,
+    secret_key: str,
+    algorithm: str,
+    issuer: str,
+) -> datetime | None:
     try:
         payload = jwt.decode(
-            token, secret_key, algorithms=[algorithm], options={"verify_exp": False}
+            token,
+            secret_key,
+            algorithms=[algorithm],
+            issuer=issuer,
+            options={"verify_exp": False, "require": ["exp", "iss"]},
         )
     except jwt.InvalidTokenError:
         return None
@@ -643,10 +682,14 @@ def _token_expires_at(token: str, secret_key: str, algorithm: str) -> datetime |
     return datetime.fromtimestamp(float(exp), tz=timezone.utc)
 
 
-def _token_type(token: str, secret_key: str, algorithm: str) -> str | None:
+def _token_type(token: str, secret_key: str, algorithm: str, issuer: str) -> str | None:
     try:
         payload = jwt.decode(
-            token, secret_key, algorithms=[algorithm], options={"verify_exp": False}
+            token,
+            secret_key,
+            algorithms=[algorithm],
+            issuer=issuer,
+            options={"verify_exp": False, "require": ["iss", "type"]},
         )
     except jwt.InvalidTokenError:
         return None
@@ -654,18 +697,37 @@ def _token_type(token: str, secret_key: str, algorithm: str) -> str | None:
     return token_type if isinstance(token_type, str) else None
 
 
-def _token_version(token: str, secret_key: str, algorithm: str) -> int | None:
+def _token_version(token: str, secret_key: str, algorithm: str, issuer: str) -> int | None:
     try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        payload = jwt.decode(
+            token,
+            secret_key,
+            algorithms=[algorithm],
+            issuer=issuer,
+            options={"require": ["exp", "iss", "ver"]},
+        )
     except jwt.InvalidTokenError:
         return None
     token_version = payload.get("ver")
     return token_version if isinstance(token_version, int) else None
 
 
-def _decode_refresh_token(token: str, secret_key: str, algorithm: str) -> dict[str, Any] | None:
+def _decode_refresh_token(
+    token: str,
+    secret_key: str,
+    algorithm: str,
+    issuer: str,
+) -> dict[str, Any] | None:
     try:
-        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        payload = jwt.decode(
+            token,
+            secret_key,
+            algorithms=[algorithm],
+            issuer=issuer,
+            options={
+                "require": ["exp", "iat", "iss", "jti", "sub", "type", "ver"]
+            },
+        )
     except jwt.InvalidTokenError:
         return None
     if payload.get("type") != "refresh":

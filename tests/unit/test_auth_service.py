@@ -211,6 +211,21 @@ class TestTokenGeneration:
         payload = auth_service.verify_token(tokens.access_token)
         assert payload["iss"] == "planagent"
 
+    def test_verify_token_rejects_wrong_issuer(self, auth_service: AuthService):
+        """共享签名密钥不能让其他 issuer 的 token 越过信任边界。"""
+        auth_service.create_user("issuer-bound", "issuer-bound@test.com", "pass")
+        tokens = auth_service.authenticate("issuer-bound", "pass")
+        payload = jwt.decode(
+            tokens.access_token,
+            TEST_SECRET_KEY,
+            algorithms=["HS256"],
+            options={"verify_signature": False},
+        )
+        payload["iss"] = "another-service"
+        forged = jwt.encode(payload, TEST_SECRET_KEY, algorithm="HS256")
+
+        assert auth_service.verify_token(forged) is None
+
     def test_token_pair_has_correct_type_and_expires(self, auth_service: AuthService):
         """TokenPair 应返回正确的 token_type 和 expires_in。"""
         auth_service.create_user("u7", "u7@test.com", "pass")
@@ -624,6 +639,26 @@ class TestPersistentAuthStore:
         refreshed = svc2.refresh_access_token(tokens.refresh_token)
         assert refreshed is not None
         assert svc2.verify_token(refreshed.access_token) is not None
+
+    def test_refresh_token_is_bound_to_configured_issuer(self, tmp_path: Path) -> None:
+        db_url = f"sqlite:///{tmp_path / 'issuer-bound-refresh.db'}"
+        issuer = make_db_auth_service(db_url)
+        issuer.create_user("issuer-refresh", "issuer-refresh@test.com", "pass")
+        tokens = issuer.authenticate("issuer-refresh", "pass")
+        assert tokens is not None
+
+        verifier = AuthService(
+            AuthConfig(
+                secret_key=TEST_SECRET_KEY,
+                database_url=db_url,
+                environment="test",
+                create_default_admin=False,
+                issuer="another-service",
+            )
+        )
+        _DB_AUTH_SERVICES.append(verifier)
+
+        assert verifier.refresh_access_token(tokens.refresh_token) is None
 
     def test_concurrent_refresh_consumes_a_persistent_token_only_once(self, tmp_path) -> None:
         """Concurrent workers must not exchange one refresh token more than once."""
