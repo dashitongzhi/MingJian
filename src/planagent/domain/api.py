@@ -38,6 +38,8 @@ def _normalize_decision_context(value: dict[str, str]) -> dict[str, str]:
 
 
 def _validate_external_http_url(value: str) -> str:
+    if value == "":
+        return value
     if len(value) > 2048 or value != value.strip():
         raise ValueError("source URL must be an explicit http(s) URL")
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
