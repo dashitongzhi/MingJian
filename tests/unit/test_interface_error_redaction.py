@@ -11,6 +11,7 @@ from planagent.api.routes.monitoring import monitoring_events_stream
 from planagent.config import Settings
 from planagent.mcp.protocol import MCPProtocolHandler
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
+from planagent.services.prediction import PredictionService
 from planagent.workers.strategic_watch import StrategicWatchWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
 
@@ -43,8 +44,18 @@ class _FailingOpenAIService:
 
 
 class _FakeSession:
+    def __init__(self, records: dict[str, Any] | None = None) -> None:
+        self.records = records or {}
+
     async def rollback(self) -> None:
         return None
+
+    async def commit(self) -> None:
+        return None
+
+    async def get(self, model: Any, record_id: str) -> Any:
+        _ = model
+        return self.records.get(record_id)
 
 
 class _FakeDatabase:
@@ -172,3 +183,40 @@ async def test_watch_ingest_persists_only_generic_poll_errors(
 
     assert result["failed"] == 1
     assert recorded_errors == ["Watch rule polling failed"]
+
+
+@pytest.mark.asyncio
+async def test_prediction_revision_jobs_expose_only_generic_failures() -> None:
+    service = PredictionService.__new__(PredictionService)
+    pending_job = SimpleNamespace(
+        id="job-pending",
+        status="PENDING",
+        last_error=None,
+        lease_owner="worker",
+        lease_expires_at=object(),
+        updated_at=None,
+    )
+    processing_job = SimpleNamespace(
+        id="job-processing",
+        status="PROCESSING",
+        revision_run_id="run-failed",
+        last_error=None,
+        lease_owner="worker",
+        lease_expires_at=object(),
+        updated_at=None,
+    )
+    failed_run = SimpleNamespace(status="FAILED", last_error=_SECRET_ERROR)
+    session = _FakeSession({"run-failed": failed_run})
+    service._claim_revision_jobs = AsyncMock(  # type: ignore[method-assign]
+        return_value=[pending_job, processing_job]
+    )
+    service._start_revision_simulation = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+
+    processed = await service.process_revision_jobs(session, worker_id="test-worker")
+
+    assert processed == 2
+    assert pending_job.last_error == "Prediction revision failed"
+    assert processing_job.last_error == "Revision simulation failed"
+    assert _SECRET_ERROR not in str([pending_job.last_error, processing_job.last_error])

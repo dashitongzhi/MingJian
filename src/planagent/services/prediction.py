@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from difflib import unified_diff
+import logging
 from typing import Any
 
 from sqlalchemy import func, or_, select, update
@@ -23,7 +24,8 @@ from planagent.domain.models import (
     utc_now,
 )
 from planagent.events.bus import EventBus
-from planagent.services.pipeline import normalize_text
+
+logger = logging.getLogger(__name__)
 
 
 class PredictionService:
@@ -212,9 +214,10 @@ class PredictionService:
                     processed += 1
                 elif job.status == "PROCESSING":
                     processed += await self._finalize_revision_job(session, job)
-            except Exception as exc:
+            except Exception:
+                logger.exception("Prediction revision failed: job_id=%s", job.id)
                 job.status = "FAILED"
-                job.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+                job.last_error = "Prediction revision failed"
                 job.lease_owner = None
                 job.lease_expires_at = None
                 job.updated_at = utc_now()
@@ -461,7 +464,7 @@ class PredictionService:
             raise LookupError(f"Revision run {job.revision_run_id} was not found.")
         if revision_run.status == SimulationRunStatus.FAILED.value:
             job.status = "FAILED"
-            job.last_error = revision_run.last_error or "Revision simulation failed."
+            job.last_error = "Revision simulation failed"
             job.lease_owner = None
             job.lease_expires_at = None
             job.updated_at = utc_now()
