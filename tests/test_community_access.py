@@ -254,6 +254,27 @@ def test_remote_mode_rejects_non_admin_login_and_refresh(
     assert refresh_response.json()["detail"] == "Community remote access is administrator-only"
 
 
+def test_remote_mode_rejects_existing_non_admin_access_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "admin-only-existing-token.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        user = client.app.state.auth_service.create_user(
+            username="existing-community-analyst",
+            email="existing-community-analyst@example.com",
+            password="safe-password",
+        )
+        direct_tokens = client.app.state.auth_service._create_token_pair(user)
+        response = client.get(
+            "/watch/rules",
+            headers={"Authorization": f"Bearer {direct_tokens.access_token}"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Community remote access is administrator-only"
+
+
 def test_remote_authentication_responses_disable_caching(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

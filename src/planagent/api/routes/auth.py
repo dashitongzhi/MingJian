@@ -192,7 +192,13 @@ def resolve_community_access(
 
     settings = get_settings()
     if settings.remote_access_enabled:
-        return _verify_bearer_authorization(app, authorization)
+        payload = _verify_bearer_authorization(app, authorization)
+        if payload.get("role") != UserRole.ADMIN.value:
+            raise HTTPException(
+                status_code=403,
+                detail="Community remote access is administrator-only",
+            )
+        return payload
     if not _is_loopback_client(client_host) and not _has_valid_local_proxy_credential(
         settings.local_proxy_secret,
         local_proxy_credential,
