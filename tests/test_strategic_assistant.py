@@ -24,6 +24,7 @@ from planagent.domain.models import utc_now
 from planagent.events.bus import build_event_bus
 from planagent.main import create_app
 from planagent.services.analysis import AutomatedAnalysisService, SourceFetchBundle
+from planagent.services.assistant import StrategicAssistantService
 from planagent.services.openai_client import OpenAIService
 from planagent.simulation.rules import get_rule_registry
 from planagent.workers.strategic_watch import StrategicWatchWorker
@@ -310,6 +311,38 @@ def test_assistant_stream_emits_key_events(monkeypatch: pytest.MonkeyPatch, tmp_
     assert "event: debate_round" in body
     assert "event: discussion" in body
     assert "event: assistant_result" in body
+
+
+def test_assistant_stream_does_not_expose_internal_exception_details(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    database_path = tmp_path / "planagent-assistant-stream-error.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    async def fail_stream(self, session, payload):
+        _ = (self, session, payload)
+        if False:
+            yield None
+        raise RuntimeError("upstream secret sk-should-never-reach-the-client")
+
+    monkeypatch.setattr(StrategicAssistantService, "stream", fail_stream)
+
+    with TestClient(create_app()) as client:
+        with client.stream(
+            "POST",
+            "/assistant/stream",
+            json={"topic": "Test safe stream errors", "include_x": False},
+        ) as response:
+            body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert "event: error" in body
+    assert "sk-should-never-reach-the-client" not in body
+    assert "Stream processing failed" in body
 
 
 def test_strategic_session_persists_briefs_and_runs(

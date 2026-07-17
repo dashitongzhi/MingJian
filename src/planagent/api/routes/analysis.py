@@ -147,10 +147,10 @@ async def analyze_content_stream(
             async for event in service.stream_analysis(payload):
                 yield f"event: {event.event}\n"
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
-        except Exception as exc:
+        except Exception:
             _logger.exception("Analysis stream failed")
             yield "event: error\n"
-            yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'message': 'Stream processing failed'})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -169,10 +169,10 @@ async def debate_stream(
             async for event in service.stream_debate(session, payload):
                 yield f"event: {event.event}\n"
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
-        except Exception as exc:
+        except Exception:
             _logger.exception("Debate stream failed")
             yield "event: error\n"
-            yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'message': 'Stream processing failed'})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -289,9 +289,9 @@ async def strategic_assistant_stream(
             async for event in service.stream(session, assistant_request):
                 yield f"event: {event.event}\n"
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
-        except Exception as exc:
+        except Exception:
             _logger.exception("Assistant stream failed")
             yield "event: error\n"
-            yield f"data: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'message': 'Stream processing failed'})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
