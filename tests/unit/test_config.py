@@ -93,6 +93,11 @@ class TestSettingsFromEnv:
         with pytest.raises(ValidationError, match="LOCAL_PROXY_SECRET must be at least 32 bytes"):
             Settings(_env_file=None, local_proxy_secret="too-short")
 
+    @pytest.mark.parametrize("origin", ["*", "null", "https://example.com/path"])
+    def test_cors_origins_require_explicit_http_origins(self, origin: str) -> None:
+        with pytest.raises(ValidationError, match="CORS origin"):
+            Settings(_env_file=None, cors_origins=[origin])
+
 
 # ---------------------------------------------------------------------------
 # Nested OpenAI config via env vars

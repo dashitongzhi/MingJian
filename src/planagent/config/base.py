@@ -1,5 +1,6 @@
 from ipaddress import ip_address
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -112,6 +113,12 @@ class BaseAppSettings(BaseSettings):
         """Reject listener and credential combinations that would expose local mode remotely."""
         if self.max_request_body_bytes < 1:
             raise ValueError("PLANAGENT_MAX_REQUEST_BODY_BYTES must be positive")
+        for origin in self.cors_origins:
+            if not _is_explicit_http_origin(origin):
+                raise ValueError(
+                    "CORS origin must be an explicit http(s) origin without credentials, "
+                    "path, query, or fragment"
+                )
         if not _is_loopback_host(self.bind_host) and not self.remote_access_enabled:
             raise ValueError(
                 "remote access must be explicitly enabled for a non-loopback bind host"
@@ -185,3 +192,20 @@ def _is_loopback_host(host: str) -> bool:
         return ip_address(normalized).is_loopback
     except ValueError:
         return False
+
+
+def _is_explicit_http_origin(origin: str) -> bool:
+    if origin != origin.strip():
+        return False
+    parsed = urlsplit(origin)
+    if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    if parsed.path or parsed.query or parsed.fragment:
+        return False
+    try:
+        _ = parsed.port
+    except ValueError:
+        return False
+    return True
