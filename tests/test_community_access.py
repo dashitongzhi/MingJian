@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from planagent.api.access import CommunityAccessMiddleware
 from planagent.config import reset_settings_cache
 from planagent.db import reset_database_cache
 from planagent.main import create_app
@@ -309,6 +310,44 @@ def test_remote_requests_reject_oversized_chunked_body(
 
     assert response.status_code == 413
     assert response.json()["detail"] == "Request body too large"
+
+
+@pytest.mark.asyncio
+async def test_unauthenticated_remote_request_is_rejected_before_reading_body(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "preauth-body.db")
+    receive_calls = 0
+    sent: list[dict[str, object]] = []
+
+    async def downstream(scope, receive, send) -> None:
+        _ = (scope, receive, send)
+        raise AssertionError("unauthenticated request reached downstream application")
+
+    async def receive() -> dict[str, object]:
+        nonlocal receive_calls
+        receive_calls += 1
+        raise AssertionError("unauthenticated request body was consumed")
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    await CommunityAccessMiddleware(downstream)(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/analysis",
+            "headers": [(b"host", b"api.example.test")],
+            "client": ("203.0.113.10", 50000),
+            "app": object(),
+        },
+        receive,
+        send,
+    )
+
+    assert receive_calls == 0
+    assert sent[0]["type"] == "http.response.start"
+    assert sent[0]["status"] == 401
 
 
 def test_remote_user_cannot_send_notification_as_another_user(

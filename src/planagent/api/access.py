@@ -61,22 +61,23 @@ class CommunityAccessMiddleware:
             await response(scope, receive, send)
             return
         if scope_type == "http":
-            limited_receive = await _receive_with_body_limit(
-                scope,
-                receive,
-                send,
-                max_body_bytes=settings.max_request_body_bytes,
-            )
-            if limited_receive is None:
-                return
-            receive = limited_receive
             send = _auth_no_store_send(scope, send)
-        if scope_type == "http" and _is_public_request(
-            scope,
-            expose_auth_routes=settings.remote_access_enabled,
-        ):
-            await self.app(scope, receive, send)
-            return
+            if _is_public_request(
+                scope,
+                expose_auth_routes=settings.remote_access_enabled,
+            ):
+                if _request_has_body(scope):
+                    limited_receive = await _receive_with_body_limit(
+                        scope,
+                        receive,
+                        send,
+                        max_body_bytes=settings.max_request_body_bytes,
+                    )
+                    if limited_receive is None:
+                        return
+                    receive = limited_receive
+                await self.app(scope, receive, send)
+                return
 
         authorization = _scope_authorization(scope)
         selected_subprotocol: str | None = None
@@ -119,6 +120,16 @@ class CommunityAccessMiddleware:
             )
             await response(scope, receive, send)
             return
+        if scope_type == "http" and _request_has_body(scope):
+            limited_receive = await _receive_with_body_limit(
+                scope,
+                receive,
+                send,
+                max_body_bytes=settings.max_request_body_bytes,
+            )
+            if limited_receive is None:
+                return
+            receive = limited_receive
         await self.app(scope, receive, send)
 
 
@@ -273,6 +284,10 @@ def _is_public_request(scope: Scope, *, expose_auth_routes: bool) -> bool:
     if method in {"GET", "HEAD"} and path in _PUBLIC_GET_PATHS:
         return True
     return expose_auth_routes and method == "POST" and path in _PUBLIC_AUTH_POST_PATHS
+
+
+def _request_has_body(scope: Scope) -> bool:
+    return str(scope.get("method", "")).upper() not in {"GET", "HEAD", "OPTIONS"}
 
 
 def _canonical_path(path: str) -> str:
