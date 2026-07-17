@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
-
+from defusedxml import ElementTree as ET
 import httpx
 
 from planagent.domain.api import AnalysisSourceRead
