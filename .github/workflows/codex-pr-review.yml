@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Build review prompt from PR diff
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require("fs");
@@ -131,7 +131,7 @@ jobs:
       - name: Run Codex review
         id: codex
         continue-on-error: true
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
         with:
           openai-api-key: ${{ secrets.CODEX_REVIEW_API_KEY }}
           responses-api-endpoint: ${{ vars.CODEX_REVIEW_RESPONSES_ENDPOINT }}
@@ -143,7 +143,7 @@ jobs:
 
       - name: Upload reusable review inputs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: codex-pr-review-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
           path: |
@@ -158,7 +158,7 @@ jobs:
         if: always()
         env:
           CODEX_OUTCOME: ${{ steps.codex.outcome }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require("fs");
