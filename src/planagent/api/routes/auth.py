@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from planagent.services.auth import AuthService, UserRole
+from planagent.services.login_throttle import LoginAttemptLimiter
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -78,6 +79,19 @@ def _get_auth_service_from_app(app: Any) -> AuthService:
         )
         app.state.auth_service = AuthService(config)
     return app.state.auth_service  # type: ignore[no-any-return]  # app.state 动态属性
+
+
+def _get_login_attempt_limiter(request: Request) -> LoginAttemptLimiter:
+    limiter = getattr(request.app.state, "login_attempt_limiter", None)
+    if not isinstance(limiter, LoginAttemptLimiter):
+        limiter = LoginAttemptLimiter()
+        request.app.state.login_attempt_limiter = limiter
+    return limiter
+
+
+def _login_attempt_key(request: Request, username: str) -> str:
+    client_host = request.client.host if request.client else "unknown"
+    return f"{client_host}\0{username.strip().casefold()}"
 
 
 def get_current_user_payload(
@@ -234,10 +248,21 @@ async def login(
     request: Request,
 ) -> TokenResponse:
     """Authenticate and get JWT tokens."""
+    limiter = _get_login_attempt_limiter(request)
+    attempt_key = _login_attempt_key(request, body.username)
+    retry_after = limiter.retry_after(attempt_key)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed login attempts",
+            headers={"Retry-After": str(retry_after)},
+        )
     auth_service = _get_auth_service(request)
     tokens = auth_service.authenticate(body.username, body.password)
     if tokens is None:
+        limiter.record_failure(attempt_key)
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    limiter.clear(attempt_key)
     return TokenResponse(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,

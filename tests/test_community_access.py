@@ -206,6 +206,34 @@ def test_remote_viewer_is_read_only_across_business_routes(
     assert logout_response.status_code == 200
 
 
+def test_remote_login_throttles_repeated_password_guessing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "login-throttle.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        client.app.state.auth_service.create_user(
+            username="throttle-target",
+            email="throttle-target@example.com",
+            password="safe-password",
+        )
+        for _ in range(5):
+            failed = client.post(
+                "/auth/login",
+                json={"username": "throttle-target", "password": "wrong-password"},
+            )
+            assert failed.status_code in {401, 429}
+
+        blocked = client.post(
+            "/auth/login",
+            json={"username": "throttle-target", "password": "safe-password"},
+        )
+
+    assert blocked.status_code == 429
+    assert blocked.headers["Retry-After"]
+    assert blocked.json()["detail"] == "Too many failed login attempts"
+
+
 def test_remote_user_cannot_send_notification_as_another_user(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
