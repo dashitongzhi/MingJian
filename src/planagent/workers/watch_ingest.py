@@ -123,12 +123,13 @@ class WatchIngestWorker(Worker):
                         debate_runs += 1
                     if result.get("recommendation_version_id"):
                         recommendation_updates += 1
-                except Exception as exc:
+                except Exception:
                     await session.rollback()
+                    logger.exception("Watch rule polling failed: rule_id=%s", rule_id)
                     await self._mark_failure(
                         session,
                         rule_id,
-                        f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+                        "Watch rule polling failed",
                     )
                     failed += 1
 

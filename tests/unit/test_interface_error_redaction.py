@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -8,6 +11,8 @@ from planagent.api.routes.monitoring import monitoring_events_stream
 from planagent.config import Settings
 from planagent.mcp.protocol import MCPProtocolHandler
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
+from planagent.workers.strategic_watch import StrategicWatchWorker
+from planagent.workers.watch_ingest import WatchIngestWorker
 
 
 _SECRET_ERROR = "provider token sk-secret at http://10.0.0.8:6379"
@@ -35,6 +40,17 @@ class _FailingOpenAIService:
     async def generate_json_for_target(self, **kwargs: Any) -> tuple[str, dict[str, Any]]:
         _ = kwargs
         raise RuntimeError(_SECRET_ERROR)
+
+
+class _FakeSession:
+    async def rollback(self) -> None:
+        return None
+
+
+class _FakeDatabase:
+    @asynccontextmanager
+    async def session(self):
+        yield _FakeSession()
 
     async def test_connection(self, target: str) -> str:
         _ = target
@@ -93,3 +109,66 @@ async def test_jarvis_outputs_redact_provider_failures() -> None:
     assert "Model request failed" in serialized
     assert "Model review unavailable" in serialized
     assert connection["error"] == "Model connection test failed"
+
+
+@pytest.mark.asyncio
+async def test_strategic_watch_persists_only_generic_refresh_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    worker = StrategicWatchWorker.__new__(StrategicWatchWorker)
+    worker.worker_instance_id = "strategic-watch-worker"
+    worker._claim_due_sessions = AsyncMock(  # type: ignore[method-assign]
+        return_value=[SimpleNamespace(id="session-1")]
+    )
+    worker._community_window_expired = lambda record: False  # type: ignore[method-assign]
+
+    async def fail_load(session: Any, session_id: str) -> dict[str, Any]:
+        _ = (session, session_id)
+        raise RuntimeError(_SECRET_ERROR)
+
+    worker.service = SimpleNamespace(load_session_payload=fail_load)
+    recorded_errors: list[str] = []
+
+    async def record_failure(session: Any, session_id: str, error: str) -> None:
+        _ = (session, session_id)
+        recorded_errors.append(error)
+
+    worker._mark_failure = record_failure  # type: ignore[method-assign]
+    monkeypatch.setattr("planagent.workers.strategic_watch.get_database", _FakeDatabase)
+
+    result = await worker.run_once()
+
+    assert result["failed_sessions"] == 1
+    assert recorded_errors == ["Strategic session refresh failed"]
+
+
+@pytest.mark.asyncio
+async def test_watch_ingest_persists_only_generic_poll_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    worker = WatchIngestWorker.__new__(WatchIngestWorker)
+    worker.event_bus = object()  # type: ignore[assignment]
+    worker.settings = SimpleNamespace()
+    worker.worker_instance_id = "watch-ingest-worker"
+    worker._claim_due_rules = AsyncMock(  # type: ignore[method-assign]
+        return_value=[SimpleNamespace(id="rule-1")]
+    )
+
+    async def fail_poll(session: Any, rule: Any) -> dict[str, Any]:
+        _ = (session, rule)
+        raise RuntimeError(_SECRET_ERROR)
+
+    worker._poll_rule = fail_poll  # type: ignore[method-assign]
+    recorded_errors: list[str] = []
+
+    async def record_failure(session: Any, rule_id: str, error: str) -> None:
+        _ = (session, rule_id)
+        recorded_errors.append(error)
+
+    worker._mark_failure = record_failure  # type: ignore[method-assign]
+    monkeypatch.setattr("planagent.workers.watch_ingest.get_database", _FakeDatabase)
+
+    result = await worker.run_once()
+
+    assert result["failed"] == 1
+    assert recorded_errors == ["Watch rule polling failed"]

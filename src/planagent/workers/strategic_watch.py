@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 
 from sqlalchemy import or_, select, update
 
@@ -17,6 +18,8 @@ from planagent.services.simulation import SimulationService
 from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
+
+logger = logging.getLogger(__name__)
 
 
 class StrategicWatchWorker(Worker):
@@ -82,11 +85,15 @@ class StrategicWatchWorker(Worker):
                         recommendation_significance="none",
                     )
                     refreshed += 1
-                except Exception as exc:
+                except Exception:
+                    logger.exception(
+                        "Strategic session refresh failed: session_id=%s",
+                        session_record.id,
+                    )
                     await self._mark_failure(
                         session,
                         session_record.id,
-                        f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+                        "Strategic session refresh failed",
                     )
                     failed += 1
 
