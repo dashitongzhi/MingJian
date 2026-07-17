@@ -14,7 +14,7 @@ from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 from planagent.services.platform_topology import PlatformTopologyService
 from planagent.simulation.domain_packs import registry
 from planagent.simulation.rules import RuleRegistry
-from planagent.worker_cli import _record_dead_letter, _retry_or_dead_letter_event
+from planagent.worker_cli import _record_dead_letter, _retry_or_dead_letter_event, run_worker
 from planagent.workers.ingest import IngestWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
 
@@ -430,6 +430,39 @@ async def test_persisted_dead_letter_redacts_internal_error(
 
     assert len(records) == 1
     assert records[0].error == "Worker execution failed"
+
+
+@pytest.mark.asyncio
+async def test_non_stream_worker_dead_letter_redacts_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    published = []
+
+    class FakeEventBus:
+        async def publish_dead_letter(self, topic: str, payload: dict) -> None:
+            published.append((topic, payload))
+
+        async def close(self) -> None:
+            return None
+
+    class FakeWorker:
+        event_bus = FakeEventBus()
+        openai_service = None
+        notification_service = None
+
+        async def run_once(self):
+            raise RuntimeError("provider token sk-secret at http://10.0.0.8:6379")
+
+    async def skip_database_record(*args, **kwargs) -> None:
+        _ = (args, kwargs)
+
+    monkeypatch.setattr("planagent.worker_cli.build_worker", lambda name: FakeWorker())
+    monkeypatch.setattr("planagent.worker_cli._record_dead_letter", skip_database_record)
+
+    with pytest.raises(RuntimeError):
+        await run_worker("knowledge-worker", loop=False, interval_seconds=0)
+
+    assert published == [("knowledge-worker", {"error": "Worker execution failed"})]
 
 
 def test_jarvis_retries_failed_targets_before_repair_plan() -> None:

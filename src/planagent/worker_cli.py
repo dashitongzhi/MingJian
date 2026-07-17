@@ -121,7 +121,10 @@ async def run_worker(worker_name: str, loop: bool, interval_seconds: float) -> N
             except Exception as exc:
                 await _record_dead_letter(worker_name, None, None, None, {}, exc)
                 if event_bus is not None:
-                    await event_bus.publish_dead_letter(worker_name, {"error": str(exc)})
+                    await event_bus.publish_dead_letter(
+                        worker_name,
+                        {"error": _WORKER_PUBLIC_ERROR},
+                    )
                 raise
             print(json.dumps({"worker": worker_name, "result": result}, ensure_ascii=True))
             if not loop:
