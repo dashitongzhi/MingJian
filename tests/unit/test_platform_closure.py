@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
+
 from planagent.events.bus import ConsumedEvent, InMemoryEventBus, build_event_envelope
 from planagent.domain.enums import EventTopic
 from planagent.events.topology import build_stream_topology, validate_stream_topology
@@ -362,6 +364,36 @@ def test_stream_worker_retries_before_dead_letter() -> None:
     assert retried[0].payload["_worker"]["last_error"] == "Worker execution failed"
     assert retried[0].payload["attempt"] == 2
     assert dead_letters == []
+
+
+@pytest.mark.asyncio
+async def test_stream_worker_dead_letter_payload_redacts_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bus = InMemoryEventBus()
+    event = ConsumedEvent(
+        topic="raw.ingested",
+        message_id="external-1",
+        payload={"raw_item_id": "raw-1", "_worker": {"attempts": 1}},
+    )
+
+    async def skip_database_record(*args, **kwargs) -> None:
+        _ = (args, kwargs)
+
+    monkeypatch.setattr("planagent.worker_cli._record_dead_letter", skip_database_record)
+    await _retry_or_dead_letter_event(
+        bus,
+        "knowledge-worker",
+        "knowledge-worker-test",
+        event,
+        RuntimeError("provider token sk-secret at http://10.0.0.8:6379"),
+        max_attempts=1,
+        retry_base_seconds=0,
+    )
+
+    dead_letters = await bus.consume(["raw.ingested.dlq"], "knowledge-worker", "consumer", 10, 0)
+    assert len(dead_letters) == 1
+    assert dead_letters[0].payload["error"] == "Worker execution failed"
 
 
 def test_jarvis_retries_failed_targets_before_repair_plan() -> None:

@@ -264,7 +264,7 @@ async def _retry_or_dead_letter_event(
             "payload": event.payload,
             "attempts": attempts,
             "attempt": attempts,
-            "error": str(exc),
+            "error": _WORKER_PUBLIC_ERROR,
         },
     )
     await event_bus.ack(event.topic, worker_name, event.message_id)
