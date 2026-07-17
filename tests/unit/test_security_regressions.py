@@ -49,7 +49,8 @@ def test_pdf_export_escapes_title_and_uses_restricted_fetcher(
             captured["html"] = string
             captured["url_fetcher"] = url_fetcher
 
-        def write_pdf(self) -> bytes:
+        def write_pdf(self, *, presentational_hints: bool) -> bytes:
+            captured["presentational_hints"] = presentational_hints
             return b"%PDF-safe"
 
     monkeypatch.setitem(sys.modules, "weasyprint", SimpleNamespace(HTML=FakeHTML))
@@ -63,6 +64,7 @@ def test_pdf_export_escapes_title_and_uses_restricted_fetcher(
     assert result == b"%PDF-safe"
     url_fetcher = captured["url_fetcher"]
     assert callable(url_fetcher)
+    assert captured["presentational_hints"] is False
     with pytest.raises(ValueError, match="external resources are disabled"):
         url_fetcher("http://169.254.169.254/latest/meta-data/")
     rendered = str(captured["html"])
@@ -104,7 +106,8 @@ def test_pdf_export_does_not_count_data_scheme_in_report_prose(
         def __init__(self, **_kwargs) -> None:
             pass
 
-        def write_pdf(self) -> bytes:
+        def write_pdf(self, *, presentational_hints: bool) -> bytes:
+            assert presentational_hints is False
             return b"%PDF-prose"
 
     monkeypatch.setitem(sys.modules, "weasyprint", SimpleNamespace(HTML=FakeHTML))
@@ -151,7 +154,8 @@ def test_pdf_export_limits_resources_after_html_normalization(
         def __init__(self, *, string: str, url_fetcher) -> None:
             self.url_fetcher = url_fetcher
 
-        def write_pdf(self) -> bytes:
+        def write_pdf(self, *, presentational_hints: bool) -> bytes:
+            assert presentational_hints is False
             self.url_fetcher("data:image/png;base64,QQ==")
             self.url_fetcher("data:image/png;base64,Qg==")
             return b"renderer should not reach this point"

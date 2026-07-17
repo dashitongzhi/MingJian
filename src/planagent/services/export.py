@@ -602,7 +602,7 @@ class ExportService:
         pdf_bytes = weasyprint.HTML(
             string=full_html,
             url_fetcher=_build_safe_pdf_url_fetcher(),
-        ).write_pdf()
+        ).write_pdf(presentational_hints=False)
         return pdf_bytes
 
     # ── Jinja2 Environment ─────────────────────────────────
