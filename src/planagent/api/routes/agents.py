@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from planagent.api.routes.auth import require_role
+from planagent.services.auth import UserRole
 from planagent.services.agent_registry import get_agent_registry, reset_agent_registry
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -44,7 +46,7 @@ async def agent_status():
     return get_agent_registry().get_status()
 
 
-@router.post("/configure")
+@router.post("/configure", dependencies=[Depends(require_role(UserRole.ADMIN))])
 async def configure_agents(req: ConfigureRequest):
     """一键配置 — 自动分配 API Key 到 9 个智能体"""
     registry = get_agent_registry()
@@ -52,7 +54,7 @@ async def configure_agents(req: ConfigureRequest):
     return registry.get_status()
 
 
-@router.post("/model")
+@router.post("/model", dependencies=[Depends(require_role(UserRole.ADMIN))])
 async def set_model_override(req: ModelOverrideRequest):
     """设置单个智能体的模型选择"""
     registry = get_agent_registry()
@@ -60,7 +62,7 @@ async def set_model_override(req: ModelOverrideRequest):
     return registry.get_status()
 
 
-@router.post("/reset")
+@router.post("/reset", dependencies=[Depends(require_role(UserRole.ADMIN))])
 async def reset_agents():
     """重置所有智能体配置"""
     return reset_agent_registry().get_status()

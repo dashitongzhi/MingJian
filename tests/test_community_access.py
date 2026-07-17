@@ -156,6 +156,22 @@ def test_remote_analyst_cannot_broadcast_notifications(
     assert response.json()["detail"] == "Notification administration requires admin role"
 
 
+def test_remote_analyst_cannot_reset_global_agent_configuration(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_remote_access(monkeypatch, tmp_path / "agent-admin-boundary.db")
+
+    with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
+        token = _register_and_login(client, username="agent-analyst")
+        response = client.post(
+            "/agents/reset",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Requires role: admin"
+
+
 def test_remote_user_cannot_send_notification_as_another_user(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
