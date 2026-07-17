@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
@@ -9,7 +10,9 @@ import pytest
 
 from planagent.api.routes.monitoring import monitoring_events_stream
 from planagent.config import Settings
+from planagent.domain.api import AnalysisRequest
 from planagent.mcp.protocol import MCPProtocolHandler
+from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 from planagent.services.prediction import PredictionService
 from planagent.workers.strategic_watch import StrategicWatchWorker
@@ -83,6 +86,50 @@ async def test_monitoring_stream_redacts_internal_event_bus_error(
 
     assert _SECRET_ERROR not in chunk
     assert "Monitoring stream temporarily unavailable" in chunk
+
+
+@pytest.mark.asyncio
+async def test_analysis_source_events_redact_provider_exceptions() -> None:
+    service = AutomatedAnalysisService(Settings(_env_file=None))
+
+    async def fail_fetch(query: str, limit: int) -> list[Any]:
+        _ = (query, limit)
+        raise RuntimeError(_SECRET_ERROR)
+
+    adapter = SimpleNamespace(
+        key="test-provider",
+        label="Test Provider",
+        enabled=True,
+        limit=1,
+        unavailable_reason=None,
+        agent_name="test-agent",
+        agent_icon="test",
+        task_desc="test source",
+        fetch_query=fail_fetch,
+    )
+    service.source_registry.build_adapters = lambda payload, query, domain_id: [  # type: ignore[method-assign]
+        adapter
+    ]
+    event_queue: asyncio.Queue[Any] = asyncio.Queue()
+
+    bundle = await service._fetch_related_sources(
+        AnalysisRequest(content="test", domain_id="corporate"),
+        "test",
+        "corporate",
+        event_queue=event_queue,
+    )
+    events = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    serialized = str(
+        {
+            "steps": [step.model_dump(mode="json") for step in bundle.steps],
+            "events": [event.payload for event in events],
+        }
+    )
+    assert _SECRET_ERROR not in serialized
+    assert "Source provider request failed" in serialized
 
 
 @pytest.mark.asyncio

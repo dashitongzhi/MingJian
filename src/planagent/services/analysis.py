@@ -26,6 +26,7 @@ from planagent.services.sources.registry import SourceRegistry
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
+_SOURCE_PROVIDER_PUBLIC_ERROR = "Source provider request failed"
 logger = logging.getLogger(__name__)
 
 
@@ -365,26 +366,22 @@ class AutomatedAnalysisService:
         ):
             provider_label = adapter.label
             if isinstance(provider_results, BaseException):
-                error_detail = (
-                    self._clean_text(str(provider_results))[:240]
-                    or provider_results.__class__.__name__
-                )
                 logger.warning(
-                    "%s fetch failed: %s",
+                    "%s fetch failed: exception_type=%s",
                     provider_label,
-                    error_detail,
+                    provider_results.__class__.__name__,
                 )
                 steps_by_adapter[index] = self._step(
                     "source_error",
                     f"{provider_label} fetch failed.",
-                    error_detail,
+                    _SOURCE_PROVIDER_PUBLIC_ERROR,
                 )
                 await emit(
                     "source_error",
                     {
                         "provider": adapter.key,
                         "label": provider_label,
-                        "error": error_detail,
+                        "error": _SOURCE_PROVIDER_PUBLIC_ERROR,
                     },
                 )
                 continue
