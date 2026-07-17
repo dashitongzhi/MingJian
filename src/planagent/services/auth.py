@@ -724,9 +724,7 @@ def _decode_refresh_token(
             secret_key,
             algorithms=[algorithm],
             issuer=issuer,
-            options={
-                "require": ["exp", "iat", "iss", "jti", "sub", "type", "ver"]
-            },
+            options={"require": ["exp", "iat", "iss", "jti", "sub", "type", "ver"]},
         )
     except jwt.InvalidTokenError:
         return None

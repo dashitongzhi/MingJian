@@ -36,6 +36,7 @@ class _FakeAsyncClient:
         _ = (args, kwargs)
         return _FakeXMLResponse()
 
+
 def _make_settings(**overrides: Any) -> Any:
     settings = MagicMock()
     settings.additional_rss_feeds = ""
