@@ -26,6 +26,7 @@ from planagent.services.sources.registry import SourceRegistry
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
+_SOURCE_FETCH_PUBLIC_ERROR = "Source fetching failed"
 _SOURCE_PROVIDER_PUBLIC_ERROR = "Source provider request failed"
 logger = logging.getLogger(__name__)
 
@@ -188,11 +189,18 @@ class AutomatedAnalysisService:
                 try:
                     yield fetch_task.result()
                 except Exception as exc:
-                    logger.warning("Source fetch task failed: %s", exc)
+                    logger.warning(
+                        "Source fetch task failed: exception_type=%s",
+                        type(exc).__name__,
+                    )
                     yield SourceFetchBundle(
                         sources=[],
                         steps=[
-                            self._step("fetch_error", "Source fetching failed.", str(exc)[:240])
+                            self._step(
+                                "fetch_error",
+                                "Source fetching failed.",
+                                _SOURCE_FETCH_PUBLIC_ERROR,
+                            )
                         ],
                     )
                 return
