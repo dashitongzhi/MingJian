@@ -58,6 +58,21 @@ def _register_and_login_user(
     return user.id, tokens.access_token
 
 
+def _login_remote_admin(client: TestClient) -> tuple[str, str]:
+    response = client.post(
+        "/auth/login",
+        json={
+            "username": "admin",
+            "password": "test-bootstrap-admin-password",
+        },
+    )
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    payload = client.app.state.auth_service.verify_token(token)
+    assert payload is not None
+    return str(payload["sub"]), token
+
+
 def test_notifications_reject_anonymous_remote_access(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -109,7 +124,7 @@ def test_notification_stats_reject_remote_analyst(
         )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Notification administration requires admin role"
+    assert response.json()["detail"] == "Community remote access is administrator-only"
 
 
 def test_remote_user_cannot_read_another_users_notification_history(
@@ -130,7 +145,7 @@ def test_remote_user_cannot_read_another_users_notification_history(
         )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Notification access is limited to the current user"
+    assert response.json()["detail"] == "Community remote access is administrator-only"
 
 
 def test_remote_analyst_cannot_broadcast_notifications(
@@ -151,7 +166,7 @@ def test_remote_analyst_cannot_broadcast_notifications(
         )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Notification administration requires admin role"
+    assert response.json()["detail"] == "Community remote access is administrator-only"
 
 
 def test_remote_analyst_cannot_reset_global_agent_configuration(
@@ -167,10 +182,10 @@ def test_remote_analyst_cannot_reset_global_agent_configuration(
         )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Requires role: admin"
+    assert response.json()["detail"] == "Community remote access is administrator-only"
 
 
-def test_remote_viewer_is_read_only_across_business_routes(
+def test_remote_viewer_is_rejected_across_business_routes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "viewer-read-only.db")
@@ -193,10 +208,9 @@ def test_remote_viewer_is_read_only_across_business_routes(
         )
         logout_response = client.post("/auth/logout", headers=headers)
 
-    assert read_response.status_code == 200
-    assert write_response.status_code == 403
-    assert write_response.json()["detail"] == "Viewer role is read-only"
-    assert logout_response.status_code == 200
+    for response in (read_response, write_response, logout_response):
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Community remote access is administrator-only"
 
 
 def test_remote_login_throttles_repeated_password_guessing(
@@ -319,7 +333,7 @@ def test_remote_requests_reject_oversized_chunked_body(
     _configure_remote_access(monkeypatch, tmp_path / "request-body-limit.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        token = _register_and_login(client, username="body-limit-user")
+        _, token = _login_remote_admin(client)
         response = client.post(
             "/export/custom",
             headers={
@@ -394,10 +408,10 @@ def test_remote_user_cannot_send_notification_as_another_user(
         )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Notification access is limited to the current user"
+    assert response.json()["detail"] == "Community remote access is administrator-only"
 
 
-def test_remote_user_can_use_own_notification_channel(
+def test_remote_admin_can_use_own_notification_channel(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(
@@ -407,7 +421,7 @@ def test_remote_user_can_use_own_notification_channel(
     )
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        user_id, token = _register_and_login_user(client, username="own-channel-user")
+        user_id, token = _login_remote_admin(client)
         headers = {"Authorization": f"Bearer {token}"}
         sent = client.post(
             "/notifications/send",
@@ -678,7 +692,7 @@ def test_all_business_routes_reject_anonymous_remote_access(
         assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
-def test_global_gate_accepts_authenticated_remote_business_request(
+def test_global_gate_accepts_remote_admin_business_request(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(
@@ -688,7 +702,7 @@ def test_global_gate_accepts_authenticated_remote_business_request(
     )
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        access_token = _register_and_login(client, username="analysis-user")
+        _, access_token = _login_remote_admin(client)
         response = client.post(
             "/analysis",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -870,13 +884,13 @@ def test_remote_notification_websocket_rejects_access_token_in_query_string(
     assert exc_info.value.code == 1008
 
 
-def test_remote_notification_websocket_accepts_browser_jwt_subprotocol(
+def test_remote_admin_websocket_accepts_browser_jwt_subprotocol(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _configure_remote_access(monkeypatch, tmp_path / "websocket-subprotocol.db")
 
     with TestClient(create_app(), client=("203.0.113.10", 50000)) as client:
-        user_id, token = _register_and_login_user(client, username="socket-subprotocol")
+        user_id, token = _login_remote_admin(client)
         with client.websocket_connect(
             f"/notifications/ws/{user_id}",
             subprotocols=["mingjian.jwt", token],
