@@ -288,7 +288,7 @@ async def _record_dead_letter(
                 consumer_name=consumer_name,
                 message_id=message_id,
                 payload=payload,
-                error=f"{type(exc).__name__}: {' '.join(str(exc).split())[:500]}",
+                error=_WORKER_PUBLIC_ERROR,
             )
         )
         await session.commit()

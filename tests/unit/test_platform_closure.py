@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 from planagent.services.platform_topology import PlatformTopologyService
 from planagent.simulation.domain_packs import registry
 from planagent.simulation.rules import RuleRegistry
-from planagent.worker_cli import _retry_or_dead_letter_event
+from planagent.worker_cli import _record_dead_letter, _retry_or_dead_letter_event
 from planagent.workers.ingest import IngestWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
 
@@ -394,6 +395,41 @@ async def test_stream_worker_dead_letter_payload_redacts_internal_error(
     dead_letters = await bus.consume(["raw.ingested.dlq"], "knowledge-worker", "consumer", 10, 0)
     assert len(dead_letters) == 1
     assert dead_letters[0].payload["error"] == "Worker execution failed"
+
+
+@pytest.mark.asyncio
+async def test_persisted_dead_letter_redacts_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = []
+
+    class FakeSession:
+        def add(self, record) -> None:
+            records.append(record)
+
+        async def commit(self) -> None:
+            return None
+
+    class FakeDatabase:
+        async def ensure_initialized(self) -> None:
+            return None
+
+        @asynccontextmanager
+        async def session(self):
+            yield FakeSession()
+
+    monkeypatch.setattr("planagent.worker_cli.get_database", lambda: FakeDatabase())
+    await _record_dead_letter(
+        "knowledge-worker",
+        "raw.ingested",
+        "knowledge-worker-test",
+        "external-1",
+        {"raw_item_id": "raw-1"},
+        RuntimeError("provider token sk-secret at http://10.0.0.8:6379"),
+    )
+
+    assert len(records) == 1
+    assert records[0].error == "Worker execution failed"
 
 
 def test_jarvis_retries_failed_targets_before_repair_plan() -> None:
