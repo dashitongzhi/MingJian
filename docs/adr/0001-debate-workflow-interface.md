@@ -1,0 +1,3 @@
+# Use outcome-first interfaces for the debate workflow
+
+The public debate workflow will expose `decide`, `observe`, and `read` interfaces while hiding target resolution, LLM versus heuristic selection, persistence choreography, and event publication behind the module seam. Cloud and Enterprise governance will enter through internal edition adapters rather than caller-supplied commercial parameters; this keeps the Community interface small while preserving real edition variation. A single command-union interface and a lifecycle-heavy execution handle were rejected because they made the common caller learn more protocol without adding current product leverage.
