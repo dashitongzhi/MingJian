@@ -23,7 +23,7 @@ from planagent.domain.models import (
 )
 from planagent.services.pipeline import normalize_text
 
-from . import ClaimRelationContext, DebateAssessment
+from .contracts import ClaimRelationContext, DebateAssessment
 from .roles import debate_role_label, debate_round_sort_key
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")

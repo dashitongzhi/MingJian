@@ -18,7 +18,7 @@ from planagent.domain.models import (
 )
 from planagent.services.openai_client import DebatePositionPayload
 
-from . import DebateStreamEvent, DebateStreamPreparation
+from .contracts import DebateStreamEvent, DebateStreamPreparation
 from .prompts import build_round_plan
 
 _TOKEN_BUDGET_PER_ROUND = 60000
