@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import select
 
 from planagent.config import Settings
@@ -10,9 +12,10 @@ from planagent.events.bus import EventBus
 from planagent.services.evidence_weighting import EvidenceWeightingService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService, normalize_text
-from planagent.workers.base import Worker, WorkerDescription
+from planagent.workers.base import Worker, WorkerDescription, public_worker_error
 
 _TOKEN_RE = __import__("re").compile(r"[a-z0-9]+")
+_logger = logging.getLogger(__name__)
 _CLAIM_DIRECTION_POSITIVE = {
     "increase",
     "increased",
@@ -257,8 +260,9 @@ class KnowledgeWorker(Worker):
                         "preset_id": claim.preset_id,
                     },
                 )
-            except Exception as exc:
-                errors.append(f"claim:{claim.id}:{type(exc).__name__}:{exc}")
+            except Exception:
+                _logger.exception("Claim reevaluation failed: claim_id=%s", claim.id)
+                errors.append(public_worker_error("claim", claim.id))
 
         if reevaluated > 0:
             await session.commit()

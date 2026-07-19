@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy import select
@@ -13,8 +14,10 @@ from planagent.domain.models import (
     SimulationRun,
     utc_now,
 )
-from planagent.services.pipeline import normalize_text
 from planagent.services.startup import normalize_tenant_id
+
+_REPORT_PUBLIC_ERROR = "Report generation failed"
+_logger = logging.getLogger(__name__)
 
 
 class SimulationReportMixin:
@@ -46,8 +49,9 @@ class SimulationReportMixin:
                 await self._generate_report(session, run)
                 run.last_error = None
                 generated += 1
-            except Exception as exc:
-                run.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+            except Exception:
+                _logger.exception("Queued report generation failed: run_id=%s", run.id)
+                run.last_error = _REPORT_PUBLIC_ERROR
             finally:
                 run.lease_owner = None
                 run.lease_expires_at = None

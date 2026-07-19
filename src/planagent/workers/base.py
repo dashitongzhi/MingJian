@@ -3,6 +3,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 
+WORKER_PUBLIC_ERROR = "Worker execution failed"
+
+
+def public_worker_error(record_type: str, record_id: object) -> str:
+    """Build a stable worker result without exposing exception details."""
+    return f"{record_type}:{record_id}:{WORKER_PUBLIC_ERROR}"
+
 
 @dataclass(frozen=True)
 class WorkerDescription:

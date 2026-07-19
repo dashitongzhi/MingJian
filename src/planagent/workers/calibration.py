@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections import defaultdict
 from datetime import timedelta, timezone
@@ -22,7 +23,7 @@ from planagent.domain.models import (
 )
 from planagent.services.pipeline import normalize_text
 from planagent.simulation.rules import RuleRegistry
-from planagent.workers.base import Worker, WorkerDescription
+from planagent.workers.base import Worker, WorkerDescription, public_worker_error
 
 _TIME_HORIZON_DAYS: dict[str, int] = {
     "1_month": 30,
@@ -33,6 +34,7 @@ _TIME_HORIZON_DAYS: dict[str, int] = {
 _MIN_HYPOTHESES_FOR_CALIBRATION = 3
 _CALIBRATION_WINDOW_DAYS = 90
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+_logger = logging.getLogger(__name__)
 _CALIBRATION_STOPWORDS = {
     "the",
     "and",
@@ -156,8 +158,9 @@ class CalibrationWorker(Worker):
                     hypo.verified_at = now
                 hypo.updated_at = now
                 verified += 1
-            except Exception as exc:
-                errors.append(f"hypothesis:{hypo.id}:{type(exc).__name__}:{exc}")
+            except Exception:
+                _logger.exception("Hypothesis calibration failed: hypothesis_id=%s", hypo.id)
+                errors.append(public_worker_error("hypothesis", hypo.id))
         await session.commit()
         return verified, errors
 
@@ -239,8 +242,9 @@ class CalibrationWorker(Worker):
                 }
                 session.add(record)
                 verified += 1
-            except Exception as exc:
-                errors.append(f"prediction:{version.id}:{type(exc).__name__}:{exc}")
+            except Exception:
+                _logger.exception("Prediction calibration failed: prediction_id=%s", version.id)
+                errors.append(public_worker_error("prediction", version.id))
         if verified:
             await session.commit()
         return verified, errors

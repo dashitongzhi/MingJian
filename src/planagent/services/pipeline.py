@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
+import logging
 from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any
@@ -45,6 +46,9 @@ if TYPE_CHECKING:
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 _WHITESPACE_RE = re.compile(r"\s+")
+_INGEST_RUN_PUBLIC_ERROR = "Ingest processing failed"
+_KNOWLEDGE_PUBLIC_ERROR = "Knowledge materialization failed"
+_logger = logging.getLogger(__name__)
 
 
 def normalize_url(url: str) -> str:
@@ -209,8 +213,9 @@ class PhaseOnePipelineService:
                 )
                 run.last_error = None
                 processed += 1
-            except Exception as exc:
-                run.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+            except Exception:
+                _logger.exception("Ingest run processing failed: run_id=%s", run.id)
+                run.last_error = _INGEST_RUN_PUBLIC_ERROR
                 run.status = (
                     IngestRunStatus.FAILED.value
                     if run.processing_attempts >= self.settings.worker_max_attempts
@@ -260,8 +265,9 @@ class PhaseOnePipelineService:
                 raw.knowledge_status = "COMPLETED"
                 raw.last_error = None
                 raw.processed_at = utc_now()
-            except Exception as exc:
-                raw.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+            except Exception:
+                _logger.exception("Knowledge materialization failed: raw_item_id=%s", raw.id)
+                raw.last_error = _KNOWLEDGE_PUBLIC_ERROR
                 if raw.processing_attempts >= self.settings.worker_max_attempts:
                     raw.knowledge_status = "FAILED"
                     summary["failed_items"] = int(summary.get("failed_items", 0)) + 1

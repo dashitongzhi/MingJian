@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import timedelta
+import logging
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select, update
@@ -20,13 +21,15 @@ from planagent.domain.models import (
     StateSnapshotRecord,
     utc_now,
 )
-from planagent.services.pipeline import normalize_text
 from planagent.services.simulation_branching import (
     _STATE_POLICIES,
 )
 from planagent.services.startup import normalize_tenant_id, startup_preset_config
 from planagent.simulation.domain_packs import registry
 from .impact import _DECISION_EVIDENCE_WINDOW
+
+_SIMULATION_PUBLIC_ERROR = "Simulation execution failed"
+_logger = logging.getLogger(__name__)
 
 
 class SimulationEngineMixin:
@@ -87,8 +90,9 @@ class SimulationEngineMixin:
                         await self._refresh_scenario_branch(session, branch, parent_run, run)
                 run.last_error = None
                 processed += 1
-            except Exception as exc:
-                run.last_error = f"{type(exc).__name__}: {normalize_text(str(exc))[:300]}"
+            except Exception:
+                _logger.exception("Queued simulation failed: run_id=%s", run.id)
+                run.last_error = _SIMULATION_PUBLIC_ERROR
                 run.status = (
                     SimulationRunStatus.FAILED.value
                     if run.processing_attempts >= self.settings.worker_max_attempts

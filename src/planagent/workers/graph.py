@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any
+import logging
 import math
 import re
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,9 @@ from planagent.domain.models import (
 )
 from planagent.events.bus import EventBus
 from planagent.services.pipeline import normalize_text, summarize_text
-from planagent.workers.base import Worker, WorkerDescription
+from planagent.workers.base import Worker, WorkerDescription, public_worker_error
+
+_logger = logging.getLogger(__name__)
 
 
 class GraphWorker(Worker):
@@ -146,8 +149,9 @@ class GraphWorker(Worker):
                         metadata={"claim_status": claim.status},
                     )
                 processed += 1
-            except Exception as exc:
-                errors.append(f"evidence:{evidence.id}:{type(exc).__name__}:{exc}")
+            except Exception:
+                _logger.exception("Evidence graph update failed: evidence_id=%s", evidence.id)
+                errors.append(public_worker_error("evidence", evidence.id))
         return processed, errors
 
     # ── Claim → Artifact graph ──────────────────────────────────────────────
@@ -222,8 +226,13 @@ class GraphWorker(Worker):
                         metadata={"confidence": artifact.confidence},
                     )
                 processed += 1
-            except Exception as exc:
-                errors.append(f"{artifact_type}:{artifact.id}:{type(exc).__name__}:{exc}")
+            except Exception:
+                _logger.exception(
+                    "Artifact graph update failed: artifact_type=%s artifact_id=%s",
+                    artifact_type,
+                    artifact.id,
+                )
+                errors.append(public_worker_error(artifact_type, artifact.id))
         return processed, errors
 
     # ── Batch-load helpers ──────────────────────────────────────────────────

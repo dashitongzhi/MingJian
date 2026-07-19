@@ -13,9 +13,8 @@ from planagent.events.bus import EventBus
 from planagent.services.openai_client import OpenAIService
 from planagent.services.prediction import PredictionService
 from planagent.simulation.rules import RuleRegistry
-from planagent.workers.base import Worker, WorkerDescription
+from planagent.workers.base import WORKER_PUBLIC_ERROR, Worker, WorkerDescription
 
-_WORKER_PUBLIC_ERROR = "Worker execution failed"
 logger = logging.getLogger(__name__)
 
 
@@ -98,7 +97,7 @@ class PredictionRevisionWorker(Worker):
                     event.topic,
                     event.message_id,
                 )
-                errors.append(f"{event.topic}:{event.message_id}:{_WORKER_PUBLIC_ERROR}")
+                errors.append(f"{event.topic}:{event.message_id}:{WORKER_PUBLIC_ERROR}")
                 await self.event_bus.publish_dead_letter(
                     event.topic,
                     {
@@ -106,7 +105,7 @@ class PredictionRevisionWorker(Worker):
                         "consumer": self.worker_instance_id,
                         "message_id": event.message_id,
                         "payload": event.payload,
-                        "error": _WORKER_PUBLIC_ERROR,
+                        "error": WORKER_PUBLIC_ERROR,
                     },
                 )
                 await self.event_bus.ack(event.topic, self.description.worker_id, event.message_id)

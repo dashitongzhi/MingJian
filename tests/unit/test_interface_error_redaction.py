@@ -16,7 +16,11 @@ from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 from planagent.services.notification import NotificationConfig, NotificationService
 from planagent.services.openai_client import OpenAIService
+from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.prediction import PredictionService
+from planagent.services.simulation import SimulationService
+from planagent.workers.base import public_worker_error
+from planagent.workers.review import ReviewWorker
 from planagent.workers.strategic_watch import StrategicWatchWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
 from planagent.workers.prediction_revision import PredictionRevisionWorker
@@ -425,3 +429,124 @@ async def test_prediction_revision_event_failures_are_redacted() -> None:
     assert errors == ["evidence.created:event-1:Worker execution failed"]
     assert published[0]["error"] == "Worker execution failed"
     assert _SECRET_ERROR not in str({"errors": errors, "published": published})
+
+
+@pytest.mark.asyncio
+async def test_ingest_and_knowledge_state_redacts_internal_failures() -> None:
+    service = PhaseOnePipelineService.__new__(PhaseOnePipelineService)
+    service.settings = SimpleNamespace(worker_max_attempts=1)
+    service._publish_events = AsyncMock()  # type: ignore[method-assign]
+    ingest_run = SimpleNamespace(
+        id="ingest-1",
+        request_payload={"items": []},
+        processing_attempts=1,
+        last_error=None,
+        status="PROCESSING",
+        lease_owner="worker",
+        lease_expires_at=object(),
+        updated_at=None,
+    )
+    service._claim_ingest_runs = AsyncMock(  # type: ignore[method-assign]
+        return_value=[ingest_run]
+    )
+    service._stage_run_items = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+    session = _FakeSession()
+
+    processed = await service.process_queued_runs(session)
+
+    assert processed == 0
+    assert ingest_run.last_error == "Ingest processing failed"
+    assert _SECRET_ERROR not in ingest_run.last_error
+
+    raw = SimpleNamespace(
+        id="raw-1",
+        ingest_run_id="ingest-2",
+        processing_attempts=1,
+        knowledge_status="PROCESSING",
+        last_error=None,
+        lease_owner="worker",
+        lease_expires_at=object(),
+        processed_at=None,
+    )
+    parent_run = SimpleNamespace(id="ingest-2", summary={}, updated_at=None)
+    knowledge_session = _FakeSession({"ingest-2": parent_run})
+    service._claim_raw_items = AsyncMock(return_value=[raw])  # type: ignore[method-assign]
+    service._materialize_knowledge_for_raw_item = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+    service._finalize_queued_run = AsyncMock(return_value=False)  # type: ignore[method-assign]
+
+    await service.process_pending_knowledge(knowledge_session)
+
+    assert raw.last_error == "Knowledge materialization failed"
+    assert _SECRET_ERROR not in raw.last_error
+
+
+@pytest.mark.asyncio
+async def test_simulation_and_report_state_redacts_internal_failures() -> None:
+    service = SimulationService.__new__(SimulationService)
+    service.settings = SimpleNamespace(worker_max_attempts=1)
+    run = SimpleNamespace(
+        id="run-1",
+        parent_run_id=None,
+        processing_attempts=1,
+        last_error=None,
+        status="PROCESSING",
+        lease_owner="worker",
+        lease_expires_at=object(),
+        updated_at=None,
+    )
+    service._claim_simulation_runs = AsyncMock(return_value=[run])  # type: ignore[method-assign]
+    service._execute_run = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+    session = _FakeSession()
+
+    processed = await service.process_queued_runs(session)
+
+    assert processed == 0
+    assert run.last_error == "Simulation execution failed"
+
+    service._claim_report_runs = AsyncMock(return_value=[run])  # type: ignore[method-assign]
+    service._generate_report = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+    generated = await service.generate_pending_reports(session)
+
+    assert generated == 0
+    assert run.last_error == "Report generation failed"
+    assert _SECRET_ERROR not in run.last_error
+
+
+@pytest.mark.asyncio
+async def test_review_state_and_worker_results_redact_internal_failures() -> None:
+    review_item = SimpleNamespace(
+        id="review-1",
+        claim_id="claim-1",
+        status="PENDING",
+        lease_owner="worker",
+        lease_expires_at=object(),
+        last_error=None,
+        updated_at=None,
+    )
+    claim = SimpleNamespace(id="claim-1")
+    session = _FakeSession({"review-1": review_item, "claim-1": claim})
+
+    class FakeDatabase:
+        @asynccontextmanager
+        async def session(self):
+            yield session
+
+    worker = ReviewWorker.__new__(ReviewWorker)
+    worker._latest_automated_verdict = AsyncMock(  # type: ignore[method-assign]
+        side_effect=RuntimeError(_SECRET_ERROR)
+    )
+
+    result = await worker._process_review_item(FakeDatabase(), "review-1")
+
+    assert result["manual_queue"] == 1
+    assert review_item.last_error == "Review processing failed"
+    assert public_worker_error("claim", "claim-1") == "claim:claim-1:Worker execution failed"
+    assert _SECRET_ERROR not in str({"last_error": review_item.last_error})

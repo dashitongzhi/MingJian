@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 
 from sqlalchemy import or_, select, update
 
@@ -20,6 +21,9 @@ from planagent.services.debate import DebateCommand, DebateService, DebateTarget
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.workers.base import Worker, WorkerDescription
+
+_REVIEW_PUBLIC_ERROR = "Review processing failed"
+_logger = logging.getLogger(__name__)
 
 
 class ReviewWorker(Worker):
@@ -194,14 +198,14 @@ class ReviewWorker(Worker):
                 )
                 result["debated_items"] = 1
                 return result
-            except Exception as exc:
+            except Exception:
                 await session.rollback()
+                _logger.exception(
+                    "Review item processing failed: review_item_id=%s", review_item_id
+                )
                 review_item = await session.get(ReviewItem, review_item_id)
                 if review_item is not None and review_item.status == ReviewItemStatus.PENDING.value:
-                    self._release_review_item(
-                        review_item,
-                        f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
-                    )
+                    self._release_review_item(review_item, _REVIEW_PUBLIC_ERROR)
                     await session.commit()
                 return self._manual_result()
 
