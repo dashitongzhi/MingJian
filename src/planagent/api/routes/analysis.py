@@ -30,6 +30,11 @@ from planagent.api.routes._deps import (
     get_analysis_service,
     get_assistant_service,
     get_debate_service,
+    get_debate_workflow,
+)
+from planagent.services.debate._legacy import (
+    _command_from_legacy_request,
+    _legacy_event_from_observation,
 )
 from planagent.api.routes._auth_middleware import optional_auth
 
@@ -162,11 +167,14 @@ async def debate_stream(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
+    workflow = get_debate_workflow(request)
     service = get_debate_service(request)
 
     async def event_stream():
         try:
-            async for event in service.stream_debate(session, payload):
+            command = await _command_from_legacy_request(service, session, payload)
+            async for observation in workflow.observe(session, command):
+                event = _legacy_event_from_observation(observation)
                 yield f"event: {event.event}\n"
                 yield f"data: {json.dumps(event.payload, ensure_ascii=False)}\n\n"
         except Exception:

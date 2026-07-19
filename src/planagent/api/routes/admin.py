@@ -18,7 +18,6 @@ from planagent.domain.api import (
     AnalysisSourceRead,
     CalibrationComputeRequest,
     CalibrationRead,
-    DebateTriggerRequest,
     EvidenceGraphEdgeRead,
     EvidenceGraphNodeRead,
     EvidenceGraphRead,
@@ -64,7 +63,7 @@ from planagent.api.routes._deps import (
     _datetime_is_future,
     ensure_app_services,
     get_analysis_service,
-    get_debate_service,
+    get_debate_workflow,
     get_platform_topology_service,
     get_pipeline_service,
     get_runtime_monitor_service,
@@ -82,6 +81,7 @@ from planagent.services.startup import (
 from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.source_state import SourceStateService
 from planagent.services.auth import UserRole
+from planagent.services.debate import DebateCommand, DebateTarget
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 
@@ -652,14 +652,13 @@ async def trigger_watch_rule(
             simulation_run_id = sim_run.id
 
             if rule.auto_trigger_debate and simulation_run_id is not None:
-                debate_service = get_debate_service(request)
-                debate = await debate_service.trigger_debate(
+                debate_workflow = get_debate_workflow(request)
+                debate = await debate_workflow.decide(
                     session,
-                    DebateTriggerRequest(
-                        run_id=simulation_run_id,
+                    DebateCommand(
+                        target=DebateTarget.run(simulation_run_id),
                         topic=f"Should the posture for {rule.query} be adjusted?",
                         trigger_type="pivot_decision",
-                        target_type="run",
                     ),
                 )
                 debate_id = debate.id

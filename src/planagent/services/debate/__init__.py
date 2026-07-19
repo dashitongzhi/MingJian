@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import Any
 
 from sqlalchemy import select
@@ -8,14 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import Settings
 from planagent.domain.api import (
-    DebateDetailRead,
     DebateSummaryRead,
     DebateTriggerRequest,
-    DebateVerdictRead,
 )
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import (
-    Claim,
     DebateInterruptRecord,
     DebateRoundRecord,
     DebateSessionRecord,
@@ -39,18 +35,23 @@ from .contracts import (  # noqa: E402
     DebateCommand,
     DebateExecutionFailed,
     DebateAssessment,
+    DebateFinished,
+    DebateInterruptInjected,
+    DebateObservation,
+    DebateRoundCompleted,
+    DebateRoundStarted,
+    DebateStreamEvent,
     DebateTarget,
     DebateTargetNotFound,
-    DebateStreamEvent,
     DebateStreamPreparation,
     InvalidDebateCommand,
 )
-from .engines import load_custom_debate_agents  # noqa: E402
 from .llm import LLMDebateAdapter  # noqa: E402
 from .revisions import DebateRevisionMixin  # noqa: E402
 from .roles import debate_record_sort_key  # noqa: E402
 from .rounds import DebateRoundMixin  # noqa: E402
 from .triggers import DebateTriggerMixin  # noqa: E402
+from .workflow import DebateWorkflow  # noqa: E402
 
 
 class DebateService(
@@ -71,204 +72,7 @@ class DebateService(
         self.openai_service = openai_service
         self.agent_registry = agent_registry
         self.llm_adapter = LLMDebateAdapter(settings, openai_service, agent_registry)
-
-    async def trigger_debate(
-        self,
-        session: AsyncSession,
-        payload: DebateTriggerRequest,
-    ) -> DebateDetailRead:
-        payload = await self._resolve_trigger_payload(session, payload)
-        if payload.run_id is None and payload.claim_id is None:
-            raise ValueError("Debate trigger requires run_id or claim_id.")
-
-        assessment = await self._assess_debate(session, payload)
-        run = (
-            await session.get(SimulationRun, payload.run_id) if payload.run_id is not None else None
-        )
-        claim = await session.get(Claim, payload.claim_id) if payload.claim_id is not None else None
-        debate_session = DebateSessionRecord(
-            run_id=payload.run_id,
-            claim_id=payload.claim_id,
-            tenant_id=(claim.tenant_id if claim is not None else None)
-            or (run.tenant_id if run is not None else None),
-            preset_id=(claim.preset_id if claim is not None else None)
-            or (run.preset_id if run is not None else None),
-            topic=payload.topic,
-            trigger_type=payload.trigger_type,
-            status="COMPLETED",
-            target_type=payload.target_type,
-            target_id=payload.target_id or payload.claim_id or payload.run_id,
-            context_payload=assessment.context_payload,
-        )
-        session.add(debate_session)
-        await session.flush()
-
-        trigger_payload = {
-            "debate_id": debate_session.id,
-            "run_id": payload.run_id,
-            "claim_id": payload.claim_id,
-            "topic": payload.topic,
-            "trigger_type": payload.trigger_type,
-        }
-        session.add(EventArchive(topic=EventTopic.DEBATE_TRIGGERED.value, payload=trigger_payload))
-
-        _, completed_payload = await self._complete_debate(
-            session=session,
-            payload=payload,
-            assessment=assessment,
-            debate_session=debate_session,
-            run=run,
-            persist_rounds=True,
-        )
-
-        await session.commit()
-        await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
-        await self.event_bus.publish(EventTopic.DEBATE_COMPLETED.value, completed_payload)
-        return await self.get_debate(session, debate_session.id)
-
-    async def stream_debate(
-        self,
-        session: AsyncSession,
-        payload: DebateTriggerRequest,
-    ) -> AsyncIterator[DebateStreamEvent]:
-        payload = await self._resolve_trigger_payload(session, payload)
-        if payload.run_id is None and payload.claim_id is None:
-            raise ValueError("Debate trigger requires run_id or claim_id.")
-
-        run = (
-            await session.get(SimulationRun, payload.run_id) if payload.run_id is not None else None
-        )
-        claim = await session.get(Claim, payload.claim_id) if payload.claim_id is not None else None
-        debate_session = DebateSessionRecord(
-            run_id=payload.run_id,
-            claim_id=payload.claim_id,
-            tenant_id=(claim.tenant_id if claim is not None else None)
-            or (run.tenant_id if run is not None else None),
-            preset_id=(claim.preset_id if claim is not None else None)
-            or (run.preset_id if run is not None else None),
-            topic=payload.topic,
-            trigger_type=payload.trigger_type,
-            status="RUNNING",
-            target_type=payload.target_type,
-            target_id=payload.target_id or payload.claim_id or payload.run_id,
-            context_payload={"user_context": payload.context_lines},
-        )
-        trigger_payload: dict[str, Any]
-        debate_id = ""
-
-        try:
-            async with session.begin_nested():
-                session.add(debate_session)
-                await session.flush()
-                debate_id = debate_session.id
-                trigger_payload = {
-                    "debate_id": debate_id,
-                    "run_id": payload.run_id,
-                    "claim_id": payload.claim_id,
-                    "topic": payload.topic,
-                    "trigger_type": payload.trigger_type,
-                }
-                session.add(
-                    EventArchive(topic=EventTopic.DEBATE_TRIGGERED.value, payload=trigger_payload)
-                )
-                await session.flush()
-            await session.commit()
-
-            preparation = await self.llm_adapter.prepare(
-                session,
-                payload,
-                context_port=self,
-            )
-            if preparation is not None and self.llm_adapter.is_available():
-                rounds = []
-                async for stream_event in self.llm_adapter.stream_rounds(
-                    topic=payload.topic,
-                    trigger_type=payload.trigger_type,
-                    context=preparation.context,
-                    evidence_ids=preparation.llm_evidence_ids,
-                    debate_mode=getattr(payload, "debate_mode", "full") or "full",
-                    domain_id=getattr(payload, "domain_id", None),
-                    custom_agents=load_custom_debate_agents(),
-                    session=session,
-                    debate_id=debate_id,
-                    interrupt_port=self,
-                ):
-                    if stream_event.event == "debate_round_start":
-                        yield self._stream_event(
-                            stream_event.event, debate_id, stream_event.payload
-                        )
-                        continue
-                    if stream_event.event != "debate_round_complete":
-                        yield self._stream_event(
-                            stream_event.event, debate_id, stream_event.payload
-                        )
-                        continue
-                    round_payload = stream_event.payload["round"]
-                    rounds.append(round_payload)
-                    await self._persist_stream_round(session, debate_id, round_payload)
-                    yield self._stream_event(
-                        "debate_round_complete",
-                        debate_id,
-                        self._round_complete_payload(round_payload),
-                    )
-                assessment = self._build_assessment_from_llm_rounds(
-                    rounds,
-                    preparation.assessment_evidence_ids,
-                    payload,
-                    **preparation.assessment_kwargs,
-                )
-            else:
-                assessment = await self._assess_debate(session, payload)
-                rounds = []
-                for round_payload in assessment.rounds:
-                    rounds.append(round_payload)
-                    yield self._stream_event(
-                        "debate_round_start",
-                        debate_id,
-                        {
-                            "round_number": round_payload["round_number"],
-                            "role": round_payload["role"],
-                        },
-                    )
-                    await self._persist_stream_round(session, debate_id, round_payload)
-                    yield self._stream_event(
-                        "debate_round_complete",
-                        debate_id,
-                        self._round_complete_payload(round_payload),
-                    )
-
-            async with session.begin_nested():
-                _, completed_payload = await self._complete_debate(
-                    session=session,
-                    payload=payload,
-                    assessment=assessment,
-                    debate_session=debate_session,
-                    run=run,
-                    persist_rounds=False,
-                )
-                await session.flush()
-
-            await session.commit()
-            await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
-            await self.event_bus.publish(EventTopic.DEBATE_COMPLETED.value, completed_payload)
-            yield self._stream_event(
-                "debate_verdict",
-                debate_id,
-                {
-                    "verdict": assessment.verdict,
-                    "confidence": completed_payload["confidence"],
-                    "winning_arguments": assessment.winning_arguments,
-                    "decisive_evidence": assessment.decisive_evidence,
-                },
-            )
-        except Exception:
-            await session.rollback()
-            if debate_id:
-                failed_session = await session.get(DebateSessionRecord, debate_id)
-                if failed_session is not None:
-                    failed_session.status = "FAILED"
-                    await session.commit()
-            raise
+        self.workflow = DebateWorkflow(self)
 
     async def _complete_debate(
         self,
@@ -473,73 +277,6 @@ class DebateService(
         if branch is None:
             raise ValueError("Branch debates require target_id or run_id.")
         return payload.model_copy(update={"run_id": branch.run_id, "target_id": branch.id})
-
-    async def get_debate(self, session: AsyncSession, debate_id: str) -> DebateDetailRead:
-        debate = await session.get(DebateSessionRecord, debate_id)
-        if debate is None:
-            raise LookupError(f"Debate {debate_id} was not found.")
-
-        rounds = list(
-            (
-                await session.scalars(
-                    select(DebateRoundRecord)
-                    .where(DebateRoundRecord.debate_id == debate_id)
-                    .order_by(
-                        DebateRoundRecord.round_number.asc(),
-                        DebateRoundRecord.created_at.asc(),
-                    )
-                )
-            ).all()
-        )
-        rounds.sort(key=debate_record_sort_key)
-        verdict = await session.get(DebateVerdictRecord, debate_id)
-        return DebateDetailRead(
-            id=debate.id,
-            run_id=debate.run_id,
-            claim_id=debate.claim_id,
-            topic=debate.topic,
-            trigger_type=debate.trigger_type,
-            status=debate.status,
-            target_type=debate.target_type,
-            target_id=debate.target_id,
-            context_payload=debate.context_payload,
-            rounds=[
-                {
-                    "round_number": item.round_number,
-                    "role": item.role,
-                    "position": item.position,
-                    "confidence": item.confidence,
-                    "arguments": item.arguments,
-                    "rebuttals": item.rebuttals,
-                    "concessions": item.concessions,
-                    "created_at": item.created_at,
-                }
-                for item in rounds
-            ],
-            verdict=(
-                DebateVerdictRead(
-                    debate_id=verdict.debate_id,
-                    topic=verdict.topic,
-                    trigger_type=verdict.trigger_type,
-                    rounds_completed=verdict.rounds_completed,
-                    verdict=verdict.verdict,
-                    confidence=verdict.confidence,
-                    winning_arguments=verdict.winning_arguments,
-                    decisive_evidence=verdict.decisive_evidence,
-                    conditions=verdict.conditions,
-                    minority_opinion=verdict.minority_opinion,
-                    recommendations=verdict.recommendations or [],
-                    risk_factors=verdict.risk_factors or [],
-                    alternative_scenarios=verdict.alternative_scenarios or [],
-                    conclusion_summary=verdict.conclusion_summary,
-                    created_at=verdict.created_at,
-                )
-                if verdict is not None
-                else None
-            ),
-            created_at=debate.created_at,
-            updated_at=debate.updated_at,
-        )
 
     async def list_all_debates(
         self, session: AsyncSession, limit: int = 50
@@ -820,10 +557,16 @@ __all__ = [
     "DebateCommand",
     "DebateExecutionFailed",
     "DebateAssessment",
+    "DebateFinished",
+    "DebateInterruptInjected",
+    "DebateObservation",
+    "DebateRoundCompleted",
+    "DebateRoundStarted",
     "DebateService",
     "DebateStreamEvent",
     "DebateStreamPreparation",
     "DebateTarget",
     "DebateTargetNotFound",
+    "DebateWorkflow",
     "InvalidDebateCommand",
 ]

@@ -7,6 +7,10 @@ from planagent.services.debate import (
     DebateAssessment as ExportedDebateAssessment,
     DebateCommand,
     DebateExecutionFailed,
+    DebateFinished,
+    DebateInterruptInjected,
+    DebateRoundCompleted,
+    DebateRoundStarted,
     DebateStreamEvent as ExportedDebateStreamEvent,
     DebateStreamPreparation as ExportedDebateStreamPreparation,
     DebateTarget,
@@ -32,6 +36,36 @@ def test_debate_contracts_are_immutable_observable_results() -> None:
 
     with pytest.raises(FrozenInstanceError):
         event.event = "debate_completed"
+
+
+def test_typed_observations_preserve_stable_execution_data() -> None:
+    started = DebateRoundStarted(debate_id="debate-1", round_number=1, role="advocate")
+    completed = DebateRoundCompleted(
+        debate_id="debate-1",
+        round_number=1,
+        role="advocate",
+        position="SUPPORT",
+        confidence=0.8,
+        key_arguments=("Evidence supports the plan.",),
+    )
+    interrupt = DebateInterruptInjected(
+        debate_id="debate-1",
+        round_number=2,
+        role="challenger",
+        count=1,
+        interrupt_ids=("interrupt-1",),
+    )
+
+    assert started.round_number == 1
+    assert completed.key_arguments == ("Evidence supports the plan.",)
+    assert interrupt.interrupt_ids == ("interrupt-1",)
+
+
+def test_finished_observation_carries_the_complete_result() -> None:
+    result = object()
+    finished = DebateFinished(debate_id="debate-1", debate=result)  # type: ignore[arg-type]
+
+    assert finished.debate is result
 
 
 def test_stream_preparation_preserves_execution_inputs() -> None:

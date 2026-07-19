@@ -17,7 +17,6 @@ from planagent.config import get_settings
 from planagent.domain.api import (
     AnalysisRequest,
     AnalysisResponse,
-    DebateTriggerRequest,
     IngestRunCreate,
     PanelDiscussionMessageRead,
     RecommendationVersionRead,
@@ -47,7 +46,13 @@ from planagent.domain.models import (
 )
 from planagent.domain.types import GeneratedReportModel
 from planagent.services.analysis import AutomatedAnalysisService
-from planagent.services.debate import DebateService
+from planagent.services.debate import (
+    DebateCommand,
+    DebateFinished,
+    DebateTarget,
+    DebateWorkflow,
+)
+from planagent.services.debate._legacy import _legacy_event_from_observation
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.simulation import SimulationService
@@ -254,13 +259,13 @@ class StrategicAssistantService:
         analysis_service: AutomatedAnalysisService,
         pipeline_service: PhaseOnePipelineService,
         simulation_service: SimulationService,
-        debate_service: DebateService,
+        debate_workflow: DebateWorkflow,
         workbench_service: WorkbenchService,
     ) -> None:
         self.analysis_service = analysis_service
         self.pipeline_service = pipeline_service
         self.simulation_service = simulation_service
-        self.debate_service = debate_service
+        self.debate_workflow = debate_workflow
         self.workbench_service = workbench_service
         self.recommendation_service = RecommendationVersionService()
 
@@ -370,25 +375,20 @@ class StrategicAssistantService:
             debate_topic = self._debate_topic(domain_id, subject_name)
             trigger_type = "pivot_decision"
 
-        debate_id: str | None = None
-        async for debate_event in self.debate_service.stream_debate(
+        debate = None
+        async for observation in self.debate_workflow.observe(
             session,
-            DebateTriggerRequest(
-                run_id=simulation_run.id,
+            DebateCommand(
+                target=DebateTarget.run(simulation_run.id),
                 topic=debate_topic,
                 trigger_type=trigger_type,
-                target_type="run",
-                context_lines=debate_context_lines,
+                context=tuple(debate_context_lines),
             ),
         ):
+            debate_event = _legacy_event_from_observation(observation)
             yield self._event(debate_event.event, debate_event.payload)
-            if debate_event.event == "debate_verdict":
-                debate_id = debate_event.payload.get("debate_id")
-        debate = (
-            await self.debate_service.get_debate(session, debate_id)
-            if debate_id is not None
-            else None
-        )
+            if isinstance(observation, DebateFinished):
+                debate = observation.debate
 
         result = None
         try_errors: list[str] = []

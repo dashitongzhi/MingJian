@@ -49,7 +49,7 @@ class StrategicWatchWorker(Worker):
             analysis_service=analysis_service,
             pipeline_service=pipeline_service,
             simulation_service=simulation_service,
-            debate_service=debate_service,
+            debate_workflow=debate_service.workflow,
             workbench_service=WorkbenchService(),
         )
 

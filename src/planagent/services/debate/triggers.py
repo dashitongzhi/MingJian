@@ -4,9 +4,10 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from planagent.domain.api import DebateTriggerRequest
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import EventArchive
+
+from .contracts import DebateCommand, DebateTarget
 
 
 class DebateTriggerMixin:
@@ -134,21 +135,18 @@ class DebateTriggerMixin:
             EventArchive(topic=EventTopic.DEBATE_AUTO_TRIGGER.value, payload=trigger_event_payload)
         )
 
-        # 构造辩论请求
-        payload = DebateTriggerRequest(
-            run_id=run_id,
+        command = DebateCommand(
+            target=DebateTarget.run(run_id),
             topic=f"[自动触发] {topic}",
             trigger_type="conflict_resolution",
-            target_type="run",
-            context_lines=[
+            context=(
                 *(context_lines or []),
                 f"自动触发原因：{'; '.join(detection['trigger_reasons'])}",
                 f"置信度分布：{detection['disagreement_details']}",
-            ],
+            ),
         )
 
-        # 执行辩论
-        debate_result = await self.trigger_debate(session, payload)
+        debate_result = await self.workflow.decide(session, command)
         await self.event_bus.publish(EventTopic.DEBATE_AUTO_TRIGGER.value, trigger_event_payload)
 
         return {

@@ -6,7 +6,7 @@ from sqlalchemy import or_, select, update
 
 from planagent.config import Settings
 from planagent.db import get_database
-from planagent.domain.api import DebateTriggerRequest, ReviewDecisionRequest
+from planagent.domain.api import ReviewDecisionRequest
 from planagent.domain.enums import ClaimStatus, EventTopic, ReviewItemStatus
 from planagent.domain.models import (
     Claim,
@@ -16,7 +16,7 @@ from planagent.domain.models import (
     utc_now,
 )
 from planagent.events.bus import EventBus
-from planagent.services.debate import DebateService
+from planagent.services.debate import DebateCommand, DebateService, DebateTarget
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.workers.base import Worker, WorkerDescription
@@ -46,6 +46,7 @@ class ReviewWorker(Worker):
         self.worker_instance_id = self.description.worker_id
         self.pipeline_service = PhaseOnePipelineService(settings, event_bus, openai_service)
         self.debate_service = DebateService(settings, event_bus, openai_service)
+        self.debate_workflow = self.debate_service.workflow
 
     async def run_once(self) -> dict[str, object]:
         database = get_database()
@@ -155,15 +156,13 @@ class ReviewWorker(Worker):
                     await session.commit()
                     return self._manual_result()
 
-                debate = await self.debate_service.trigger_debate(
+                debate = await self.debate_workflow.decide(
                     session,
-                    DebateTriggerRequest(
-                        claim_id=claim.id,
+                    DebateCommand(
+                        target=DebateTarget.claim(claim.id),
                         topic=f"Should claim {claim.id} enter the simulation chain?",
                         trigger_type=trigger_type,
-                        target_type="claim",
-                        target_id=claim.id,
-                        context_lines=[context_line],
+                        context=(context_line,),
                     ),
                 )
                 verdict = debate.verdict.verdict if debate.verdict is not None else None

@@ -43,9 +43,11 @@ from planagent.domain.types import (
 )
 from planagent.api.routes._deps import (
     get_debate_service,
+    get_debate_workflow,
     get_simulation_service,
     get_workbench_service,
 )
+from planagent.services.debate._legacy import _command_from_legacy_request
 from planagent.services.startup import (
     build_startup_kpi_pack,
 )
@@ -437,9 +439,9 @@ async def get_debate(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> DebateDetailRead:
-    service = get_debate_service(request)
+    workflow = get_debate_workflow(request)
     try:
-        return await service.get_debate(session, debate_id)
+        return await workflow.read(session, debate_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -460,9 +462,11 @@ async def trigger_debate(
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> DebateDetailRead:
+    workflow = get_debate_workflow(request)
     service = get_debate_service(request)
     try:
-        return await service.trigger_debate(session, payload)
+        command = await _command_from_legacy_request(service, session, payload)
+        return await workflow.decide(session, command)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

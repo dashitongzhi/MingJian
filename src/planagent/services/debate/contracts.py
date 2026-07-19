@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Self, TypeAlias
 
+from planagent.domain.api import DebateDetailRead
 from planagent.domain.models import Claim
 
 DebateTargetKind: TypeAlias = Literal["run", "claim", "branch", "report"]
@@ -113,6 +114,43 @@ class DebateAssessment:
 class DebateStreamEvent:
     event: str
     payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class DebateInterruptInjected:
+    debate_id: str
+    round_number: int
+    role: str
+    count: int
+    interrupt_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DebateRoundStarted:
+    debate_id: str
+    round_number: int
+    role: str
+
+
+@dataclass(frozen=True)
+class DebateRoundCompleted:
+    debate_id: str
+    round_number: int
+    role: str
+    position: str
+    confidence: float
+    key_arguments: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DebateFinished:
+    debate_id: str
+    debate: DebateDetailRead
+
+
+DebateObservation: TypeAlias = (
+    DebateInterruptInjected | DebateRoundStarted | DebateRoundCompleted | DebateFinished
+)
 
 
 @dataclass(frozen=True)

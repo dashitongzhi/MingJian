@@ -14,7 +14,7 @@ from planagent.domain.models import AnalysisCacheRecord, utc_now
 from planagent.events.bus import build_event_bus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant import StrategicAssistantService
-from planagent.services.debate import DebateService
+from planagent.services.debate import DebateService, DebateWorkflow
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.platform_topology import PlatformTopologyService
@@ -82,7 +82,7 @@ def _cache_business_services(state: object) -> None:
             analysis_service=state.analysis_service,
             pipeline_service=state.pipeline_service,
             simulation_service=state.simulation_service,
-            debate_service=state.debate_service,
+            debate_workflow=state.debate_service.workflow,
             workbench_service=state.workbench_service,
         )
 
@@ -151,6 +151,11 @@ def get_debate_service(request: Request) -> DebateService:
     return request.app.state.debate_service  # type: ignore[no-any-return]  # app.state 动态属性
 
 
+def get_debate_workflow(request: Request) -> DebateWorkflow:
+    """Return the canonical debate workflow shared by routes and workers."""
+    return get_debate_service(request).workflow
+
+
 def get_workbench_service() -> WorkbenchService:
     state = _get_state_or_fallback()
     if not hasattr(state, "workbench_service"):
@@ -165,7 +170,7 @@ def get_assistant_service(request: Request) -> StrategicAssistantService:
             analysis_service=get_analysis_service(request),
             pipeline_service=get_pipeline_service(request),
             simulation_service=get_simulation_service(request),
-            debate_service=get_debate_service(request),
+            debate_workflow=get_debate_workflow(request),
             workbench_service=get_workbench_service(),
         )
     return request.app.state.assistant_service  # type: ignore[no-any-return]  # app.state 动态属性

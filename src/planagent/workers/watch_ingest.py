@@ -10,7 +10,6 @@ from planagent.config import Settings
 from planagent.db import get_database
 from planagent.domain.api import (
     AnalysisRequest,
-    DebateTriggerRequest,
     IngestRunCreate,
     SimulationRunCreate,
 )
@@ -29,7 +28,7 @@ from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant import StrategicAssistantService
 from planagent.services.change_detection import ChangeDetectionService
-from planagent.services.debate import DebateService
+from planagent.services.debate import DebateCommand, DebateService, DebateTarget
 from planagent.services.notification import NotificationService, NotificationPriority
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
@@ -71,11 +70,12 @@ class WatchIngestWorker(Worker):
             settings, event_bus, rule_registry, openai_service
         )
         self.debate_service = DebateService(settings, event_bus, openai_service)
+        self.debate_workflow = self.debate_service.workflow
         self.assistant_service = StrategicAssistantService(
             analysis_service=self.analysis_service,
             pipeline_service=self.pipeline_service,
             simulation_service=self.simulation_service,
-            debate_service=self.debate_service,
+            debate_workflow=self.debate_workflow,
             workbench_service=WorkbenchService(),
         )
         self.recommendation_service = RecommendationVersionService()
@@ -355,14 +355,13 @@ class WatchIngestWorker(Worker):
             simulation_run_id = sim_run.id
 
             if rule.auto_trigger_debate and simulation_run_id is not None:
-                debate = await self.debate_service.trigger_debate(
+                debate = await self.debate_workflow.decide(
                     session,
-                    DebateTriggerRequest(
-                        run_id=simulation_run_id,
+                    DebateCommand(
+                        target=DebateTarget.run(simulation_run_id),
                         topic=f"Should the posture for {rule.query} be adjusted?",
                         trigger_type="pivot_decision",
-                        target_type="run",
-                        context_lines=self._evidence_impact_context_lines(evidence_impact),
+                        context=tuple(self._evidence_impact_context_lines(evidence_impact)),
                         domain_id=rule.domain_id,
                     ),
                 )
