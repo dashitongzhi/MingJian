@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,7 +86,7 @@ async def create_simulation_run(
 
 @router.get("/simulation/runs", response_model=list[SimulationRunRead])
 async def list_simulation_runs(
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=100),
     domain_id: str | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[SimulationRunRead]:
@@ -425,7 +425,7 @@ async def get_scenario_report(
 @router.get("/debates", response_model=list[DebateSummaryRead])
 async def list_debates(
     request: Request,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
     session: AsyncSession = Depends(get_session),
 ) -> list[DebateSummaryRead]:
     """List all debates, newest first."""
