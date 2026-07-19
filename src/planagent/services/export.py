@@ -12,8 +12,10 @@ from __future__ import annotations
 import base64
 import binascii
 import html
+import io
 import logging
 import re
+import zipfile
 from collections import defaultdict
 from datetime import datetime, timezone
 from html.parser import HTMLParser
@@ -32,6 +34,7 @@ from planagent.config.report_theme import get_theme
 from planagent.domain.models import (
     DebateReliabilityScore,
     DebateRoundRecord,
+    DebateSessionRecord,
     DebateStructuredDissent,
     DebateVerdictRecord,
 )
@@ -263,11 +266,20 @@ class ExportService:
                 messages = rd.get("messages", [])
                 for msg in messages:
                     role = msg.get("role", "unknown")
-                    stance = msg.get("stance", "")
+                    stance = msg.get("position") or msg.get("stance") or ""
                     content = msg.get("content", "")
                     _append(f"**[{role}]** ({stance})")
                     _append("")
-                    _append(content)
+                    if content:
+                        _append(content)
+                    for argument in msg.get("arguments", []):
+                        claim = argument.get("claim") or argument.get("summary") or str(argument)
+                        reasoning = argument.get("reasoning")
+                        _append(f"- {claim}" + (f" — {reasoning}" if reasoning else ""))
+                    for rebuttal in msg.get("rebuttals", []):
+                        _append(f"- 反驳：{rebuttal.get('counter') or rebuttal}")
+                    for concession in msg.get("concessions", []):
+                        _append(f"- 让步：{concession.get('reason') or concession}")
                     _append("")
 
             recommendations = debate.get("recommendations", [])
@@ -384,12 +396,23 @@ class ExportService:
             _append(f"## 第{round_num}轮 · {phase}")
             _append("")
 
-            for msg in rd.get("messages", []):
+            messages = rd.get("messages") or [rd]
+            for msg in messages:
                 role = msg.get("role", "unknown")
+                position = msg.get("position") or msg.get("stance") or ""
                 content = msg.get("content", "")
-                _append(f"### {role}")
+                _append(f"### {role}" + (f" · {position}" if position else ""))
                 _append("")
-                _append(content)
+                if content:
+                    _append(content)
+                for argument in msg.get("arguments", []):
+                    claim = argument.get("claim") or argument.get("summary") or str(argument)
+                    reasoning = argument.get("reasoning")
+                    _append(f"- {claim}" + (f" — {reasoning}" if reasoning else ""))
+                for rebuttal in msg.get("rebuttals", []):
+                    _append(f"- 反驳：{rebuttal.get('counter') or rebuttal}")
+                for concession in msg.get("concessions", []):
+                    _append(f"- 让步：{concession.get('reason') or concession}")
                 _append("")
 
         verdict = debate_data.get("verdict")
@@ -632,6 +655,9 @@ class ExportService:
             Complete HTML document as a string.
         """
         # ── Query artefacts ─────────────────────────────────
+        debate_session = await db.get(DebateSessionRecord, debate_id)
+        if debate_session is None:
+            raise LookupError(f"Debate {debate_id} was not found.")
         verdict: DebateVerdictRecord | None = await db.get(DebateVerdictRecord, debate_id)
 
         reliability_scores: list[DebateReliabilityScore] = list(
@@ -752,7 +778,7 @@ class ExportService:
             "role_radar": "角色雷达图",
         }
 
-        topic = verdict.topic if verdict else "未知主题"
+        topic = debate_session.topic
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
         env = self._get_jinja_env()
@@ -763,7 +789,7 @@ class ExportService:
                 id=debate_id,
                 created_at=now,
             ),
-            status="completed" if verdict else "in_progress",
+            status=debate_session.status.lower(),
             generated_at=now,
             rounds=sorted_rounds,
             verdict=verdict,
@@ -773,6 +799,20 @@ class ExportService:
             chart_names=chart_names,
             theme=theme,
         )
+
+    @staticmethod
+    def build_document_bundle(
+        markdown: str,
+        pdf_bytes: bytes,
+        basename: str,
+    ) -> bytes:
+        """Package Markdown and PDF into a real ``format=both`` response."""
+        safe_basename = re.sub(r"[^A-Za-z0-9._-]+", "_", basename).strip("._") or "report"
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(f"{safe_basename}.md", markdown.encode("utf-8"))
+            archive.writestr(f"{safe_basename}.pdf", pdf_bytes)
+        return buffer.getvalue()
 
     async def export_debate_html_file(
         self,

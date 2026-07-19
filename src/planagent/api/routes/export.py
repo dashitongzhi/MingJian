@@ -26,10 +26,37 @@ from planagent.domain.models import (
     utc_now,
 )
 from planagent.services.export import ExportService
+from planagent.services.debate_replay import DebateReplayService
 
 _logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/export", tags=["Export"])
+
+
+async def _load_debate_export_data(
+    session: AsyncSession,
+    debate_id: str,
+) -> dict[str, Any]:
+    replay = await DebateReplayService().get_replay(session, debate_id)
+    verdict = replay.verdict
+    return {
+        "topic": replay.topic,
+        "status": replay.status,
+        "rounds": [
+            {
+                "round_number": int(round_number),
+                "phase": "debate",
+                "messages": messages,
+            }
+            for round_number, messages in sorted(
+                replay.rounds_by_number.items(), key=lambda item: int(item[0])
+            )
+        ],
+        "verdict": verdict.verdict if verdict is not None else None,
+        "verdict_confidence": verdict.confidence if verdict is not None else 0,
+        "recommendations": verdict.recommendations if verdict is not None else [],
+        "risk_factors": verdict.risk_factors if verdict is not None else [],
+    }
 
 
 def _get_export_service(request: Request) -> ExportService:
@@ -80,63 +107,21 @@ async def export_assistant_session(
         )
     ).first()
 
-    # Load debate
-    debate_session = (
-        await session.scalars(
-            select(DebateSessionRecord)
-            .where(DebateSessionRecord.topic.ilike(f"%{strategic_session.topic[:50]}%"))
-            .order_by(DebateSessionRecord.created_at.desc())
-            .limit(1)
-        )
-    ).first()
-
-    # Assemble data dict for export
-    data: dict[str, Any] = {
+    # Start from the persisted response payload instead of stale ORM field aliases.
+    data: dict[str, Any] = dict(snapshot.result_payload) if snapshot is not None else {}
+    defaults: dict[str, Any] = {
         "topic": strategic_session.topic,
         "domain_id": strategic_session.domain_id or "auto",
         "subject_name": strategic_session.subject_name or strategic_session.topic,
         "generated_at": (snapshot.generated_at if snapshot else utc_now()).isoformat(),
     }
+    for key, value in defaults.items():
+        data.setdefault(key, value)
 
-    # Add analysis from snapshot
-    if snapshot and snapshot.payload:
-        payload = snapshot.payload if isinstance(snapshot.payload, dict) else {}
-        data["analysis"] = payload.get("analysis", {})
-        data["simulation_run"] = payload.get("simulation_run", {})
-        data["panel_discussion"] = payload.get("panel_discussion", [])
-        data["workbench"] = payload.get("workbench", {})
-
-    # Add report from brief
-    if brief and brief.payload:
-        brief_payload = brief.payload if isinstance(brief.payload, dict) else {}
-        data["latest_report"] = {
-            "report_body": brief_payload.get("summary", ""),
-            "executive_summary": brief_payload.get("key_findings", ""),
-        }
-
-    # Add debate data
-    if debate_session:
-        verdict_record = (
-            await session.scalars(
-                select(DebateVerdictRecord)
-                .where(DebateVerdictRecord.session_id == debate_session.id)
-                .order_by(DebateVerdictRecord.created_at.desc())
-                .limit(1)
-            )
-        ).first()
-
-        debate_data: dict[str, Any] = {
-            "topic": debate_session.topic,
-            "domain_id": debate_session.domain_id or "unknown",
-            "status": debate_session.status,
-            "rounds": [],
-        }
-        if verdict_record:
-            debate_data["verdict"] = verdict_record.verdict
-            debate_data["verdict_confidence"] = verdict_record.confidence or 0
-            debate_data["recommendations"] = verdict_record.recommendations or []
-            debate_data["risk_factors"] = verdict_record.risk_factors or []
-        data["debate"] = debate_data
+    if brief is not None and not data.get("analysis"):
+        data["analysis"] = brief.analysis_payload
+    if snapshot is not None and snapshot.debate_id:
+        data["debate"] = await _load_debate_export_data(session, snapshot.debate_id)
 
     # Generate export
     if format == "md":
@@ -161,11 +146,13 @@ async def export_assistant_session(
     else:  # both
         md_content = export_service.export_assistant_result_md(data)
         pdf_bytes = export_service.md_to_pdf(md_content, title=data.get("topic", "Report"))
+        basename = f"planagent_{session_id[:8]}"
+        bundle = export_service.build_document_bundle(md_content, pdf_bytes, basename)
         return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
+            content=bundle,
+            media_type="application/zip",
             headers={
-                "Content-Disposition": f'attachment; filename="planagent_{session_id[:8]}.pdf"',
+                "Content-Disposition": f'attachment; filename="{basename}.zip"',
             },
         )
 
@@ -231,35 +218,15 @@ async def export_debate(
     """Export a debate session to Markdown or PDF."""
     export_service = _get_export_service(request)
 
-    debate = await session.get(DebateSessionRecord, session_id)
-    if debate is None:
-        raise HTTPException(status_code=404, detail=f"Debate session {session_id} not found")
-
-    verdict = (
-        await session.scalars(
-            select(DebateVerdictRecord)
-            .where(DebateVerdictRecord.session_id == session_id)
-            .order_by(DebateVerdictRecord.created_at.desc())
-            .limit(1)
-        )
-    ).first()
-
-    debate_data: dict[str, Any] = {
-        "topic": debate.topic,
-        "domain_id": debate.domain_id or "unknown",
-        "status": debate.status,
-        "rounds": [],
-    }
-    if verdict:
-        debate_data["verdict"] = verdict.verdict
-        debate_data["verdict_confidence"] = verdict.confidence or 0
-        debate_data["recommendations"] = verdict.recommendations or []
-        debate_data["risk_factors"] = verdict.risk_factors or []
+    try:
+        debate_data = await _load_debate_export_data(session, session_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Debate session not found") from exc
 
     md_content = export_service.export_debate_md(debate_data)
 
     if format == "pdf":
-        pdf_bytes = export_service.md_to_pdf(md_content, title=f"Debate: {debate.topic}")
+        pdf_bytes = export_service.md_to_pdf(md_content, title=f"Debate: {debate_data['topic']}")
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -287,9 +254,11 @@ async def export_debate_html(
 
     try:
         html_content = await export_service.export_debate_html(debate_id, session)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=f"Debate {debate_id} not found") from exc
     except Exception:
         _logger.exception("Failed to export debate HTML for %s", debate_id)
-        raise HTTPException(status_code=404, detail=f"Debate {debate_id} not found")
+        raise HTTPException(status_code=500, detail="Debate report generation failed")
 
     return HTMLResponse(
         content=html_content,
@@ -319,9 +288,11 @@ async def download_debate_html(
 
     try:
         html_content = await export_service.export_debate_html(debate_id, session)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=f"Debate {debate_id} not found") from exc
     except Exception:
         _logger.exception("Failed to download debate HTML for %s", debate_id)
-        raise HTTPException(status_code=404, detail=f"Debate {debate_id} not found")
+        raise HTTPException(status_code=500, detail="Debate report generation failed")
 
     date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     filename = f"debate_{debate_id[:8]}_{date_str}.html"
@@ -406,6 +377,7 @@ async def export_simulation(
 @router.post("/custom")
 async def export_custom(
     request: Request,
+    data: dict[str, Any],
     format: Literal["md", "pdf", "both"] = "md",
     report_type: Literal["assistant", "debate", "analysis"] = "assistant",
 ) -> Response:
@@ -414,8 +386,6 @@ async def export_custom(
     POST your data as JSON body, get back a rendered document.
     """
     export_service = _get_export_service(request)
-    data = await request.json()
-
     if format == "md":
         if report_type == "assistant":
             md = export_service.export_assistant_result_md(data)
@@ -437,6 +407,13 @@ async def export_custom(
             md = export_service.export_analysis_md(data)
 
         pdf_bytes = export_service.md_to_pdf(md, title=data.get("topic", "Custom Report"))
+        if format == "both":
+            bundle = export_service.build_document_bundle(md, pdf_bytes, "custom_report")
+            return Response(
+                content=bundle,
+                media_type="application/zip",
+                headers={"Content-Disposition": 'attachment; filename="custom_report.zip"'},
+            )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

@@ -510,6 +510,15 @@ class TestExportServiceHTML:
         )
 
     @pytest.fixture()
+    def mock_debate_session(self):
+        """Mock DebateSessionRecord used to distinguish in-progress and missing debates."""
+        return SimpleNamespace(
+            id="deb-test",
+            topic="AI Investment Feasibility",
+            status="RUNNING",
+        )
+
+    @pytest.fixture()
     def mock_round_records(self):
         """Mock list of DebateRoundRecord."""
         return [
@@ -565,10 +574,18 @@ class TestExportServiceHTML:
         )
 
     @pytest.fixture()
-    def mock_db_full(self, mock_verdict, mock_round_records, mock_reliability_scores, mock_dissent):
+    def mock_db_full(
+        self,
+        mock_debate_session,
+        mock_verdict,
+        mock_round_records,
+        mock_reliability_scores,
+        mock_dissent,
+    ):
         """Mock AsyncSession with all artefacts present."""
         db = AsyncMock()
-        db.get = AsyncMock(return_value=mock_verdict)
+        completed_session = SimpleNamespace(**{**vars(mock_debate_session), "status": "COMPLETED"})
+        db.get = AsyncMock(side_effect=[completed_session, mock_verdict])
 
         scalars_results = iter(
             [
@@ -581,10 +598,17 @@ class TestExportServiceHTML:
         return db
 
     @pytest.fixture()
-    def mock_db_no_dissent(self, mock_verdict, mock_round_records, mock_reliability_scores):
+    def mock_db_no_dissent(
+        self,
+        mock_debate_session,
+        mock_verdict,
+        mock_round_records,
+        mock_reliability_scores,
+    ):
         """Mock AsyncSession with dissent=None."""
         db = AsyncMock()
-        db.get = AsyncMock(return_value=mock_verdict)
+        completed_session = SimpleNamespace(**{**vars(mock_debate_session), "status": "COMPLETED"})
+        db.get = AsyncMock(side_effect=[completed_session, mock_verdict])
 
         scalars_results = iter(
             [
@@ -597,10 +621,15 @@ class TestExportServiceHTML:
         return db
 
     @pytest.fixture()
-    def mock_db_no_verdict(self, mock_round_records, mock_reliability_scores):
+    def mock_db_no_verdict(
+        self,
+        mock_debate_session,
+        mock_round_records,
+        mock_reliability_scores,
+    ):
         """Mock AsyncSession with verdict=None."""
         db = AsyncMock()
-        db.get = AsyncMock(return_value=None)
+        db.get = AsyncMock(side_effect=[mock_debate_session, None])
 
         scalars_results = iter(
             [
@@ -624,7 +653,7 @@ class TestExportServiceHTML:
             html = await export_service.export_debate_html("deb-test", mock_db_full)
 
         assert html == "<html>rendered</html>"
-        mock_db_full.get.assert_awaited_once()
+        assert mock_db_full.get.await_count == 2
         assert mock_db_full.scalars.await_count == 3
 
     async def test_export_html_generates_charts(self, export_service, mock_db_full):
@@ -687,10 +716,10 @@ class TestExportServiceHTML:
         render_kw = mock_template.render.call_args[1]
         assert render_kw["structured_dissent"] is None
 
-    async def test_export_html_with_no_verdict_defaults_topic(
+    async def test_export_html_with_no_verdict_uses_session_state(
         self, export_service, mock_db_no_verdict
     ):
-        """When no verdict exists, topic should default to '未知主题'."""
+        """An in-progress debate keeps its persisted topic and status without a verdict."""
         with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
@@ -701,8 +730,17 @@ class TestExportServiceHTML:
             await export_service.export_debate_html("deb-test", mock_db_no_verdict)
 
         render_kw = mock_template.render.call_args[1]
-        assert render_kw["debate"].topic == "未知主题"
-        assert render_kw["status"] == "in_progress"
+        assert render_kw["debate"].topic == "AI Investment Feasibility"
+        assert render_kw["status"] == "running"
+
+    async def test_export_html_rejects_missing_debate(self, export_service):
+        db = AsyncMock()
+        db.get = AsyncMock(return_value=None)
+
+        with pytest.raises(LookupError, match="Debate deb-missing was not found"):
+            await export_service.export_debate_html("deb-missing", db)
+
+        db.scalars.assert_not_awaited()
 
     async def test_export_html_builds_rounds_by_number(self, export_service, mock_db_full):
         """Round records must be grouped by round_number and sorted."""
@@ -732,7 +770,16 @@ class TestExportServiceHTML:
     ):
         """export_debate_html output must contain SVG chart content (integration)."""
         mock_db = AsyncMock()
-        mock_db.get = AsyncMock(return_value=mock_verdict)
+        mock_db.get = AsyncMock(
+            side_effect=[
+                SimpleNamespace(
+                    id="deb-test",
+                    topic="AI Investment Feasibility",
+                    status="COMPLETED",
+                ),
+                mock_verdict,
+            ]
+        )
         scalars_results = iter(
             [
                 MagicMock(all=MagicMock(return_value=mock_reliability_scores)),
