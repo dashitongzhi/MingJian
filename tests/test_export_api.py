@@ -17,7 +17,7 @@ from planagent.domain.models import (
     StrategicSession,
 )
 from planagent.main import create_app
-from planagent.services.export import ExportService
+from planagent.services.export import ExportService, PdfPolicyViolation
 
 
 def _database_url(path: Path) -> str:
@@ -147,3 +147,29 @@ def test_custom_export_rejects_non_object_payload(monkeypatch, tmp_path: Path) -
         response = client.post("/export/custom", json=["not", "an", "object"])
 
     assert response.status_code == 422
+
+
+def test_custom_pdf_export_maps_policy_violation_to_client_error(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "custom-pdf-policy.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_OPENAI_API_KEY", "")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    def reject_pdf(*_args, **_kwargs) -> bytes:
+        raise PdfPolicyViolation("PDF Markdown exceeds the size limit", status_code=413)
+
+    monkeypatch.setattr(ExportService, "md_to_pdf", reject_pdf)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/export/custom?format=pdf",
+            json={"topic": "Oversized export"},
+        )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "PDF Markdown exceeds the size limit"

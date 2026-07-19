@@ -83,6 +83,26 @@ def test_pdf_export_rejects_oversized_markdown(
         service.md_to_pdf("12345")
 
 
+def test_pdf_export_rejects_oversized_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    class FakeHTML:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        def write_pdf(self, *, presentational_hints: bool) -> bytes:
+            assert presentational_hints is False
+            return b"12345"
+
+    monkeypatch.setitem(sys.modules, "weasyprint", SimpleNamespace(HTML=FakeHTML))
+    monkeypatch.setattr(export_module, "MAX_PDF_OUTPUT_BYTES", 4)
+    service = export_module.ExportService(output_dir=tmp_path)
+
+    with pytest.raises(ValueError, match="Generated PDF exceeds the size limit"):
+        service.md_to_pdf("# Report")
+
+
 def test_pdf_export_rejects_more_than_sixteen_normalized_inline_resources(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

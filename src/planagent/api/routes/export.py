@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 
 from planagent.db import get_session
 from planagent.domain.models import (
@@ -25,7 +26,7 @@ from planagent.domain.models import (
     StrategicSession,
     utc_now,
 )
-from planagent.services.export import ExportService
+from planagent.services.export import ExportService, PdfPolicyViolation
 from planagent.services.debate_replay import DebateReplayService
 
 _logger = logging.getLogger(__name__)
@@ -63,6 +64,17 @@ def _get_export_service(request: Request) -> ExportService:
     if not hasattr(request.app.state, "export_service"):
         request.app.state.export_service = ExportService(output_dir="exports")
     return request.app.state.export_service  # type: ignore[no-any-return]  # app.state 动态属性
+
+
+async def _render_pdf(
+    export_service: ExportService,
+    md_content: str,
+    title: str,
+) -> bytes:
+    try:
+        return await run_in_threadpool(export_service.md_to_pdf, md_content, title)
+    except PdfPolicyViolation as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 # ── Export Assistant Result ───────────────────────────────────
@@ -135,7 +147,11 @@ async def export_assistant_session(
         )
     elif format == "pdf":
         md_content = export_service.export_assistant_result_md(data)
-        pdf_bytes = export_service.md_to_pdf(md_content, title=data.get("topic", "Report"))
+        pdf_bytes = await _render_pdf(
+            export_service,
+            md_content,
+            str(data.get("topic", "Report")),
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -145,7 +161,11 @@ async def export_assistant_session(
         )
     else:  # both
         md_content = export_service.export_assistant_result_md(data)
-        pdf_bytes = export_service.md_to_pdf(md_content, title=data.get("topic", "Report"))
+        pdf_bytes = await _render_pdf(
+            export_service,
+            md_content,
+            str(data.get("topic", "Report")),
+        )
         basename = f"planagent_{session_id[:8]}"
         bundle = export_service.build_document_bundle(md_content, pdf_bytes, basename)
         return Response(
@@ -226,7 +246,11 @@ async def export_debate(
     md_content = export_service.export_debate_md(debate_data)
 
     if format == "pdf":
-        pdf_bytes = export_service.md_to_pdf(md_content, title=f"Debate: {debate_data['topic']}")
+        pdf_bytes = await _render_pdf(
+            export_service,
+            md_content,
+            f"Debate: {debate_data['topic']}",
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -357,7 +381,11 @@ async def export_simulation(
     md_content = export_service.export_assistant_result_md(data)
 
     if format == "pdf":
-        pdf_bytes = export_service.md_to_pdf(md_content, title=f"Simulation: {run.domain_id}")
+        pdf_bytes = await _render_pdf(
+            export_service,
+            md_content,
+            f"Simulation: {run.domain_id}",
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -406,7 +434,11 @@ async def export_custom(
         else:
             md = export_service.export_analysis_md(data)
 
-        pdf_bytes = export_service.md_to_pdf(md, title=data.get("topic", "Custom Report"))
+        pdf_bytes = await _render_pdf(
+            export_service,
+            md,
+            str(data.get("topic", "Custom Report")),
+        )
         if format == "both":
             bundle = export_service.build_document_bundle(md, pdf_bytes, "custom_report")
             return Response(
