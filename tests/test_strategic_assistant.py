@@ -26,6 +26,7 @@ from planagent.main import create_app
 from planagent.services.analysis import AutomatedAnalysisService, SourceFetchBundle
 from planagent.services.assistant import StrategicAssistantService
 from planagent.services.openai_client import OpenAIService
+from planagent.services.workbench import WorkbenchService
 from planagent.simulation.rules import get_rule_registry
 from planagent.workers.strategic_watch import StrategicWatchWorker
 from planagent.workers.watch_ingest import WatchIngestWorker
@@ -343,6 +344,48 @@ def test_assistant_stream_does_not_expose_internal_exception_details(
     assert "event: error" in body
     assert "sk-should-never-reach-the-client" not in body
     assert "Stream processing failed" in body
+
+
+def test_assistant_post_debate_warning_redacts_internal_exception_details(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    database_path = tmp_path / "planagent-assistant-post-debate-error.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_INLINE_INGEST_DEFAULT", "true")
+    monkeypatch.setenv("PLANAGENT_INLINE_SIMULATION_DEFAULT", "true")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    async def fail_workbench(self, session, run_id):
+        _ = (self, session, run_id)
+        raise RuntimeError("provider token sk-secret at http://10.0.0.8:6379")
+
+    monkeypatch.setattr(WorkbenchService, "build_run_workbench", fail_workbench)
+    payload = {
+        "topic": "Test safe post-debate warnings",
+        "domain_id": "corporate",
+        "subject_id": "safe-warning-test",
+        "subject_name": "Safe Warning Test",
+        "market": "testing",
+        "tick_count": 1,
+        "auto_fetch_news": False,
+        "include_google_news": False,
+        "include_reddit": False,
+        "include_hacker_news": False,
+        "include_x": False,
+    }
+
+    with TestClient(create_app()) as client:
+        with client.stream("POST", "/assistant/stream", json=payload) as response:
+            body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert "post_debate_errors" in body
+    assert "Workbench generation failed" in body
+    assert "sk-secret" not in body
+    assert "10.0.0.8" not in body
 
 
 def test_strategic_session_persists_briefs_and_runs(

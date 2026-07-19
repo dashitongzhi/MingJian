@@ -251,6 +251,12 @@ _SOURCE_TYPE_DIVERSITY_THRESHOLD = 3  # 3+ distinct source types suggests richer
 # Confidence thresholds
 _LOW_CONFIDENCE_THRESHOLD = 0.55
 _MODERATE_CONFIDENCE_THRESHOLD = 0.65
+_POST_DEBATE_PUBLIC_ERRORS = {
+    "workbench": "Workbench generation failed",
+    "report": "Report generation failed",
+    "panel_discussion": "Panel discussion failed",
+    "session_persist": "Session persistence failed",
+}
 
 
 class StrategicAssistantService:
@@ -394,9 +400,9 @@ class StrategicAssistantService:
         try_errors: list[str] = []
         try:
             workbench = await self.workbench_service.build_run_workbench(session, simulation_run.id)
-        except Exception as exc:
+        except Exception:
             _logger.warning("workbench build failed", exc_info=True)
-            try_errors.append(f"workbench: {exc}")
+            try_errors.append(f"workbench: {_POST_DEBATE_PUBLIC_ERRORS['workbench']}")
             workbench = RunWorkbenchRead.model_construct(
                 run_id=simulation_run.id,
                 domain_id=domain_id,
@@ -406,18 +412,18 @@ class StrategicAssistantService:
             latest_report = await self._latest_report(
                 session, domain_id, subject_id, simulation_run.id, payload.tenant_id
             )
-        except Exception as exc:
+        except Exception:
             _logger.warning("report generation failed", exc_info=True)
-            try_errors.append(f"report: {exc}")
+            try_errors.append(f"report: {_POST_DEBATE_PUBLIC_ERRORS['report']}")
             latest_report = None
 
         try:
             panel_discussion = await self._build_panel_discussion(
                 payload, domain_id, subject_name, analysis_result, latest_report
             )
-        except Exception as exc:
+        except Exception:
             _logger.warning("panel discussion failed", exc_info=True)
-            try_errors.append(f"panel_discussion: {exc}")
+            try_errors.append(f"panel_discussion: {_POST_DEBATE_PUBLIC_ERRORS['panel_discussion']}")
             panel_discussion = []
 
         for message in panel_discussion:
@@ -512,9 +518,9 @@ class StrategicAssistantService:
                     "significance": recommendation_version.significance,
                 }
                 await self._store_run_snapshot(session, session_record, result)
-        except Exception as exc:
+        except Exception:
             _logger.warning("session persist failed", exc_info=True)
-            try_errors.append(f"session_persist: {exc}")
+            try_errors.append(f"session_persist: {_POST_DEBATE_PUBLIC_ERRORS['session_persist']}")
             try:
                 await session.rollback()
             except Exception:
