@@ -14,9 +14,11 @@ from planagent.config import get_settings
 from planagent.db import reset_database_cache
 from planagent.db import get_database
 from planagent.domain.models import (
+    Hypothesis,
     RawSourceItem,
     RecommendationVersion,
     SourceChangeRecord,
+    StrategicBriefRecord,
     StrategicSession,
     WatchRule,
 )
@@ -475,6 +477,77 @@ def test_strategic_session_persists_briefs_and_runs(
         assert all(
             item["result"]["session_id"] == session_id for item in detail_body["recent_runs"]
         )
+
+
+def test_daily_brief_does_not_read_hypotheses_from_another_unscoped_session(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "planagent-assistant-session-isolation.db"
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.setenv("PLANAGENT_INLINE_INGEST_DEFAULT", "true")
+    monkeypatch.setenv("PLANAGENT_INLINE_SIMULATION_DEFAULT", "true")
+    disable_openai(monkeypatch)
+    reset_settings_cache()
+    reset_database_cache()
+
+    source_payload = {
+        "topic": "Track the first unscoped company and create its hypotheses.",
+        "domain_id": "corporate",
+        "subject_id": "unscoped-source",
+        "subject_name": "Unscoped Source",
+        "market": "ai",
+        "tick_count": 1,
+        "auto_fetch_news": False,
+        "include_google_news": False,
+        "include_reddit": False,
+        "include_hacker_news": False,
+        "include_github": False,
+        "include_rss_feeds": False,
+        "include_gdelt": False,
+        "include_x": False,
+    }
+    target_payload = {
+        **source_payload,
+        "topic": "Track a separate unscoped company without importing unrelated hypotheses.",
+        "session_name": "Isolated unscoped target",
+        "subject_id": "unscoped-target",
+        "subject_name": "Unscoped Target",
+    }
+
+    with TestClient(create_app()) as client:
+        source_response = client.post("/assistant/runs", json=source_payload)
+        assert source_response.status_code == 201
+        target_response = client.post("/assistant/sessions", json=target_payload)
+        assert target_response.status_code == 201
+        target_session_id = target_response.json()["id"]
+        brief_response = client.post(
+            "/assistant/daily-brief",
+            json={**target_payload, "session_id": target_session_id},
+        )
+        assert brief_response.status_code == 200
+
+        async def read_isolation_state() -> tuple[int, list[str]]:
+            database = get_database()
+            async with database.session() as session:
+                hypothesis_count = len(list((await session.scalars(select(Hypothesis))).all()))
+                brief = (
+                    await session.scalars(
+                        select(StrategicBriefRecord)
+                        .where(StrategicBriefRecord.session_id == target_session_id)
+                        .order_by(StrategicBriefRecord.generated_at.desc())
+                        .limit(1)
+                    )
+                ).first()
+                assert brief is not None
+                pending = brief.analysis_payload["intelligence_brief"]["pending_hypotheses"]
+                return hypothesis_count, pending
+
+        hypothesis_count, pending_hypotheses = asyncio.run(read_isolation_state())
+
+    assert hypothesis_count > 0
+    assert pending_hypotheses == []
 
 
 def test_strategic_watch_worker_refreshes_due_session(
