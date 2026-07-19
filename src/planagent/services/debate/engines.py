@@ -5,6 +5,16 @@ from typing import Any
 from .roles import debate_role_label, debate_round_sort_key
 
 
+def load_custom_debate_agents() -> list[dict[str, Any]]:
+    """Load optional custom-agent definitions without coupling either execution adapter."""
+    try:
+        from planagent.services.agent_registry import load_custom_agent_configs
+
+        return load_custom_agent_configs()
+    except Exception:
+        return []
+
+
 class HeuristicDebateAdapter:
     """Build deterministic full-panel rounds without an external model provider."""
 

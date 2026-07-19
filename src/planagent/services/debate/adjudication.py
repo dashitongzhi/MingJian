@@ -24,7 +24,7 @@ from planagent.domain.models import (
 from planagent.services.pipeline import normalize_text
 
 from .contracts import ClaimRelationContext, DebateAssessment
-from .engines import HeuristicDebateAdapter
+from .engines import HeuristicDebateAdapter, load_custom_debate_agents
 from .roles import debate_role_label
 
 _HEURISTIC_DEBATE_ADAPTER = HeuristicDebateAdapter()
@@ -565,7 +565,7 @@ class DebateAdjudicationMixin:
                     "The social view inspects collateral, legitimacy, and stakeholder effects in the branch path.",
                 ),
             },
-            custom_agents=self._get_custom_agents(),
+            custom_agents=load_custom_debate_agents(),
         )
 
         # Generate planning recommendations
@@ -734,13 +734,14 @@ class DebateAdjudicationMixin:
                 f"Strongest conflict: {relations.conflicting_claims[0].statement[:200]}"
             )
         llm_context = "\n".join(context_parts)
-        llm_rounds = await self._llm_debate_rounds(
+        llm_rounds = await self.llm_adapter.collect_rounds(
             topic=payload.topic,
             trigger_type=payload.trigger_type,
             context=llm_context,
             evidence_ids=decisive_evidence_pre,
             debate_mode=payload.debate_mode,
             domain_id=payload.domain_id,
+            custom_agents=load_custom_debate_agents(),
         )
         if llm_rounds is not None:
             return self._build_assessment_from_llm_rounds(
@@ -867,7 +868,7 @@ class DebateAdjudicationMixin:
                     "The social view considers reputational and decision-quality impact if an uncertain claim is promoted.",
                 ),
             },
-            custom_agents=self._get_custom_agents(),
+            custom_agents=load_custom_debate_agents(),
         )
 
         # Generate planning recommendations
@@ -992,13 +993,14 @@ class DebateAdjudicationMixin:
         if report is not None:
             context_parts.append(f"Report summary: {report.summary[:500]}")
         llm_context = "\n".join(context_parts)
-        llm_rounds = await self._llm_debate_rounds(
+        llm_rounds = await self.llm_adapter.collect_rounds(
             topic=payload.topic,
             trigger_type=payload.trigger_type,
             context=llm_context,
             evidence_ids=evidence_ids[:5],
             debate_mode=payload.debate_mode,
             domain_id=payload.domain_id or run.domain_id,
+            custom_agents=load_custom_debate_agents(),
         )
         if llm_rounds is not None:
             return self._build_assessment_from_llm_rounds(
@@ -1225,7 +1227,7 @@ class DebateAdjudicationMixin:
                 )
             )
 
-        for custom_agent in self._get_custom_agents():
+        for custom_agent in load_custom_debate_agents():
             role_key = str(custom_agent.get("role_key", "custom_agent"))
             name = str(custom_agent.get("name", role_key))
             description = str(custom_agent.get("description", ""))[:180]

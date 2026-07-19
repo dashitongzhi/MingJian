@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from planagent.services.debate.adjudication import DebateAdjudicationMixin
-from planagent.services.debate.rounds import (
+from planagent.services.debate.llm import (
     _inject_wrap_up_nudge,
     _trim_old_messages,
     _WRAP_UP_RATIO,

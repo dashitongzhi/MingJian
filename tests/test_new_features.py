@@ -103,7 +103,8 @@ def test_debate_service_llm_method_exists() -> None:
         settings=Settings(),
         event_bus=InMemoryEventBus(),
     )
-    assert hasattr(service, "_llm_debate_rounds")
+    assert hasattr(service.llm_adapter, "collect_rounds")
+    assert hasattr(service.llm_adapter, "stream_rounds")
     assert hasattr(service, "_build_assessment_from_llm_rounds")
 
 
@@ -114,11 +115,12 @@ def test_debate_service_falls_back_without_openai() -> None:
         openai_service=None,
     )
     result = asyncio.run(
-        service._llm_debate_rounds(
+        service.llm_adapter.collect_rounds(
             topic="test topic",
             trigger_type="pivot_decision",
             context="test context",
             evidence_ids=["ev-1"],
+            custom_agents=[],
         )
     )
     assert result is not None
@@ -241,11 +243,12 @@ def test_llm_debate_uses_role_specific_targets() -> None:
     )
 
     rounds = asyncio.run(
-        service._llm_debate_rounds(
+        service.llm_adapter.collect_rounds(
             topic="test topic",
             trigger_type="pivot_decision",
             context="test context",
             evidence_ids=["ev-1"],
+            custom_agents=[],
         )
     )
 

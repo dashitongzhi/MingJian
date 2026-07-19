@@ -45,7 +45,8 @@ from .contracts import (  # noqa: E402
     DebateStreamPreparation,
     InvalidDebateCommand,
 )
-from .llm import DebateLLMMixin  # noqa: E402
+from .engines import load_custom_debate_agents  # noqa: E402
+from .llm import LLMDebateAdapter  # noqa: E402
 from .revisions import DebateRevisionMixin  # noqa: E402
 from .roles import debate_record_sort_key  # noqa: E402
 from .rounds import DebateRoundMixin  # noqa: E402
@@ -54,7 +55,6 @@ from .triggers import DebateTriggerMixin  # noqa: E402
 
 class DebateService(
     DebateRoundMixin,
-    DebateLLMMixin,
     DebateAdjudicationMixin,
     DebateRevisionMixin,
     DebateTriggerMixin,
@@ -70,6 +70,7 @@ class DebateService(
         self.event_bus = event_bus
         self.openai_service = openai_service
         self.agent_registry = agent_registry
+        self.llm_adapter = LLMDebateAdapter(settings, openai_service, agent_registry)
 
     async def trigger_debate(
         self,
@@ -173,18 +174,24 @@ class DebateService(
                 await session.flush()
             await session.commit()
 
-            preparation = await self._prepare_stream_llm_debate(session, payload)
-            if preparation is not None and self._has_available_debate_provider():
+            preparation = await self.llm_adapter.prepare(
+                session,
+                payload,
+                context_port=self,
+            )
+            if preparation is not None and self.llm_adapter.is_available():
                 rounds = []
-                async for stream_event in self._stream_llm_rounds(
+                async for stream_event in self.llm_adapter.stream_rounds(
                     topic=payload.topic,
                     trigger_type=payload.trigger_type,
                     context=preparation.context,
                     evidence_ids=preparation.llm_evidence_ids,
                     debate_mode=getattr(payload, "debate_mode", "full") or "full",
                     domain_id=getattr(payload, "domain_id", None),
+                    custom_agents=load_custom_debate_agents(),
                     session=session,
                     debate_id=debate_id,
+                    interrupt_port=self,
                 ):
                     if stream_event.event == "debate_round_start":
                         yield self._stream_event(
