@@ -240,5 +240,5 @@ def test_setup_generates_minio_credentials() -> None:
 
     assert 'update_env_value "PLANAGENT_MINIO_ACCESS_KEY"' in setup
     assert 'update_env_value "PLANAGENT_MINIO_SECRET_KEY"' in setup
-    assert 'od -An -N16 -tx1 /dev/urandom' in setup
-    assert 'od -An -N32 -tx1 /dev/urandom' in setup
+    assert "od -An -N16 -tx1 /dev/urandom" in setup
+    assert "od -An -N32 -tx1 /dev/urandom" in setup
