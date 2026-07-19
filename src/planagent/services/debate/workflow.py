@@ -213,7 +213,9 @@ class DebateWorkflow:
             await self._port.event_bus.publish(EventTopic.DEBATE_COMPLETED.value, completed_payload)
             detail = await self.read(session, debate_id)
             yield DebateFinished(debate_id=debate_id, debate=detail)
-        except Exception:
+        except BaseException:
+            # Async generators receive GeneratorExit/CancelledError when the client
+            # disconnects. Persist a terminal state instead of leaking RUNNING rows.
             await session.rollback()
             if debate_id:
                 failed_session = await session.get(DebateSessionRecord, debate_id)
