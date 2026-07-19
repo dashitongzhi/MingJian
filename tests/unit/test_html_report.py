@@ -134,10 +134,20 @@ def _make_round(
     rebuttals="",
     concessions="",
 ):
+    normalized_position = position.upper()
+    if normalized_position in {"SUPPORT", "ACCEPTED"} or "支持" in position or "正方" in position:
+        position_kind = "support"
+    elif normalized_position in {"OPPOSE", "CHALLENGE", "REJECTED"} or any(
+        marker in position for marker in ("反对", "反方", "挑战")
+    ):
+        position_kind = "challenge"
+    else:
+        position_kind = "conditional"
     return SimpleNamespace(
         round_number=round_number,
         role=role,
         position=position,
+        position_kind=position_kind,
         confidence=confidence,
         arguments=arguments,
         rebuttals=rebuttals,
@@ -742,8 +752,8 @@ class TestExportServiceHTML:
 
         db.scalars.assert_not_awaited()
 
-    async def test_export_html_builds_rounds_by_number(self, export_service, mock_db_full):
-        """Round records must be grouped by round_number and sorted."""
+    async def test_export_html_builds_stable_round_view_models(self, export_service, mock_db_full):
+        """Round records must match the report template interface."""
         with patch.object(export_service, "_get_jinja_env") as mock_env:
             mock_template = MagicMock()
             mock_template.render.return_value = "<html>ok</html>"
@@ -755,10 +765,10 @@ class TestExportServiceHTML:
 
         render_kw = mock_template.render.call_args[1]
         rounds = render_kw["rounds"]
-        # 2 records share round_number=1 → 1 group
-        assert len(rounds) == 1
-        assert rounds[0]["round_number"] == 1
-        assert len(rounds[0]["messages"]) == 2
+        assert len(rounds) == 2
+        assert rounds[0].round_number == 1
+        assert rounds[0].position_kind == "support"
+        assert rounds[0].arguments == "Growth — Data shows it"
 
     async def test_export_html_contains_charts(
         self,

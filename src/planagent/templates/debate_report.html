@@ -861,7 +861,7 @@
                 <div class="argument-column">
                     <h3 class="support">✅ 支持论点</h3>
                     {% for round in rounds %}
-                        {% if round.position and ('支持' in round.position or '正方' in round.position) %}
+                        {% if round.position_kind == 'support' %}
                         <div class="argument-card support">
                             <div style="font-weight: 600; margin-bottom: 0.5rem;">
                                 {{ round.role }} - 第{{ round.round_number }}轮
@@ -880,7 +880,7 @@
                 <div class="argument-column">
                     <h3 class="challenge">❌ 挑战论点</h3>
                     {% for round in rounds %}
-                        {% if round.position and ('反对' in round.position or '反方' in round.position) %}
+                        {% if round.position_kind == 'challenge' %}
                         <div class="argument-card challenge">
                             <div style="font-weight: 600; margin-bottom: 0.5rem;">
                                 {{ round.role }} - 第{{ round.round_number }}轮

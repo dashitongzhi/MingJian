@@ -17,6 +17,7 @@ import logging
 import re
 import zipfile
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -57,6 +58,83 @@ _PDF_DATA_URI_MIME_TYPES = frozenset(
 )
 _PDF_RESOURCE_ATTRIBUTES = frozenset({"data", "href", "poster", "src", "srcset", "xlink:href"})
 _PDF_CSS_URL_PATTERN = re.compile(r"url\s*\(", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class _DebateReportRound:
+    round_number: int
+    role: str
+    position: str
+    position_kind: str
+    confidence: float
+    arguments: str
+    rebuttals: str
+    concessions: str
+
+
+@dataclass(frozen=True)
+class _PendingDebateVerdict:
+    verdict: str = "PENDING"
+    confidence: float = 0.0
+    winning_arguments: tuple[str, ...] = ()
+    decisive_evidence: tuple[str, ...] = ()
+    conclusion_summary: str | None = None
+    conditions: tuple[str, ...] = ()
+
+
+def _debate_position_kind(position: object) -> str:
+    """Normalize persisted position labels for the report template."""
+    normalized = str(position or "").strip().upper()
+    if normalized in {"SUPPORT", "ACCEPTED", "ADVOCATE"} or any(
+        marker in normalized for marker in ("支持", "正方")
+    ):
+        return "support"
+    if normalized in {"OPPOSE", "CHALLENGE", "REJECTED", "CHALLENGER"} or any(
+        marker in normalized for marker in ("反对", "反方", "挑战")
+    ):
+        return "challenge"
+    return "conditional"
+
+
+def _format_debate_items(items: object) -> str:
+    """Render persisted structured debate items as readable plain text."""
+    if not items:
+        return ""
+    if not isinstance(items, list):
+        return str(items)
+
+    lines: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            lines.append(str(item))
+            continue
+        primary = item.get("claim") or item.get("counter") or item.get("reason")
+        if primary is None:
+            primary = item.get("summary") or item.get("content")
+        text = str(primary or "").strip()
+        reasoning = str(item.get("reasoning") or "").strip()
+        if text and reasoning:
+            lines.append(f"{text} — {reasoning}")
+        elif text:
+            lines.append(text)
+    return "\n".join(lines)
+
+
+def _debate_report_rounds(records: list[DebateRoundRecord]) -> list[_DebateReportRound]:
+    """Build the stable report-view interface from persistence records."""
+    return [
+        _DebateReportRound(
+            round_number=record.round_number,
+            role=record.role,
+            position=record.position,
+            position_kind=_debate_position_kind(record.position),
+            confidence=record.confidence,
+            arguments=_format_debate_items(record.arguments),
+            rebuttals=_format_debate_items(record.rebuttals),
+            concessions=_format_debate_items(record.concessions),
+        )
+        for record in records
+    ]
 
 
 def _reject_pdf_css_resources(css: str) -> None:
@@ -696,25 +774,7 @@ class ExportService:
         round_records.sort(key=debate_record_sort_key)
 
         # ── Build debate_data for chart generation ──────────
-        rounds_by_number: dict[int, dict] = {}
-        for rec in round_records:
-            rn = rec.round_number
-            if rn not in rounds_by_number:
-                rounds_by_number[rn] = {
-                    "round_number": rn,
-                    "phase": "debate",
-                    "messages": [],
-                }
-            rounds_by_number[rn]["messages"].append(
-                {
-                    "role": rec.role,
-                    "position": rec.position,
-                    "confidence": rec.confidence,
-                    "arguments": rec.arguments,
-                }
-            )
-
-        sorted_rounds = [rounds_by_number[k] for k in sorted(rounds_by_number)]
+        report_rounds = _debate_report_rounds(round_records)
 
         # ── Aggregate confidence_data per round for chart format [{round, roles: {role: val}}]
         conf_by_round: dict[int, dict[str, float]] = defaultdict(dict)
@@ -780,6 +840,7 @@ class ExportService:
 
         topic = debate_session.topic
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        report_verdict = verdict or _PendingDebateVerdict()
 
         env = self._get_jinja_env()
         template = env.get_template("debate_report.html")
@@ -791,8 +852,8 @@ class ExportService:
             ),
             status=debate_session.status.lower(),
             generated_at=now,
-            rounds=sorted_rounds,
-            verdict=verdict,
+            rounds=report_rounds,
+            verdict=report_verdict,
             reliability_scores=reliability_scores,
             structured_dissent=dissent,
             charts=charts,

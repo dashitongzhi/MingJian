@@ -124,10 +124,14 @@ def test_debate_export_includes_persisted_rounds(monkeypatch, tmp_path: Path) ->
     with TestClient(create_app()) as client:
         asyncio.run(_seed_export_records())
         response = client.get("/export/debate/debate-export")
+        html_response = client.get("/export/debate/debate-export/html")
         missing_html = client.get("/export/debate/debate-missing/html")
 
     assert response.status_code == 200
     assert "Round claim" in response.text
+    assert html_response.status_code == 200
+    assert "Round claim" in html_response.text
+    assert "advocate" in html_response.text
     assert missing_html.status_code == 404
 
 
