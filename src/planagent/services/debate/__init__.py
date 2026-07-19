@@ -111,107 +111,14 @@ class DebateService(
         }
         session.add(EventArchive(topic=EventTopic.DEBATE_TRIGGERED.value, payload=trigger_payload))
 
-        for round_payload in assessment.rounds:
-            session.add(
-                DebateRoundRecord(
-                    debate_id=debate_session.id,
-                    round_number=round_payload["round_number"],
-                    role=round_payload["role"],
-                    position=round_payload["position"],
-                    confidence=round_payload["confidence"],
-                    arguments=round_payload["arguments"],
-                    rebuttals=round_payload["rebuttals"],
-                    concessions=round_payload["concessions"],
-                )
-            )
-
-        verdict = DebateVerdictRecord(
-            debate_id=debate_session.id,
-            topic=payload.topic,
-            trigger_type=payload.trigger_type,
-            rounds_completed=max(round_data["round_number"] for round_data in assessment.rounds),
-            verdict=assessment.verdict,
-            confidence=max(assessment.support_confidence, assessment.challenge_confidence),
-            winning_arguments=assessment.winning_arguments,
-            decisive_evidence=assessment.decisive_evidence,
-            conditions=assessment.conditions,
-            minority_opinion=assessment.minority_opinion,
-            recommendations=assessment.recommendations,
-            risk_factors=assessment.risk_factors,
-            alternative_scenarios=assessment.alternative_scenarios,
-            conclusion_summary=assessment.conclusion_summary,
-        )
-        session.add(verdict)
-
-        # Score argument reliability and generate structured dissent
-        await self.score_argument_reliability(
-            debate_id=debate_session.id,
-            round_records=assessment.rounds,
+        _, completed_payload = await self._complete_debate(
             session=session,
+            payload=payload,
+            assessment=assessment,
+            debate_session=debate_session,
+            run=run,
+            persist_rounds=True,
         )
-        self.detect_blind_spots(assessment.rounds)
-        dissenter_role = "risk_analyst"
-        for rd in assessment.rounds:
-            if rd.get("role") in ("challenger", "risk_analyst", "intel_analyst"):
-                dissenter_role = rd["role"]
-                break
-        dissent = await self.generate_structured_dissent(
-            debate_id=debate_session.id,
-            round_records=assessment.rounds,
-            dissenter_role=dissenter_role,
-            session=session,
-        )
-        session.add(dissent)
-
-        if (
-            payload.trigger_type in ("pivot_decision", "conflict_resolution")
-            and payload.run_id is not None
-        ):
-            latest_decision = (
-                await session.scalars(
-                    select(DecisionRecordRecord)
-                    .where(DecisionRecordRecord.run_id == payload.run_id)
-                    .order_by(
-                        DecisionRecordRecord.tick.desc(), DecisionRecordRecord.sequence.desc()
-                    )
-                    .limit(1)
-                )
-            ).first()
-            if latest_decision is not None:
-                latest_decision.debate_verdict_id = debate_session.id
-            if run is not None:
-                run.summary = {
-                    **(run.summary or {}),
-                    "latest_debate_id": debate_session.id,
-                    "latest_debate_verdict": assessment.verdict,
-                    "debate_disagreements": [assessment.minority_opinion]
-                    if assessment.minority_opinion
-                    else [],
-                }
-                await self._ensure_debate_prediction(session, run, verdict, latest_decision)
-
-        completed_payload: dict[str, Any] = {
-            "debate_id": debate_session.id,
-            "run_id": payload.run_id,
-            "claim_id": payload.claim_id,
-            "verdict": assessment.verdict,
-            "confidence": verdict.confidence,
-        }
-        session.add(
-            EventArchive(topic=EventTopic.DEBATE_COMPLETED.value, payload=completed_payload)
-        )
-
-        # 立场自动修订检查
-        revision_records = await self.check_and_apply_revisions(
-            session=session,
-            debate_id=debate_session.id,
-            rounds=assessment.rounds,
-        )
-        if revision_records:
-            completed_payload["revisions"] = [
-                {"role": r["role"], "confidence_drop": r["confidence_drop"]}
-                for r in revision_records
-            ]
 
         await session.commit()
         await self.event_bus.publish(EventTopic.DEBATE_TRIGGERED.value, trigger_payload)
@@ -323,96 +230,14 @@ class DebateService(
                         self._round_complete_payload(round_payload),
                     )
 
-            verdict = DebateVerdictRecord(
-                debate_id=debate_id,
-                topic=payload.topic,
-                trigger_type=payload.trigger_type,
-                rounds_completed=max(
-                    round_data["round_number"] for round_data in assessment.rounds
-                ),
-                verdict=assessment.verdict,
-                confidence=max(assessment.support_confidence, assessment.challenge_confidence),
-                winning_arguments=assessment.winning_arguments,
-                decisive_evidence=assessment.decisive_evidence,
-                conditions=assessment.conditions,
-                minority_opinion=assessment.minority_opinion,
-                recommendations=assessment.recommendations,
-                risk_factors=assessment.risk_factors,
-                alternative_scenarios=assessment.alternative_scenarios,
-                conclusion_summary=assessment.conclusion_summary,
-            )
             async with session.begin_nested():
-                debate_session.status = "COMPLETED"
-                debate_session.context_payload = assessment.context_payload
-                session.add(verdict)
-
-                # Score argument reliability and generate structured dissent
-                await self.score_argument_reliability(
-                    debate_id=debate_id,
-                    round_records=assessment.rounds,
+                _, completed_payload = await self._complete_debate(
                     session=session,
-                )
-                self.detect_blind_spots(assessment.rounds)
-                dissenter_role = "risk_analyst"
-                for rd in assessment.rounds:
-                    if rd.get("role") in ("challenger", "risk_analyst", "intel_analyst"):
-                        dissenter_role = rd["role"]
-                        break
-                dissent = await self.generate_structured_dissent(
-                    debate_id=debate_id,
-                    round_records=assessment.rounds,
-                    dissenter_role=dissenter_role,
-                    session=session,
-                )
-                session.add(dissent)
-
-                if (
-                    payload.trigger_type in ("pivot_decision", "conflict_resolution")
-                    and payload.run_id is not None
-                ):
-                    latest_decision = (
-                        await session.scalars(
-                            select(DecisionRecordRecord)
-                            .where(DecisionRecordRecord.run_id == payload.run_id)
-                            .order_by(
-                                DecisionRecordRecord.tick.desc(),
-                                DecisionRecordRecord.sequence.desc(),
-                            )
-                            .limit(1)
-                        )
-                    ).first()
-                    if latest_decision is not None:
-                        latest_decision.debate_verdict_id = debate_id
-                    if run is not None:
-                        run.summary = {
-                            **(run.summary or {}),
-                            "latest_debate_id": debate_id,
-                            "latest_debate_verdict": assessment.verdict,
-                            "debate_disagreements": [assessment.minority_opinion]
-                            if assessment.minority_opinion
-                            else [],
-                        }
-                        await self._ensure_debate_prediction(session, run, verdict, latest_decision)
-
-                completed_payload: dict[str, Any] = {
-                    "debate_id": debate_id,
-                    "run_id": payload.run_id,
-                    "claim_id": payload.claim_id,
-                    "verdict": assessment.verdict,
-                    "confidence": verdict.confidence,
-                }
-                revision_records = await self.check_and_apply_revisions(
-                    session=session,
-                    debate_id=debate_id,
-                    rounds=assessment.rounds,
-                )
-                if revision_records:
-                    completed_payload["revisions"] = [
-                        {"role": r["role"], "confidence_drop": r["confidence_drop"]}
-                        for r in revision_records
-                    ]
-                session.add(
-                    EventArchive(topic=EventTopic.DEBATE_COMPLETED.value, payload=completed_payload)
+                    payload=payload,
+                    assessment=assessment,
+                    debate_session=debate_session,
+                    run=run,
+                    persist_rounds=False,
                 )
                 await session.flush()
 
@@ -437,6 +262,123 @@ class DebateService(
                     failed_session.status = "FAILED"
                     await session.commit()
             raise
+
+    async def _complete_debate(
+        self,
+        *,
+        session: AsyncSession,
+        payload: DebateTriggerRequest,
+        assessment: DebateAssessment,
+        debate_session: DebateSessionRecord,
+        run: SimulationRun | None,
+        persist_rounds: bool,
+    ) -> tuple[DebateVerdictRecord, dict[str, Any]]:
+        debate_session.status = "COMPLETED"
+        debate_session.context_payload = assessment.context_payload
+
+        if persist_rounds:
+            for round_payload in assessment.rounds:
+                session.add(
+                    DebateRoundRecord(
+                        debate_id=debate_session.id,
+                        round_number=round_payload["round_number"],
+                        role=round_payload["role"],
+                        position=round_payload["position"],
+                        confidence=round_payload["confidence"],
+                        arguments=round_payload["arguments"],
+                        rebuttals=round_payload["rebuttals"],
+                        concessions=round_payload["concessions"],
+                    )
+                )
+
+        verdict = DebateVerdictRecord(
+            debate_id=debate_session.id,
+            topic=payload.topic,
+            trigger_type=payload.trigger_type,
+            rounds_completed=max(round_data["round_number"] for round_data in assessment.rounds),
+            verdict=assessment.verdict,
+            confidence=max(assessment.support_confidence, assessment.challenge_confidence),
+            winning_arguments=assessment.winning_arguments,
+            decisive_evidence=assessment.decisive_evidence,
+            conditions=assessment.conditions,
+            minority_opinion=assessment.minority_opinion,
+            recommendations=assessment.recommendations,
+            risk_factors=assessment.risk_factors,
+            alternative_scenarios=assessment.alternative_scenarios,
+            conclusion_summary=assessment.conclusion_summary,
+        )
+        session.add(verdict)
+
+        await self.score_argument_reliability(
+            debate_id=debate_session.id,
+            round_records=assessment.rounds,
+            session=session,
+        )
+        self.detect_blind_spots(assessment.rounds)
+        dissenter_role = next(
+            (
+                round_data["role"]
+                for round_data in assessment.rounds
+                if round_data.get("role") in ("challenger", "risk_analyst", "intel_analyst")
+            ),
+            "risk_analyst",
+        )
+        dissent = await self.generate_structured_dissent(
+            debate_id=debate_session.id,
+            round_records=assessment.rounds,
+            dissenter_role=dissenter_role,
+            session=session,
+        )
+        session.add(dissent)
+
+        if (
+            payload.trigger_type in ("pivot_decision", "conflict_resolution")
+            and payload.run_id is not None
+        ):
+            latest_decision = (
+                await session.scalars(
+                    select(DecisionRecordRecord)
+                    .where(DecisionRecordRecord.run_id == payload.run_id)
+                    .order_by(
+                        DecisionRecordRecord.tick.desc(), DecisionRecordRecord.sequence.desc()
+                    )
+                    .limit(1)
+                )
+            ).first()
+            if latest_decision is not None:
+                latest_decision.debate_verdict_id = debate_session.id
+            if run is not None:
+                run.summary = {
+                    **(run.summary or {}),
+                    "latest_debate_id": debate_session.id,
+                    "latest_debate_verdict": assessment.verdict,
+                    "debate_disagreements": [assessment.minority_opinion]
+                    if assessment.minority_opinion
+                    else [],
+                }
+                await self._ensure_debate_prediction(session, run, verdict, latest_decision)
+
+        completed_payload: dict[str, Any] = {
+            "debate_id": debate_session.id,
+            "run_id": payload.run_id,
+            "claim_id": payload.claim_id,
+            "verdict": assessment.verdict,
+            "confidence": verdict.confidence,
+        }
+        revision_records = await self.check_and_apply_revisions(
+            session=session,
+            debate_id=debate_session.id,
+            rounds=assessment.rounds,
+        )
+        if revision_records:
+            completed_payload["revisions"] = [
+                {"role": record["role"], "confidence_drop": record["confidence_drop"]}
+                for record in revision_records
+            ]
+        session.add(
+            EventArchive(topic=EventTopic.DEBATE_COMPLETED.value, payload=completed_payload)
+        )
+        return verdict, completed_payload
 
     async def _ensure_debate_prediction(
         self,
