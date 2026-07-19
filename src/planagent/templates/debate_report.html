@@ -928,9 +928,9 @@
             {% set roles = rounds | map(attribute='role') | unique | list %}
             {% if roles | length > 1 %}
             <div class="role-tabs">
-                <span class="role-tab active" onclick="filterRole('all')">全部</span>
+                <span class="role-tab active" data-role-filter="all">全部</span>
                 {% for role in roles %}
-                <span class="role-tab" onclick="filterRole('{{ role }}')">{{ role }}</span>
+                <span class="role-tab" data-role-filter="{{ role }}">{{ role }}</span>
                 {% endfor %}
             </div>
 
@@ -1029,7 +1029,7 @@
                     <h4 style="margin-bottom: 1rem; color: var(--text-secondary);">异议主张</h4>
                     {% for claim in structured_dissent.claims %}
                     <div class="dissent-claim">
-                        <div class="claim-toggle" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('show')">
+                        <div class="claim-toggle" data-claim-toggle>
                             <strong>{{ claim.summary if claim.summary else '主张 ' ~ loop.index }}</strong>
                         </div>
                         <div class="claim-details">
@@ -1125,7 +1125,7 @@
                 <span class="footer-info">
                     辩论报告生成于 {{ debate.created_at }} | 共 {{ rounds | length }} 轮辩论
                 </span>
-                <button class="print-btn" onclick="window.print()">
+                <button class="print-btn" type="button" data-print-report>
                     🖨️ 打印报告
                 </button>
             </div>
@@ -1136,9 +1136,9 @@
     <script>
         function filterRole(role) {
             // Update active tab
-            document.querySelectorAll('.role-tab').forEach(tab => {
+            document.querySelectorAll('[data-role-filter]').forEach(tab => {
                 tab.classList.remove('active');
-                if (tab.textContent.trim() === role || (role === 'all' && tab.textContent.trim() === '全部')) {
+                if (tab.dataset.roleFilter === role) {
                     tab.classList.add('active');
                 }
             });
@@ -1152,6 +1152,17 @@
                 }
             });
         }
+
+        document.querySelectorAll('[data-role-filter]').forEach(tab => {
+            tab.addEventListener('click', () => filterRole(tab.dataset.roleFilter));
+        });
+        document.querySelectorAll('[data-claim-toggle]').forEach(toggle => {
+            toggle.addEventListener('click', () => {
+                toggle.classList.toggle('expanded');
+                toggle.nextElementSibling?.classList.toggle('show');
+            });
+        });
+        document.querySelector('[data-print-report]')?.addEventListener('click', () => window.print());
     </script>
 </body>
 </html>

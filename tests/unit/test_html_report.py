@@ -478,6 +478,24 @@ class TestHTMLTemplate:
         assert "Strong market evidence" in rendered_html
         assert "Consistent data trends" in rendered_html
 
+    def test_dynamic_roles_never_enter_inline_event_handlers(self, jinja_env):
+        """Persisted/custom role names must remain inert report data."""
+        malicious_role = "');window.reportCompromised=true;//"
+        template = jinja_env.get_template("debate_report.html")
+        ctx = _make_template_context(
+            rounds=[
+                _make_round(1, malicious_role),
+                _make_round(1, "challenger"),
+            ]
+        )
+
+        html = template.render(**ctx)
+
+        assert "onclick=" not in html
+        assert 'data-role-filter="all"' in html
+        assert "data-role-filter=" in html
+        assert "filterRole(tab.dataset.roleFilter)" in html
+
 
 # ===================================================================
 # TestExportServiceHTML
