@@ -13,28 +13,13 @@ import io
 import logging
 import re
 import zipfile
-from collections import defaultdict
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from types import SimpleNamespace
-
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from planagent.config.report_theme import get_theme
-from planagent.domain.models import (
-    DebateReliabilityScore,
-    DebateRoundRecord,
-    DebateSessionRecord,
-    DebateStructuredDissent,
-    DebateVerdictRecord,
-)
-from planagent.services.chart_generation import ChartGenerationService
-from planagent.services.debate.roles import debate_record_sort_key
+from planagent.services.debate_html_report import DebateHtmlReportRenderer
 from planagent.services.pdf_rendering import (
     DEFAULT_MAX_PDF_DATA_URI_BYTES,
     DEFAULT_MAX_PDF_INLINE_RESOURCES,
@@ -52,83 +37,6 @@ MAX_PDF_INLINE_RESOURCES = DEFAULT_MAX_PDF_INLINE_RESOURCES
 MAX_PDF_MARKDOWN_CHARS = DEFAULT_MAX_PDF_MARKDOWN_CHARS
 MAX_PDF_OUTPUT_BYTES = DEFAULT_MAX_PDF_OUTPUT_BYTES
 PdfPolicyViolation = _PdfPolicyViolation
-
-
-@dataclass(frozen=True)
-class _DebateReportRound:
-    round_number: int
-    role: str
-    position: str
-    position_kind: str
-    confidence: float
-    arguments: str
-    rebuttals: str
-    concessions: str
-
-
-@dataclass(frozen=True)
-class _PendingDebateVerdict:
-    verdict: str = "PENDING"
-    confidence: float = 0.0
-    winning_arguments: tuple[str, ...] = ()
-    decisive_evidence: tuple[str, ...] = ()
-    conclusion_summary: str | None = None
-    conditions: tuple[str, ...] = ()
-
-
-def _debate_position_kind(position: object) -> str:
-    """Normalize persisted position labels for the report template."""
-    normalized = str(position or "").strip().upper()
-    if normalized in {"SUPPORT", "ACCEPTED", "ADVOCATE"} or any(
-        marker in normalized for marker in ("支持", "正方")
-    ):
-        return "support"
-    if normalized in {"OPPOSE", "CHALLENGE", "REJECTED", "CHALLENGER"} or any(
-        marker in normalized for marker in ("反对", "反方", "挑战")
-    ):
-        return "challenge"
-    return "conditional"
-
-
-def _format_debate_items(items: object) -> str:
-    """Render persisted structured debate items as readable plain text."""
-    if not items:
-        return ""
-    if not isinstance(items, list):
-        return str(items)
-
-    lines: list[str] = []
-    for item in items:
-        if not isinstance(item, dict):
-            lines.append(str(item))
-            continue
-        primary = item.get("claim") or item.get("counter") or item.get("reason")
-        if primary is None:
-            primary = item.get("summary") or item.get("content")
-        text = str(primary or "").strip()
-        reasoning = str(item.get("reasoning") or "").strip()
-        if text and reasoning:
-            lines.append(f"{text} — {reasoning}")
-        elif text:
-            lines.append(text)
-    return "\n".join(lines)
-
-
-def _debate_report_rounds(records: list[DebateRoundRecord]) -> list[_DebateReportRound]:
-    """Build the stable report-view interface from persistence records."""
-    return [
-        _DebateReportRound(
-            round_number=record.round_number,
-            role=record.role,
-            position=record.position,
-            position_kind=_debate_position_kind(record.position),
-            confidence=record.confidence,
-            arguments=_format_debate_items(record.arguments),
-            rebuttals=_format_debate_items(record.rebuttals),
-            concessions=_format_debate_items(record.concessions),
-        )
-        for record in records
-    ]
 
 
 def safe_pdf_url_fetcher(
@@ -150,6 +58,7 @@ class ExportService:
     def __init__(self, output_dir: str | Path = "exports") -> None:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.debate_html_renderer = DebateHtmlReportRenderer()
 
     # ── Markdown Export ───────────────────────────────────────
 
@@ -471,158 +380,9 @@ class ExportService:
 
     # ── Jinja2 Environment ─────────────────────────────────
 
-    @staticmethod
-    def _get_jinja_env() -> Environment:
-        """Return a Jinja2 environment pointed at the project templates dir."""
-        template_dir = Path(__file__).parent.parent / "templates"
-        return Environment(
-            loader=FileSystemLoader(str(template_dir)),
-            autoescape=select_autoescape(["html"]),
-        )
-
-    # ── HTML Export ────────────────────────────────────────
-
     async def export_debate_html(self, debate_id: str, db: AsyncSession) -> str:
-        """Export a full debate report as a self-contained HTML string.
-
-        Queries all debate artefacts from the database, generates charts,
-        and renders the ``debate_report.html`` Jinja2 template.
-
-        Args:
-            debate_id: The debate session ID.
-            db: An async SQLAlchemy session.
-
-        Returns:
-            Complete HTML document as a string.
-        """
-        # ── Query artefacts ─────────────────────────────────
-        debate_session = await db.get(DebateSessionRecord, debate_id)
-        if debate_session is None:
-            raise LookupError(f"Debate {debate_id} was not found.")
-        verdict: DebateVerdictRecord | None = await db.get(DebateVerdictRecord, debate_id)
-
-        reliability_scores: list[DebateReliabilityScore] = list(
-            (
-                await db.scalars(
-                    select(DebateReliabilityScore)
-                    .where(DebateReliabilityScore.debate_id == debate_id)
-                    .order_by(
-                        DebateReliabilityScore.round_number.asc(),
-                        DebateReliabilityScore.role.asc(),
-                    )
-                )
-            ).all()
-        )
-
-        dissent: DebateStructuredDissent | None = (
-            await db.scalars(
-                select(DebateStructuredDissent).where(
-                    DebateStructuredDissent.debate_id == debate_id
-                )
-            )
-        ).first()
-
-        round_records: list[DebateRoundRecord] = list(
-            (
-                await db.scalars(
-                    select(DebateRoundRecord)
-                    .where(DebateRoundRecord.debate_id == debate_id)
-                    .order_by(
-                        DebateRoundRecord.round_number.asc(),
-                        DebateRoundRecord.created_at.asc(),
-                    )
-                )
-            ).all()
-        )
-        round_records.sort(key=debate_record_sort_key)
-
-        # ── Build debate_data for chart generation ──────────
-        report_rounds = _debate_report_rounds(round_records)
-
-        # ── Aggregate confidence_data per round for chart format [{round, roles: {role: val}}]
-        conf_by_round: dict[int, dict[str, float]] = defaultdict(dict)
-        for rec in round_records:
-            conf_by_round[rec.round_number][rec.role] = rec.confidence
-        confidence_data = [
-            {"round": rn, "roles": roles} for rn, roles in sorted(conf_by_round.items())
-        ]
-
-        # ── Build evidence_matrix grouped by argument_summary [{argument, sources: {role: score}}]
-        ev_matrix: dict[str, dict[str, float]] = {}
-        for score in reliability_scores:
-            key = (score.argument_summary or "")[:50]
-            ev_matrix.setdefault(key, {})[score.auditor_role] = score.reliability_score / 5.0
-        evidence_matrix = [{"argument": k, "sources": v} for k, v in ev_matrix.items()]
-
-        # ── Build role_scores for radar chart: flat {dimension: score} in [0,1]
-        # The radar chart expects {dimension_name: score, ...} — aggregate across roles
-        dim_sums: dict[str, list[float]] = defaultdict(list)
-        for score in reliability_scores:
-            dim_sums["reliability"].append(score.reliability_score / 5.0)
-            if score.evidence_strength == "strong":
-                dim_sums["evidence"].append(0.8)
-            elif score.evidence_strength == "moderate":
-                dim_sums["evidence"].append(0.5)
-            else:
-                dim_sums["evidence"].append(0.3)
-            bias_penalty = len(score.bias_flags or []) * 0.15
-            dim_sums["logic"].append(max(0.0, 1.0 - bias_penalty))
-            dim_sums["adaptability"].append(0.6)
-        role_scores = {
-            dim: sum(vals) / len(vals) if vals else 0.0 for dim, vals in dim_sums.items()
-        }
-
-        debate_data: dict[str, Any] = {
-            "confidence_data": confidence_data,
-            "support_args": [
-                a
-                for rec in round_records
-                if rec.position == "support"
-                for a in (rec.arguments if isinstance(rec.arguments, list) else [])
-            ],
-            "challenge_args": [
-                a
-                for rec in round_records
-                if rec.position == "challenge"
-                for a in (rec.arguments if isinstance(rec.arguments, list) else [])
-            ],
-            "evidence_matrix": evidence_matrix,
-            "role_scores": dict(role_scores),
-        }
-
-        charts = ChartGenerationService.generate_all_charts(debate_data)
-
-        theme = get_theme()
-
-        chart_names = {
-            "confidence_trajectory": "置信度趋势",
-            "argument_comparison": "论点对比",
-            "evidence_heatmap": "证据热力图",
-            "role_radar": "角色雷达图",
-        }
-
-        topic = debate_session.topic
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        report_verdict = verdict or _PendingDebateVerdict()
-
-        env = self._get_jinja_env()
-        template = env.get_template("debate_report.html")
-        return template.render(
-            debate=SimpleNamespace(
-                topic=topic,
-                id=debate_id,
-                created_at=now,
-            ),
-            status=debate_session.status.lower(),
-            generated_at=now,
-            rounds=report_rounds,
-            verdict=report_verdict,
-            reliability_scores=reliability_scores,
-            structured_dissent=dissent,
-            charts=charts,
-            chart_names=chart_names,
-            theme=theme,
-        )
+        """Render a self-contained debate report from persisted debate artefacts."""
+        return await self.debate_html_renderer.render(debate_id, db)
 
     @staticmethod
     def build_document_bundle(

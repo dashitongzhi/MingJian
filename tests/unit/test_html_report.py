@@ -555,7 +555,13 @@ class TestExportServiceHTML:
                 role="advocate",
                 position="support",
                 confidence=0.8,
-                arguments=[{"claim": "Growth", "reasoning": "Data shows it"}],
+                arguments=[
+                    {
+                        "claim": "Growth",
+                        "reasoning": "Data shows it",
+                        "strength": "STRONG",
+                    }
+                ],
                 rebuttals=[],
                 concessions=[],
             ),
@@ -580,7 +586,7 @@ class TestExportServiceHTML:
                 role="advocate",
                 argument_index=0,
                 argument_summary="Growth thesis",
-                reliability_score=0.8,
+                reliability_score=4,
                 evidence_strength="strong",
                 bias_flags=[],
                 blind_spots=["No regional data"],
@@ -594,7 +600,14 @@ class TestExportServiceHTML:
         return SimpleNamespace(
             debate_id="deb-test",
             dissenter_role="challenger",
-            claims=[{"summary": "Missing Q3 data"}],
+            claims=[
+                {
+                    "claim": "Missing Q3 data",
+                    "evidence": ["filing-1"],
+                    "confidence": 0.8,
+                    "category": "evidence_gap",
+                }
+            ],
             evidence_gaps=["No quarterly breakdown"],
             confidence_trajectory=[0.6, 0.4],
             recommended_monitoring=["Track Q4 revenue"],
@@ -671,13 +684,11 @@ class TestExportServiceHTML:
 
     async def test_export_debate_html_queries_db(self, export_service, mock_db_full, mock_verdict):
         """export_debate_html must query DB for verdict, reliability, dissent, rounds."""
-        with patch.object(export_service, "_get_jinja_env") as mock_env:
-            mock_template = MagicMock()
-            mock_template.render.return_value = "<html>rendered</html>"
-            mock_jinja = MagicMock()
-            mock_jinja.get_template.return_value = mock_template
-            mock_env.return_value = mock_jinja
-
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>rendered</html>"
+        mock_jinja = MagicMock()
+        mock_jinja.get_template.return_value = mock_template
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
             html = await export_service.export_debate_html("deb-test", mock_db_full)
 
         assert html == "<html>rendered</html>"
@@ -686,14 +697,12 @@ class TestExportServiceHTML:
 
     async def test_export_html_generates_charts(self, export_service, mock_db_full):
         """export_debate_html must call ChartGenerationService.generate_all_charts."""
-        with patch.object(export_service, "_get_jinja_env") as mock_env:
-            mock_template = MagicMock()
-            mock_template.render.return_value = "<html>ok</html>"
-            mock_jinja = MagicMock()
-            mock_jinja.get_template.return_value = mock_template
-            mock_env.return_value = mock_jinja
-
-            with patch("planagent.services.export.ChartGenerationService") as mock_cgs:
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>ok</html>"
+        mock_jinja = MagicMock()
+        mock_jinja.get_template.return_value = mock_template
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
+            with patch("planagent.services.debate_html_report.ChartGenerationService") as mock_cgs:
                 mock_cgs.generate_all_charts.return_value = {
                     "confidence_trajectory": "<svg/>",
                     "argument_comparison": "<svg/>",
@@ -707,18 +716,17 @@ class TestExportServiceHTML:
         assert "confidence_data" in call_args
         assert "support_args" in call_args
         assert "challenge_args" in call_args
+        assert call_args["support_args"][0] == {"label": "Growth", "score": 0.85}
 
     async def test_export_html_passes_correct_render_kwargs(
         self, export_service, mock_db_full, mock_verdict
     ):
         """Template render() must receive the correct context dict."""
-        with patch.object(export_service, "_get_jinja_env") as mock_env:
-            mock_template = MagicMock()
-            mock_template.render.return_value = "<html>ok</html>"
-            mock_jinja = MagicMock()
-            mock_jinja.get_template.return_value = mock_template
-            mock_env.return_value = mock_jinja
-
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>ok</html>"
+        mock_jinja = MagicMock()
+        mock_jinja.get_template.return_value = mock_template
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
             await export_service.export_debate_html("deb-test", mock_db_full)
 
         render_kw = mock_template.render.call_args[1]
@@ -727,18 +735,19 @@ class TestExportServiceHTML:
         assert render_kw["status"] == "completed"
         assert "charts" in render_kw
         assert isinstance(render_kw["charts"], dict)
+        assert render_kw["reliability_scores"][0].reliability_score == 0.8
+        assert render_kw["structured_dissent"].overall_dissent_strength == "high"
+        assert render_kw["structured_dissent"].claims[0]["summary"] == "Missing Q3 data"
 
     async def test_export_html_with_no_dissent_passes_none(
         self, export_service, mock_db_no_dissent
     ):
         """When no dissent record exists, dissent=None must be passed to template."""
-        with patch.object(export_service, "_get_jinja_env") as mock_env:
-            mock_template = MagicMock()
-            mock_template.render.return_value = "<html>ok</html>"
-            mock_jinja = MagicMock()
-            mock_jinja.get_template.return_value = mock_template
-            mock_env.return_value = mock_jinja
-
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>ok</html>"
+        mock_jinja = MagicMock()
+        mock_jinja.get_template.return_value = mock_template
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
             await export_service.export_debate_html("deb-test", mock_db_no_dissent)
 
         render_kw = mock_template.render.call_args[1]
@@ -748,13 +757,11 @@ class TestExportServiceHTML:
         self, export_service, mock_db_no_verdict
     ):
         """An in-progress debate keeps its persisted topic and status without a verdict."""
-        with patch.object(export_service, "_get_jinja_env") as mock_env:
-            mock_template = MagicMock()
-            mock_template.render.return_value = "<html>ok</html>"
-            mock_jinja = MagicMock()
-            mock_jinja.get_template.return_value = mock_template
-            mock_env.return_value = mock_jinja
-
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>ok</html>"
+        mock_jinja = MagicMock()
+        mock_jinja.get_template.return_value = mock_template
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
             await export_service.export_debate_html("deb-test", mock_db_no_verdict)
 
         render_kw = mock_template.render.call_args[1]
@@ -772,13 +779,11 @@ class TestExportServiceHTML:
 
     async def test_export_html_builds_stable_round_view_models(self, export_service, mock_db_full):
         """Round records must match the report template interface."""
-        with patch.object(export_service, "_get_jinja_env") as mock_env:
-            mock_template = MagicMock()
-            mock_template.render.return_value = "<html>ok</html>"
-            mock_jinja = MagicMock()
-            mock_jinja.get_template.return_value = mock_template
-            mock_env.return_value = mock_jinja
-
+        mock_template = MagicMock()
+        mock_template.render.return_value = "<html>ok</html>"
+        mock_jinja = MagicMock()
+        mock_jinja.get_template.return_value = mock_template
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
             await export_service.export_debate_html("deb-test", mock_db_full)
 
         render_kw = mock_template.render.call_args[1]
@@ -823,7 +828,7 @@ class TestExportServiceHTML:
         mock_template.render.return_value = "<html>charts-ok</html>"
         mock_jinja = MagicMock()
         mock_jinja.get_template.return_value = mock_template
-        with patch.object(export_service, "_get_jinja_env", return_value=mock_jinja):
+        with patch.object(export_service.debate_html_renderer, "env", mock_jinja):
             await export_service.export_debate_html("deb-test", mock_db)
 
         render_kw = mock_template.render.call_args[1]

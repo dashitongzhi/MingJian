@@ -10,8 +10,10 @@ from fastapi.testclient import TestClient
 from planagent.config import reset_settings_cache
 from planagent.db import get_database, reset_database_cache
 from planagent.domain.models import (
+    DebateReliabilityScore,
     DebateRoundRecord,
     DebateSessionRecord,
+    DebateStructuredDissent,
     DebateVerdictRecord,
     StrategicRunSnapshot,
     StrategicSession,
@@ -65,6 +67,36 @@ async def _seed_export_records() -> None:
                 confidence=0.8,
                 winning_arguments=["Round claim"],
                 decisive_evidence=["source-1"],
+            )
+        )
+        session.add(
+            DebateReliabilityScore(
+                debate_id="debate-export",
+                round_number=1,
+                role="advocate",
+                argument_index=0,
+                argument_summary="Round claim",
+                reliability_score=4,
+                evidence_strength="strong",
+                auditor_role="cross_examiner",
+            )
+        )
+        session.add(
+            DebateStructuredDissent(
+                debate_id="debate-export",
+                dissenter_role="challenger",
+                claims=[
+                    {
+                        "claim": "Missing regional evidence",
+                        "evidence": ["source-2"],
+                        "confidence": 0.75,
+                        "category": "evidence_gap",
+                    }
+                ],
+                evidence_gaps=["No regional breakdown"],
+                confidence_trajectory=[0.7, 0.6],
+                recommended_monitoring=["Track regional demand"],
+                overall_dissent_strength=0.8,
             )
         )
         session.add(
@@ -132,6 +164,10 @@ def test_debate_export_includes_persisted_rounds(monkeypatch, tmp_path: Path) ->
     assert html_response.status_code == 200
     assert "Round claim" in html_response.text
     assert "advocate" in html_response.text
+    assert "80%" in html_response.text
+    assert "400%" not in html_response.text
+    assert "异议强度: 高" in html_response.text
+    assert "Missing regional evidence" in html_response.text
     assert missing_html.status_code == 404
 
 
