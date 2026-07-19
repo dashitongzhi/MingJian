@@ -447,15 +447,31 @@ class AgentRegistry:
 
     # ── 查询 ──────────────────────────────────────────────
 
+    @staticmethod
+    def _registry_role(role: AgentRole | str) -> AgentRole | str:
+        if isinstance(role, AgentRole) or str(role).startswith("custom_"):
+            return role
+        from planagent.services.debate.roles import registry_role_for_debate
+
+        return AgentRole(registry_role_for_debate(str(role)))
+
+    @staticmethod
+    def _public_role(role: AgentRole | str) -> str:
+        if isinstance(role, AgentRole):
+            from planagent.services.debate.roles import canonical_debate_role
+
+            return canonical_debate_role(role.value)
+        return str(role)
+
     def get_agent(self, role: AgentRole | str) -> AgentConfig:
-        return self._agents[role]
+        return self._agents[self._registry_role(role)]
 
     def get_all_agents(self) -> list[AgentConfig]:
         return [self._agents[r] for r in _ROLE_PRIORITY]
 
     def get_provider_config(self, role: AgentRole | str) -> dict[str, str]:
         """获取指定角色的 provider 配置，用于 LLM 调用"""
-        a = self._agents[role]
+        a = self.get_agent(role)
         effective_model = a.model_override or a.model
         return {
             "provider_type": a.provider_type,
@@ -467,14 +483,14 @@ class AgentRegistry:
     # ── 更新 ──────────────────────────────────────────────
 
     def update_agent(self, role: AgentRole | str, **kwargs: object) -> None:
-        agent = self._agents[role]
+        agent = self.get_agent(role)
         for k, v in kwargs.items():
             if hasattr(agent, k):
                 setattr(agent, k, v)
 
     def set_model_override(self, role: AgentRole | str, model: str) -> None:
         """设置用户自选模型（空字符串=恢复系统推荐）"""
-        self._agents[role].model_override = model
+        self.get_agent(role).model_override = model
 
     # ── API Key 分配 ──────────────────────────────────────
 
@@ -551,7 +567,10 @@ class AgentRegistry:
     # ── 状态 ──────────────────────────────────────────────
 
     def is_ready(self, role: AgentRole | str) -> bool:
-        agent = self._agents.get(role)
+        try:
+            agent = self.get_agent(role)
+        except (KeyError, ValueError):
+            return False
         return bool(agent and agent.api_key)
 
     def all_ready(self) -> bool:
@@ -565,8 +584,9 @@ class AgentRegistry:
             "spare_keys": len(self._spare_keys),
             "agents": [
                 {
-                    "role": str(a.role),
-                    "role_key": str(a.role),
+                    "role": self._public_role(a.role),
+                    "role_key": self._public_role(a.role),
+                    "registry_role": a.role.value if isinstance(a.role, AgentRole) else str(a.role),
                     "name": a.name,
                     "name_en": a.name_en,
                     "icon": a.icon,

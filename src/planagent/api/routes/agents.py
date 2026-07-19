@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from typing import Literal
+from urllib.parse import urlsplit
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from planagent.api.routes.auth import require_role
 from planagent.services.auth import UserRole
@@ -16,19 +19,37 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 class ApiKeyInput(BaseModel):
-    api_key: str
-    provider_type: str = "openai"
-    base_url: str = ""
-    model: str = ""
+    api_key: str = Field(min_length=1, max_length=8192)
+    provider_type: Literal["openai", "anthropic"] = "openai"
+    base_url: str = Field(default="", max_length=2048)
+    model: str = Field(default="", max_length=200)
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        if not value:
+            return value
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+            raise ValueError("base_url must be an explicit http(s) URL")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("base_url must not contain credentials")
+        if parsed.query or parsed.fragment:
+            raise ValueError("base_url must not contain a query or fragment")
+        try:
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError("base_url must have a valid port") from exc
+        return value.rstrip("/")
 
 
 class ConfigureRequest(BaseModel):
-    keys: list[ApiKeyInput]
+    keys: list[ApiKeyInput] = Field(min_length=1, max_length=32)
 
 
 class ModelOverrideRequest(BaseModel):
-    role: str
-    model: str  # 空字符串 = 恢复系统推荐
+    role: str = Field(min_length=1, max_length=64)
+    model: str = Field(default="", max_length=200)  # 空字符串 = 恢复系统推荐
 
 
 # ── 端点 ──────────────────────────────────────────────────
@@ -58,7 +79,10 @@ async def configure_agents(req: ConfigureRequest):
 async def set_model_override(req: ModelOverrideRequest):
     """设置单个智能体的模型选择"""
     registry = get_agent_registry()
-    registry.set_model_override(req.role, req.model)
+    try:
+        registry.set_model_override(req.role, req.model)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="Unknown agent role") from exc
     return registry.get_status()
 
 

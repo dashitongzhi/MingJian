@@ -454,6 +454,31 @@ class TestAgentRegistryIntegration:
         roles = {a.role for a in agents}
         assert roles == set(AgentRole)
 
+    def test_public_status_uses_canonical_debate_role_keys(self):
+        registry = reset_agent_registry()
+
+        status = registry.get_status()
+
+        assert [agent["role_key"] for agent in status["agents"]] == [
+            "advocate",
+            "challenger",
+            "arbitrator",
+            "intel_analyst",
+            "geo_expert",
+            "econ_analyst",
+            "military_strategist",
+            "tech_foresight",
+            "social_impact",
+        ]
+        assert status["agents"][3]["registry_role"] == "evidence_assessor"
+
+    def test_debate_role_can_update_registry_model_override(self):
+        registry = reset_agent_registry()
+
+        registry.set_model_override("intel_analyst", "local-model")
+
+        assert registry.get_agent(AgentRole.EVIDENCE_ASSESSOR).model_override == "local-model"
+
     def test_core_agents_have_priority_one(self):
         """核心辩论角色（ADVOCATE/CHALLENGER/ARBITRATOR）优先级为1。"""
         registry = reset_agent_registry()
