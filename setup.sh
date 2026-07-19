@@ -147,6 +147,40 @@ else
   success "Keeping the existing PLANAGENT_LOCAL_PROXY_SECRET."
 fi
 
+minio_access_key="$(awk '
+  /^PLANAGENT_MINIO_ACCESS_KEY=/ {
+    sub(/^PLANAGENT_MINIO_ACCESS_KEY=/, "")
+    print
+    exit
+  }
+' .env)"
+if [ "${#minio_access_key}" -lt 16 ]; then
+  command -v od >/dev/null 2>&1 || fail "od is required to generate the MinIO access key."
+  minio_access_key="$(od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]')"
+  [ "${#minio_access_key}" -ge 16 ] || fail "Could not generate a MinIO access key."
+  update_env_value "PLANAGENT_MINIO_ACCESS_KEY" "$minio_access_key" ".env"
+  success "Generated PLANAGENT_MINIO_ACCESS_KEY."
+else
+  success "Keeping the existing PLANAGENT_MINIO_ACCESS_KEY."
+fi
+
+minio_secret_key="$(awk '
+  /^PLANAGENT_MINIO_SECRET_KEY=/ {
+    sub(/^PLANAGENT_MINIO_SECRET_KEY=/, "")
+    print
+    exit
+  }
+' .env)"
+if [ "${#minio_secret_key}" -lt 32 ]; then
+  command -v od >/dev/null 2>&1 || fail "od is required to generate the MinIO secret key."
+  minio_secret_key="$(od -An -N32 -tx1 /dev/urandom | tr -d '[:space:]')"
+  [ "${#minio_secret_key}" -ge 32 ] || fail "Could not generate a MinIO secret key."
+  update_env_value "PLANAGENT_MINIO_SECRET_KEY" "$minio_secret_key" ".env"
+  success "Generated PLANAGENT_MINIO_SECRET_KEY."
+else
+  success "Keeping the existing PLANAGENT_MINIO_SECRET_KEY."
+fi
+
 printf '\n'
 printf '%s\n' "${BOLD}🔑 Enter your OpenAI API key.${RESET}"
 printf '%s\n' "It will be saved as PLANAGENT_OPENAI_API_KEY in .env."

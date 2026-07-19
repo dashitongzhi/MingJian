@@ -44,8 +44,8 @@ services:
     container_name: planagent-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: planagent
-      MINIO_ROOT_PASSWORD: planagent-minio-secret
+      MINIO_ROOT_USER: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      MINIO_ROOT_PASSWORD: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
@@ -73,8 +73,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -117,8 +117,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -142,8 +142,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -167,8 +167,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -192,8 +192,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -217,8 +217,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -243,8 +243,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -269,8 +269,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -295,8 +295,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:
@@ -320,8 +320,8 @@ services:
       PLANAGENT_DATABASE_URL: postgresql+psycopg://planagent:planagent@postgres:5432/planagent
       PLANAGENT_REDIS_URL: redis://redis:6379/0
       PLANAGENT_MINIO_ENDPOINT: minio:9000
-      PLANAGENT_MINIO_ACCESS_KEY: planagent
-      PLANAGENT_MINIO_SECRET_KEY: planagent-minio-secret
+      PLANAGENT_MINIO_ACCESS_KEY: ${PLANAGENT_MINIO_ACCESS_KEY:?Set PLANAGENT_MINIO_ACCESS_KEY or run ./setup.sh}
+      PLANAGENT_MINIO_SECRET_KEY: ${PLANAGENT_MINIO_SECRET_KEY:?Set PLANAGENT_MINIO_SECRET_KEY or run ./setup.sh}
       PLANAGENT_SOURCE_SNAPSHOT_BACKEND: minio
     depends_on:
       postgres:

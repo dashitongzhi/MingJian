@@ -224,3 +224,21 @@ def test_default_install_declares_pdf_runtime_dependency() -> None:
 
     assert any(dependency.startswith("weasyprint") for dependency in project["dependencies"])
     assert '".[all]"' not in dockerfile
+
+
+def test_compose_requires_shared_minio_credentials() -> None:
+    compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "planagent-minio-secret" not in compose
+    assert "PLANAGENT_MINIO_ACCESS_KEY: planagent" not in compose
+    assert compose.count("${PLANAGENT_MINIO_ACCESS_KEY:?") == 11
+    assert compose.count("${PLANAGENT_MINIO_SECRET_KEY:?") == 11
+
+
+def test_setup_generates_minio_credentials() -> None:
+    setup = (REPO_ROOT / "setup.sh").read_text(encoding="utf-8")
+
+    assert 'update_env_value "PLANAGENT_MINIO_ACCESS_KEY"' in setup
+    assert 'update_env_value "PLANAGENT_MINIO_SECRET_KEY"' in setup
+    assert 'od -An -N16 -tx1 /dev/urandom' in setup
+    assert 'od -An -N32 -tx1 /dev/urandom' in setup
