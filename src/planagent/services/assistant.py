@@ -8,7 +8,7 @@ from email.utils import parsedate_to_datetime
 import re
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from planagent.config import get_settings
@@ -30,22 +30,20 @@ from planagent.domain.models import (
     EvidenceItem,
     GeneratedReport,
     NormalizedItem,
-    RecommendationVersion,
     RawSourceItem,
     StrategicRunSnapshot,
-    WatchRule,
 )
 from planagent.domain.types import GeneratedReportModel
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant_conflicts import (
     AssistantConflictDetector,
-    DebateSuggestion,
 )
 from planagent.services.assistant_sessions import StrategicSessionPersistence
-from planagent.services.community_monitoring import (
-    CommunityMonitoringService,
-    watch_rule_monitoring_payload,
+from planagent.services.assistant_workflow import (
+    RecommendationTrigger,
+    StrategicWorkflowPersistence,
 )
+from planagent.services.community_monitoring import CommunityMonitoringService
 from planagent.services.debate import (
     DebateCommand,
     DebateFinished,
@@ -91,32 +89,26 @@ class StrategicAssistantService:
         self.simulation_service = simulation_service
         self.debate_workflow = debate_workflow
         self.workbench_service = workbench_service
-        self.recommendation_service = RecommendationVersionService()
-        self.monitoring_service = CommunityMonitoringService(get_settings())
-        self.session_persistence = StrategicSessionPersistence(self.recommendation_service)
+        recommendation_service = RecommendationVersionService()
+        self.session_persistence = StrategicSessionPersistence(recommendation_service)
+        self.workflow_persistence = StrategicWorkflowPersistence(
+            self.session_persistence,
+            CommunityMonitoringService(get_settings()),
+            recommendation_service,
+        )
         self.conflict_detector = AssistantConflictDetector()
 
     async def run(
         self,
         session: AsyncSession,
         payload: StrategicAssistantRequest,
-        recommendation_trigger_type: str | None = None,
-        recommendation_significance: str | None = None,
-        recommendation_watch_rule_id: str | None = None,
-        recommendation_trigger_source_change_id: str | None = None,
-        recommendation_source_change_ids: list[str] | None = None,
-        recommendation_change_summary: str | None = None,
+        recommendation_trigger: RecommendationTrigger | None = None,
     ) -> StrategicAssistantResponse:
         final_result: StrategicAssistantResponse | None = None
         async for event in self.stream(
             session,
             payload,
-            recommendation_trigger_type=recommendation_trigger_type,
-            recommendation_significance=recommendation_significance,
-            recommendation_watch_rule_id=recommendation_watch_rule_id,
-            recommendation_trigger_source_change_id=recommendation_trigger_source_change_id,
-            recommendation_source_change_ids=recommendation_source_change_ids,
-            recommendation_change_summary=recommendation_change_summary,
+            recommendation_trigger=recommendation_trigger,
         ):
             if event.event == "assistant_result":
                 final_result = StrategicAssistantResponse.model_validate(event.payload)
@@ -128,12 +120,7 @@ class StrategicAssistantService:
         self,
         session: AsyncSession,
         payload: StrategicAssistantRequest,
-        recommendation_trigger_type: str | None = None,
-        recommendation_significance: str | None = None,
-        recommendation_watch_rule_id: str | None = None,
-        recommendation_trigger_source_change_id: str | None = None,
-        recommendation_source_change_ids: list[str] | None = None,
-        recommendation_change_summary: str | None = None,
+        recommendation_trigger: RecommendationTrigger | None = None,
     ) -> AsyncIterator[AssistantEvent]:
         analysis_payload = self._build_analysis_request(payload)
         analysis_result: AnalysisResponse | None = None
@@ -221,8 +208,8 @@ class StrategicAssistantService:
         try_errors: list[str] = []
         try:
             workbench = await self.workbench_service.build_run_workbench(session, simulation_run.id)
-        except Exception:
-            _logger.warning("workbench build failed", exc_info=True)
+        except Exception as exc:
+            _logger.warning("workbench build failed: error_type=%s", type(exc).__name__)
             try_errors.append(f"workbench: {_POST_DEBATE_PUBLIC_ERRORS['workbench']}")
             workbench = RunWorkbenchRead.model_construct(
                 run_id=simulation_run.id,
@@ -233,8 +220,8 @@ class StrategicAssistantService:
             latest_report = await self._latest_report(
                 session, domain_id, subject_id, simulation_run.id, payload.tenant_id
             )
-        except Exception:
-            _logger.warning("report generation failed", exc_info=True)
+        except Exception as exc:
+            _logger.warning("report generation failed: error_type=%s", type(exc).__name__)
             try_errors.append(f"report: {_POST_DEBATE_PUBLIC_ERRORS['report']}")
             latest_report = None
 
@@ -242,8 +229,8 @@ class StrategicAssistantService:
             panel_discussion = await self._build_panel_discussion(
                 payload, domain_id, subject_name, analysis_result, latest_report
             )
-        except Exception:
-            _logger.warning("panel discussion failed", exc_info=True)
+        except Exception as exc:
+            _logger.warning("panel discussion failed: error_type=%s", type(exc).__name__)
             try_errors.append(f"panel_discussion: {_POST_DEBATE_PUBLIC_ERRORS['panel_discussion']}")
             panel_discussion = []
 
@@ -264,7 +251,7 @@ class StrategicAssistantService:
             debate=debate,
             workbench=workbench,
             panel_discussion=panel_discussion,
-            workflow=self._workflow_metadata(
+            workflow=self.workflow_persistence.metadata(
                 analysis=analysis_result,
                 debate=debate,
                 debate_suggestion=debate_suggestion,
@@ -274,85 +261,26 @@ class StrategicAssistantService:
             generated_at=datetime.now(timezone.utc),
         )
 
-        watch_rule: WatchRule | None = None
-        recommendation_version: RecommendationVersion | None = None
         try:
-            session_record = await self.session_persistence.ensure_session(
+            await self.workflow_persistence.persist(
                 session,
                 payload,
-                domain_id,
-                subject_id,
-                subject_name,
+                result,
+                subject_id=subject_id,
+                subject_name=subject_name,
+                debate_suggestion=debate_suggestion,
+                trigger=recommendation_trigger or RecommendationTrigger(),
             )
-            if session_record is not None:
-                result.session_id = session_record.id
-                watch_rule = await self.monitoring_service.ensure_watch_rule(
-                    session,
-                    payload.topic,
-                    domain_id,
-                    payload.tick_count,
-                    session_id=session_record.id,
-                    tenant_id=session_record.tenant_id,
-                    preset_id=session_record.preset_id,
-                    monitoring_started_at=session_record.created_at,
-                )
-                result.monitoring = watch_rule_monitoring_payload(watch_rule)
-                result.workflow = self._workflow_metadata(
-                    analysis=analysis_result,
-                    debate=debate,
-                    debate_suggestion=debate_suggestion,
-                    monitoring=result.monitoring,
-                )
-                previous_count = await session.scalar(
-                    select(func.count())
-                    .select_from(RecommendationVersion)
-                    .where(RecommendationVersion.session_id == session_record.id)
-                )
-                timeline_watch_rule_id = recommendation_watch_rule_id or (
-                    watch_rule.id if watch_rule is not None else None
-                )
-                recommendation_version = await self.recommendation_service.create_version(
-                    session,
-                    session_id=session_record.id,
-                    watch_rule_id=timeline_watch_rule_id,
-                    tenant_id=session_record.tenant_id,
-                    preset_id=session_record.preset_id,
-                    trigger_type=recommendation_trigger_type
-                    or ("initial_result" if int(previous_count or 0) == 0 else "manual_run"),
-                    trigger_source_change_id=recommendation_trigger_source_change_id,
-                    source_change_ids=recommendation_source_change_ids,
-                    significance=recommendation_significance or "none",
-                    change_summary=recommendation_change_summary,
-                    recommendation_summary=self.session_persistence.assistant_recommendation_summary(
-                        result
-                    ),
-                    result_payload=result.model_dump(mode="json"),
-                    source_snapshot=await self.recommendation_service.source_snapshot(
-                        session,
-                        watch_rule_id=timeline_watch_rule_id,
-                    ),
-                    ingest_run_id=ingest_run.id,
-                    simulation_run_id=simulation_run.id,
-                    debate_id=debate.id if debate is not None else None,
-                )
-                result.workflow["recommendation_version"] = {
-                    "id": recommendation_version.id,
-                    "version_number": recommendation_version.version_number,
-                    "trigger_type": recommendation_version.trigger_type,
-                    "significance": recommendation_version.significance,
-                }
-                await self.session_persistence.store_run_snapshot(
-                    session,
-                    session_record,
-                    result,
-                )
-        except Exception:
-            _logger.warning("session persist failed", exc_info=True)
+        except Exception as exc:
+            _logger.warning("session persist failed: error_type=%s", type(exc).__name__)
             try_errors.append(f"session_persist: {_POST_DEBATE_PUBLIC_ERRORS['session_persist']}")
             try:
                 await session.rollback()
-            except Exception:
-                _logger.warning("session rollback failed after persist error", exc_info=True)
+            except Exception as rollback_exc:
+                _logger.warning(
+                    "session rollback failed after persist error: error_type=%s",
+                    type(rollback_exc).__name__,
+                )
 
         if try_errors:
             yield self._event(
@@ -569,112 +497,6 @@ class StrategicAssistantService:
         session_id: str,
     ) -> StrategicAssistantRequest | None:
         return await self.session_persistence.load_request(session, session_id)
-
-    def _workflow_metadata(
-        self,
-        *,
-        analysis: AnalysisResponse,
-        debate,
-        debate_suggestion: DebateSuggestion,
-        monitoring: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        source_types = sorted({source.source_type for source in analysis.sources})
-        consensus = self._debate_consensus_payload(debate)
-        monitoring = monitoring or {"status": "unknown"}
-        debate_id = debate.id if debate is not None else None
-        return {
-            "version": "complete_decision_workflow_v1",
-            "mode": "complete_initial_result",
-            "status": "first_result_ready",
-            "user_can_decide": True,
-            "first_result_ready": True,
-            "stages": [
-                {"id": "research_agents", "status": "completed"},
-                {"id": "evidence_ingest", "status": "completed"},
-                {"id": "simulation", "status": "completed"},
-                {"id": "debate_center", "status": "completed" if debate else "skipped"},
-                {"id": "consensus", "status": consensus["status"]},
-                {"id": "monitoring", "status": monitoring.get("status", "unknown")},
-            ],
-            "research_agents": {
-                "agent_count": len(source_types),
-                "source_types": source_types,
-                "sources_collected": len(analysis.sources),
-            },
-            "debate_suggestion": {
-                "warranted": debate_suggestion.warranted,
-                "confidence": round(debate_suggestion.confidence, 4),
-                "reasons": debate_suggestion.reasons,
-            },
-            "consensus": consensus,
-            "phases": [
-                {
-                    "key": "evidence_collection",
-                    "label": "多源信息采集",
-                    "status": "complete",
-                    "count": len(analysis.sources),
-                },
-                {
-                    "key": "multi_agent_debate",
-                    "label": "多智能体辩论",
-                    "status": "complete" if debate_id else "skipped",
-                    "debate_id": debate_id,
-                },
-                {
-                    "key": "first_recommendation",
-                    "label": "首次建议",
-                    "status": "complete",
-                },
-                {
-                    "key": "local_monitoring",
-                    "label": "24 小时监控",
-                    "status": monitoring.get("status", "unknown"),
-                    "watch_rule_id": monitoring.get("watch_rule_id"),
-                    "next_poll_at": monitoring.get("next_poll_at"),
-                },
-            ],
-        }
-
-    def _debate_consensus_payload(self, debate) -> dict[str, Any]:
-        if debate is None or debate.verdict is None:
-            return {
-                "status": "skipped",
-                "agreement_score": 0.0,
-                "roles_considered": 0,
-                "minority_opinion": None,
-            }
-        roles = {round_item.role for round_item in debate.rounds}
-        support = sum(
-            1
-            for round_item in debate.rounds
-            if str(round_item.position).upper() in {"SUPPORT", "ACCEPT", "ACCEPTED"}
-        )
-        challenge = sum(
-            1
-            for round_item in debate.rounds
-            if str(round_item.position).upper() in {"CHALLENGE", "REJECT", "REJECTED"}
-        )
-        verdict_score = {
-            "ACCEPTED": 0.92,
-            "CONDITIONAL": 0.78,
-            "REJECTED": 0.72,
-        }.get(str(debate.verdict.verdict).upper(), 0.65)
-        if support or challenge:
-            balance = support / max(support + challenge, 1)
-            role_score = 0.55 + abs(balance - 0.5) * 0.5
-        else:
-            role_score = 0.7
-        agreement_score = round(min(max((verdict_score + role_score) / 2, 0.0), 0.98), 4)
-        status = "broadly_accepted" if agreement_score >= 0.78 else "contested"
-        return {
-            "status": status,
-            "agreement_score": agreement_score,
-            "roles_considered": len(roles),
-            "rounds_completed": len(debate.rounds),
-            "verdict": debate.verdict.verdict,
-            "confidence": debate.verdict.confidence,
-            "minority_opinion": debate.verdict.minority_opinion,
-        }
 
     def _build_analysis_request(self, payload: StrategicAssistantRequest) -> AnalysisRequest:
         return AnalysisRequest(

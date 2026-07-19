@@ -22,6 +22,7 @@ from planagent.domain.models import (
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant import StrategicAssistantService
+from planagent.services.assistant_workflow import RecommendationTrigger
 from planagent.services.change_detection import ChangeDetectionService
 from planagent.services.community_monitoring import (
     monitoring_window_expired,
@@ -406,14 +407,14 @@ class WatchIngestWorker(Worker):
             result = await self.assistant_service.run(
                 session,
                 payload,
-                recommendation_trigger_type="source_change",
-                recommendation_significance=significance,
-                recommendation_watch_rule_id=rule.id,
-                recommendation_trigger_source_change_id=(
-                    source_change_ids[0] if source_change_ids else None
+                recommendation_trigger=RecommendationTrigger(
+                    trigger_type="source_change",
+                    significance=significance,
+                    watch_rule_id=rule.id,
+                    trigger_source_change_id=(source_change_ids[0] if source_change_ids else None),
+                    source_change_ids=tuple(source_change_ids),
+                    change_summary=change_summary,
                 ),
-                recommendation_source_change_ids=source_change_ids,
-                recommendation_change_summary=change_summary,
             )
             latest_snapshot = (
                 await session.scalars(

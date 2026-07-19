@@ -11,6 +11,7 @@ from planagent.domain.models import StrategicSession, utc_now
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant import StrategicAssistantService
+from planagent.services.assistant_workflow import RecommendationTrigger
 from planagent.services.community_monitoring import (
     monitoring_window_expired,
     next_schedule_within_window,
@@ -85,8 +86,9 @@ class StrategicWatchWorker(Worker):
                     await self.service.run(
                         session,
                         payload,
-                        recommendation_trigger_type="scheduled_refresh",
-                        recommendation_significance="none",
+                        recommendation_trigger=RecommendationTrigger(
+                            trigger_type="scheduled_refresh",
+                        ),
                     )
                     refreshed += 1
                 except Exception:

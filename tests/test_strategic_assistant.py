@@ -349,7 +349,9 @@ def test_assistant_stream_does_not_expose_internal_exception_details(
 
 
 def test_assistant_post_debate_warning_redacts_internal_exception_details(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     database_path = tmp_path / "planagent-assistant-post-debate-error.db"
     monkeypatch.setenv("PLANAGENT_DATABASE_URL", build_database_url(database_path))
@@ -388,6 +390,8 @@ def test_assistant_post_debate_warning_redacts_internal_exception_details(
     assert "Workbench generation failed" in body
     assert "sk-secret" not in body
     assert "10.0.0.8" not in body
+    assert "sk-secret" not in caplog.text
+    assert "10.0.0.8" not in caplog.text
 
 
 def test_strategic_session_persists_briefs_and_runs(
