@@ -232,7 +232,7 @@ def test_health_ready_reports_degraded_when_redis_ping_fails(monkeypatch, tmp_pa
     with TestClient(create_app()) as client:
         response = client.get("/health/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     assert response.json() == {
         "status": "degraded",
         "checks": {"database": "ok", "redis": "fail"},

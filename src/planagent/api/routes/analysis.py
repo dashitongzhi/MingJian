@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import text
@@ -98,6 +98,7 @@ async def health_live() -> dict[str, str]:
 @router.get("/health/ready")
 async def health_ready(
     request: Request,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     checks = {
@@ -122,6 +123,8 @@ async def health_ready(
 
     non_skip_checks = [check for check in checks.values() if check != "skip"]
     status = "ok" if all(check == "ok" for check in non_skip_checks) else "degraded"
+    if status == "degraded":
+        response.status_code = 503
     return {"status": status, "checks": checks}
 
 
