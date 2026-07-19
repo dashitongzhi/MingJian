@@ -36,9 +36,14 @@ from planagent.services.openai_client import OpenAIService
 from .adjudication import DebateAdjudicationMixin  # noqa: E402
 from .contracts import (  # noqa: E402
     ClaimRelationContext,
+    DebateCommand,
+    DebateExecutionFailed,
     DebateAssessment,
+    DebateTarget,
+    DebateTargetNotFound,
     DebateStreamEvent,
     DebateStreamPreparation,
+    InvalidDebateCommand,
 )
 from .llm import DebateLLMMixin  # noqa: E402
 from .revisions import DebateRevisionMixin  # noqa: E402
@@ -863,8 +868,13 @@ class DebateService(
 
 __all__ = [
     "ClaimRelationContext",
+    "DebateCommand",
+    "DebateExecutionFailed",
     "DebateAssessment",
     "DebateService",
     "DebateStreamEvent",
     "DebateStreamPreparation",
+    "DebateTarget",
+    "DebateTargetNotFound",
+    "InvalidDebateCommand",
 ]
