@@ -13,8 +13,6 @@ from planagent.domain.api import (
     AgentStartupPresetRunCreate,
     AgentStartupPresetRunRead,
     AgentStartupPresetScenarioRead,
-    AnalysisRequest,
-    AnalysisSourceRead,
     CalibrationComputeRequest,
     CalibrationRead,
     EvidenceGraphEdgeRead,
@@ -87,6 +85,14 @@ from planagent.services.community_monitoring import (
 from planagent.services.debate import DebateCommand, DebateTarget
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
+from planagent.services.watch_evidence import (
+    build_watch_analysis_request,
+    build_watch_ingest_items,
+    qualified_watch_sources,
+    record_watch_source_health,
+    watch_recommendation_summary,
+    watch_threshold_met,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -553,58 +559,16 @@ async def trigger_watch_rule(
 
     try:
         analysis_service = get_analysis_service(request)
-        analysis_request = AnalysisRequest(
-            content=rule.query,
-            domain_id=rule.domain_id,
-            auto_fetch_news=True,
-            include_google_news="google_news" in rule.source_types,
-            include_reddit="reddit" in rule.source_types,
-            include_hacker_news="hacker_news" in rule.source_types,
-            include_github="github" in rule.source_types,
-            include_rss_feeds="rss" in rule.source_types,
-            include_gdelt="gdelt" in rule.source_types,
-            include_weather="weather" in rule.source_types,
-            include_aviation="aviation" in rule.source_types,
-            include_x="x" in rule.source_types,
-            source_types=rule.source_types,
-        )
+        analysis_request = build_watch_analysis_request(rule)
         analysis = await analysis_service.analyze(analysis_request)
-        for step in analysis.reasoning_steps:
-            if step.stage == "source_complete":
-                await analysis_service.record_source_success(
-                    session, _source_type_from_step(step.message)
-                )
-            elif step.stage == "source_error":
-                await analysis_service.record_source_failure(
-                    session,
-                    _source_type_from_step(step.message),
-                    step.detail or step.message,
-                )
+        await record_watch_source_health(
+            session,
+            analysis_service,
+            analysis.reasoning_steps,
+        )
 
-        items = [
-            {
-                "source_type": "analyst_note",
-                "source_url": f"https://local.planagent/watch/{rule.id}",
-                "title": rule.name,
-                "content_text": rule.query,
-                "source_metadata": {"origin": "watch_rule", "rule_id": rule.id},
-            }
-        ]
-        qualified_sources = _qualified_watch_sources(rule, analysis.sources)
-        for source in qualified_sources:
-            items.append(
-                {
-                    "source_type": source.source_type,
-                    "source_url": source.url,
-                    "title": source.title,
-                    "content_text": source.summary,
-                    "source_metadata": {
-                        "origin": "watch_rule_source",
-                        "importance_score": _watch_source_score(rule, source),
-                        **source.metadata,
-                    },
-                }
-            )
+        qualified_sources = qualified_watch_sources(rule, analysis.sources)
+        items = build_watch_ingest_items(rule, qualified_sources)
 
         pipeline_service = get_pipeline_service(request)
         ingest_run = await pipeline_service.create_ingest_run(
@@ -620,7 +584,7 @@ async def trigger_watch_rule(
         simulation_run_id = None
         debate_id = None
 
-        threshold_met = _watch_threshold_met(rule, qualified_sources)
+        threshold_met = watch_threshold_met(rule, qualified_sources)
         if rule.auto_trigger_simulation and threshold_met:
             sim_service = get_simulation_service(request)
 
@@ -685,7 +649,7 @@ async def trigger_watch_rule(
                 preset_id=rule.preset_id,
                 trigger_type="manual_trigger",
                 significance="none",
-                recommendation_summary=_watch_recommendation_summary(
+                recommendation_summary=watch_recommendation_summary(
                     analysis.recommendations,
                     analysis.summary,
                     debate_id,
@@ -730,92 +694,6 @@ async def trigger_watch_rule(
             status="failed",
             error=rule.last_poll_error,
         )
-
-
-def _source_type_from_step(message: str) -> str:
-    lowered = message.lower()
-    if "google" in lowered:
-        return "google_news"
-    if "reddit" in lowered:
-        return "reddit"
-    if "hacker" in lowered:
-        return "hacker_news"
-    if "github" in lowered:
-        return "github"
-    if "gdelt" in lowered:
-        return "gdelt"
-    if "weather" in lowered:
-        return "weather"
-    if "aviation" in lowered or "opensky" in lowered:
-        return "aviation"
-    if "rss" in lowered:
-        return "rss"
-    if "linux.do" in lowered or "linux" in lowered:
-        return "linux_do"
-    if "xiaohongshu" in lowered:
-        return "xiaohongshu"
-    if "douyin" in lowered:
-        return "douyin"
-    if lowered.strip() == "x" or " x." in lowered or " x " in lowered:
-        return "x"
-    return "unknown"
-
-
-def _qualified_watch_sources(
-    rule: WatchRule, sources: list[AnalysisSourceRead]
-) -> list[AnalysisSourceRead]:
-    qualified: list[AnalysisSourceRead] = []
-    for source in sources:
-        score = _watch_source_score(rule, source)
-        if score >= float(rule.importance_threshold or 0.0):
-            qualified.append(source)
-    return qualified
-
-
-def _watch_threshold_met(rule: WatchRule, sources: list[AnalysisSourceRead]) -> bool:
-    if len(sources) < int(rule.min_new_evidence_count or 0):
-        return False
-    if not sources:
-        return float(rule.trigger_threshold or 0.0) <= 0.0
-    top_score = max(_watch_source_score(rule, source) for source in sources)
-    return top_score >= float(rule.trigger_threshold or 0.0)
-
-
-def _watch_source_score(rule: WatchRule, source: AnalysisSourceRead) -> float:
-    haystack = f"{source.title} {source.summary}".lower()
-    exclude_terms = [term.lower() for term in (rule.exclude_keywords or []) if term]
-    if any(term in haystack for term in exclude_terms):
-        return 0.0
-    keywords = [term.lower() for term in (rule.keywords or []) if term]
-    entity_tags = [term.lower() for term in (rule.entity_tags or []) if term]
-    terms = keywords or entity_tags or [token.lower() for token in rule.query.split()[:6] if token]
-    matched = sum(1 for term in terms if term and term in haystack)
-    score = 0.35 + min(matched * 0.18, 0.45)
-    engagement = source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
-    if isinstance(engagement, dict) and any(
-        value for value in engagement.values() if isinstance(value, (int, float))
-    ):
-        score += 0.1
-    if source.published_at:
-        score += 0.1
-    return round(max(0.0, min(score, 1.0)), 4)
-
-
-def _watch_recommendation_summary(
-    recommendations: list[str],
-    summary: str,
-    debate_id: str | None,
-    simulation_run_id: str | None,
-) -> str:
-    cleaned = [" ".join(item.split()) for item in recommendations if item]
-    base = "；".join(cleaned[:3]) if cleaned else " ".join(str(summary or "").split())
-    actions = []
-    if simulation_run_id is not None:
-        actions.append("已生成新推演")
-    if debate_id is not None:
-        actions.append("已完成重新辩论")
-    suffix = f"（{', '.join(actions)}）" if actions else ""
-    return f"{base[:500]}{suffix}" or "监控刷新完成，暂无明确建议变化。"
 
 
 # ── Sources ──────────────────────────────────────────────────────────────────

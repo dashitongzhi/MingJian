@@ -8,11 +8,7 @@ from sqlalchemy import or_, select, update
 
 from planagent.config import Settings
 from planagent.db import get_database
-from planagent.domain.api import (
-    AnalysisRequest,
-    IngestRunCreate,
-    SimulationRunCreate,
-)
+from planagent.domain.api import IngestRunCreate, SimulationRunCreate
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import (
     RawSourceItem,
@@ -40,6 +36,14 @@ from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.simulation import SimulationService
 from planagent.services.source_state import SourceStateService
 from planagent.services.workbench import WorkbenchService
+from planagent.services.watch_evidence import (
+    build_watch_analysis_request,
+    build_watch_ingest_items,
+    qualified_watch_sources,
+    record_watch_source_health,
+    watch_source_score,
+    watch_threshold_met,
+)
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
 
@@ -164,58 +168,16 @@ class WatchIngestWorker(Worker):
 
         source_state_service = SourceStateService(self.settings)
         change_service = ChangeDetectionService(self.settings)
-        analysis_request = AnalysisRequest(
-            content=rule.query,
-            domain_id=rule.domain_id,
-            auto_fetch_news=True,
-            include_google_news="google_news" in rule.source_types,
-            include_reddit="reddit" in rule.source_types,
-            include_hacker_news="hacker_news" in rule.source_types,
-            include_github="github" in rule.source_types,
-            include_rss_feeds="rss" in rule.source_types,
-            include_gdelt="gdelt" in rule.source_types,
-            include_weather="weather" in rule.source_types,
-            include_aviation="aviation" in rule.source_types,
-            include_x="x" in rule.source_types,
-            source_types=rule.source_types,
-        )
+        analysis_request = build_watch_analysis_request(rule)
         analysis = await self.analysis_service.analyze(analysis_request)
-        for step in analysis.reasoning_steps:
-            if step.stage == "source_complete":
-                await self.analysis_service.record_source_success(
-                    session, self._source_type_from_step(step.message)
-                )
-            elif step.stage == "source_error":
-                await self.analysis_service.record_source_failure(
-                    session,
-                    self._source_type_from_step(step.message),
-                    step.detail or step.message,
-                )
+        await record_watch_source_health(
+            session,
+            self.analysis_service,
+            analysis.reasoning_steps,
+        )
 
-        items = [
-            {
-                "source_type": "analyst_note",
-                "source_url": f"https://local.planagent/watch/{rule.id}",
-                "title": rule.name,
-                "content_text": rule.query,
-                "source_metadata": {"origin": "watch_rule", "rule_id": rule.id},
-            }
-        ]
-        qualified_sources = self._qualified_sources(rule, analysis.sources)
-        for source in qualified_sources:
-            items.append(
-                {
-                    "source_type": source.source_type,
-                    "source_url": source.url,
-                    "title": source.title,
-                    "content_text": source.summary,
-                    "source_metadata": {
-                        "origin": "watch_rule_source",
-                        "importance_score": self._source_score(rule, source),
-                        **source.metadata,
-                    },
-                }
-            )
+        qualified_sources = qualified_watch_sources(rule, analysis.sources)
+        items = build_watch_ingest_items(rule, qualified_sources)
 
         change_records = await self._detect_source_changes(
             session,
@@ -326,7 +288,7 @@ class WatchIngestWorker(Worker):
             debate_id = full_refresh.get("debate_id") or None
 
         threshold_met = (
-            self._threshold_met(rule, qualified_sources)
+            watch_threshold_met(rule, qualified_sources)
             or significance == "high"
             or evidence_impact["should_refresh"]
         )
@@ -751,7 +713,7 @@ class WatchIngestWorker(Worker):
             (significance_order.get(record.significance, 0.0) for record in changed_records),
             default=0.0,
         )
-        source_scores = [self._source_score(rule, source) for source in qualified_sources]
+        source_scores = [watch_source_score(rule, source) for source in qualified_sources]
         max_source_score = max(source_scores, default=0.0)
         score = max_significance
         score += min(len(changed_records) * 0.06, 0.18)
@@ -837,72 +799,6 @@ class WatchIngestWorker(Worker):
             f"threshold: {evidence_impact.get('refresh_threshold')}.",
             "Impact reasons: " + ("; ".join(str(reason) for reason in reasons) or "none"),
         ]
-
-    def _source_type_from_step(self, message: str) -> str:
-        lowered = message.lower()
-        if "google" in lowered:
-            return "google_news"
-        if "reddit" in lowered:
-            return "reddit"
-        if "hacker" in lowered:
-            return "hacker_news"
-        if "github" in lowered:
-            return "github"
-        if "gdelt" in lowered:
-            return "gdelt"
-        if "weather" in lowered:
-            return "weather"
-        if "aviation" in lowered or "opensky" in lowered:
-            return "aviation"
-        if "rss" in lowered:
-            return "rss"
-        if "linux.do" in lowered or "linux" in lowered:
-            return "linux_do"
-        if "xiaohongshu" in lowered:
-            return "xiaohongshu"
-        if "douyin" in lowered:
-            return "douyin"
-        if lowered.strip() == "x" or " x." in lowered or " x " in lowered:
-            return "x"
-        return "unknown"
-
-    def _qualified_sources(self, rule: WatchRule, sources) -> list:
-        return [
-            source
-            for source in sources
-            if self._source_score(rule, source) >= float(rule.importance_threshold or 0.0)
-        ]
-
-    def _threshold_met(self, rule: WatchRule, sources: list) -> bool:
-        if len(sources) < int(rule.min_new_evidence_count or 0):
-            return False
-        if not sources:
-            return float(rule.trigger_threshold or 0.0) <= 0.0
-        return max(self._source_score(rule, source) for source in sources) >= float(
-            rule.trigger_threshold or 0.0
-        )
-
-    def _source_score(self, rule: WatchRule, source) -> float:
-        haystack = f"{source.title} {source.summary}".lower()
-        if any(term.lower() in haystack for term in (rule.exclude_keywords or []) if term):
-            return 0.0
-        keywords = [term.lower() for term in (rule.keywords or []) if term]
-        entity_tags = [term.lower() for term in (rule.entity_tags or []) if term]
-        terms = (
-            keywords or entity_tags or [token.lower() for token in rule.query.split()[:6] if token]
-        )
-        matched = sum(1 for term in terms if term and term in haystack)
-        score = 0.35 + min(matched * 0.18, 0.45)
-        engagement = (
-            source.metadata.get("engagement", {}) if isinstance(source.metadata, dict) else {}
-        )
-        if isinstance(engagement, dict) and any(
-            value for value in engagement.values() if isinstance(value, (int, float))
-        ):
-            score += 0.1
-        if source.published_at:
-            score += 0.1
-        return round(max(0.0, min(score, 1.0)), 4)
 
     def _change_detection_text(self, rule: WatchRule, sources) -> str:
         parts = [f"watch:{rule.id}", f"name:{rule.name}", f"query:{rule.query}"]
