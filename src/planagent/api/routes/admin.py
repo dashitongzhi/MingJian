@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -81,6 +80,10 @@ from planagent.services.startup import (
 from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.source_state import SourceStateService
 from planagent.services.auth import UserRole
+from planagent.services.community_monitoring import (
+    monitoring_window_expired,
+    next_poll_within_window,
+)
 from planagent.services.debate import DebateCommand, DebateTarget
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
@@ -533,10 +536,7 @@ async def trigger_watch_rule(
         raise HTTPException(status_code=404, detail="Watch rule not found.")
 
     now = utc_now()
-    created_at = rule.created_at
-    if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=now.tzinfo)
-    if now - created_at >= timedelta(hours=24):
+    if monitoring_window_expired(rule.created_at, now=now):
         rule.enabled = False
         rule.next_poll_at = None
         rule.lease_owner = None
@@ -667,7 +667,13 @@ async def trigger_watch_rule(
         rule.last_poll_error = None
         rule.lease_owner = None
         rule.lease_expires_at = None
-        rule.next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
+        rule.next_poll_at = next_poll_within_window(
+            rule.created_at,
+            rule.poll_interval_minutes,
+            now=now,
+        )
+        if rule.next_poll_at is None:
+            rule.enabled = False
         recommendation_version_id = None
         if rule.session_id is not None:
             recommendation_service = RecommendationVersionService()

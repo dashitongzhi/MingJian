@@ -11,6 +11,10 @@ from planagent.domain.models import StrategicSession, utc_now
 from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant import StrategicAssistantService
+from planagent.services.community_monitoring import (
+    monitoring_window_expired,
+    next_schedule_within_window,
+)
 from planagent.services.debate import DebateService
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
@@ -160,10 +164,7 @@ class StrategicWatchWorker(Worker):
         return claimed
 
     def _community_window_expired(self, session_record: StrategicSession) -> bool:
-        created_at = session_record.created_at
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=utc_now().tzinfo)
-        return utc_now() - created_at >= timedelta(hours=24)
+        return monitoring_window_expired(session_record.created_at)
 
     async def _mark_window_expired(self, session, session_id: str) -> None:
         now = utc_now()
@@ -183,11 +184,21 @@ class StrategicWatchWorker(Worker):
 
     async def _mark_failure(self, session, session_id: str, error: str) -> None:
         now = utc_now()
-        retry_at = now + timedelta(hours=1)
+        session_record = await session.get(StrategicSession, session_id)
+        retry_at = (
+            next_schedule_within_window(
+                session_record.created_at,
+                timedelta(hours=1),
+                now=now,
+            )
+            if session_record is not None
+            else None
+        )
         await session.execute(
             update(StrategicSession)
             .where(StrategicSession.id == session_id)
             .values(
+                auto_refresh_enabled=retry_at is not None,
                 refresh_lease_owner=None,
                 refresh_lease_expires_at=None,
                 last_refresh_error=error,

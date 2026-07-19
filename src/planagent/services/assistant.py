@@ -42,13 +42,16 @@ from planagent.domain.models import (
     StrategicRunSnapshot,
     StrategicSession,
     WatchRule,
-    utc_now,
 )
 from planagent.domain.types import GeneratedReportModel
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant_conflicts import (
     AssistantConflictDetector,
     DebateSuggestion,
+)
+from planagent.services.community_monitoring import (
+    CommunityMonitoringService,
+    watch_rule_monitoring_payload,
 )
 from planagent.services.debate import (
     DebateCommand,
@@ -60,7 +63,6 @@ from planagent.services.debate._legacy import _legacy_event_from_observation
 from planagent.services.pipeline import PhaseOnePipelineService
 from planagent.services.recommendations import RecommendationVersionService
 from planagent.services.simulation import SimulationService
-from planagent.services.source_state import SourceStateService
 from planagent.services.workbench import WorkbenchService
 
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -97,6 +99,7 @@ class StrategicAssistantService:
         self.debate_workflow = debate_workflow
         self.workbench_service = workbench_service
         self.recommendation_service = RecommendationVersionService()
+        self.monitoring_service = CommunityMonitoringService(get_settings())
         self.conflict_detector = AssistantConflictDetector()
 
     async def run(
@@ -289,7 +292,7 @@ class StrategicAssistantService:
             )
             if session_record is not None:
                 result.session_id = session_record.id
-                watch_rule = await self._auto_create_watch_rule(
+                watch_rule = await self.monitoring_service.ensure_watch_rule(
                     session,
                     payload.topic,
                     domain_id,
@@ -297,8 +300,9 @@ class StrategicAssistantService:
                     session_id=session_record.id,
                     tenant_id=session_record.tenant_id,
                     preset_id=session_record.preset_id,
+                    monitoring_started_at=session_record.created_at,
                 )
-                result.monitoring = self._monitoring_payload(watch_rule)
+                result.monitoring = watch_rule_monitoring_payload(watch_rule)
                 result.workflow = self._workflow_metadata(
                     analysis=analysis_result,
                     debate=debate,
@@ -510,84 +514,6 @@ class StrategicAssistantService:
                 store_recommendation_version=store_recommendation_version,
             )
         return analysis
-
-    async def _auto_create_watch_rule(
-        self,
-        session: AsyncSession,
-        topic: str,
-        domain_id: str,
-        tick_count: int | None,
-        *,
-        session_id: str | None = None,
-        tenant_id: str | None = None,
-        preset_id: str | None = None,
-    ) -> WatchRule:
-        if session_id is not None:
-            existing_query = (
-                select(WatchRule)
-                .where(WatchRule.session_id == session_id)
-                .order_by(WatchRule.created_at.asc(), WatchRule.id.asc())
-            )
-        else:
-            existing_query = (
-                select(WatchRule)
-                .where(
-                    WatchRule.query == topic,
-                    WatchRule.domain_id == domain_id,
-                    WatchRule.tenant_id == tenant_id,
-                    WatchRule.preset_id == preset_id,
-                    WatchRule.session_id.is_(None),
-                )
-                .order_by(WatchRule.created_at.asc(), WatchRule.id.asc())
-            )
-        existing = (await session.scalars(existing_query.limit(1))).first()
-        if existing is not None:
-            await SourceStateService(get_settings()).seed_watch_rule_sources(
-                session,
-                watch_rule_id=existing.id,
-                query=existing.query,
-                source_types=existing.source_types or [],
-                tenant_id=existing.tenant_id,
-                preset_id=existing.preset_id,
-            )
-            return existing
-
-        now = utc_now()
-        rule = WatchRule(
-            session_id=session_id,
-            name=topic[:255],
-            domain_id=domain_id,
-            query=topic,
-            source_types=[
-                "google_news",
-                "reddit",
-                "hacker_news",
-                "github",
-                "rss",
-                "gdelt",
-                "aviation",
-            ],
-            poll_interval_minutes=60,
-            auto_trigger_simulation=True,
-            auto_trigger_debate=True,
-            change_significance_threshold="medium",
-            enabled=True,
-            tick_count=tick_count or 0,
-            tenant_id=tenant_id,
-            preset_id=preset_id,
-            next_poll_at=now,
-        )
-        session.add(rule)
-        await session.flush()
-        await SourceStateService(get_settings()).seed_watch_rule_sources(
-            session,
-            watch_rule_id=rule.id,
-            query=rule.query,
-            source_types=rule.source_types or [],
-            tenant_id=rule.tenant_id,
-            preset_id=rule.preset_id,
-        )
-        return rule
 
     async def create_session(
         self,
@@ -1058,25 +984,6 @@ class StrategicAssistantService:
             "verdict": debate.verdict.verdict,
             "confidence": debate.verdict.confidence,
             "minority_opinion": debate.verdict.minority_opinion,
-        }
-
-    def _monitoring_payload(self, watch_rule: WatchRule | None) -> dict[str, Any]:
-        if watch_rule is None:
-            return {"status": "inactive", "mode": "community_24h"}
-        created_at = self._normalize_datetime(watch_rule.created_at) or utc_now()
-        expires_at = created_at + timedelta(hours=24)
-        now = utc_now()
-        return {
-            "status": "active" if watch_rule.enabled and now < expires_at else "expired",
-            "mode": "community_24h",
-            "watch_rule_id": watch_rule.id,
-            "poll_interval_minutes": watch_rule.poll_interval_minutes,
-            "next_poll_at": watch_rule.next_poll_at.isoformat()
-            if watch_rule.next_poll_at is not None
-            else None,
-            "expires_at": expires_at.isoformat(),
-            "scheduled_updates": True,
-            "burst_updates": watch_rule.auto_trigger_debate,
         }
 
     def _brief_record_read(self, row: StrategicBriefRecord) -> StrategicBriefRecordRead:

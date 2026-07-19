@@ -28,6 +28,10 @@ from planagent.events.bus import EventBus
 from planagent.services.analysis import AutomatedAnalysisService
 from planagent.services.assistant import StrategicAssistantService
 from planagent.services.change_detection import ChangeDetectionService
+from planagent.services.community_monitoring import (
+    monitoring_window_expired,
+    next_poll_within_window,
+)
 from planagent.services.debate import DebateCommand, DebateService, DebateTarget
 from planagent.services.notification import NotificationService, NotificationPriority
 from planagent.services.openai_client import OpenAIService
@@ -916,23 +920,19 @@ class WatchIngestWorker(Worker):
         return "\n\n".join(parts)
 
     def _community_window_expired(self, rule: WatchRule) -> bool:
-        created_at = rule.created_at
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=utc_now().tzinfo)
-        return utc_now() - created_at >= timedelta(hours=24)
+        return monitoring_window_expired(rule.created_at)
 
     async def _mark_poll_success(self, session, rule: WatchRule) -> None:
         now = utc_now()
-        expires_at = rule.created_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=now.tzinfo)
-        expires_at = expires_at + timedelta(hours=24)
         rule.last_poll_at = now
         rule.last_poll_error = None
         rule.lease_owner = None
         rule.lease_expires_at = None
-        next_poll_at = now + timedelta(minutes=rule.poll_interval_minutes)
-        rule.next_poll_at = next_poll_at if next_poll_at < expires_at else None
+        rule.next_poll_at = next_poll_within_window(
+            rule.created_at,
+            rule.poll_interval_minutes,
+            now=now,
+        )
         if rule.next_poll_at is None:
             rule.enabled = False
         await session.commit()
@@ -995,11 +995,15 @@ class WatchIngestWorker(Worker):
 
     async def _mark_failure(self, session, rule_id: str, error: str) -> None:
         now = utc_now()
-        retry_at = now + timedelta(hours=1)
+        rule = await session.get(WatchRule, rule_id)
+        retry_at = (
+            next_poll_within_window(rule.created_at, 60, now=now) if rule is not None else None
+        )
         await session.execute(
             update(WatchRule)
             .where(WatchRule.id == rule_id)
             .values(
+                enabled=retry_at is not None,
                 lease_owner=None,
                 lease_expires_at=None,
                 last_poll_error=error,
