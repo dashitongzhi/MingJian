@@ -188,6 +188,33 @@ def test_pdf_export_limits_resources_after_html_normalization(
         service.md_to_pdf('<img src="data&#58;image/png;base64,QQ==">')
 
 
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "../outside.md",
+        "/tmp/outside.md",
+    ],
+)
+def test_export_file_writes_reject_paths_outside_output_dir(tmp_path, filename: str) -> None:
+    service = export_module.ExportService(output_dir=tmp_path / "exports")
+
+    with pytest.raises(ValueError, match="output directory"):
+        service.save_markdown("report", filename)
+
+
+def test_export_file_writes_reject_symlink_escape(tmp_path) -> None:
+    output_dir = tmp_path / "exports"
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    service = export_module.ExportService(output_dir=output_dir)
+    (output_dir / "linked").symlink_to(outside_dir, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="escapes the output directory"):
+        service.save_pdf(b"%PDF-test", "linked/report.pdf")
+
+    assert not (outside_dir / "report.pdf").exists()
+
+
 def test_pr_auto_review_does_not_interpolate_untrusted_step_outputs() -> None:
     workflow = (REPO_ROOT / ".github/workflows/pr-auto-review.yml").read_text(encoding="utf-8")
 

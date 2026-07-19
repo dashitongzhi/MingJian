@@ -39,6 +39,21 @@ MAX_PDF_OUTPUT_BYTES = DEFAULT_MAX_PDF_OUTPUT_BYTES
 PdfPolicyViolation = _PdfPolicyViolation
 
 
+class UnsafeExportPathError(ValueError):
+    pass
+
+
+def _safe_output_path(output_dir: Path, filename: str) -> Path:
+    base = output_dir.resolve()
+    candidate = Path(filename)
+    if candidate.is_absolute():
+        raise UnsafeExportPathError("Export filename must be relative to the output directory")
+    resolved = (base / candidate).resolve(strict=False)
+    if not resolved.is_relative_to(base) or resolved == base:
+        raise UnsafeExportPathError("Export filename escapes the output directory")
+    return resolved
+
+
 def safe_pdf_url_fetcher(
     url: str,
     timeout: int = 10,
@@ -417,7 +432,7 @@ class ExportService:
         html = await self.export_debate_html(debate_id, db)
         dest = Path(output_dir) if output_dir else self.output_dir
         dest.mkdir(parents=True, exist_ok=True)
-        filepath = dest / f"debate_{debate_id}.html"
+        filepath = _safe_output_path(dest, f"debate_{debate_id}.html")
         filepath.write_text(html, encoding="utf-8")
         return str(filepath.resolve())
 
@@ -425,13 +440,13 @@ class ExportService:
 
     def save_markdown(self, content: str, filename: str) -> Path:
         """Save markdown content to file."""
-        filepath = self.output_dir / filename
+        filepath = _safe_output_path(self.output_dir, filename)
         filepath.write_text(content, encoding="utf-8")
         return filepath
 
     def save_pdf(self, pdf_bytes: bytes, filename: str) -> Path:
         """Save PDF bytes to file."""
-        filepath = self.output_dir / filename
+        filepath = _safe_output_path(self.output_dir, filename)
         filepath.write_bytes(pdf_bytes)
         return filepath
 
