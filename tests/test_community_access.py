@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -9,7 +10,8 @@ from starlette.websockets import WebSocketDisconnect
 
 from planagent.api.access import CommunityAccessMiddleware
 from planagent.config import reset_settings_cache
-from planagent.db import reset_database_cache
+from planagent.db import get_database, reset_database_cache
+from planagent.domain.models import WatchRule, utc_now
 from planagent.main import create_app
 from planagent.services.auth import UserRole
 
@@ -658,11 +660,47 @@ def test_watch_trigger_redacts_internal_processing_error(
         assert created.status_code == 201
         response = client.post(f"/watch/rules/{created.json()['id']}/trigger")
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "failed"
-    assert response.json()["error"] == "Watch rule processing failed"
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Watch rule processing failed"
     assert "sk-secret" not in response.text
     assert "10.0.0.8" not in response.text
+
+
+def test_watch_trigger_rejects_rule_with_active_lease(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PLANAGENT_DATABASE_URL", _database_url(tmp_path / "watch-busy.db"))
+    monkeypatch.setenv("PLANAGENT_EVENT_BUS_BACKEND", "memory")
+    monkeypatch.delenv("PLANAGENT_REMOTE_ACCESS_ENABLED", raising=False)
+    reset_settings_cache()
+    reset_database_cache()
+
+    with TestClient(create_app()) as client:
+        created = client.post(
+            "/watch/rules",
+            json={
+                "name": "busy watch rule",
+                "domain_id": "corporate",
+                "query": "Track source changes",
+                "source_types": [],
+            },
+        )
+        assert created.status_code == 201
+        rule_id = created.json()["id"]
+
+        async def lease_rule() -> None:
+            async with get_database().session() as session:
+                rule = await session.get(WatchRule, rule_id)
+                assert rule is not None
+                rule.lease_owner = "watch-ingest-worker:active"
+                rule.lease_expires_at = utc_now() + timedelta(minutes=15)
+                await session.commit()
+
+        asyncio.run(lease_rule())
+        response = client.post(f"/watch/rules/{rule_id}/trigger")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Watch rule is already being processed"
 
 
 def test_all_business_routes_reject_anonymous_remote_access(

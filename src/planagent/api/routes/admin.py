@@ -82,7 +82,6 @@ from planagent.services.community_monitoring import (
     monitoring_window_expired,
     next_poll_within_window,
 )
-from planagent.services.debate import DebateCommand, DebateTarget
 from planagent.workers.graph import embed_query, search_nodes_sql
 from planagent.services.jarvis import JarvisOrchestrator, JarvisTask
 from planagent.services.watch_evidence import (
@@ -92,6 +91,12 @@ from planagent.services.watch_evidence import (
     record_watch_source_health,
     watch_recommendation_summary,
     watch_threshold_met,
+)
+from planagent.services.watch_execution import (
+    WatchExecutionLeaseLostError,
+    WatchExecutionLeaseManager,
+    WatchExecutionService,
+    new_watch_execution_owner,
 )
 
 logger = logging.getLogger(__name__)
@@ -553,9 +558,18 @@ async def trigger_watch_rule(
             detail="Community monitoring window expired after 24 hours",
         )
 
-    rule.poll_attempts += 1
-    rule.lease_owner = "api-trigger"
-    rule.lease_expires_at = now
+    execution_owner = new_watch_execution_owner("api-trigger")
+    lease_manager = WatchExecutionLeaseManager(get_settings())
+    failure_enabled = rule.enabled
+    failure_next_poll_at = rule.next_poll_at
+    if not await lease_manager.claim_manual(session, rule_id, execution_owner, now):
+        await session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Watch rule is already being processed",
+        )
+    await session.commit()
+    await session.refresh(rule)
 
     try:
         analysis_service = get_analysis_service(request)
@@ -581,63 +595,23 @@ async def trigger_watch_rule(
             ),
         )
 
-        simulation_run_id = None
-        debate_id = None
-
         threshold_met = watch_threshold_met(rule, qualified_sources)
-        if rule.auto_trigger_simulation and threshold_met:
-            sim_service = get_simulation_service(request)
+        action_result = await WatchExecutionService(
+            get_simulation_service(request),
+            get_debate_workflow(request),
+        ).run_actions(
+            session,
+            rule,
+            should_run=threshold_met,
+        )
+        simulation_run_id = action_result.simulation_run_id
+        debate_id = action_result.debate_id
 
-            if rule.domain_id == "military":
-                force_name = rule.query[:60]
-                force_id = rule.query[:40].lower().replace(" ", "-")
-                sim_payload = SimulationRunCreate(
-                    domain_id="military",
-                    force_id=force_id,
-                    force_name=force_name,
-                    theater="contested-theater",
-                    tick_count=rule.tick_count or None,
-                    tenant_id=rule.tenant_id,
-                    preset_id=rule.preset_id,
-                )
-            else:
-                company_name = rule.query[:60]
-                company_id = rule.query[:40].lower().replace(" ", "-")
-                sim_payload = SimulationRunCreate(
-                    domain_id="corporate",
-                    company_id=company_id,
-                    company_name=company_name,
-                    market="ai",
-                    tick_count=rule.tick_count or None,
-                    tenant_id=rule.tenant_id,
-                    preset_id=rule.preset_id,
-                )
-            sim_run = await sim_service.create_simulation_run(session, sim_payload)
-            simulation_run_id = sim_run.id
-
-            if rule.auto_trigger_debate and simulation_run_id is not None:
-                debate_workflow = get_debate_workflow(request)
-                debate = await debate_workflow.decide(
-                    session,
-                    DebateCommand(
-                        target=DebateTarget.run(simulation_run_id),
-                        topic=f"Should the posture for {rule.query} be adjusted?",
-                        trigger_type="pivot_decision",
-                    ),
-                )
-                debate_id = debate.id
-
-        rule.last_poll_at = now
-        rule.last_poll_error = None
-        rule.lease_owner = None
-        rule.lease_expires_at = None
-        rule.next_poll_at = next_poll_within_window(
+        next_poll_at = next_poll_within_window(
             rule.created_at,
             rule.poll_interval_minutes,
             now=now,
         )
-        if rule.next_poll_at is None:
-            rule.enabled = False
         recommendation_version_id = None
         if rule.session_id is not None:
             recommendation_service = RecommendationVersionService()
@@ -670,6 +644,14 @@ async def trigger_watch_rule(
                 debate_id=debate_id,
             )
             recommendation_version_id = recommendation.id
+        if not await lease_manager.complete(
+            session,
+            rule_id,
+            execution_owner,
+            completed_at=now,
+            next_poll_at=next_poll_at,
+        ):
+            raise WatchExecutionLeaseLostError(rule_id)
         await session.commit()
 
         return WatchRuleTriggerRead(
@@ -682,18 +664,34 @@ async def trigger_watch_rule(
             debate_id=debate_id,
             recommendation_version_id=recommendation_version_id,
         )
-    except Exception:
-        logger.exception("Watch rule processing failed: rule_id=%s", rule.id)
-        rule.last_poll_error = "Watch rule processing failed"
-        rule.lease_owner = None
-        rule.lease_expires_at = None
-        await session.commit()
-        return WatchRuleTriggerRead(
-            rule_id=rule.id,
-            rule_name=rule.name,
-            status="failed",
-            error=rule.last_poll_error,
+    except WatchExecutionLeaseLostError as exc:
+        await session.rollback()
+        logger.warning("Watch rule execution lease lost: rule_id=%s", rule_id)
+        raise HTTPException(
+            status_code=409,
+            detail="Watch rule execution lease was lost",
+        ) from exc
+    except Exception as exc:
+        await session.rollback()
+        logger.error(
+            "Watch rule processing failed: rule_id=%s error_type=%s",
+            rule_id,
+            type(exc).__name__,
         )
+        await lease_manager.fail(
+            session,
+            rule_id,
+            execution_owner,
+            error="Watch rule processing failed",
+            failed_at=utc_now(),
+            enabled=failure_enabled,
+            next_poll_at=failure_next_poll_at,
+        )
+        await session.commit()
+        raise HTTPException(
+            status_code=502,
+            detail="Watch rule processing failed",
+        ) from exc
 
 
 # ── Sources ──────────────────────────────────────────────────────────────────

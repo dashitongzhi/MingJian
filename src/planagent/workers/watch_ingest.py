@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
 from typing import Any
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import or_, select
 
 from planagent.config import Settings
 from planagent.db import get_database
-from planagent.domain.api import IngestRunCreate, SimulationRunCreate
+from planagent.domain.api import IngestRunCreate
 from planagent.domain.enums import EventTopic
 from planagent.domain.models import (
     RawSourceItem,
@@ -28,7 +27,7 @@ from planagent.services.community_monitoring import (
     monitoring_window_expired,
     next_poll_within_window,
 )
-from planagent.services.debate import DebateCommand, DebateService, DebateTarget
+from planagent.services.debate import DebateService
 from planagent.services.notification import NotificationService, NotificationPriority
 from planagent.services.openai_client import OpenAIService
 from planagent.services.pipeline import PhaseOnePipelineService
@@ -43,6 +42,12 @@ from planagent.services.watch_evidence import (
     record_watch_source_health,
     watch_source_score,
     watch_threshold_met,
+)
+from planagent.services.watch_execution import (
+    WatchExecutionLeaseLostError,
+    WatchExecutionLeaseManager,
+    WatchExecutionService,
+    new_watch_execution_owner,
 )
 from planagent.simulation.rules import RuleRegistry
 from planagent.workers.base import Worker, WorkerDescription
@@ -71,7 +76,7 @@ class WatchIngestWorker(Worker):
         self.event_bus = event_bus
         self.openai_service = openai_service
         self.notification_service = notification_service
-        self.worker_instance_id = self.description.worker_id
+        self.worker_instance_id = new_watch_execution_owner(self.description.worker_id)
         self.analysis_service = AutomatedAnalysisService(settings, openai_service)
         self.pipeline_service = PhaseOnePipelineService(settings, event_bus, openai_service)
         self.simulation_service = SimulationService(
@@ -79,6 +84,11 @@ class WatchIngestWorker(Worker):
         )
         self.debate_service = DebateService(settings, event_bus, openai_service)
         self.debate_workflow = self.debate_service.workflow
+        self.watch_execution_service = WatchExecutionService(
+            self.simulation_service,
+            self.debate_workflow,
+        )
+        self.watch_execution_leases = WatchExecutionLeaseManager(settings)
         self.assistant_service = StrategicAssistantService(
             analysis_service=self.analysis_service,
             pipeline_service=self.pipeline_service,
@@ -131,9 +141,13 @@ class WatchIngestWorker(Worker):
                         debate_runs += 1
                     if result.get("recommendation_version_id"):
                         recommendation_updates += 1
-                except Exception:
+                except Exception as exc:
                     await session.rollback()
-                    logger.exception("Watch rule polling failed: rule_id=%s", rule_id)
+                    logger.error(
+                        "Watch rule polling failed: rule_id=%s error_type=%s",
+                        rule_id,
+                        type(exc).__name__,
+                    )
                     await self._mark_failure(
                         session,
                         rule_id,
@@ -283,6 +297,8 @@ class WatchIngestWorker(Worker):
             evidence_impact,
             change_records,
         )
+        if full_refresh.get("refresh_failed") == "true":
+            raise RuntimeError("Strategic session refresh failed")
         if full_refresh:
             simulation_run_id = full_refresh.get("simulation_run_id") or None
             debate_id = full_refresh.get("debate_id") or None
@@ -292,46 +308,15 @@ class WatchIngestWorker(Worker):
             or significance == "high"
             or evidence_impact["should_refresh"]
         )
-        if rule.auto_trigger_simulation and threshold_met and not full_refresh:
-            if rule.domain_id == "military":
-                force_name = rule.query[:60]
-                force_id = rule.query[:40].lower().replace(" ", "-")
-                sim_payload = SimulationRunCreate(
-                    domain_id="military",
-                    force_id=force_id,
-                    force_name=force_name,
-                    theater="contested-theater",
-                    tick_count=rule.tick_count or None,
-                    tenant_id=rule.tenant_id,
-                    preset_id=rule.preset_id,
-                )
-            else:
-                company_name = rule.query[:60]
-                company_id = rule.query[:40].lower().replace(" ", "-")
-                sim_payload = SimulationRunCreate(
-                    domain_id="corporate",
-                    company_id=company_id,
-                    company_name=company_name,
-                    market="ai",
-                    tick_count=rule.tick_count or None,
-                    tenant_id=rule.tenant_id,
-                    preset_id=rule.preset_id,
-                )
-            sim_run = await self.simulation_service.create_simulation_run(session, sim_payload)
-            simulation_run_id = sim_run.id
-
-            if rule.auto_trigger_debate and simulation_run_id is not None:
-                debate = await self.debate_workflow.decide(
-                    session,
-                    DebateCommand(
-                        target=DebateTarget.run(simulation_run_id),
-                        topic=f"Should the posture for {rule.query} be adjusted?",
-                        trigger_type="pivot_decision",
-                        context=tuple(self._evidence_impact_context_lines(evidence_impact)),
-                        domain_id=rule.domain_id,
-                    ),
-                )
-                debate_id = debate.id
+        if not full_refresh:
+            action_result = await self.watch_execution_service.run_actions(
+                session,
+                rule,
+                should_run=threshold_met,
+                debate_context=tuple(self._evidence_impact_context_lines(evidence_impact)),
+            )
+            simulation_run_id = action_result.simulation_run_id
+            debate_id = action_result.debate_id
 
         recommendation_version_id = full_refresh.get("recommendation_version_id") or None
         if recommendation_version_id is None:
@@ -458,11 +443,11 @@ class WatchIngestWorker(Worker):
         except Exception as exc:
             await session.rollback()
             logger.warning(
-                "Failed to refresh strategic session for watch rule %s: %s",
+                "Failed to refresh strategic session for watch rule %s: error_type=%s",
                 rule.id,
-                f"{type(exc).__name__}: {' '.join(str(exc).split())[:300]}",
+                type(exc).__name__,
             )
-            return {}
+            return {"refresh_failed": "true"}
 
     async def _find_strategic_session(self, session, rule: WatchRule) -> StrategicSession | None:
         if rule.session_id is not None:
@@ -820,17 +805,20 @@ class WatchIngestWorker(Worker):
 
     async def _mark_poll_success(self, session, rule: WatchRule) -> None:
         now = utc_now()
-        rule.last_poll_at = now
-        rule.last_poll_error = None
-        rule.lease_owner = None
-        rule.lease_expires_at = None
-        rule.next_poll_at = next_poll_within_window(
+        next_poll_at = next_poll_within_window(
             rule.created_at,
             rule.poll_interval_minutes,
             now=now,
         )
-        if rule.next_poll_at is None:
-            rule.enabled = False
+        if not await self.watch_execution_leases.complete(
+            session,
+            rule.id,
+            self.worker_instance_id,
+            completed_at=now,
+            next_poll_at=next_poll_at,
+        ):
+            await session.rollback()
+            raise WatchExecutionLeaseLostError(rule.id)
         await session.commit()
 
     async def _claim_due_rules(
@@ -840,7 +828,6 @@ class WatchIngestWorker(Worker):
         worker_id: str,
     ) -> list[WatchRule]:
         now = utc_now()
-        lease_expires_at = now + timedelta(seconds=self.settings.worker_lease_seconds)
         candidate_ids = list(
             (
                 await session.scalars(
@@ -850,7 +837,7 @@ class WatchIngestWorker(Worker):
                         WatchRule.next_poll_at.is_not(None),
                         WatchRule.next_poll_at <= now,
                         or_(
-                            WatchRule.lease_expires_at.is_(None),
+                            WatchRule.lease_owner.is_(None),
                             WatchRule.lease_expires_at < now,
                         ),
                     )
@@ -861,32 +848,18 @@ class WatchIngestWorker(Worker):
         )
         claimed: list[WatchRule] = []
         for rule_id in candidate_ids:
-            result = await session.execute(
-                update(WatchRule)
-                .where(
-                    WatchRule.id == rule_id,
-                    WatchRule.enabled.is_(True),
-                    WatchRule.next_poll_at.is_not(None),
-                    WatchRule.next_poll_at <= now,
-                    or_(
-                        WatchRule.lease_expires_at.is_(None),
-                        WatchRule.lease_expires_at < now,
-                    ),
-                )
-                .values(
-                    lease_owner=worker_id,
-                    lease_expires_at=lease_expires_at,
-                    poll_attempts=WatchRule.poll_attempts + 1,
-                    last_poll_error=None,
-                    updated_at=now,
-                )
-            )
-            if result.rowcount:
+            if await self.watch_execution_leases.claim_due(
+                session,
+                rule_id,
+                worker_id,
+                now,
+            ):
                 rule = await session.get(WatchRule, rule_id)
                 if rule is not None:
                     claimed.append(rule)
             if len(claimed) >= limit:
                 break
+        await session.commit()
         return claimed
 
     async def _mark_failure(self, session, rule_id: str, error: str) -> None:
@@ -895,16 +868,13 @@ class WatchIngestWorker(Worker):
         retry_at = (
             next_poll_within_window(rule.created_at, 60, now=now) if rule is not None else None
         )
-        await session.execute(
-            update(WatchRule)
-            .where(WatchRule.id == rule_id)
-            .values(
-                enabled=retry_at is not None,
-                lease_owner=None,
-                lease_expires_at=None,
-                last_poll_error=error,
-                next_poll_at=retry_at,
-                updated_at=now,
-            )
+        await self.watch_execution_leases.fail(
+            session,
+            rule_id,
+            self.worker_instance_id,
+            error=error,
+            failed_at=now,
+            enabled=retry_at is not None,
+            next_poll_at=retry_at,
         )
         await session.commit()

@@ -30,7 +30,7 @@ export default function Monitoring() {
   const { data: platformTopology } = useApi(() => monitoringApi.getPlatformTopology())
   const { data: sourceChanges } = useApi(() => sourcesApi.listChanges())
   const { data: graph } = useApi(() => monitoringApi.getKnowledgeGraph())
-  const { execute: doTrigger, loading: triggering } = useApiAction((id: string) => monitoringApi.triggerWatchRule(id))
+  const { execute: doTrigger, loading: triggering, error: triggerError } = useApiAction((id: string) => monitoringApi.triggerWatchRule(id))
 
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorBanner message={error} onRetry={reload} />
@@ -79,6 +79,8 @@ export default function Monitoring() {
         <MetricCard label="知识图谱" value={`${nodeCount}/${edgeCount}`} hint="nodes / edges" icon={<Gauge className="h-5 w-5" />} tone="emerald" />
       </div>
 
+      {triggerError && <ErrorBanner message={triggerError} />}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.65fr]">
         <Card>
           <CardHeader title="监控规则" action={<span className="text-xs text-slate-500">{ruleList.length} rules</span>} />
@@ -102,7 +104,11 @@ export default function Monitoring() {
                   </div>
                   <button
                     disabled={triggering || !id}
-                    onClick={() => doTrigger(id).then(reload)}
+                    onClick={() => {
+                      void doTrigger(id).then((result) => {
+                        if (result !== null) reload()
+                      })
+                    }}
                     className="glass-button rounded-md px-3 py-1.5 text-xs disabled:opacity-50"
                   >
                     立即触发

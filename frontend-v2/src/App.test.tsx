@@ -48,6 +48,39 @@ describe('Community application routes', () => {
     expect(screen.getByText('24 小时窗口')).toBeInTheDocument()
   })
 
+  it('shows a watch trigger failure without reloading the rule list', async () => {
+    let ruleListRequests = 0
+    vi.spyOn(window, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/console') {
+        return new Response('<html></html>', { status: 200 })
+      }
+      if (url === '/api/watch/rules' && (init?.method ?? 'GET') === 'GET') {
+        ruleListRequests += 1
+        return jsonResponse([{ id: 'watch-1', name: 'Busy watch', enabled: true }])
+      }
+      if (url === '/api/watch/rules/watch-1/trigger') {
+        return new Response(JSON.stringify({ detail: 'Watch rule processing failed' }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url === '/api/source-changes') return jsonResponse([])
+      return jsonResponse({})
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/monitoring']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '立即触发' }))
+
+    expect(await screen.findByText(/Watch rule processing failed/)).toBeInTheDocument()
+    expect(ruleListRequests).toBe(1)
+  })
+
   it('keeps the active assistant session in the URL across selection and history navigation', async () => {
     vi.spyOn(window, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
