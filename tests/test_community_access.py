@@ -618,7 +618,7 @@ def test_expired_watch_rule_cannot_be_triggered_manually(
         rule = created.json()
         created_at = datetime.fromisoformat(rule["created_at"])
         monkeypatch.setattr(
-            "planagent.api.routes.admin.utc_now",
+            "planagent.api.routes.watch.utc_now",
             lambda: created_at + timedelta(hours=24),
         )
 
@@ -643,7 +643,7 @@ def test_watch_trigger_redacts_internal_processing_error(
             raise RuntimeError("provider token sk-secret at http://10.0.0.8:6379")
 
     monkeypatch.setattr(
-        "planagent.api.routes.admin.get_analysis_service",
+        "planagent.api.routes.watch.get_analysis_service",
         lambda request: FailingAnalysisService(),
     )
 
