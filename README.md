@@ -62,6 +62,8 @@ The product experience is closer to a strategic intelligence cockpit than a chat
 
 This repository is the **Community** edition. It must remain a strong open-source core: no Cloud subscription surfaces, no Enterprise-only governance code, and no proprietary mobile entry point unless explicitly published later.
 
+Community monitoring is intentionally capped at a **24-hour local window**. Long-running 7x24 monitoring belongs to Cloud or Enterprise and is not included in this repository.
+
 ---
 
 ## Decision Workflow
@@ -169,7 +171,7 @@ Inspired by **Mixture of Experts (MoE)** architecture: core agents are always ac
 | **Decision Traces** | ✅ Deterministic | ❌ Black box | ❌ Black box | ❌ Black box | ❌ Black box |
 | **Self-Repair** | ✅ Jarvis engine | ⚠️ Dynamic re-planning | ❌ None | ❌ None | ❌ None |
 | **Streaming Analysis** | ✅ Real-time | ✅ Real-time | ❌ Batch only | ❌ Batch only | ⚠️ Limited |
-| **Continuous Monitoring** | ✅ WatchRule + auto-update | ❌ One-shot tasks | ❌ None | ❌ None | ❌ None |
+| **Local Monitoring** | ✅ WatchRule, 24-hour window | ❌ One-shot tasks | ❌ None | ❌ None | ❌ None |
 | **Corporate Domain** | ✅ Full support | ❌ Generic | ⚠️ Generic | ❌ Generic | ❌ Generic |
 | **Military Domain** | ✅ Full support | ❌ Generic | ⚠️ Generic | ❌ Generic | ❌ Generic |
 | **Scenario Branching** | ✅ Beam-search | ❌ None | ❌ Manual | ❌ None | ❌ None |
